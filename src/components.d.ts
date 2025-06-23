@@ -20,6 +20,8 @@ export namespace Components {
          */
         "middle": string;
     }
+    interface OgmViewer {
+    }
 }
 declare global {
     interface HTMLMyComponentElement extends Components.MyComponent, HTMLStencilElement {
@@ -28,8 +30,15 @@ declare global {
         prototype: HTMLMyComponentElement;
         new (): HTMLMyComponentElement;
     };
+    interface HTMLOgmViewerElement extends Components.OgmViewer, HTMLStencilElement {
+    }
+    var HTMLOgmViewerElement: {
+        prototype: HTMLOgmViewerElement;
+        new (): HTMLOgmViewerElement;
+    };
     interface HTMLElementTagNameMap {
         "my-component": HTMLMyComponentElement;
+        "ogm-viewer": HTMLOgmViewerElement;
     }
 }
 declare namespace LocalJSX {
@@ -47,8 +56,11 @@ declare namespace LocalJSX {
          */
         "middle"?: string;
     }
+    interface OgmViewer {
+    }
     interface IntrinsicElements {
         "my-component": MyComponent;
+        "ogm-viewer": OgmViewer;
     }
 }
 export { LocalJSX as JSX };
@@ -56,6 +68,7 @@ declare module "@stencil/core" {
     export namespace JSX {
         interface IntrinsicElements {
             "my-component": LocalJSX.MyComponent & JSXBase.HTMLAttributes<HTMLMyComponentElement>;
+            "ogm-viewer": LocalJSX.OgmViewer & JSXBase.HTMLAttributes<HTMLOgmViewerElement>;
         }
     }
 }
