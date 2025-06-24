@@ -7,8 +7,42 @@
 
     <script type="module" src="/build/ogm-viewer.esm.js"></script>
     <script nomodule src="/build/ogm-viewer.js"></script>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100vw;
+        height: 100vh;
+        display: grid;
+        place-items: center;
+      }
+
+      ogm-viewer {
+        width: clamp(800px, 70vw, 1200px);
+      }
+    </style>
+
+    <script>
+      // Make buttons load that record URL into the viewer
+      document.addEventListener('DOMContentLoaded', () => {
+        const buttons = document.querySelectorAll('.buttons button');
+        const viewer = document.querySelector('ogm-viewer');
+
+        buttons.forEach(button => {
+          button.addEventListener('click', () => {
+            const recordUrl = button.getAttribute('data-record-url');
+            viewer.recordUrl = recordUrl;
+          });
+        });
+      });
+    </script>
   </head>
   <body>
+    <div class="buttons">
+      <button data-record-url="https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/refs/heads/main/metadata-aardvark/vx/572/wx/7854/geoblacklight.json">Clowns (Points, WMS)</button>
+      <button data-record-url="https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/refs/heads/main/metadata-aardvark/cz/128/vq/0535/geoblacklight.json">Uganda (Polygons, WMS)</button>
+    </div>
     <ogm-viewer></ogm-viewer>
   </body>
 </html>

@@ -21,6 +21,10 @@ export namespace Components {
         "middle": string;
     }
     interface OgmViewer {
+        /**
+          * URL to an OGM record in JSON format
+         */
+        "recordUrl": string;
     }
 }
 declare global {
@@ -57,6 +61,10 @@ declare namespace LocalJSX {
         "middle"?: string;
     }
     interface OgmViewer {
+        /**
+          * URL to an OGM record in JSON format
+         */
+        "recordUrl"?: string;
     }
     interface IntrinsicElements {
         "my-component": MyComponent;
