@@ -8,6 +8,10 @@ import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
 import { OgmRecord } from "./utils/record";
 export { OgmRecord } from "./utils/record";
 export namespace Components {
+    interface OgmMetadata {
+        "fieldNames": string[];
+        "record": OgmRecord;
+    }
     interface OgmSidebar {
         "record": OgmRecord;
     }
@@ -20,6 +24,12 @@ export interface OgmViewerCustomEvent<T> extends CustomEvent<T> {
     target: HTMLOgmViewerElement;
 }
 declare global {
+    interface HTMLOgmMetadataElement extends Components.OgmMetadata, HTMLStencilElement {
+    }
+    var HTMLOgmMetadataElement: {
+        prototype: HTMLOgmMetadataElement;
+        new (): HTMLOgmMetadataElement;
+    };
     interface HTMLOgmSidebarElement extends Components.OgmSidebar, HTMLStencilElement {
     }
     var HTMLOgmSidebarElement: {
@@ -45,11 +55,16 @@ declare global {
         new (): HTMLOgmViewerElement;
     };
     interface HTMLElementTagNameMap {
+        "ogm-metadata": HTMLOgmMetadataElement;
         "ogm-sidebar": HTMLOgmSidebarElement;
         "ogm-viewer": HTMLOgmViewerElement;
     }
 }
 declare namespace LocalJSX {
+    interface OgmMetadata {
+        "fieldNames"?: string[];
+        "record"?: OgmRecord;
+    }
     interface OgmSidebar {
         "record"?: OgmRecord;
     }
@@ -59,6 +74,7 @@ declare namespace LocalJSX {
         "recordUrl"?: string;
     }
     interface IntrinsicElements {
+        "ogm-metadata": OgmMetadata;
         "ogm-sidebar": OgmSidebar;
         "ogm-viewer": OgmViewer;
     }
@@ -67,6 +83,7 @@ export { LocalJSX as JSX };
 declare module "@stencil/core" {
     export namespace JSX {
         interface IntrinsicElements {
+            "ogm-metadata": LocalJSX.OgmMetadata & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;
             "ogm-sidebar": LocalJSX.OgmSidebar & JSXBase.HTMLAttributes<HTMLOgmSidebarElement>;
             "ogm-viewer": LocalJSX.OgmViewer & JSXBase.HTMLAttributes<HTMLOgmViewerElement>;
         }

@@ -1,5 +1,5 @@
-import { ENVELOPE_REGEX } from "./utils";
-import { LngLatBounds } from "maplibre-gl";
+import { ENVELOPE_REGEX } from './utils';
+import { LngLatBounds } from 'maplibre-gl';
 
 /**
  * Schema for GeoBlacklight. See https://opengeometadata.github.io/aardvark/aardvarkMetadata.html for more details.
@@ -49,6 +49,53 @@ export interface GeoBlacklightSchemaAardvark {
   gbl_georeferenced_b?: boolean;
   [k: string]: unknown;
 }
+
+/**
+ * These are used to map the keys in the record to more user-friendly names.
+ */
+export const OGM_FIELD_NAMES = {
+  id: 'ID',
+  title: 'Title',
+  resourceClass: 'Resource Class',
+  accessRights: 'Access Rights',
+  mdVersion: 'Metadata Version',
+  references: 'References',
+  identifier: 'Identifier',
+  wxsIdentifier: 'WxS Identifier',
+  alternativeTitles: 'Alternative Title',
+  description: 'Description',
+  language: 'Language',
+  displayNotes: 'Display Notes',
+  creators: 'Creator',
+  publishers: 'Publisher',
+  provider: 'Provider',
+  resourceType: 'Resource Type',
+  themes: 'Theme',
+  keywords: 'Keywords',
+  temporal: 'Temporal',
+  issued: 'Date Issued',
+  indexYear: 'Index Year',
+  dateRange: 'Date Range',
+  spatial: 'Spatial Coverage',
+  geometry: 'Geometry',
+  bbox: 'Bounding Box',
+  centroid: 'Centroid',
+  relations: 'Relation',
+  memberOf: 'Member Of',
+  isPartOf: 'Is Part Of',
+  source: 'Source',
+  isVersionOf: 'Is Version Of',
+  replaces: 'Replaces',
+  isReplacedBy: 'Is Replaced By',
+  rights: 'Rights',
+  rightsHolder: 'Rights Holder',
+  license: 'License',
+  fileSize: 'File Size',
+  mdModified: 'Modified',
+  suppressed: 'Suppressed',
+  georeferenced: 'Georeferenced',
+  subjects: 'Subject',
+};
 
 /**
  * Class for representing an OGM Aardvark record parsed from JSON data.

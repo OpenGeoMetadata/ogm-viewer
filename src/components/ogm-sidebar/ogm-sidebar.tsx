@@ -52,38 +52,25 @@ export class OgmSidebar {
             <sl-tab slot="nav" panel="rights">
               <sl-icon name="c-circle" label="Rights"></sl-icon>
             </sl-tab>
+            <sl-tab slot="nav" panel="links">
+              <sl-icon name="link-45deg" label="Links"></sl-icon>
+            </sl-tab>
             <sl-tab-panel name="information">
               <div class="panel-header">About this item</div>
               <div class="panel-content">
-                {this.record && (
-                  <dl class="record-details">
-                    <dt>Title</dt>
-                    <dd>{this.record.title}</dd>
-                    <dt>Description</dt>
-                    <dd>{this.record.description}</dd>
-                    <dt>Publisher</dt>
-                    {this.record.publishers.forEach(publisher => (
-                      <dd key={publisher}>{publisher}</dd>
-                    ))}
-                    <dt>WxS Identifier</dt>
-                    <dd>{this.record.wxsIdentifier}</dd>
-                  </dl>
-                )}
+                <ogm-metadata record={this.record} fieldNames={['title', 'alternativeTitles', 'description', 'resourceClass', 'resourceType', 'themes', 'subjects', 'spatial', 'issued', 'publishers']} />
               </div>
             </sl-tab-panel>
             <sl-tab-panel name="rights">
               <div class="panel-header">Rights</div>
               <div class="panel-content">
-                {this.record && (
-                  <dl class="record-details">
-                    <dt>Access Rights</dt>
-                    <dd>{this.record.accessRights}</dd>
-                    <dt>License</dt>
-                    {this.record.license && this.record.license.map(license => <dd key={license}>{license}</dd>)}
-                    <dt>Rights Holder</dt>
-                    {this.record.rightsHolder && this.record.rightsHolder.map(holder => <dd key={holder}>{holder}</dd>)}
-                  </dl>
-                )}
+                <ogm-metadata record={this.record} fieldNames={['accessRights', 'license', 'rightsHolder']} />
+              </div>
+            </sl-tab-panel>
+            <sl-tab-panel name="links">
+              <div class="panel-header">Links</div>
+              <div class="panel-content">
+                
               </div>
             </sl-tab-panel>
           </sl-tab-group>

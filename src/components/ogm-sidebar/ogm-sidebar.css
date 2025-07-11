@@ -44,20 +44,3 @@ sl-tab-panel .panel-header {
 sl-tab-panel .panel-content {
   padding: var(--sl-spacing-medium);
 }
-
-/* Metadata display */
-.record-details {
-  margin: 0;
-  word-wrap: break-word;
-  line-height: var(--sl-line-height-dense);
-}
-
-.record-details dt {
-  margin: 0 0 var(--sl-spacing-x-small) 0;
-  font-weight: var(--sl-font-weight-bold);
-  font-size: var(--sl-font-size-small);
-}
-
-.record-details dd {
-  margin: 0 0 var(--sl-spacing-medium) 0;
-}

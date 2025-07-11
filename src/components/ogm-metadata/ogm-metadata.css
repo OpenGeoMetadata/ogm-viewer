@@ -1,0 +1,21 @@
+@import '~@shoelace-style/shoelace/dist/themes/light.css';
+
+/* Metadata display */
+.record-details {
+  margin: 0;
+  word-wrap: break-word;
+  line-height: var(--sl-line-height-dense);
+}
+
+.record-details .field + .field {
+  margin: var(--sl-spacing-medium) 0 0 0;
+}
+
+.record-details dt {
+  font-weight: var(--sl-font-weight-bold);
+  font-size: var(--sl-font-size-small);
+}
+
+.record-details dd {
+  margin: var(--sl-spacing-x-small) 0 0 0;
+}
