@@ -5,69 +5,61 @@
  * It contains typing information for all components that exist in this project.
  */
 import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
+import { OgmRecord } from "./utils/record";
+export { OgmRecord } from "./utils/record";
 export namespace Components {
-    interface MyComponent {
-        /**
-          * The first name
-         */
-        "first": string;
-        /**
-          * The last name
-         */
-        "last": string;
-        /**
-          * The middle name
-         */
-        "middle": string;
+    interface OgmSidebar {
+        "record": OgmRecord;
     }
     interface OgmViewer {
-        /**
-          * URL to an OGM record in JSON format
-         */
         "recordUrl": string;
     }
 }
+export interface OgmViewerCustomEvent<T> extends CustomEvent<T> {
+    detail: T;
+    target: HTMLOgmViewerElement;
+}
 declare global {
-    interface HTMLMyComponentElement extends Components.MyComponent, HTMLStencilElement {
+    interface HTMLOgmSidebarElement extends Components.OgmSidebar, HTMLStencilElement {
     }
-    var HTMLMyComponentElement: {
-        prototype: HTMLMyComponentElement;
-        new (): HTMLMyComponentElement;
+    var HTMLOgmSidebarElement: {
+        prototype: HTMLOgmSidebarElement;
+        new (): HTMLOgmSidebarElement;
     };
+    interface HTMLOgmViewerElementEventMap {
+        "recordLoaded": OgmRecord;
+        "sidebarToggled": boolean;
+    }
     interface HTMLOgmViewerElement extends Components.OgmViewer, HTMLStencilElement {
+        addEventListener<K extends keyof HTMLOgmViewerElementEventMap>(type: K, listener: (this: HTMLOgmViewerElement, ev: OgmViewerCustomEvent<HTMLOgmViewerElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLOgmViewerElementEventMap>(type: K, listener: (this: HTMLOgmViewerElement, ev: OgmViewerCustomEvent<HTMLOgmViewerElementEventMap[K]>) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
     }
     var HTMLOgmViewerElement: {
         prototype: HTMLOgmViewerElement;
         new (): HTMLOgmViewerElement;
     };
     interface HTMLElementTagNameMap {
-        "my-component": HTMLMyComponentElement;
+        "ogm-sidebar": HTMLOgmSidebarElement;
         "ogm-viewer": HTMLOgmViewerElement;
     }
 }
 declare namespace LocalJSX {
-    interface MyComponent {
-        /**
-          * The first name
-         */
-        "first"?: string;
-        /**
-          * The last name
-         */
-        "last"?: string;
-        /**
-          * The middle name
-         */
-        "middle"?: string;
+    interface OgmSidebar {
+        "record"?: OgmRecord;
     }
     interface OgmViewer {
-        /**
-          * URL to an OGM record in JSON format
-         */
+        "onRecordLoaded"?: (event: OgmViewerCustomEvent<OgmRecord>) => void;
+        "onSidebarToggled"?: (event: OgmViewerCustomEvent<boolean>) => void;
         "recordUrl"?: string;
     }
     interface IntrinsicElements {
-        "my-component": MyComponent;
+        "ogm-sidebar": OgmSidebar;
         "ogm-viewer": OgmViewer;
     }
 }
@@ -75,7 +67,7 @@ export { LocalJSX as JSX };
 declare module "@stencil/core" {
     export namespace JSX {
         interface IntrinsicElements {
-            "my-component": LocalJSX.MyComponent & JSXBase.HTMLAttributes<HTMLMyComponentElement>;
+            "ogm-sidebar": LocalJSX.OgmSidebar & JSXBase.HTMLAttributes<HTMLOgmSidebarElement>;
             "ogm-viewer": LocalJSX.OgmViewer & JSXBase.HTMLAttributes<HTMLOgmViewerElement>;
         }
     }

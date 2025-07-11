@@ -1,22 +1,52 @@
 @import '~maplibre-gl/dist/maplibre-gl.css';
+@import '~@shoelace-style/shoelace/dist/themes/light.css';
+
+:host {
+  --stanford-cardinal-red: #8f1414;
+  --accent-color: var(--sl-color-primary-500);
+  /* --accent-color: var(--stanford-cardinal-red); */
+}
 
 .container {
   display: block;
-  border: 2px solid #ccc;
+  position: relative;
+  font-family: var(--sl-font-sans);
+  border: var(--sl-panel-border-width) solid var(--sl-panel-border-color);
+}
+
+.map-container {
+  position: relative;
+}
+
+.menubar {
+  display: flex;
+  align-items: center;
+  padding: var(--sl-spacing-x-small);
+  background-color: var(--sl-panel-background-color);
+  border-top: calc(var(--sl-panel-border-width) * 2) solid var(--accent-color);
+  border-bottom: var(--sl-panel-border-width) solid var(--sl-panel-border-color);
+
+  /* shadow above map and sidebar */
+  position: relative;
+  z-index: 701;
+  box-shadow: 0 2px 6px 0px var(--sl-overlay-background-color);
 }
 
 .title {
-  font-size: 1.5rem;
-  padding: .25rem;
+  font-size: var(--sl-font-size-large);
 }
 
-.metadata {
-  max-height: 300px;
-  overflow: scroll;
+.menu-button {
+  font-size: var(--sl-font-size-x-large);
+  margin-right: var(--sl-spacing-x-small);
 }
 
 #map {
   width: 100%;
   height: 100%;
   position: relative;
+}
+
+canvas {
+  cursor: crosshair;
 }

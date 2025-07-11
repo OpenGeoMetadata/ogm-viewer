@@ -1,0 +1,63 @@
+@import '~@shoelace-style/shoelace/dist/themes/light.css';
+
+/* No inherent padding to sidebar */
+sl-drawer::part(body) {
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* Fixed tabs on the left side of the sidebar */
+sl-tab-group::part(nav) {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-right: var(--sl-panel-border-width) solid var(--sl-panel-border-color);
+}
+
+/* Prevent tabs from overlapping their content panels */
+sl-tab-group::part(body) {
+  margin-left: 2.8rem; /* width of the tab nav */
+}
+
+/* Tabs have large icons, small padding */
+sl-tab::part(base) {
+  padding: var(--sl-spacing-small);
+}
+
+sl-tab sl-icon {
+  font-size: var(--sl-font-size-large);
+}
+
+/* Tab content with header */
+sl-tab-panel::part(base) {
+  padding: 0;
+  margin: 0;
+}
+
+sl-tab-panel .panel-header {
+  padding: var(--sl-spacing-medium);
+  background: var(--sl-color-neutral-100);
+  font-size: var(--sl-font-size-medium);
+  font-weight: var(--sl-font-weight-light);
+}
+
+sl-tab-panel .panel-content {
+  padding: var(--sl-spacing-medium);
+}
+
+/* Metadata display */
+.record-details {
+  margin: 0;
+  word-wrap: break-word;
+  line-height: var(--sl-line-height-dense);
+}
+
+.record-details dt {
+  margin: 0 0 var(--sl-spacing-x-small) 0;
+  font-weight: var(--sl-font-weight-bold);
+  font-size: var(--sl-font-size-small);
+}
+
+.record-details dd {
+  margin: 0 0 var(--sl-spacing-medium) 0;
+}

@@ -1,5 +1,9 @@
-import { Component, Element, Prop, Watch, State, h } from '@stencil/core';
+import { Component, Element, Prop, Watch, State, Event, EventEmitter, h } from '@stencil/core';
 import { Map } from 'maplibre-gl';
+
+import '@shoelace-style/shoelace/dist/components/icon-button/icon-button.js';
+import '@shoelace-style/shoelace/dist/components/tooltip/tooltip.js';
+
 import { OgmRecord } from '../../utils/record';
 
 @Component({
@@ -8,14 +12,11 @@ import { OgmRecord } from '../../utils/record';
   shadow: true,
 })
 export class OgmViewer {
-  /** Reference to the component's DOM element; needed to access the Map */
   @Element() el: HTMLElement;
-
-  /** URL to an OGM record in JSON format */
   @Prop() recordUrl: string;
-
-  /** The OGM record object, parsed from the recordUrl */
   @State() record: OgmRecord;
+  @Event() recordLoaded: EventEmitter<OgmRecord>;
+  @Event() sidebarToggled: EventEmitter<boolean>;
 
   private map: Map;
 
@@ -31,6 +32,10 @@ export class OgmViewer {
       zoom: 2,
     });
     this.map.once('load', this.mapDidLoad.bind(this));
+
+    // Set up the sidebar toggle button
+    const menuButton = this.el.shadowRoot.querySelector('.menu-button');
+    menuButton.addEventListener('click', () => { this.sidebarToggled.emit(true); });
   }
 
   mapDidLoad() {
@@ -47,6 +52,8 @@ export class OgmViewer {
 
   @Watch('record')
   addPreview() {
+    if (!this.record) return;
+
     const wmsUrl = this.record.references['http://www.opengis.net/def/serviceType/ogc/wms'];
     const bounds = this.record.getBounds();
 
@@ -85,10 +92,15 @@ export class OgmViewer {
   render() {
     return (
       <div class="container">
-        <div class="title">{this.record ? this.record.title : 'OpenGeoMetadata Viewer'}</div>
-        <div id="map" style={{ width: '100%', height: '400px' }}></div>
-        <div class="metadata">
-          <pre>{JSON.stringify(this.record, null, 2)}</pre>
+        <div class="menubar">
+          <sl-tooltip content="Open sidebar">
+            <sl-icon-button name="list" label="Open sidebar" class="menu-button" disabled={!this.record}></sl-icon-button>
+          </sl-tooltip>
+          <div class="title">{this.record && this.record.title}</div>
+        </div>
+        <div class="map-container">
+          <div id="map" style={{ width: '100%', height: '400px' }}></div>
+          <ogm-sidebar record={this.record}></ogm-sidebar>
         </div>
       </div>
     );
