@@ -35,6 +35,12 @@ export class OgmMetadata {
   // Render a single field with its value, using the field name mapping
   renderField(name: OgmMetadataField, value: OgmMetadataValue) {
     if (!value) return;
+
+    //Render References
+    if (name === 'references') {
+      return this.renderReferences(value as OgmMetadataValue);
+    }
+
     return (
       <div class={`field ${name}`}>
         <dt>{OGM_FIELD_NAMES[name]}</dt>
@@ -65,5 +71,36 @@ export class OgmMetadata {
         <dl class="record-details">{this.renderMetadata(record)}</dl>
       </Host>
     );
+  }
+
+  // References is a special field, needs some careful handling
+  renderReferences(value: OgmMetadataValue) {
+    if (value['http://schema.org/downloadUrl']) {
+      let downloadUrl = value['http://schema.org/downloadUrl'];
+      if (typeof downloadUrl === 'string') {
+        return (
+          <div class={`field references`}>
+            <dt>Download</dt>
+            <dd>
+              <a href={downloadUrl}>Original file</a>
+            </dd>
+          </div>
+        );
+      } else if (Array.isArray(downloadUrl)) {
+        let multipleDownloads = downloadUrl.map(value => {
+          return (
+            <dd>
+              <a href={value.url}>{value.label}</a>
+            </dd>
+          );
+        });
+        return (
+          <div class={`field references`}>
+            <dt>Downloads</dt>
+            {multipleDownloads}
+          </div>
+        );
+      }
+    }
   }
 }

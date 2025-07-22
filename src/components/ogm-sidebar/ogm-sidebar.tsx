@@ -72,7 +72,9 @@ export class OgmSidebar {
             </sl-tab-panel>
             <sl-tab-panel name="links">
               <div class="panel-header">Links</div>
-              <div class="panel-content"></div>
+              <div class="panel-content">  
+                <ogm-metadata record={this.record} fieldNames={['references']} />         
+              </div>
             </sl-tab-panel>
           </sl-tab-group>
         </sl-drawer>
