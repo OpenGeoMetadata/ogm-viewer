@@ -15,9 +15,9 @@ export const config: Config = {
         {
           src: '../node_modules/@shoelace-style/shoelace/dist/assets/icons',
           dest: 'assets/icons',
-          warn: true
-        }
-      ]
+          warn: true,
+        },
+      ],
     },
     {
       type: 'docs-readme',
@@ -29,12 +29,12 @@ export const config: Config = {
         {
           src: '../node_modules/@shoelace-style/shoelace/dist/assets/icons',
           dest: 'assets/icons',
-          warn: true
-        }
-      ]
+          warn: true,
+        },
+      ],
     },
   ],
   testing: {
-    browserHeadless: "shell",
+    browserHeadless: 'shell',
   },
 };

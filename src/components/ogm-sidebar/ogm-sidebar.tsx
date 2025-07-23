@@ -58,7 +58,10 @@ export class OgmSidebar {
             <sl-tab-panel name="information">
               <div class="panel-header">About this item</div>
               <div class="panel-content">
-                <ogm-metadata record={this.record} fieldNames={['title', 'alternativeTitles', 'description', 'resourceClass', 'resourceType', 'themes', 'subjects', 'spatial', 'issued', 'publishers']} />
+                <ogm-metadata
+                  record={this.record}
+                  fieldNames={['title', 'alternativeTitles', 'description', 'resourceClass', 'resourceType', 'themes', 'subjects', 'spatial', 'issued', 'publishers']}
+                />
               </div>
             </sl-tab-panel>
             <sl-tab-panel name="rights">
@@ -69,9 +72,7 @@ export class OgmSidebar {
             </sl-tab-panel>
             <sl-tab-panel name="links">
               <div class="panel-header">Links</div>
-              <div class="panel-content">
-                
-              </div>
+              <div class="panel-content"></div>
             </sl-tab-panel>
           </sl-tab-group>
         </sl-drawer>
