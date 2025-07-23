@@ -35,7 +35,9 @@ export class OgmViewer {
 
     // Set up the sidebar toggle button
     const menuButton = this.el.shadowRoot.querySelector('.menu-button');
-    menuButton.addEventListener('click', () => { this.sidebarToggled.emit(true); });
+    menuButton.addEventListener('click', () => {
+      this.sidebarToggled.emit(true);
+    });
   }
 
   mapDidLoad() {
