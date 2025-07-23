@@ -1,14 +1,12 @@
-import { Component, Host, Element, Prop, h, Listen } from '@stencil/core';
+import { Component, Element, h, Host, Listen, Prop } from '@stencil/core';
 
-import '@shoelace-style/shoelace/dist/components/icon/icon.js';
-import '@shoelace-style/shoelace/dist/components/drawer/drawer.js';
-import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
-import '@shoelace-style/shoelace/dist/components/tab/tab.js';
-import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
+import SlDrawer from '@shoelace-style/shoelace/dist/components/drawer/drawer.js';
+import Icon from '@shoelace-style/shoelace/dist/components/icon/icon.js';
+import SlTabGroup from '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
+import SlTabPanel from '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
+import SlTab from '@shoelace-style/shoelace/dist/components/tab/tab.js';
 
 import type { OgmRecord } from '../../utils/record';
-import type SlDrawer from '@shoelace-style/shoelace/dist/components/drawer/drawer.js';
-import type SlTabGroup from '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
 
 @Component({
   tag: 'ogm-sidebar',
@@ -69,9 +67,7 @@ export class OgmSidebar {
             </sl-tab-panel>
             <sl-tab-panel name="links">
               <div class="panel-header">Links</div>
-              <div class="panel-content">
-                
-              </div>
+              <div class="panel-content"></div>
             </sl-tab-panel>
           </sl-tab-group>
         </sl-drawer>
