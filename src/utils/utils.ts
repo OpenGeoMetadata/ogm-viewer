@@ -1,9 +1,6 @@
 import { setBasePath } from '@shoelace-style/shoelace/dist/utilities/base-path.js';
 import { getAssetPath } from '@stencil/core';
 
-// Regular expression to match ENVELOPE syntax in bbox strings
-export const ENVELOPE_REGEX = /^ENVELOPE\((?<west>[^,]+),(?<east>[^,]+),(?<north>[^,]+),(?<south>[^,]+)\)$/;
-
 // Utility to set the base path for assets so that e.g. icon images are loaded
 export const setAssetBasePath = () => {
   // Points to the top-level package directory, corresponding to src/ in this repo
