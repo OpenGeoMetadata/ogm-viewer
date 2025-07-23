@@ -56,20 +56,19 @@ export interface GeoBlacklightSchemaAardvark {
 export const OGM_FIELD_NAMES = {
   id: 'ID',
   title: 'Title',
+  description: 'Description',
+  resourceType: 'Resource Type',
   resourceClass: 'Resource Class',
   accessRights: 'Access Rights',
-  mdVersion: 'Metadata Version',
   references: 'References',
   identifier: 'Identifier',
   wxsIdentifier: 'WxS Identifier',
   alternativeTitles: 'Alternative Title',
-  description: 'Description',
   language: 'Language',
   displayNotes: 'Display Notes',
   creators: 'Creator',
   publishers: 'Publisher',
   provider: 'Provider',
-  resourceType: 'Resource Type',
   themes: 'Theme',
   keywords: 'Keywords',
   temporal: 'Temporal',
@@ -95,6 +94,7 @@ export const OGM_FIELD_NAMES = {
   suppressed: 'Suppressed',
   georeferenced: 'Georeferenced',
   subjects: 'Subject',
+  mdVersion: 'Metadata Version',
 };
 
 /**
@@ -106,7 +106,7 @@ export class OgmRecord {
   title: string;
   resourceClass: string[];
   accessRights: string;
-  mdVersion: 'Aardvark';
+  mdVersion = 'Aardvark';
 
   // Optional
   references: Record<string, string | Record<string, string>[]>;
@@ -183,7 +183,7 @@ export class OgmRecord {
     this.centroid = data.dcat_centroid;
 
     // Parse references from JSON string
-    this.references = JSON.parse(data.dct_references_s);
+    if (data.dct_references_s) this.references = JSON.parse(data.dct_references_s);
   }
 
   // Convert ENVELOPE syntax to LngLatBounds

@@ -6,6 +6,8 @@ import { OGM_FIELD_NAMES } from '../../utils/record';
 type OgmMetadataField = keyof typeof OGM_FIELD_NAMES;
 type OgmMetadataValue = OgmRecord[OgmMetadataField];
 
+const DEFAULT_FIELD_NAMES = Object.keys(OGM_FIELD_NAMES) as OgmMetadataField[];
+
 @Component({
   tag: 'ogm-metadata',
   styleUrl: 'ogm-metadata.css',
@@ -15,6 +17,13 @@ export class OgmMetadata {
   @Prop() record: OgmRecord;
   @Prop() fieldNames: string[];
   @State() filteredRecord: OgmRecord;
+
+  // Fields in the provided record that match the fieldNames prop, if provided
+  // Otherwise, use all fields in the record that match our schema
+  get availableFields(): OgmMetadataField[] {
+    if (!this.fieldNames) return DEFAULT_FIELD_NAMES;
+    return this.fieldNames.filter(field => field in this.record) as OgmMetadataField[];
+  }
 
   // Render all fields in the provided partial record
   renderMetadata(record: Partial<OgmRecord>) {
@@ -44,9 +53,8 @@ export class OgmMetadata {
     // If no record is provided, do not render anything
     if (!this.record) return;
 
-    // Filter the record to only include fields specified in fieldNames prop
-    const availableFields = this.fieldNames.filter(field => field in this.record) as OgmMetadataField[];
-    const record: Partial<OgmRecord> = availableFields.reduce((filteredRecord, field) => {
+    // Filter the record to only include available fields
+    const record: Partial<OgmRecord> = this.availableFields.reduce((filteredRecord, field) => {
       filteredRecord[field] = this.record[field];
       return filteredRecord;
     }, {});
