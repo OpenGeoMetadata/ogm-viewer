@@ -1,5 +1,7 @@
-import { ENVELOPE_REGEX } from './utils';
 import { LngLatBounds } from 'maplibre-gl';
+
+// Regular expression to match ENVELOPE syntax in bbox strings
+export const ENVELOPE_REGEX = /^ENVELOPE\((?<west>[^,]+),(?<east>[^,]+),(?<north>[^,]+),(?<south>[^,]+)\)$/;
 
 /**
  * Schema for GeoBlacklight. See https://opengeometadata.github.io/aardvark/aardvarkMetadata.html for more details.
