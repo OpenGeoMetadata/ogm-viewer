@@ -14,14 +14,12 @@ export const config: Config = {
       copy: [
         {
           src: '../node_modules/@shoelace-style/shoelace/dist/assets/icons',
-          dest: 'assets/icons',
+          dest: 'dist/assets/icons',
           warn: true,
         },
       ],
     },
-    {
-      type: 'docs-readme',
-    },
+    // This target is used only for the development live server.
     {
       type: 'www',
       serviceWorker: null, // disable service workers
