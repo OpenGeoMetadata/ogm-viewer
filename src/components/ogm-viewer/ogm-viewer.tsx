@@ -5,6 +5,10 @@ import '@shoelace-style/shoelace/dist/components/icon-button/icon-button.js';
 import '@shoelace-style/shoelace/dist/components/tooltip/tooltip.js';
 
 import { OgmRecord } from '../../utils/record';
+import { setAssetBasePath } from '../../utils/utils';
+
+// Only need to call this once, at the top level
+setAssetBasePath();
 
 @Component({
   tag: 'ogm-viewer',
