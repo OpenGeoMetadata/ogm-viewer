@@ -3,6 +3,7 @@ import { Map } from 'maplibre-gl';
 
 import { OgmRecord } from '../../utils/record';
 import { setAssetBasePath } from '../../utils/utils';
+import { getPreviewLayer } from '../../utils/sources';
 
 // Only need to call this once, at the top level
 setAssetBasePath();
@@ -20,6 +21,7 @@ export class OgmViewer {
   @Event() recordLoaded: EventEmitter<OgmRecord>;
 
   private map: Map;
+  private previewId: string;
 
   async componentWillLoad() {
     if (this.recordUrl) return await this.updateRecord();
@@ -36,10 +38,7 @@ export class OgmViewer {
   }
 
   mapDidLoad() {
-    // Add WMS layer if references contain a WMS URL
-    if (this.record && this.record.references['http://www.opengis.net/def/serviceType/ogc/wms']) {
-      this.addPreview();
-    }
+    this.addPreview();
   }
 
   // Sidebar emits this event when menu button is clicked
@@ -57,33 +56,24 @@ export class OgmViewer {
   addPreview() {
     if (!this.record || !this.map) return;
 
-    const wmsUrl = this.record.references.wms;
     const bounds = this.record.getBounds();
 
     this.clearPreview();
 
-    this.map.addSource('preview', {
-      type: 'raster',
-      tiles: [
-        `${wmsUrl}?service=WMS&request=GetMap&layers=${this.record.wxsIdentifier}&bbox={bbox-epsg-3857}&srs=EPSG%3A3857&width=256&height=256&format=image/png&transparent=true`,
-      ],
-      tileSize: 256,
-      attribution: this.record.publishers.join(', '),
-    });
-
-    this.map.addLayer({
-      id: 'preview',
-      type: 'raster',
-      source: 'preview',
-    });
+    const previewLayer = getPreviewLayer(this.record);
+    if (previewLayer) {
+      this.previewId = previewLayer.id;
+      this.map.addLayer(previewLayer);
+    }
 
     this.map.fitBounds(bounds, { padding: 20 });
   }
 
   // Remove the preview layer and source from the map
   clearPreview() {
-    if (this.map.getLayer('preview')) this.map.removeLayer('preview');
-    if (this.map.getSource('preview')) this.map.removeSource('preview');
+    if (!this.previewId) return;
+    this.map.removeLayer(this.previewId);
+    this.map.removeSource(this.previewId);
   }
 
   async fetchRecord(recordUrl: string): Promise<OgmRecord> {

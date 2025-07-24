@@ -190,6 +190,18 @@ export class OgmRecord {
     this.references = new References(data.dct_references_s || '{}');
   }
 
+  // String used for attribution of map layers. Uses, in order of preference:
+  // - rightsHolder(s)
+  // - publisher(s)
+  // - creator(s)
+  // - provider
+  get attribution() {
+    if (this.rightsHolder && this.rightsHolder.length > 0) return this.rightsHolder.join(', ');
+    if (this.publishers && this.publishers.length > 0) return this.publishers.join(', ');
+    if (this.creators && this.creators.length > 0) return this.creators.join(', ');
+    if (this.provider) return this.provider;
+  }
+
   // Convert ENVELOPE syntax to LngLatBounds
   getBounds() {
     // Nothing to do if no bbox in record
