@@ -171,7 +171,7 @@ describe('ogm-metadata', () => {
   });
 
   describe('with single download URL', () => {
-    it('renders a single download link', async () => {
+    it('renders a single download link using the format as label', async () => {
       const record = new OgmRecord({
         id: 'stanford-ff359cr8805',
         dct_title_s: 'Coho Salmon Watersheds: San Francisco Bay Area, California, 2011',
@@ -183,6 +183,7 @@ describe('ogm-metadata', () => {
         gbl_resourceClass_sm: ['Datasets'],
         dct_accessRights_s: 'Public',
         gbl_mdVersion_s: 'Aardvark',
+        dct_format_s: 'Shapefile',
         dct_references_s: JSON.stringify({
           'http://schema.org/downloadUrl': 'https://stacks.stanford.edu/object/vx572wx7854',
         }),
@@ -202,7 +203,7 @@ describe('ogm-metadata', () => {
               <div class="field downloads">
                 <dt>Downloads</dt>
                 <dd>
-                  <a href="https://stacks.stanford.edu/object/vx572wx7854">Object</a>
+                  <a href="https://stacks.stanford.edu/object/vx572wx7854">Shapefile</a>
                 </dd>
               </div>
             </div>

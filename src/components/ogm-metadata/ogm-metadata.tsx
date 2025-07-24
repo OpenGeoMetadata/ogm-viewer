@@ -55,7 +55,7 @@ export class OgmMetadata {
 
   // References is a special field with multiple parts
   private renderReferences() {
-    const downloadLinks = this.record.references.downloadLinks;
+    const downloadLinks = this.record.downloadLinks;
     const metadataLinks = this.record.references.metadataLinks;
     if (!downloadLinks.length && !metadataLinks.length) return;
 
