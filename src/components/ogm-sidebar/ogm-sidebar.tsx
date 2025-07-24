@@ -1,4 +1,4 @@
-import { Component, Element, h, Host, Listen, Prop } from '@stencil/core';
+import { Component, Element, h, Host, Prop } from '@stencil/core';
 
 import '@shoelace-style/shoelace/dist/components/drawer/drawer.js';
 import '@shoelace-style/shoelace/dist/components/icon/icon.js';
@@ -7,7 +7,6 @@ import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 import '@shoelace-style/shoelace/dist/components/tab/tab.js';
 
 import type { OgmRecord } from '../../utils/record';
-import type SlDrawer from '@shoelace-style/shoelace/dist/components/drawer/drawer.js';
 import type SlTabGroup from '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
 
 @Component({
@@ -18,13 +17,12 @@ import type SlTabGroup from '@shoelace-style/shoelace/dist/components/tab-group/
 export class OgmSidebar {
   @Element() el: HTMLElement;
   @Prop() record: OgmRecord;
+  @Prop() open: boolean = false;
 
-  private drawer: SlDrawer;
   private tabs: SlTabGroup;
 
-  // Find the drawer and tab group elements after the component is loaded
+  // Find the tab group element after the component is loaded
   componentDidLoad() {
-    this.drawer = this.el.shadowRoot.querySelector('sl-drawer');
     this.tabs = this.el.shadowRoot.querySelector('sl-tab-group');
   }
 
@@ -34,17 +32,15 @@ export class OgmSidebar {
     if (activeTab) return activeTab.getAttribute('panel');
   }
 
-  // Open/close the sidebar; if open and no active tab, show the info tab
-  @Listen('sidebarToggled', { target: 'window' })
-  toggleDrawer() {
-    this.drawer.open = !this.drawer.open;
-    if (this.drawer.open && !this.activeTabPanel) this.tabs.show('information');
+  // If open and no active tab, show the info tab
+  componentDidUpdate() {
+    if (this.open && !this.activeTabPanel) this.tabs.show('information');
   }
 
   render() {
     return (
       <Host>
-        <sl-drawer label="Sidebar" placement="start" class="sidebar" contained no-header>
+        <sl-drawer label="Sidebar" placement="start" class="sidebar" contained no-header open={this.open}>
           <sl-tab-group placement="start">
             <sl-tab slot="nav" panel="information">
               <sl-icon name="info-circle-fill" label="Information"></sl-icon>
