@@ -60,7 +60,7 @@ export class OgmViewer {
   addPreview() {
     if (!this.record) return;
 
-    const wmsUrl = this.record.references['http://www.opengis.net/def/serviceType/ogc/wms'];
+    const wmsUrl = this.record.references.wms;
     const bounds = this.record.getBounds();
 
     this.clearPreview();
