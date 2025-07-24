@@ -12,8 +12,12 @@
   box-shadow: 0 2px 6px 0px var(--sl-overlay-background-color);
 }
 
+/* Truncate long titles with an ellipsis */
 .title {
   font-size: var(--sl-font-size-large);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .menu-button {
