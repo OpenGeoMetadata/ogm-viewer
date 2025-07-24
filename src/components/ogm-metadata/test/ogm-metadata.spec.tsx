@@ -198,11 +198,13 @@ describe('ogm-metadata', () => {
       <ogm-metadata>
         <mock:shadow-root>
           <dl class="record-details">
-            <div class="field references">
-              <dt>Download</dt>
-              <dd>
-                <a href="https://stacks.stanford.edu/object/vx572wx7854">Original file</a>
-              </dd>
+            <div class="references">
+              <div class="field downloads">
+                <dt>Downloads</dt>
+                <dd>
+                  <a href="https://stacks.stanford.edu/object/vx572wx7854">Object</a>
+                </dd>
+              </div>
             </div>
           </dl>
         </mock:shadow-root>
@@ -242,14 +244,62 @@ describe('ogm-metadata', () => {
       <ogm-metadata>
         <mock:shadow-root>
           <dl class="record-details">
-            <div class="field references">
-              <dt>Downloads</dt>
-              <dd>
-                <a href="https://stacks.stanford.edu/object/vx572wx7854">Zipped object1</a>
-              </dd>
-              <dd>
-                <a href="https://stacks.stanford.edu/object/cz128vq0535">Zipped object2</a>
-              </dd>
+            <div class="references">
+              <div class="field downloads">
+                <dt>Downloads</dt>
+                <dd>
+                  <a href="https://stacks.stanford.edu/object/vx572wx7854">Zipped object1</a>
+                </dd>
+                <dd>
+                  <a href="https://stacks.stanford.edu/object/cz128vq0535">Zipped object2</a>
+                </dd>
+              </div>
+            </div>
+          </dl>
+        </mock:shadow-root>
+      </ogm-metadata>
+    `);
+    });
+  });
+
+  describe('with metadata links', () => {
+    it('renders metadata links', async () => {
+      const record = new OgmRecord({
+        id: 'stanford-ff359cr8805',
+        dct_title_s: 'Coho Salmon Watersheds: San Francisco Bay Area, California, 2011',
+        dct_description_sm: [
+          'This polygon shapefile depicts the Coho Salmon Priority Restoration Areas in the nine county San Francisco Bay Area Region, California, as defined by the National Oceanic and Atmospheric Administration (NOAA), National Marine Fisheries Service (NMFS), Southwest Region, North-Central California Coast Recovery Team.',
+        ],
+        gbl_resourceType_sm: ['Polygon data'],
+        gbl_resourceClass_sm: ['Datasets'],
+        dct_accessRights_s: 'Public',
+        gbl_mdVersion_s: 'Aardvark',
+        dct_references_s: JSON.stringify({
+          'http://www.opengis.net/cat/csw/csdgm': 'https://example.com/fgdc.xml',
+          'http://www.w3.org/1999/xhtml': 'https://example.com/metadata.html',
+        }),
+      });
+      const fieldNames = ['references'];
+
+      const page = await newSpecPage({
+        components: [OgmMetadata],
+        template: () => <ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>,
+      });
+
+      expect(page.root).toEqualHtml(`
+      <ogm-metadata>
+        <mock:shadow-root>
+          <dl class="record-details">
+            <div class="references">
+              <div class="field metadata">
+                <dt>Metadata</dt>
+                <dd>
+                  <a href="https://example.com/fgdc.xml">FGDC Metadata</a>
+                </dd>
+                <dd>
+                  <a href="https://example.com/metadata.html">HTML Metadata</a>
+                </dd>
+              </div>
             </div>
           </dl>
         </mock:shadow-root>

@@ -1,5 +1,7 @@
 import { LngLatBounds } from 'maplibre-gl';
 
+import { References } from './references';
+
 // Regular expression to match ENVELOPE syntax in bbox strings
 export const ENVELOPE_REGEX = /^ENVELOPE\((?<west>[^,]+),(?<east>[^,]+),(?<north>[^,]+),(?<south>[^,]+)\)$/;
 
@@ -111,7 +113,7 @@ export class OgmRecord {
   mdVersion = 'Aardvark';
 
   // Optional
-  references: Record<string, string | Record<string, string>[]>;
+  references: References;
   identifier?: string[];
   wxsIdentifier?: string;
   alternativeTitles?: string[];
@@ -185,7 +187,7 @@ export class OgmRecord {
     this.centroid = data.dcat_centroid;
 
     // Parse references from JSON string
-    if (data.dct_references_s) this.references = JSON.parse(data.dct_references_s);
+    this.references = new References(data.dct_references_s || '{}');
   }
 
   // Convert ENVELOPE syntax to LngLatBounds
