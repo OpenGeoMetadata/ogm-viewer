@@ -74,7 +74,7 @@ export class References {
     const fieldContents = this.references['http://schema.org/downloadUrl'];
     if (!fieldContents) return [];
     if (Array.isArray(fieldContents)) return fieldContents;
-    return [{ url: fieldContents, label: 'Object' }];
+    return [{ url: fieldContents, label: null }];
   }
 
   // List of metadata links with URL and label

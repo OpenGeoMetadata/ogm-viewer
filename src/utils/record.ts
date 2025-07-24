@@ -99,6 +99,7 @@ export const OGM_FIELD_NAMES = {
   georeferenced: 'Georeferenced',
   subjects: 'Subject',
   mdVersion: 'Metadata Version',
+  format: 'Format',
 };
 
 /**
@@ -149,6 +150,7 @@ export class OgmRecord {
   suppressed?: boolean;
   georeferenced?: boolean;
   subjects?: string[];
+  format?: string;
 
   constructor(data: GeoBlacklightSchemaAardvark) {
     if (data.gbl_mdVersion_s !== 'Aardvark') {
@@ -185,6 +187,7 @@ export class OgmRecord {
     this.geometry = data.locn_geometry;
     this.bbox = data.dcat_bbox;
     this.centroid = data.dcat_centroid;
+    this.format = data.dct_format_s;
 
     // Parse references from JSON string
     this.references = new References(data.dct_references_s || '{}');
@@ -192,14 +195,21 @@ export class OgmRecord {
 
   // String used for attribution of map layers. Uses, in order of preference:
   // - rightsHolder(s)
-  // - publisher(s)
   // - creator(s)
   // - provider
   get attribution() {
     if (this.rightsHolder && this.rightsHolder.length > 0) return this.rightsHolder.join(', ');
-    if (this.publishers && this.publishers.length > 0) return this.publishers.join(', ');
     if (this.creators && this.creators.length > 0) return this.creators.join(', ');
     if (this.provider) return this.provider;
+  }
+
+  // List of download links with URL and label
+  get downloadLinks() {
+    return this.references.downloadLinks.map(link => {
+      // If no label for download, use the format, falling back to 'Object'
+      if (!link.label) link.label = this.format || 'Object';
+      return link;
+    });
   }
 
   // Convert ENVELOPE syntax to LngLatBounds
