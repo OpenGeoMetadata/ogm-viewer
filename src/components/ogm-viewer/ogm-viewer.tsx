@@ -1,8 +1,5 @@
-import { Component, Element, Prop, Watch, State, Event, EventEmitter, h } from '@stencil/core';
+import { Component, Element, Prop, Watch, State, Event, Listen, EventEmitter, h } from '@stencil/core';
 import { Map } from 'maplibre-gl';
-
-import '@shoelace-style/shoelace/dist/components/icon-button/icon-button.js';
-import '@shoelace-style/shoelace/dist/components/tooltip/tooltip.js';
 
 import { OgmRecord } from '../../utils/record';
 import { setAssetBasePath } from '../../utils/utils';
@@ -18,14 +15,14 @@ setAssetBasePath();
 export class OgmViewer {
   @Element() el: HTMLElement;
   @Prop() recordUrl: string;
+  @State() sidebarOpen: boolean = false;
   @State() record: OgmRecord;
   @Event() recordLoaded: EventEmitter<OgmRecord>;
-  @Event() sidebarToggled: EventEmitter<boolean>;
 
   private map: Map;
 
   async componentWillLoad() {
-    if (this.recordUrl) return this.updateRecord();
+    if (this.recordUrl) return await this.updateRecord();
   }
 
   componentDidLoad() {
@@ -36,12 +33,6 @@ export class OgmViewer {
       zoom: 1,
     });
     this.map.once('load', this.mapDidLoad.bind(this));
-
-    // Set up the sidebar toggle button
-    const menuButton = this.el.shadowRoot.querySelector('.menu-button');
-    menuButton.addEventListener('click', () => {
-      this.sidebarToggled.emit(true);
-    });
   }
 
   mapDidLoad() {
@@ -51,14 +42,20 @@ export class OgmViewer {
     }
   }
 
+  // Sidebar emits this event when menu button is clicked
+  @Listen('sidebarToggled')
+  _toggleSidebar() {
+    this.sidebarOpen = !this.sidebarOpen;
+  }
+
   @Watch('recordUrl')
-  async updateRecord() {
+  private async updateRecord() {
     if (this.recordUrl) this.record = await this.fetchRecord(this.recordUrl);
   }
 
   @Watch('record')
   addPreview() {
-    if (!this.record) return;
+    if (!this.record || !this.map) return;
 
     const wmsUrl = this.record.references.wms;
     const bounds = this.record.getBounds();
@@ -98,15 +95,10 @@ export class OgmViewer {
   render() {
     return (
       <div class="container">
-        <div class="menubar">
-          <sl-tooltip content="Open sidebar">
-            <sl-icon-button name="list" label="Open sidebar" class="menu-button" disabled={!this.record}></sl-icon-button>
-          </sl-tooltip>
-          <div class="title">{this.record && this.record.title}</div>
-        </div>
+        <ogm-menubar record={this.record}></ogm-menubar>
         <div class="map-container">
-          <div id="map" style={{ width: '100%', height: '400px' }}></div>
-          <ogm-sidebar record={this.record}></ogm-sidebar>
+          <ogm-sidebar record={this.record} open={this.sidebarOpen}></ogm-sidebar>
+          <div id="map"></div>
         </div>
       </div>
     );

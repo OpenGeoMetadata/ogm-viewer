@@ -1,0 +1,22 @@
+.menubar {
+  display: flex;
+  align-items: center;
+  padding: var(--sl-spacing-x-small);
+  background-color: var(--sl-panel-background-color);
+  border-top: calc(var(--sl-panel-border-width) * 2) solid var(--accent-color);
+  border-bottom: var(--sl-panel-border-width) solid var(--sl-panel-border-color);
+
+  /* shadow above map and sidebar */
+  position: relative;
+  z-index: 701;
+  box-shadow: 0 2px 6px 0px var(--sl-overlay-background-color);
+}
+
+.title {
+  font-size: var(--sl-font-size-large);
+}
+
+.menu-button {
+  font-size: var(--sl-font-size-x-large);
+  margin-right: var(--sl-spacing-x-small);
+}
