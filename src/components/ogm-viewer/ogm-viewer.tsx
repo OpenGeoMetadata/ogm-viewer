@@ -38,6 +38,7 @@ export class OgmViewer {
       center: [0, 0],
       zoom: 1,
     });
+    this.map.addControl(new maplibregl.NavigationControl(), 'top-right');
     this.map.once('load', this.mapDidLoad.bind(this));
   }
 
