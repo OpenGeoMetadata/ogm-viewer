@@ -6,7 +6,9 @@ type LayerType = Exclude<AddLayerObject['type'], 'custom'>;
 
 // Given a record, generate a preview layer with embedded source for the map
 export const getPreviewLayer = (record: OgmRecord): AddLayerObject => {
-  const { id, source } = getRecordSource(record);
+  const bestSource = getRecordSource(record);
+  if (!bestSource) return;
+  const { id, source } = bestSource;
   const type = getLayerType(record, source);
   return { id, type, source }; // The ID always matches the record & source ID
 };
@@ -23,8 +25,29 @@ const getRecordSource = (record: OgmRecord): AddSourceObject => {
   return [
     // Methods that create new sources are added here in order of preference
     // The first one that returns a valid source will be used
+    recordCOGSource(record),
     recordWMSSource(record),
   ].find(Boolean);
+};
+
+// Given a record, create a MapLibre COG source, if possible
+const recordCOGSource = (record: OgmRecord): AddSourceObject => {
+  // If no COG reference, nothing to do
+  const cogUrl = record.references.cog;
+  if (!cogUrl) return null;
+
+  // Add the cog:// protocol that will tell MapLibre to use the plugin
+  const url = `cog://${cogUrl}`;
+
+  return {
+    id: record.id,
+    source: {
+      type: 'raster',
+      url,
+      tileSize: 256,
+      attribution: record.attribution,
+    },
+  };
 };
 
 // Given a record, create a MapLibre WMS source, if possible
