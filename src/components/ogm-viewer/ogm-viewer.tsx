@@ -31,9 +31,9 @@ export class OgmViewer {
   componentDidLoad() {
     this.map = new Map({
       container: this.el.shadowRoot.getElementById('map'),
-      style: 'https://demotiles.maplibre.org/style.json',
+      style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
       center: [0, 0],
-      zoom: 2,
+      zoom: 1,
     });
     this.map.once('load', this.mapDidLoad.bind(this));
 
