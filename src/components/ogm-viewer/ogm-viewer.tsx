@@ -1,5 +1,6 @@
 import { Component, Element, Prop, Watch, State, Event, Listen, EventEmitter, h } from '@stencil/core';
-import { Map } from 'maplibre-gl';
+import maplibregl from 'maplibre-gl';
+import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
 
 import { OgmRecord } from '../../utils/record';
 import { setAssetBasePath } from '../../utils/utils';
@@ -7,6 +8,9 @@ import { getPreviewLayer } from '../../utils/sources';
 
 // Only need to call this once, at the top level
 setAssetBasePath();
+
+// Add support for COG protocol
+maplibregl.addProtocol('cog', cogProtocol);
 
 @Component({
   tag: 'ogm-viewer',
@@ -20,7 +24,7 @@ export class OgmViewer {
   @State() record: OgmRecord;
   @Event() recordLoaded: EventEmitter<OgmRecord>;
 
-  private map: Map;
+  private map: maplibregl.Map;
   private previewId: string;
 
   async componentWillLoad() {
@@ -28,7 +32,7 @@ export class OgmViewer {
   }
 
   componentDidLoad() {
-    this.map = new Map({
+    this.map = new maplibregl.Map({
       container: this.el.shadowRoot.getElementById('map'),
       style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
       center: [0, 0],

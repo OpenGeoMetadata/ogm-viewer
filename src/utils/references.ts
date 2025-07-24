@@ -64,6 +64,11 @@ export class References {
     return this.references['http://www.opengis.net/def/serviceType/ogc/wms'];
   }
 
+  // The cloud-optimized GeoTIFF URL, if any
+  get cog() {
+    return this.references['https://github.com/cogeotiff/cog-spec'];
+  }
+
   // List of download links with URL and label
   get downloadLinks(): LabelledLinks {
     const fieldContents = this.references['http://schema.org/downloadUrl'];
