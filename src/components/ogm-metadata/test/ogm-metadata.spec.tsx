@@ -212,7 +212,7 @@ describe('ogm-metadata', () => {
   });
 
   describe('with multiple download URL', () => {
-    it('renders a multiple download links', async () => {
+    it('renders multiple download links', async () => {
       const record = new OgmRecord({
         id: 'stanford-ff359cr8805',
         dct_title_s: 'Coho Salmon Watersheds: San Francisco Bay Area, California, 2011',
