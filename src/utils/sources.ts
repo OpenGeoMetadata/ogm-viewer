@@ -20,10 +20,16 @@ export const getPreviewLayer = (record: OgmRecord): AddLayerObject => {
 };
 
 // Map source types to layer types using information from the record
-const getLayerType = (_record: OgmRecord, source: SourceSpecification): LayerType => {
-  // For now, we only support raster layers
+const getLayerType = (record: OgmRecord, source: SourceSpecification): LayerType => {
+  // Raster is easy...
   if (source.type === 'raster') return 'raster';
-  else throw new Error(`Unsupported source type: ${source.type}`);
+
+  // For Vector sources, we need to check the resource type to style it
+  if (source.type === 'geojson') {
+    if (record.resourceType?.includes('Point data')) return 'circle';
+    if (record.resourceType?.includes('Line data')) return 'line';
+    return 'fill'; // Default to fill for polygons
+  } else throw new Error(`Unsupported source type: ${source.type}`);
 };
 
 // Given a record, choose the best source used to preview it on the map
@@ -31,6 +37,7 @@ const getRecordSource = (record: OgmRecord): AddSourceObject => {
   return [
     // Methods that create new sources are added here in order of preference
     // The first one that returns a valid source will be used
+    recordGeoJSONSource(record),
     recordCOGSource(record),
     recordWMSSource(record),
     recordTMSSource(record),
@@ -68,6 +75,23 @@ const recordTMSSource = (record: OgmRecord): AddSourceObject => {
       tiles: [tmsUrl],
       scheme: 'tms',
       tileSize: 256,
+      attribution: record.attribution,
+    },
+  };
+};
+
+// Given a record, create a MapLibre GeoJSON source, if possible
+const recordGeoJSONSource = (record: OgmRecord): AddSourceObject => {
+  // If no GeoJSON reference, nothing to do
+  const geojsonUrl = record.references.geojson;
+  if (!geojsonUrl) return null;
+
+  // Create a GeoJSON source with the record's ID and attribution
+  return {
+    id: record.id,
+    source: {
+      type: 'geojson',
+      data: geojsonUrl,
       attribution: record.attribution,
     },
   };

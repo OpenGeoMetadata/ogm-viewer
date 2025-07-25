@@ -80,6 +80,11 @@ export class References {
     return this.references['https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames'];
   }
 
+  // The GeoJSON URL, if any
+  get geojson() {
+    return this.references['http://geojson.org/geojson-spec.html'];
+  }
+
   // List of download links with URL and label
   get downloadLinks(): LabelledLinks {
     const fieldContents = this.references['http://schema.org/downloadUrl'];

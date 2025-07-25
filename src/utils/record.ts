@@ -166,6 +166,7 @@ export class OgmRecord {
     this.wxsIdentifier = data.gbl_wxsIdentifier_s;
     this.subjects = data.dct_subject_sm;
     this.resourceClass = data.gbl_resourceClass_sm;
+    this.resourceType = data.gbl_resourceType_sm;
     this.rights = data.dct_rights_sm;
     this.rightsHolder = data.dct_rightsHolder_sm;
     this.license = data.dct_license_sm;
