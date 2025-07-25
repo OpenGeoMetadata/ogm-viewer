@@ -11,11 +11,16 @@
     <style>
       body {
         margin: 0;
-        padding: 0;
+        padding: 1rem;
         width: 100vw;
         height: 100vh;
-        display: grid;
-        place-items: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      h1 {
+        margin: 1rem auto;
       }
 
       .inputs {
@@ -23,10 +28,12 @@
         flex-direction: column;
         align-items: center;
         gap: 1rem;
+        margin: 1rem;
       }
 
       ogm-viewer {
         width: clamp(800px, 70vw, 1000px);
+        margin: 1rem auto;
       }
     </style>
 
@@ -53,6 +60,8 @@
     </script>
   </head>
   <body>
+    <h1>OpenGeoMetadata Viewer Preview</h1>
+    <p>Click a button to load a record.</p>
     <div class="inputs">
       <div class="buttons">
         <button data-record-url="https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/refs/heads/main/metadata-aardvark/vx/572/wx/7854/geoblacklight.json">
@@ -78,7 +87,7 @@
       </div>
       <div class="record-input">
         <label for="recordUrl">Enter an OpenGeoMetadata record URL:</label>
-        <input type="text" id="recordUrl" size="100" placeholder="https://example.com/record.json" />
+        <input type="text" id="recordUrl" size="80" placeholder="https://example.com/record.json" />
         <button id="loadRecord">Load Record</button>
       </div>
     </div>
