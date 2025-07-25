@@ -69,6 +69,10 @@ export class References {
     return this.references['https://github.com/cogeotiff/cog-spec'];
   }
 
+  get indexMap() {
+    return this.references['https://openindexmaps.org'];
+  }
+
   // List of download links with URL and label
   get downloadLinks(): LabelledLinks {
     const fieldContents = this.references['http://schema.org/downloadUrl'];
