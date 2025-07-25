@@ -22,6 +22,29 @@ describe('ogm-metadata', () => {
     });
   });
 
+  describe('with a record with empty fields', () => {
+    it('renders only non-empty fields', async () => {
+      const record = new OgmRecord({
+        id: 'stanford-ff359cr8805',
+        dct_title_s: 'Coho Salmon Watersheds: San Francisco Bay Area, California, 2011',
+        dct_description_sm: [],
+        dct_format_s: '',
+        gbl_resourceType_sm: ['Polygon data'],
+        gbl_resourceClass_sm: ['Datasets'],
+        dct_accessRights_s: 'Public',
+        gbl_mdVersion_s: 'Aardvark',
+      });
+
+      const page = await newSpecPage({
+        components: [OgmMetadata],
+        template: () => <ogm-metadata record={record}></ogm-metadata>,
+      });
+
+      expect(page.body.innerHTML).not.toContain('<dt>Description</dt>');
+      expect(page.body.innerHTML).not.toContain('<dt>Format</dt>');
+    });
+  });
+
   describe('with a record and no fieldNames', () => {
     it('renders all provided fields', async () => {
       const record = new OgmRecord({

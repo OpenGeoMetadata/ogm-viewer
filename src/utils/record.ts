@@ -75,7 +75,7 @@ export const OGM_FIELD_NAMES = {
   provider: 'Provider',
   themes: 'Theme',
   keywords: 'Keywords',
-  temporal: 'Temporal',
+  temporal: 'Temporal Coverage',
   issued: 'Date Issued',
   indexYear: 'Index Year',
   dateRange: 'Date Range',
