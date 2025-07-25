@@ -106,6 +106,9 @@ export const OGM_FIELD_NAMES = {
  * Class for representing an OGM Aardvark record parsed from JSON data.
  */
 export class OgmRecord {
+  // Original JSON data
+  json: GeoBlacklightSchemaAardvark;
+
   // Required
   id: string;
   title: string;
@@ -192,6 +195,9 @@ export class OgmRecord {
 
     // Parse references from JSON string
     this.references = new References(data.dct_references_s || '{}');
+
+    // Save original JSON data
+    this.json = data;
   }
 
   // String used for attribution of map layers. Uses, in order of preference:

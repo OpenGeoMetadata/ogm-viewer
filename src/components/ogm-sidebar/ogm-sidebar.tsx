@@ -78,7 +78,7 @@ export class OgmSidebar {
             <sl-tab-panel name="record">
               <div class="panel-header">Record view</div>
               <div class="panel-content">
-                <div class="record-json">{JSON.stringify(this.record, null, 2)}</div>
+                <div class="record-json">{JSON.stringify(this.record?.json, null, 2)}</div>
               </div>
             </sl-tab-panel>
           </sl-tab-group>
