@@ -1,18 +1,18 @@
 // Map reference URI keys to user-friendly names
 export const REFERENCE_URIS = {
   'https://github.com/cogeotiff/cog-spec': 'COG',
-  'http://lccn.loc.gov/sh85035852': 'Data Dictionary',
+  'http://lccn.loc.gov/sh85035852': 'Data dictionary',
   'http://schema.org/downloadUrl': 'Download URL',
   'http://geojson.org/geojson-spec.html': 'GeoJSON',
-  'http://schema.org/url': 'Layer Description',
-  'http://iiif.io/api/image': 'IIIF Image',
-  'http://iiif.io/api/presentation#manifest': 'IIIF Manifest',
-  'http://www.opengis.net/cat/csw/csdgm': 'FGDC Metadata',
-  'http://www.w3.org/1999/xhtml': 'HTML Metadata',
-  'http://www.isotc211.org/schemas/2005/gmd/': 'ISO 19139 Metadata',
-  'http://www.loc.gov/mods/v3': 'MODS Metadata',
+  'http://schema.org/url': 'Layer description',
+  'http://iiif.io/api/image': 'IIIF image',
+  'http://iiif.io/api/presentation#manifest': 'IIIF manifest',
+  'http://www.opengis.net/cat/csw/csdgm': 'FGDC metadata',
+  'http://www.w3.org/1999/xhtml': 'HTML metadata',
+  'http://www.isotc211.org/schemas/2005/gmd/': 'ISO 19139 metadata',
+  'http://www.loc.gov/mods/v3': 'MODS metadata',
   'https://oembed.com': 'OEmbed',
-  'https://openindexmaps.org': 'Index Map',
+  'https://openindexmaps.org': 'Index map',
   'https://github.com/protomaps/PMTiles': 'PMTiles',
   'https://wiki.osgeo.org/wiki/Tile_Map_Service_Specification': 'TMS',
   'https://github.com/mapbox/tilejson-spec': 'TileJSON',
@@ -20,7 +20,7 @@ export const REFERENCE_URIS = {
   'http://www.opengis.net/def/serviceType/ogc/wms': 'WMS',
   'http://www.opengis.net/def/serviceType/ogc/wfs': 'WFS',
   'http://www.opengis.net/def/serviceType/ogc/wmts': 'WMTS',
-  'https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames': 'XYZ Tiles',
+  'https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames': 'XYZ tiles',
 } as const;
 
 // Specific types for URI values and their friendly names
@@ -29,6 +29,7 @@ export type ReferenceName = (typeof REFERENCE_URIS)[ReferenceURI];
 
 // References that are links to metadata
 const METADATA_REFERENCE_URIS = [
+  'http://schema.org/url',
   'http://www.opengis.net/cat/csw/csdgm',
   'http://www.w3.org/1999/xhtml',
   'http://www.isotc211.org/schemas/2005/gmd/',
