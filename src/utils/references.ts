@@ -75,6 +75,11 @@ export class References {
     return this.references['https://wiki.osgeo.org/wiki/Tile_Map_Service_Specification'];
   }
 
+  // The XYZ tiles URL, if any
+  get xyz() {
+    return this.references['https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames'];
+  }
+
   // List of download links with URL and label
   get downloadLinks(): LabelledLinks {
     const fieldContents = this.references['http://schema.org/downloadUrl'];
