@@ -318,10 +318,10 @@ describe('ogm-metadata', () => {
               <div class="field metadata">
                 <dt>Metadata</dt>
                 <dd>
-                  <a href="https://example.com/fgdc.xml">FGDC Metadata</a>
+                  <a href="https://example.com/fgdc.xml">FGDC metadata</a>
                 </dd>
                 <dd>
-                  <a href="https://example.com/metadata.html">HTML Metadata</a>
+                  <a href="https://example.com/metadata.html">HTML metadata</a>
                 </dd>
               </div>
             </div>
