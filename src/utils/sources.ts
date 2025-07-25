@@ -15,8 +15,8 @@ export const getPreviewLayer = (record: OgmRecord): AddLayerObject => {
 
 // Map source types to layer types using information from the record
 const getLayerType = (_record: OgmRecord, source: SourceSpecification): LayerType => {
-  // For now, we only support raster layers
   if (source.type === 'raster') return 'raster';
+  else if (source.type === 'geojson') return 'fill';
   else throw new Error(`Unsupported source type: ${source.type}`);
 };
 
@@ -26,6 +26,7 @@ const getRecordSource = (record: OgmRecord): AddSourceObject => {
     // Methods that create new sources are added here in order of preference
     // The first one that returns a valid source will be used
     recordCOGSource(record),
+    recordOpenIndexMapsSource(record),
     recordWMSSource(record),
   ].find(Boolean);
 };
@@ -97,5 +98,19 @@ const createWMSSource = ({
     tiles: [tilesUrlString],
     tileSize,
     attribution,
+  };
+};
+
+const recordOpenIndexMapsSource = (record: OgmRecord): AddSourceObject => {
+  const indexMapUrl = record.references.indexMap;
+  if (!indexMapUrl) return null;
+
+  return {
+    id: record.id,
+    source: {
+      type: 'geojson',
+      data: indexMapUrl,
+      attribution: record.attribution,
+    },
   };
 };
