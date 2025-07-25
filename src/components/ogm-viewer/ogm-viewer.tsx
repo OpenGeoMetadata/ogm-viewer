@@ -38,12 +38,12 @@ export class OgmViewer {
       center: [0, 0],
       zoom: 1,
     });
-    this.map.addControl(new maplibregl.NavigationControl(), 'top-right');
-    this.map.once('load', this.mapDidLoad.bind(this));
-  }
 
-  mapDidLoad() {
-    this.addPreview();
+    this.map.addControl(new maplibregl.NavigationControl());
+    this.map.addControl(new maplibregl.FullscreenControl());
+    this.map.addControl(new maplibregl.GlobeControl());
+
+    this.map.once('load', this.addPreview.bind(this));
   }
 
   // Sidebar emits this event when menu button is clicked
