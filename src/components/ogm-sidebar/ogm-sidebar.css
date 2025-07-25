@@ -43,4 +43,12 @@ sl-tab-panel .panel-header {
 
 sl-tab-panel .panel-content {
   padding: var(--sl-spacing-medium);
+  overflow-x: hidden;
+}
+
+.record-json {
+  font-family: var(--sl-font-mono);
+  font-size: var(--sl-font-size-x-small);
+  white-space: pre-wrap;
+  word-break: break-all;
 }
