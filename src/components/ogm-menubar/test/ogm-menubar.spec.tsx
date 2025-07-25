@@ -32,7 +32,7 @@ describe('ogm-menubar', () => {
         html: `<ogm-menubar></ogm-menubar>`,
       });
 
-      expect(page.body).not.toContain('div class="menubar">');
+      expect(page.body).not.toContain('<div class="menubar">');
     });
   });
 });

@@ -36,7 +36,11 @@ export class OgmMetadata {
 
   // Render a single field with its value, using the field name mapping
   private renderField(name: OgmMetadataField, value: OgmMetadataValue) {
+    // Skip empty fields
     if (!value) return;
+    if (Array.isArray(value) && !value.length) return;
+
+    // Handle special case for references
     if (name === 'references') return this.renderReferences();
 
     return (
