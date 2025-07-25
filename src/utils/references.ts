@@ -70,6 +70,11 @@ export class References {
     return this.references['https://github.com/cogeotiff/cog-spec'];
   }
 
+  // The TMS URL, if any
+  get tms() {
+    return this.references['https://wiki.osgeo.org/wiki/Tile_Map_Service_Specification'];
+  }
+
   // List of download links with URL and label
   get downloadLinks(): LabelledLinks {
     const fieldContents = this.references['http://schema.org/downloadUrl'];

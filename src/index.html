@@ -18,6 +18,13 @@
         place-items: center;
       }
 
+      .inputs {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+      }
+
       ogm-viewer {
         width: clamp(800px, 70vw, 1000px);
       }
@@ -28,6 +35,8 @@
       document.addEventListener('DOMContentLoaded', () => {
         const buttons = document.querySelectorAll('.buttons button');
         const viewer = document.querySelector('ogm-viewer');
+        const recordInput = document.getElementById('recordUrl');
+        const loadRecordButton = document.getElementById('loadRecord');
 
         buttons.forEach(button => {
           button.addEventListener('click', () => {
@@ -35,25 +44,40 @@
             viewer.recordUrl = recordUrl;
           });
         });
+
+        loadRecordButton.addEventListener('click', () => {
+          const recordUrl = recordInput.value.trim();
+          if (recordUrl) viewer.recordUrl = recordUrl;
+        });
       });
     </script>
   </head>
   <body>
-    <div class="buttons">
-      <button data-record-url="https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/refs/heads/main/metadata-aardvark/vx/572/wx/7854/geoblacklight.json">
-        Clowns (Points, WMS)
-      </button>
-      <button data-record-url="https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/refs/heads/main/metadata-aardvark/cz/128/vq/0535/geoblacklight.json">
-        Uganda (Polygons, WMS)
-      </button>
-      <button data-record-url="https://raw.githubusercontent.com/geoblacklight/geoblacklight/refs/heads/main/spec/fixtures/solr_documents/public_cog_princeton.json">
-        Tibet (Scanned Map, COG)
-      </button>
-      <button
-        data-record-url="https://raw.githubusercontent.com/OpenGeoMetadata/edu.utexas/2540a551f4f8d32fb4599e3baa0625cb40a88b21/metadata-aardvark/utlmaps-5b6ad9fb-2635-4622-b539-4b59b6ac9322.json"
-      >
-        Sanborn (Scanned Map, COG)
-      </button>
+    <div class="inputs">
+      <div class="buttons">
+        <button data-record-url="https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/refs/heads/main/metadata-aardvark/vx/572/wx/7854/geoblacklight.json">
+          Clowns (Points, WMS)
+        </button>
+        <button data-record-url="https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/refs/heads/main/metadata-aardvark/cz/128/vq/0535/geoblacklight.json">
+          Uganda (Polygons, WMS)
+        </button>
+        <button data-record-url="https://raw.githubusercontent.com/geoblacklight/geoblacklight/refs/heads/main/spec/fixtures/solr_documents/public_cog_princeton.json">
+          Tibet (Scanned Map, COG)
+        </button>
+        <button
+          data-record-url="https://raw.githubusercontent.com/OpenGeoMetadata/edu.utexas/2540a551f4f8d32fb4599e3baa0625cb40a88b21/metadata-aardvark/utlmaps-5b6ad9fb-2635-4622-b539-4b59b6ac9322.json"
+        >
+          Sanborn (Scanned Map, COG)
+        </button>
+        <button data-record-url="https://raw.githubusercontent.com/geoblacklight/geoblacklight/9f7dbb4c36dc0b8e88fb9be5282d7b1663858829/spec/fixtures/solr_documents/tms.json">
+          Ag Districts (TMS)
+        </button>
+      </div>
+      <div class="record-input">
+        <label for="recordUrl">Enter an OpenGeoMetadata record URL:</label>
+        <input type="text" id="recordUrl" size="100" placeholder="https://example.com/record.json" />
+        <button id="loadRecord">Load Record</button>
+      </div>
     </div>
     <ogm-viewer></ogm-viewer>
   </body>
