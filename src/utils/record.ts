@@ -188,6 +188,7 @@ export class OgmRecord {
     this.bbox = data.dcat_bbox;
     this.centroid = data.dcat_centroid;
     this.format = data.dct_format_s;
+    this.fileSize = data.gbl_fileSize_s;
 
     // Parse references from JSON string
     this.references = new References(data.dct_references_s || '{}');
@@ -207,7 +208,9 @@ export class OgmRecord {
   get downloadLinks() {
     return this.references.downloadLinks.map(link => {
       // If no label for download, use the format, falling back to 'Object'
+      // If file size is available, append it to the label
       if (!link.label) link.label = this.format || 'Object';
+      if (this.fileSize) link.label += ` (${this.fileSize})`;
       return link;
     });
   }
