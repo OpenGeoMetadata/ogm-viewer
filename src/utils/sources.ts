@@ -6,8 +6,14 @@ type LayerType = Exclude<AddLayerObject['type'], 'custom'>;
 
 // Given a record, generate a preview layer with embedded source for the map
 export const getPreviewLayer = (record: OgmRecord): AddLayerObject => {
+  // If nothing we can render from references, warn and bail out
   const bestSource = getRecordSource(record);
-  if (!bestSource) return;
+  if (!bestSource) {
+    console.warn(`No suitable preview source found for record ${record.id}`);
+    return;
+  }
+
+  // Generate a mapLibre layer object with embedded source
   const { id, source } = bestSource;
   const type = getLayerType(record, source);
   return { id, type, source }; // The ID always matches the record & source ID
@@ -27,7 +33,26 @@ const getRecordSource = (record: OgmRecord): AddSourceObject => {
     // The first one that returns a valid source will be used
     recordCOGSource(record),
     recordWMSSource(record),
+    recordTMSSource(record),
   ].find(Boolean);
+};
+
+// Given a record, create a MapLibre TMS source, if possible
+const recordTMSSource = (record: OgmRecord): AddSourceObject => {
+  // If no TMS reference, nothing to do
+  const tmsUrl = record.references.tms;
+  if (!tmsUrl) return null;
+
+  return {
+    id: record.id,
+    source: {
+      type: 'raster',
+      tiles: [tmsUrl],
+      scheme: 'tms', // Default is XYZ
+      tileSize: 256,
+      attribution: record.attribution,
+    },
+  };
 };
 
 // Given a record, create a MapLibre COG source, if possible
