@@ -34,7 +34,25 @@ const getRecordSource = (record: OgmRecord): AddSourceObject => {
     recordCOGSource(record),
     recordWMSSource(record),
     recordTMSSource(record),
+    recordXYZSource(record),
   ].find(Boolean);
+};
+
+const recordXYZSource = (record: OgmRecord): AddSourceObject => {
+  // If no XYZ reference, nothing to do
+  const xyzUrl = record.references.xyz;
+  if (!xyzUrl) return null;
+
+  return {
+    id: record.id,
+    source: {
+      type: 'raster',
+      tiles: [xyzUrl],
+      scheme: 'xyz',
+      tileSize: 256,
+      attribution: record.attribution,
+    },
+  };
 };
 
 // Given a record, create a MapLibre TMS source, if possible
@@ -48,7 +66,7 @@ const recordTMSSource = (record: OgmRecord): AddSourceObject => {
     source: {
       type: 'raster',
       tiles: [tmsUrl],
-      scheme: 'tms', // Default is XYZ
+      scheme: 'tms',
       tileSize: 256,
       attribution: record.attribution,
     },
