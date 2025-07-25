@@ -194,11 +194,11 @@ export class OgmRecord {
   }
 
   // String used for attribution of map layers. Uses, in order of preference:
-  // - rightsHolder(s)
+  // - publishers(s)
   // - creator(s)
   // - provider
   get attribution() {
-    if (this.rightsHolder && this.rightsHolder.length > 0) return this.rightsHolder.join(', ');
+    if (this.publishers && this.publishers.length > 0) return this.publishers.join(', ');
     if (this.creators && this.creators.length > 0) return this.creators.join(', ');
     if (this.provider) return this.provider;
   }
