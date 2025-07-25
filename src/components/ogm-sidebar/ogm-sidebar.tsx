@@ -51,6 +51,9 @@ export class OgmSidebar {
             <sl-tab slot="nav" panel="links">
               <sl-icon name="link-45deg" label="Links"></sl-icon>
             </sl-tab>
+            <sl-tab slot="nav" panel="record">
+              <sl-icon name="braces" label="Record"></sl-icon>
+            </sl-tab>
             <sl-tab-panel name="information">
               <div class="panel-header">About this item</div>
               <div class="panel-content">
@@ -70,6 +73,12 @@ export class OgmSidebar {
               <div class="panel-header">Links</div>
               <div class="panel-content">
                 <ogm-metadata record={this.record} fieldNames={['references']} />
+              </div>
+            </sl-tab-panel>
+            <sl-tab-panel name="record">
+              <div class="panel-header">Record view</div>
+              <div class="panel-content">
+                <div class="record-json">{JSON.stringify(this.record, null, 2)}</div>
               </div>
             </sl-tab-panel>
           </sl-tab-group>
