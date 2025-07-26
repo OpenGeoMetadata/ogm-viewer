@@ -30,6 +30,7 @@ import '@shoelace-style/shoelace/dist/components/tab/tab.js';
 export class OgmViewer {
   @Element() el: HTMLElement;
   @Prop() recordUrl: string;
+  @Prop() theme: 'light' | 'dark';
   @State() record: OgmRecord;
   @State() sidebarOpen: boolean = false;
   @State() loading: boolean = false;
@@ -38,13 +39,34 @@ export class OgmViewer {
   private previewId: string;
 
   async componentWillLoad() {
+    // If no theme provided, detect the user's system preference
+    if (!this.theme) {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      this.theme = prefersDark ? 'dark' : 'light';
+    }
+
+    // Fetch the record if a URL is provided
     if (this.recordUrl) return await this.updateRecord();
+  }
+
+  private get baseMapStyle() {
+    return this.theme === 'dark' ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json' : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+  }
+
+  // Fill colors for vector data based on the theme
+  private get fillColor() {
+    return this.theme === 'dark' ? '#bbb' : '#444';
+  }
+
+  // Line/stroke color for vector data based on the theme
+  private get lineColor() {
+    return this.theme === 'dark' ? '#fff' : '#000';
   }
 
   componentDidLoad() {
     this.map = new maplibregl.Map({
       container: this.el.shadowRoot.getElementById('map'),
-      style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+      style: this.baseMapStyle,
       center: [0, 0],
       zoom: 1,
     });
@@ -85,9 +107,26 @@ export class OgmViewer {
     if (previewLayer) {
       this.previewId = previewLayer.id;
       this.map.addLayer(previewLayer);
+      this.setPreviewFill();
     }
 
     this.map.fitBounds(bounds, { padding: 20 });
+  }
+
+  // Style the layer based on the current theme (vectors only)
+  setPreviewFill() {
+    const layer = this.map.getLayer(this.previewId);
+    if (layer) {
+      if (layer.type === 'fill') {
+        this.map.setPaintProperty(this.previewId, 'fill-color', this.fillColor);
+        this.map.setPaintProperty(this.previewId, 'fill-outline-color', this.lineColor);
+      } else if (layer.type === 'line') {
+        this.map.setPaintProperty(this.previewId, 'line-color', this.lineColor);
+      } else if (layer.type === 'circle') {
+        this.map.setPaintProperty(this.previewId, 'circle-color', this.lineColor);
+        this.map.setPaintProperty(this.previewId, 'circle-stroke-color', this.lineColor);
+      }
+    }
   }
 
   @Listen('opacityChange')
@@ -123,10 +162,10 @@ export class OgmViewer {
 
   render() {
     return (
-      <div class="container">
-        <ogm-menubar record={this.record} loading={this.loading}></ogm-menubar>
+      <div class={`container sl-theme-${this.theme}`}>
+        <ogm-menubar theme={this.theme} record={this.record} loading={this.loading}></ogm-menubar>
         <div class="map-container">
-          <ogm-sidebar record={this.record} open={this.sidebarOpen}></ogm-sidebar>
+          <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen}></ogm-sidebar>
           <div id="map"></div>
         </div>
       </div>

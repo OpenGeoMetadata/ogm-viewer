@@ -17,6 +17,7 @@
 .title {
   flex: auto;
   font-size: var(--sl-font-size-large);
+  color: var(--sl-color-neutral-800);
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;

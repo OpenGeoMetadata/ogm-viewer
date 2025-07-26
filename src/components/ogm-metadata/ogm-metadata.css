@@ -19,3 +19,7 @@
 .record-details dd {
   margin: var(--sl-spacing-x-small) 0 0 0;
 }
+
+.record-details a {
+  color: var(--sl-color-primary-500);
+}
