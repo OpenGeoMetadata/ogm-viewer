@@ -50,6 +50,10 @@ export class OgmViewer {
   @Listen('sidebarToggled')
   _toggleSidebar() {
     this.sidebarOpen = !this.sidebarOpen;
+
+    // Shift the map over when the sidebar is open
+    if (this.sidebarOpen) this.map.easeTo({ padding: { left: 400 } });
+    else this.map.easeTo({ padding: { left: 20 } });
   }
 
   @Watch('recordUrl')
