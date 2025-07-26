@@ -17,6 +17,7 @@ import '@shoelace-style/shoelace/dist/components/icon-button/icon-button.js';
 import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 import '@shoelace-style/shoelace/dist/components/drawer/drawer.js';
 import '@shoelace-style/shoelace/dist/components/icon/icon.js';
+import '@shoelace-style/shoelace/dist/components/range/range.js';
 import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
 import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 import '@shoelace-style/shoelace/dist/components/tab/tab.js';
@@ -87,6 +88,24 @@ export class OgmViewer {
     }
 
     this.map.fitBounds(bounds, { padding: 20 });
+  }
+
+  @Listen('opacityChange')
+  adjustPreviewOpacity(event: CustomEvent<number>) {
+    const opacity = event.detail;
+    if (!this.previewId || !this.map) return;
+    const layer = this.map.getLayer(this.previewId);
+    if (layer) {
+      if (layer.type === 'raster') {
+        this.map.setPaintProperty(this.previewId, 'raster-opacity', opacity / 100);
+      } else if (layer.type === 'fill') {
+        this.map.setPaintProperty(this.previewId, 'fill-opacity', opacity / 100);
+      } else if (layer.type === 'line') {
+        this.map.setPaintProperty(this.previewId, 'line-opacity', opacity / 100);
+      } else if (layer.type === 'circle') {
+        this.map.setPaintProperty(this.previewId, 'circle-opacity', opacity / 100);
+      }
+    }
   }
 
   // Remove the preview layer and source from the map
