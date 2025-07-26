@@ -9,17 +9,13 @@ export const config: Config = {
       type: 'dist',
       esmLoaderPath: '../loader',
       isPrimaryPackageOutputTarget: true,
-      copy: [
-        { src: '../assets', dest: 'assets' },
-      ]
+      copy: [{ src: '../assets', dest: 'assets' }],
     },
     // This target is used for the GitHub Pages preview site.
     {
       type: 'www',
       serviceWorker: null, // disable service workers
-      copy: [
-        { src: '../assets', dest: 'build/assets' },
-      ],
+      copy: [{ src: '../assets', dest: 'build/assets' }],
     },
   ],
   testing: {

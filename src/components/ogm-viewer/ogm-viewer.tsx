@@ -1,13 +1,13 @@
-import { Component, Element, Prop, Watch, State, Event, Listen, EventEmitter, h } from '@stencil/core';
+import { Component, Element, Prop, Watch, State, Event, Listen, EventEmitter, h, getAssetPath } from '@stencil/core';
+import { setBasePath } from '@shoelace-style/shoelace/dist/utilities/base-path.js';
 import maplibregl from 'maplibre-gl';
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
 
 import { OgmRecord } from '../../utils/record';
-import { setAssetBasePath } from '../../utils/utils';
 import { getPreviewLayer } from '../../utils/sources';
 
 // Only need to call this once, at the top level
-setAssetBasePath();
+setBasePath(getAssetPath(''));
 
 // Add support for COG protocol
 maplibregl.addProtocol('cog', cogProtocol);
