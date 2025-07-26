@@ -11,10 +11,12 @@ export namespace Components {
     interface OgmMenubar {
         "loading": boolean;
         "record": OgmRecord;
+        "theme": 'light' | 'dark';
     }
     interface OgmMetadata {
         "fieldNames": string[];
         "record": OgmRecord;
+        "theme": 'light' | 'dark';
     }
     interface OgmSettings {
         "record": OgmRecord;
@@ -22,9 +24,11 @@ export namespace Components {
     interface OgmSidebar {
         "open": boolean;
         "record": OgmRecord;
+        "theme": 'light' | 'dark';
     }
     interface OgmViewer {
         "recordUrl": string;
+        "theme": 'light' | 'dark';
     }
 }
 export interface OgmMenubarCustomEvent<T> extends CustomEvent<T> {
@@ -101,10 +105,12 @@ declare namespace LocalJSX {
         "loading"?: boolean;
         "onSidebarToggled"?: (event: OgmMenubarCustomEvent<any>) => void;
         "record"?: OgmRecord;
+        "theme"?: 'light' | 'dark';
     }
     interface OgmMetadata {
         "fieldNames"?: string[];
         "record"?: OgmRecord;
+        "theme"?: 'light' | 'dark';
     }
     interface OgmSettings {
         "onOpacityChange"?: (event: OgmSettingsCustomEvent<number>) => void;
@@ -113,9 +119,11 @@ declare namespace LocalJSX {
     interface OgmSidebar {
         "open"?: boolean;
         "record"?: OgmRecord;
+        "theme"?: 'light' | 'dark';
     }
     interface OgmViewer {
         "recordUrl"?: string;
+        "theme"?: 'light' | 'dark';
     }
     interface IntrinsicElements {
         "ogm-menubar": OgmMenubar;

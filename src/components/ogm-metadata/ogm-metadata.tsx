@@ -17,6 +17,7 @@ const DEFAULT_FIELD_NAMES = Object.keys(OGM_FIELD_NAMES) as OgmMetadataField[];
 })
 export class OgmMetadata {
   @Prop() record: OgmRecord;
+  @Prop() theme: 'light' | 'dark';
   @Prop() fieldNames: string[];
   @State() filteredRecord: OgmRecord;
 
@@ -115,7 +116,7 @@ export class OgmMetadata {
 
     // Render the metadata fields
     return (
-      <Host>
+      <Host class={this.theme && `sl-theme-${this.theme}`}>
         <dl class="record-details">{this.renderMetadata(record)}</dl>
       </Host>
     );

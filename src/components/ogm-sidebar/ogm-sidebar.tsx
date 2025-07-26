@@ -11,6 +11,7 @@ import type { SlTabGroup } from '@shoelace-style/shoelace';
 export class OgmSidebar {
   @Element() el: HTMLElement;
   @Prop() record: OgmRecord;
+  @Prop() theme: 'light' | 'dark';
   @Prop() open: boolean = false;
 
   private tabs: SlTabGroup;
@@ -33,7 +34,7 @@ export class OgmSidebar {
 
   render() {
     return (
-      <Host>
+      <Host class={this.theme && `sl-theme-${this.theme}`}>
         <sl-drawer label="Sidebar" placement="start" class="sidebar" contained no-header open={this.open}>
           <sl-tab-group placement="start">
             <sl-tab slot="nav" panel="information">

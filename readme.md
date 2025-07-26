@@ -42,7 +42,17 @@ const viewer = document.querySelector('ogm-viewer');
 viewer.recordUrl = 'https://example.com/record.json';
 ```
 
-When the `record-url` changes, the viewer will automatically fetch and display the record data.
+When the record URL changes, the viewer will automatically fetch and display the record data.
+
+### Dark mode support
+
+The viewer supports dark mode. If your system preference is set to prefer dark mode, the viewer will automatically apply dark styles.
+
+To programmatically control dark mode, you can use the `theme` attribute with a value of `dark` or `light`:
+
+```html
+<ogm-viewer record-url="https://example.com/record.json" theme="dark"></ogm-viewer>
+```
 
 ## Development
 
