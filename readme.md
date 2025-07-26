@@ -75,3 +75,21 @@ npm test
 ```
 
 Component unit tests use [Stencil's testing framework](https://stenciljs.com/docs/unit-testing).
+
+### Releasing
+
+To publish a new version, update the version in `package.json` and commit your changes. Then create a release tag:
+
+```bash
+git tag vX.Y.Z # replace with your new version number
+git push --tags
+```
+
+After tagging, build the project and publish it to npm:
+
+```bash
+npm run build
+npm publish
+```
+
+You can create a new release on GitHub by going to the "Releases" section and clicking "Draft a new release". The "Generate release notes" option will automatically include the changes since the last tag.
