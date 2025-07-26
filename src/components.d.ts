@@ -16,6 +16,9 @@ export namespace Components {
         "fieldNames": string[];
         "record": OgmRecord;
     }
+    interface OgmSettings {
+        "record": OgmRecord;
+    }
     interface OgmSidebar {
         "open": boolean;
         "record": OgmRecord;
@@ -27,6 +30,10 @@ export namespace Components {
 export interface OgmMenubarCustomEvent<T> extends CustomEvent<T> {
     detail: T;
     target: HTMLOgmMenubarElement;
+}
+export interface OgmSettingsCustomEvent<T> extends CustomEvent<T> {
+    detail: T;
+    target: HTMLOgmSettingsElement;
 }
 declare global {
     interface HTMLOgmMenubarElementEventMap {
@@ -52,6 +59,23 @@ declare global {
         prototype: HTMLOgmMetadataElement;
         new (): HTMLOgmMetadataElement;
     };
+    interface HTMLOgmSettingsElementEventMap {
+        "opacityChange": number;
+    }
+    interface HTMLOgmSettingsElement extends Components.OgmSettings, HTMLStencilElement {
+        addEventListener<K extends keyof HTMLOgmSettingsElementEventMap>(type: K, listener: (this: HTMLOgmSettingsElement, ev: OgmSettingsCustomEvent<HTMLOgmSettingsElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLOgmSettingsElementEventMap>(type: K, listener: (this: HTMLOgmSettingsElement, ev: OgmSettingsCustomEvent<HTMLOgmSettingsElementEventMap[K]>) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
+    }
+    var HTMLOgmSettingsElement: {
+        prototype: HTMLOgmSettingsElement;
+        new (): HTMLOgmSettingsElement;
+    };
     interface HTMLOgmSidebarElement extends Components.OgmSidebar, HTMLStencilElement {
     }
     var HTMLOgmSidebarElement: {
@@ -67,6 +91,7 @@ declare global {
     interface HTMLElementTagNameMap {
         "ogm-menubar": HTMLOgmMenubarElement;
         "ogm-metadata": HTMLOgmMetadataElement;
+        "ogm-settings": HTMLOgmSettingsElement;
         "ogm-sidebar": HTMLOgmSidebarElement;
         "ogm-viewer": HTMLOgmViewerElement;
     }
@@ -81,6 +106,10 @@ declare namespace LocalJSX {
         "fieldNames"?: string[];
         "record"?: OgmRecord;
     }
+    interface OgmSettings {
+        "onOpacityChange"?: (event: OgmSettingsCustomEvent<number>) => void;
+        "record"?: OgmRecord;
+    }
     interface OgmSidebar {
         "open"?: boolean;
         "record"?: OgmRecord;
@@ -91,6 +120,7 @@ declare namespace LocalJSX {
     interface IntrinsicElements {
         "ogm-menubar": OgmMenubar;
         "ogm-metadata": OgmMetadata;
+        "ogm-settings": OgmSettings;
         "ogm-sidebar": OgmSidebar;
         "ogm-viewer": OgmViewer;
     }
@@ -101,6 +131,7 @@ declare module "@stencil/core" {
         interface IntrinsicElements {
             "ogm-menubar": LocalJSX.OgmMenubar & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
             "ogm-metadata": LocalJSX.OgmMetadata & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;
+            "ogm-settings": LocalJSX.OgmSettings & JSXBase.HTMLAttributes<HTMLOgmSettingsElement>;
             "ogm-sidebar": LocalJSX.OgmSidebar & JSXBase.HTMLAttributes<HTMLOgmSidebarElement>;
             "ogm-viewer": LocalJSX.OgmViewer & JSXBase.HTMLAttributes<HTMLOgmViewerElement>;
         }

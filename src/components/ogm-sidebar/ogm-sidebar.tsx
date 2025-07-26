@@ -48,6 +48,9 @@ export class OgmSidebar {
             <sl-tab slot="nav" panel="record">
               <sl-icon name="braces" label="Record"></sl-icon>
             </sl-tab>
+            <sl-tab slot="nav" panel="settings">
+              <sl-icon name="gear-wide-connected" label="Settings"></sl-icon>
+            </sl-tab>
             <sl-tab-panel name="information">
               <div class="panel-header">About this item</div>
               <div class="panel-content">
@@ -73,6 +76,12 @@ export class OgmSidebar {
               <div class="panel-header">Record view</div>
               <div class="panel-content">
                 <div class="record-json">{JSON.stringify(this.record?.json, null, 2)}</div>
+              </div>
+            </sl-tab-panel>
+            <sl-tab-panel name="settings">
+              <div class="panel-header">Settings</div>
+              <div class="panel-content">
+                <ogm-settings record={this.record} />
               </div>
             </sl-tab-panel>
           </sl-tab-group>
