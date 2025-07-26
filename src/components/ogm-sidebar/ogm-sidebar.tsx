@@ -1,13 +1,7 @@
 import { Component, Element, h, Host, Prop } from '@stencil/core';
 
-import '@shoelace-style/shoelace/dist/components/drawer/drawer.js';
-import '@shoelace-style/shoelace/dist/components/icon/icon.js';
-import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
-import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
-import '@shoelace-style/shoelace/dist/components/tab/tab.js';
-
 import type { OgmRecord } from '../../utils/record';
-import type SlTabGroup from '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
+import type { SlTabGroup } from '@shoelace-style/shoelace';
 
 @Component({
   tag: 'ogm-sidebar',

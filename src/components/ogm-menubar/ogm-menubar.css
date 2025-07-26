@@ -1,6 +1,7 @@
 .menubar {
   display: flex;
   align-items: center;
+  gap: var(--sl-spacing-small);
   padding: var(--sl-spacing-x-small);
   background-color: var(--sl-panel-background-color);
   border-top: calc(var(--sl-panel-border-width) * 2) solid var(--accent-color);
@@ -14,6 +15,7 @@
 
 /* Truncate long titles with an ellipsis */
 .title {
+  flex: auto;
   font-size: var(--sl-font-size-large);
   text-overflow: ellipsis;
   overflow: hidden;
@@ -22,5 +24,9 @@
 
 .menu-button {
   font-size: var(--sl-font-size-x-large);
-  margin-right: var(--sl-spacing-x-small);
+}
+
+.loading-spinner {
+  font-size: var(--sl-font-size-large);
+  margin: 0 var(--sl-spacing-x-small);
 }

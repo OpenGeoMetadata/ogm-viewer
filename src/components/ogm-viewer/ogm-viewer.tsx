@@ -1,4 +1,4 @@
-import { Component, Element, Prop, Watch, State, Event, Listen, EventEmitter, h, getAssetPath } from '@stencil/core';
+import { Component, Element, Prop, Watch, State, Listen, h, getAssetPath } from '@stencil/core';
 import { setBasePath } from '@shoelace-style/shoelace/dist/utilities/base-path.js';
 import maplibregl from 'maplibre-gl';
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
@@ -12,6 +12,15 @@ setBasePath(getAssetPath(''));
 // Add support for COG protocol
 maplibregl.addProtocol('cog', cogProtocol);
 
+// Import all required Shoelace components
+import '@shoelace-style/shoelace/dist/components/icon-button/icon-button.js';
+import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
+import '@shoelace-style/shoelace/dist/components/drawer/drawer.js';
+import '@shoelace-style/shoelace/dist/components/icon/icon.js';
+import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
+import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
+import '@shoelace-style/shoelace/dist/components/tab/tab.js';
+
 @Component({
   tag: 'ogm-viewer',
   styleUrl: 'ogm-viewer.css',
@@ -20,9 +29,9 @@ maplibregl.addProtocol('cog', cogProtocol);
 export class OgmViewer {
   @Element() el: HTMLElement;
   @Prop() recordUrl: string;
-  @State() sidebarOpen: boolean = false;
   @State() record: OgmRecord;
-  @Event() recordLoaded: EventEmitter<OgmRecord>;
+  @State() sidebarOpen: boolean = false;
+  @State() loading: boolean = false;
 
   private map: maplibregl.Map;
   private previewId: string;
@@ -44,6 +53,7 @@ export class OgmViewer {
     this.map.addControl(new maplibregl.GlobeControl());
 
     this.map.once('load', this.addPreview.bind(this));
+    this.map.on('idle', () => (this.loading = false));
   }
 
   // Sidebar emits this event when menu button is clicked
@@ -64,6 +74,7 @@ export class OgmViewer {
   @Watch('record')
   addPreview() {
     if (!this.record || !this.map) return;
+    this.loading = true;
 
     const bounds = this.record.getBounds();
 
@@ -94,7 +105,7 @@ export class OgmViewer {
   render() {
     return (
       <div class="container">
-        <ogm-menubar record={this.record}></ogm-menubar>
+        <ogm-menubar record={this.record} loading={this.loading}></ogm-menubar>
         <div class="map-container">
           <ogm-sidebar record={this.record} open={this.sidebarOpen}></ogm-sidebar>
           <div id="map"></div>
