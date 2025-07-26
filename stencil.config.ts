@@ -10,7 +10,7 @@ export const config: Config = {
       esmLoaderPath: '../loader',
       isPrimaryPackageOutputTarget: true,
     },
-    // This target is used only for the development live server.
+    // This target is used for the GitHub Pages preview site.
     {
       type: 'www',
       serviceWorker: null, // disable service workers
