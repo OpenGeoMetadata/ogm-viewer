@@ -11,13 +11,11 @@ export class OgmMenubar {
   @Event() sidebarToggled: EventEmitter;
   @Prop() loading: boolean = false;
 
-  // Don't render anything if no record is loaded
   render() {
-    if (!this.record) return;
     return (
       <div class="menubar">
         <sl-icon-button name="list" label="Open sidebar" class="menu-button" onclick={this.sidebarToggled.emit}></sl-icon-button>
-        <div class="title">{this.record.title}</div>
+        <div class="title">{this.record?.title}</div>
         {this.loading && <sl-spinner class="loading-spinner"></sl-spinner>}
       </div>
     );
