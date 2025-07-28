@@ -3,7 +3,7 @@
 
 # OpenGeoMetadata Viewer
 
-A web-based viewer for previewing [OpenGeoMetadata](https://opengeometadata.org/) records.
+A web-based viewer for previewing [OpenGeoMetadata](https://opengeometadata.org/) records. Try the [online demo](http://opengeometadata.org/ogm-viewer/)!
 
 ## Installation
 
