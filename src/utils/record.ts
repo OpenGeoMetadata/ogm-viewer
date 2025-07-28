@@ -40,7 +40,7 @@ export interface GeoBlacklightSchemaAardvark {
   dct_rights_sm?: string[];
   dct_rightsHolder_sm?: string[];
   dct_license_sm?: string[];
-  dct_accessRights_s: ('Public' | 'Restricted');
+  dct_accessRights_s: 'Public' | 'Restricted';
   dct_format_s?: string;
   gbl_fileSize_s?: string;
   gbl_wxsIdentifier_s?: string;
