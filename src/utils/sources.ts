@@ -19,6 +19,23 @@ export const getPreviewLayer = (record: OgmRecord): AddLayerObject => {
   return { id, type, source }; // The ID always matches the record & source ID
 };
 
+// Given a record, generate a layer that outlines its bounding box on the map
+export const getBoundsPreviewLayer = (record: OgmRecord): AddLayerObject => {
+  const bounds = record.getBoundsGeoJSON();
+  if (!bounds) return null;
+
+  return {
+    id: `${record.id}-bounds`,
+    type: 'line',
+    source: {
+      type: 'geojson',
+      // @ts-ignore
+      data: bounds,
+      attribution: record.attribution,
+    },
+  };
+};
+
 // Map source types to layer types using information from the record
 const getLayerType = (record: OgmRecord, source: SourceSpecification): LayerType => {
   // Raster is easy...

@@ -16,6 +16,11 @@ export class OgmMenubar {
     return (
       <div class={`menubar ${this.theme && `sl-theme-${this.theme}`}`}>
         <sl-icon-button name="list" label="Open sidebar" class="menu-button" onclick={this.sidebarToggled.emit}></sl-icon-button>
+        {this.record?.restricted && (
+          <sl-tooltip content="Restricted access">
+            <sl-icon name="lock-fill" label="Restricted access" class="restricted-icon"></sl-icon>
+          </sl-tooltip>
+        )}
         <div class="title">{this.record?.title}</div>
         {this.loading && <sl-spinner class="loading-spinner"></sl-spinner>}
       </div>

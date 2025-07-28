@@ -4,7 +4,7 @@ import maplibregl from 'maplibre-gl';
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
 
 import { OgmRecord } from '../../utils/record';
-import { getPreviewLayer } from '../../utils/sources';
+import { getPreviewLayer, getBoundsPreviewLayer } from '../../utils/sources';
 
 // Only need to call this once, at the top level
 setBasePath(getAssetPath(''));
@@ -21,6 +21,7 @@ import '@shoelace-style/shoelace/dist/components/range/range.js';
 import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
 import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
 import '@shoelace-style/shoelace/dist/components/tab/tab.js';
+import '@shoelace-style/shoelace/dist/components/tooltip/tooltip.js';
 
 @Component({
   tag: 'ogm-viewer',
@@ -104,13 +105,23 @@ export class OgmViewer {
     this.clearPreview();
 
     const previewLayer = getPreviewLayer(this.record);
-    if (previewLayer) {
+    if (previewLayer && !this.record.restricted) {
       this.previewId = previewLayer.id;
       this.map.addLayer(previewLayer);
-      this.setPreviewFill();
+    }
+    
+    else {
+      const boundsLayer = getBoundsPreviewLayer(this.record);
+      if (boundsLayer) {
+        this.previewId = boundsLayer.id;
+        this.map.addLayer(boundsLayer);
+      }
     }
 
-    this.map.fitBounds(bounds, { padding: 20 });
+    if (this.previewId) {
+      this.setPreviewFill();
+      this.map.fitBounds(bounds, { padding: 20 });
+    }
   }
 
   // Style the layer based on the current theme (vectors only)

@@ -40,7 +40,7 @@ export interface GeoBlacklightSchemaAardvark {
   dct_rights_sm?: string[];
   dct_rightsHolder_sm?: string[];
   dct_license_sm?: string[];
-  dct_accessRights_s: string;
+  dct_accessRights_s: ('Public' | 'Restricted');
   dct_format_s?: string;
   gbl_fileSize_s?: string;
   gbl_wxsIdentifier_s?: string;
@@ -113,7 +113,7 @@ export class OgmRecord {
   id: string;
   title: string;
   resourceClass: string[];
-  accessRights: string;
+  accessRights: 'Public' | 'Restricted';
   mdVersion = 'Aardvark';
 
   // Optional
@@ -199,6 +199,11 @@ export class OgmRecord {
 
     // Save original JSON data
     this.json = data;
+  }
+
+  // Record is restricted if access rights are 'Restricted'
+  get restricted() {
+    return this.accessRights === 'Restricted';
   }
 
   // String used for attribution of map layers. Uses, in order of preference:

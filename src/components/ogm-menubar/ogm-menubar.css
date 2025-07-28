@@ -27,6 +27,11 @@
   font-size: var(--sl-font-size-x-large);
 }
 
+.restricted-icon {
+  color: var(--sl-color-danger-600);
+  font-size: var(--sl-font-size-large);
+}
+
 .loading-spinner {
   font-size: var(--sl-font-size-large);
   margin: 0 var(--sl-spacing-x-small);
