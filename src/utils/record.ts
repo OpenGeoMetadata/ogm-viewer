@@ -244,4 +244,24 @@ export class OgmRecord {
     const south = parseFloat(coords.groups.south);
     return new LngLatBounds([west, south, east, north]);
   }
+
+  // Get the bounding box as a GeoJSON Polygon
+  getBoundsGeoJSON() {
+    const bounds = this.getBounds();
+    if (!bounds) return null;
+
+    // Convert LngLatBounds to GeoJSON Polygon
+    return {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [bounds.getWest(), bounds.getSouth()],
+          [bounds.getEast(), bounds.getSouth()],
+          [bounds.getEast(), bounds.getNorth()],
+          [bounds.getWest(), bounds.getNorth()],
+          [bounds.getWest(), bounds.getSouth()],
+        ],
+      ],
+    };
+  }
 }
