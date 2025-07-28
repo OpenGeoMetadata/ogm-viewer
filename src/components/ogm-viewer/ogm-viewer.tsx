@@ -67,14 +67,27 @@ export class OgmViewer {
   componentDidLoad() {
     this.map = new maplibregl.Map({
       container: this.el.shadowRoot.getElementById('map'),
+      attributionControl: false,
       style: this.baseMapStyle,
       center: [0, 0],
       zoom: 1,
     });
 
-    this.map.addControl(new maplibregl.NavigationControl());
-    this.map.addControl(new maplibregl.FullscreenControl());
+    this.map.addControl(new maplibregl.NavigationControl({
+      visualizePitch: true,
+    }));
+    this.map.addControl(new maplibregl.FullscreenControl({
+      container: this.el
+    }));
     this.map.addControl(new maplibregl.GlobeControl());
+    this.map.addControl(new maplibregl.GeolocateControl({
+      positionOptions: {
+        enableHighAccuracy: true
+      },
+    }));
+    this.map.addControl(new maplibregl.AttributionControl({
+      compact: true,
+    }));
 
     this.map.once('load', this.addPreview.bind(this));
     this.map.on('idle', () => (this.loading = false));
