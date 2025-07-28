@@ -73,21 +73,29 @@ export class OgmViewer {
       zoom: 1,
     });
 
-    this.map.addControl(new maplibregl.NavigationControl({
-      visualizePitch: true,
-    }));
-    this.map.addControl(new maplibregl.FullscreenControl({
-      container: this.el
-    }));
+    this.map.addControl(
+      new maplibregl.NavigationControl({
+        visualizePitch: true,
+      }),
+    );
+    this.map.addControl(
+      new maplibregl.FullscreenControl({
+        container: this.el,
+      }),
+    );
     this.map.addControl(new maplibregl.GlobeControl());
-    this.map.addControl(new maplibregl.GeolocateControl({
-      positionOptions: {
-        enableHighAccuracy: true
-      },
-    }));
-    this.map.addControl(new maplibregl.AttributionControl({
-      compact: true,
-    }));
+    this.map.addControl(
+      new maplibregl.GeolocateControl({
+        positionOptions: {
+          enableHighAccuracy: true,
+        },
+      }),
+    );
+    this.map.addControl(
+      new maplibregl.AttributionControl({
+        compact: true,
+      }),
+    );
 
     this.map.once('load', this.addPreview.bind(this));
     this.map.on('idle', () => (this.loading = false));
@@ -121,9 +129,7 @@ export class OgmViewer {
     if (previewLayer && !this.record.restricted) {
       this.previewId = previewLayer.id;
       this.map.addLayer(previewLayer);
-    }
-    
-    else {
+    } else {
       const boundsLayer = getBoundsPreviewLayer(this.record);
       if (boundsLayer) {
         this.previewId = boundsLayer.id;
