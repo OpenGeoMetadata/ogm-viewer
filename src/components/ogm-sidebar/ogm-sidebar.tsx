@@ -44,13 +44,13 @@ export class OgmSidebar {
               <sl-icon name="c-circle" label="Rights"></sl-icon>
             </sl-tab>
             <sl-tab slot="nav" panel="links">
-              <sl-icon name="link-45deg" label="Links"></sl-icon>
+              <sl-icon name="box-arrow-up-right" label="Links"></sl-icon>
             </sl-tab>
             <sl-tab slot="nav" panel="record">
               <sl-icon name="braces" label="Record"></sl-icon>
             </sl-tab>
             <sl-tab slot="nav" panel="settings">
-              <sl-icon name="gear-wide-connected" label="Settings"></sl-icon>
+              <sl-icon name="sliders" label="Settings"></sl-icon>
             </sl-tab>
             <sl-tab-panel name="information">
               <div class="panel-header">About this item</div>
