@@ -1,9 +1,5 @@
-import { LngLatBounds } from 'maplibre-gl';
-
 import { References } from './references';
-
-// Regular expression to match ENVELOPE syntax in bbox strings
-export const ENVELOPE_REGEX = /^ENVELOPE\((?<west>[^,]+),(?<east>[^,]+),(?<north>[^,]+),(?<south>[^,]+)\)$/;
+import { bboxToBounds, boundsToGeoJSON, geomToGeoJSON } from './geometry';
 
 /**
  * Schema for GeoBlacklight. See https://opengeometadata.github.io/aardvark/aardvarkMetadata.html for more details.
@@ -206,13 +202,10 @@ export class OgmRecord {
     return this.accessRights === 'Restricted';
   }
 
-  // String used for attribution of map layers. Uses, in order of preference:
-  // - publishers(s)
-  // - creator(s)
-  // - provider
+  // String used for attribution of map layers.
   get attribution() {
-    if (this.publishers && this.publishers.length > 0) return this.publishers.join(', ');
-    if (this.creators && this.creators.length > 0) return this.creators.join(', ');
+    if (this.rightsHolder && this.rightsHolder.length > 0) return this.rightsHolder.join('; ');
+    if (this.publishers && this.publishers.length > 0) return this.publishers.join('; ');
     if (this.provider) return this.provider;
   }
 
@@ -227,41 +220,24 @@ export class OgmRecord {
     });
   }
 
-  // Convert ENVELOPE syntax to LngLatBounds
+  // Get the bounding box as LngLatBounds
   getBounds() {
-    // Nothing to do if no bbox in record
     if (!this.bbox) return null;
-
-    // Try to parse bbox in ENVELOPE syntax
-    const coords = this.bbox.match(ENVELOPE_REGEX);
-    if (!coords) return null;
-    if (coords.length !== 5) return null;
-
-    // Convert to numbers and create LngLatBounds
-    const west = parseFloat(coords.groups.west);
-    const east = parseFloat(coords.groups.east);
-    const north = parseFloat(coords.groups.north);
-    const south = parseFloat(coords.groups.south);
-    return new LngLatBounds([west, south, east, north]);
+    return bboxToBounds(this.bbox);
   }
 
-  // Get the bounding box as a GeoJSON Polygon
-  getBoundsGeoJSON() {
-    const bounds = this.getBounds();
-    if (!bounds) return null;
+  // Get the geometry as a GeoJSON Polygon
+  getGeometry() {
+    // Try locn_geometry first in case we have complex WKT geometry
+    if (this.geometry) {
+      const geojson = geomToGeoJSON(this.geometry);
+      if (geojson) return geojson;
+    }
 
-    // Convert LngLatBounds to GeoJSON Polygon
-    return {
-      type: 'Polygon',
-      coordinates: [
-        [
-          [bounds.getWest(), bounds.getSouth()],
-          [bounds.getEast(), bounds.getSouth()],
-          [bounds.getEast(), bounds.getNorth()],
-          [bounds.getWest(), bounds.getNorth()],
-          [bounds.getWest(), bounds.getSouth()],
-        ],
-      ],
-    };
+    // If no locn_geometry, fall back to dcat_bbox with ENVELOPE
+    if (this.bbox) {
+      const bounds = this.getBounds();
+      if (bounds) return boundsToGeoJSON(bounds);
+    }
   }
 }

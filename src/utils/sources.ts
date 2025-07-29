@@ -4,8 +4,8 @@ import type { OgmRecord } from './record';
 type AddSourceObject = { id: string; source: SourceSpecification };
 type LayerType = Exclude<AddLayerObject['type'], 'custom'>;
 
-// Given a record, generate a preview layer with embedded source for the map
-export const getPreviewLayer = (record: OgmRecord): AddLayerObject => {
+// Given a record, generate the appropriate source for previewing the data
+export const getPreviewSource = (record: OgmRecord): AddSourceObject => {
   // If nothing we can render from references, warn and bail out
   const bestSource = getRecordSource(record);
   if (!bestSource) {
@@ -13,20 +13,16 @@ export const getPreviewLayer = (record: OgmRecord): AddLayerObject => {
     return;
   }
 
-  // Generate a mapLibre layer object with embedded source
-  const { id, source } = bestSource;
-  const type = getLayerType(record, source);
-  return { id, type, source }; // The ID always matches the record & source ID
+  return bestSource;
 };
 
-// Given a record, generate a layer that outlines its bounding box on the map
-export const getBoundsPreviewLayer = (record: OgmRecord): AddLayerObject => {
-  const bounds = record.getBoundsGeoJSON();
+// Given a record, generate a geoJSON source for its bounding box/geometry
+export const getBoundsPreviewSource = (record: OgmRecord): AddSourceObject => {
+  const bounds = record.getGeometry();
   if (!bounds) return null;
 
   return {
     id: `${record.id}-bounds`,
-    type: 'line',
     source: {
       type: 'geojson',
       // @ts-ignore
@@ -34,6 +30,43 @@ export const getBoundsPreviewLayer = (record: OgmRecord): AddLayerObject => {
       attribution: record.attribution,
     },
   };
+};
+
+// Given a record and source, generate preview layer(s) for the map
+export const getPreviewLayers = (record: OgmRecord, source: AddSourceObject): AddLayerObject[] => {
+  const type = getLayerType(record, source.source);
+
+  return [
+    {
+      id: `${source.id}-preview`,
+      type,
+      source: source.id,
+    } as AddLayerObject,
+  ];
+};
+
+// Generate two styled layers using a record's geoJSON bounds source
+export const getBoundsPreviewLayers = (record: OgmRecord): AddLayerObject[] => {
+  return [
+    {
+      id: `${record.id}-bounds-fill`,
+      type: 'fill',
+      source: `${record.id}-bounds`,
+      paint: {
+        'fill-color': '#888888',
+        'fill-opacity': 0.5,
+      },
+    },
+    {
+      id: `${record.id}-bounds-outline`,
+      type: 'line',
+      source: `${record.id}-bounds`,
+      paint: {
+        'line-color': '#000000',
+        'line-width': 2,
+      },
+    },
+  ];
 };
 
 // Map source types to layer types using information from the record

@@ -4,7 +4,7 @@ import maplibregl from 'maplibre-gl';
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
 
 import { OgmRecord } from '../../utils/record';
-import { getPreviewLayer, getBoundsPreviewLayer } from '../../utils/sources';
+import { getPreviewSource, getPreviewLayers, getBoundsPreviewSource, getBoundsPreviewLayers } from '../../utils/sources';
 
 // Only need to call this once, at the top level
 setBasePath(getAssetPath(''));
@@ -36,8 +36,14 @@ export class OgmViewer {
   @State() sidebarOpen: boolean = false;
   @State() loading: boolean = false;
 
+  // MapLibre map instance
   private map: maplibregl.Map;
-  private previewId: string;
+
+  // Track source and layer IDs for bounds and preview layers
+  private boundsSourceId: string;
+  private boundsLayerIds: string[] = [];
+  private previewSourceId: string;
+  private previewLayerIds: string[] = [];
 
   async componentWillLoad() {
     // If no theme provided, detect the user's system preference
@@ -56,12 +62,12 @@ export class OgmViewer {
 
   // Fill colors for vector data based on the theme
   private get fillColor() {
-    return this.theme === 'dark' ? '#bbb' : '#444';
+    return window.getComputedStyle(this.el).getPropertyValue('--sl-color-primary-200');
   }
 
   // Line/stroke color for vector data based on the theme
   private get lineColor() {
-    return this.theme === 'dark' ? '#fff' : '#000';
+    return window.getComputedStyle(this.el).getPropertyValue('--sl-color-primary-500');
   }
 
   componentDidLoad() {
@@ -119,69 +125,106 @@ export class OgmViewer {
   @Watch('record')
   addPreview() {
     if (!this.record || !this.map) return;
+
+    // Clear any existing preview and indicate loading
     this.loading = true;
-
-    const bounds = this.record.getBounds();
-
     this.clearPreview();
 
-    const previewLayer = getPreviewLayer(this.record);
-    if (previewLayer && !this.record.restricted) {
-      this.previewId = previewLayer.id;
-      this.map.addLayer(previewLayer);
-    } else {
-      const boundsLayer = getBoundsPreviewLayer(this.record);
-      if (boundsLayer) {
-        this.previewId = boundsLayer.id;
-        this.map.addLayer(boundsLayer);
+    // Add the source for the record's geometry
+    const boundsSource = getBoundsPreviewSource(this.record);
+    if (boundsSource) {
+      this.map.addSource(boundsSource.id, boundsSource.source);
+      this.boundsSourceId = boundsSource.id;
+    }
+
+    // Add the source for the data preview
+    const previewSource = getPreviewSource(this.record);
+    if (previewSource) {
+      this.map.addSource(previewSource.id, previewSource.source);
+      this.previewSourceId = previewSource.id;
+    }
+
+    // If there are preview layers and the record is not restricted, add them
+    if (previewSource) {
+      const previewLayers = getPreviewLayers(this.record, previewSource);
+      if (previewLayers && !this.record.restricted) {
+        this.previewLayerIds = previewLayers.map(layer => layer.id);
+        previewLayers.forEach(layer => this.map.addLayer(layer));
       }
     }
 
-    if (this.previewId) {
-      this.setPreviewFill();
-      this.map.fitBounds(bounds, { padding: 20 });
+    // Otherwise, just add the bounds preview layers
+    if (!this.previewLayerIds.length) {
+      const boundsLayers = getBoundsPreviewLayers(this.record);
+      if (boundsLayers) {
+        this.boundsLayerIds = boundsLayers.map(layer => layer.id);
+        boundsLayers.forEach(layer => this.map.addLayer(layer));
+      }
     }
+
+    // Ensure fill colors are correctly set
+    this.setPreviewFill();
+
+    // Fit the map to the bounds of the record's geometry
+    const bounds = this.record.getBounds();
+    if (bounds) this.map.fitBounds(bounds, { padding: 40 });
   }
 
-  // Style the layer based on the current theme (vectors only)
+  // Style the preview layers based on the current theme (vectors only)
   setPreviewFill() {
-    const layer = this.map.getLayer(this.previewId);
-    if (layer) {
+    const layerIds = this.boundsLayerIds.concat(this.previewLayerIds);
+    const layers = layerIds.map(id => this.map.getLayer(id)).filter(Boolean);
+
+    layers.forEach(layer => {
       if (layer.type === 'fill') {
-        this.map.setPaintProperty(this.previewId, 'fill-color', this.fillColor);
-        this.map.setPaintProperty(this.previewId, 'fill-outline-color', this.lineColor);
+        this.map.setPaintProperty(layer.id, 'fill-color', this.fillColor);
+        this.map.setPaintProperty(layer.id, 'fill-outline-color', this.lineColor);
       } else if (layer.type === 'line') {
-        this.map.setPaintProperty(this.previewId, 'line-color', this.lineColor);
+        this.map.setPaintProperty(layer.id, 'line-color', this.lineColor);
       } else if (layer.type === 'circle') {
-        this.map.setPaintProperty(this.previewId, 'circle-color', this.lineColor);
-        this.map.setPaintProperty(this.previewId, 'circle-stroke-color', this.lineColor);
+        this.map.setPaintProperty(layer.id, 'circle-color', this.fillColor);
+        this.map.setPaintProperty(layer.id, 'circle-stroke-color', this.lineColor);
       }
-    }
+    });
   }
 
+  // Listen for opacity changes from the sidebar and adjust the preview layer
   @Listen('opacityChange')
   adjustPreviewOpacity(event: CustomEvent<number>) {
+    if (!this.map) return;
+
+    // Only applies to data preview, not the bounding box
     const opacity = event.detail;
-    if (!this.previewId || !this.map) return;
-    const layer = this.map.getLayer(this.previewId);
-    if (layer) {
+    const layers = this.previewLayerIds.map(id => this.map.getLayer(id)).filter(Boolean);
+
+    layers.forEach(layer => {
       if (layer.type === 'raster') {
-        this.map.setPaintProperty(this.previewId, 'raster-opacity', opacity / 100);
+        this.map.setPaintProperty(layer.id, 'raster-opacity', opacity / 100);
       } else if (layer.type === 'fill') {
-        this.map.setPaintProperty(this.previewId, 'fill-opacity', opacity / 100);
+        this.map.setPaintProperty(layer.id, 'fill-opacity', opacity / 100);
       } else if (layer.type === 'line') {
-        this.map.setPaintProperty(this.previewId, 'line-opacity', opacity / 100);
+        this.map.setPaintProperty(layer.id, 'line-opacity', opacity / 100);
       } else if (layer.type === 'circle') {
-        this.map.setPaintProperty(this.previewId, 'circle-opacity', opacity / 100);
+        this.map.setPaintProperty(layer.id, 'circle-opacity', opacity / 100);
       }
-    }
+    });
   }
 
-  // Remove the preview layer and source from the map
+  // Remove all preview layers and sources from the map
   clearPreview() {
-    if (!this.previewId) return;
-    this.map.removeLayer(this.previewId);
-    this.map.removeSource(this.previewId);
+    if (!this.map) return;
+
+    // Remove bounds layers and source
+    this.boundsLayerIds.forEach(id => this.map.removeLayer(id));
+    this.boundsLayerIds = [];
+    if (this.boundsSourceId) this.map.removeSource(this.boundsSourceId);
+    this.boundsSourceId = null;
+
+    // Remove preview layers and source
+    this.previewLayerIds.forEach(id => this.map.removeLayer(id));
+    this.previewLayerIds = [];
+    if (this.previewSourceId) this.map.removeSource(this.previewSourceId);
+    this.previewSourceId = null;
   }
 
   async fetchRecord(recordUrl: string): Promise<OgmRecord> {
