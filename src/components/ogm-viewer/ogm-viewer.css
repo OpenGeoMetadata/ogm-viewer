@@ -45,9 +45,12 @@ canvas {
     filter: invert(1);
   }
 
-  /* Fix for focus ring appearing orange due to inversion */
+  /* Fix for colors appearing orange due to inversion */
   .maplibregl-ctrl-group button:focus:focus-visible {
     box-shadow: 0 0 2px 2px #ff6900;
+  }
+  .maplibregl-ctrl button.maplibregl-ctrl-globe-enabled .maplibregl-ctrl-icon {
+    filter: invert(1);
   }
 
   details.maplibregl-ctrl.maplibregl-ctrl-attrib {
