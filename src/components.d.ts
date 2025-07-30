@@ -6,8 +6,16 @@
  */
 import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
 import { OgmRecord } from "./utils/record";
+import { EaseToOptions } from "maplibre-gl";
 export { OgmRecord } from "./utils/record";
+export { EaseToOptions } from "maplibre-gl";
 export namespace Components {
+    interface OgmMap {
+        "easeMapTo": (options: EaseToOptions) => Promise<maplibregl.Map>;
+        "previewOpacity": number;
+        "record": OgmRecord;
+        "theme": 'light' | 'dark';
+    }
     interface OgmMenubar {
         "loading": boolean;
         "record": OgmRecord;
@@ -31,6 +39,10 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
 }
+export interface OgmMapCustomEvent<T> extends CustomEvent<T> {
+    detail: T;
+    target: HTMLOgmMapElement;
+}
 export interface OgmMenubarCustomEvent<T> extends CustomEvent<T> {
     detail: T;
     target: HTMLOgmMenubarElement;
@@ -40,6 +52,24 @@ export interface OgmSettingsCustomEvent<T> extends CustomEvent<T> {
     target: HTMLOgmSettingsElement;
 }
 declare global {
+    interface HTMLOgmMapElementEventMap {
+        "mapIdle": void;
+        "mapLoading": void;
+    }
+    interface HTMLOgmMapElement extends Components.OgmMap, HTMLStencilElement {
+        addEventListener<K extends keyof HTMLOgmMapElementEventMap>(type: K, listener: (this: HTMLOgmMapElement, ev: OgmMapCustomEvent<HTMLOgmMapElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLOgmMapElementEventMap>(type: K, listener: (this: HTMLOgmMapElement, ev: OgmMapCustomEvent<HTMLOgmMapElementEventMap[K]>) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
+    }
+    var HTMLOgmMapElement: {
+        prototype: HTMLOgmMapElement;
+        new (): HTMLOgmMapElement;
+    };
     interface HTMLOgmMenubarElementEventMap {
         "sidebarToggled": any;
     }
@@ -93,6 +123,7 @@ declare global {
         new (): HTMLOgmViewerElement;
     };
     interface HTMLElementTagNameMap {
+        "ogm-map": HTMLOgmMapElement;
         "ogm-menubar": HTMLOgmMenubarElement;
         "ogm-metadata": HTMLOgmMetadataElement;
         "ogm-settings": HTMLOgmSettingsElement;
@@ -101,6 +132,13 @@ declare global {
     }
 }
 declare namespace LocalJSX {
+    interface OgmMap {
+        "onMapIdle"?: (event: OgmMapCustomEvent<void>) => void;
+        "onMapLoading"?: (event: OgmMapCustomEvent<void>) => void;
+        "previewOpacity"?: number;
+        "record"?: OgmRecord;
+        "theme"?: 'light' | 'dark';
+    }
     interface OgmMenubar {
         "loading"?: boolean;
         "onSidebarToggled"?: (event: OgmMenubarCustomEvent<any>) => void;
@@ -126,6 +164,7 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface IntrinsicElements {
+        "ogm-map": OgmMap;
         "ogm-menubar": OgmMenubar;
         "ogm-metadata": OgmMetadata;
         "ogm-settings": OgmSettings;
@@ -137,6 +176,7 @@ export { LocalJSX as JSX };
 declare module "@stencil/core" {
     export namespace JSX {
         interface IntrinsicElements {
+            "ogm-map": LocalJSX.OgmMap & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
             "ogm-menubar": LocalJSX.OgmMenubar & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
             "ogm-metadata": LocalJSX.OgmMetadata & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;
             "ogm-settings": LocalJSX.OgmSettings & JSXBase.HTMLAttributes<HTMLOgmSettingsElement>;
