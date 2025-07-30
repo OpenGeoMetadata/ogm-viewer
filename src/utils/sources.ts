@@ -1,7 +1,7 @@
 import type { SourceSpecification, AddLayerObject } from 'maplibre-gl';
 import type { OgmRecord } from './record';
 
-type AddSourceObject = { id: string; source: SourceSpecification };
+export type AddSourceObject = { id: string; source: SourceSpecification };
 type LayerType = Exclude<AddLayerObject['type'], 'custom'>;
 
 // Given a record, generate the appropriate source for previewing the data
@@ -38,7 +38,7 @@ export const getPreviewLayers = (record: OgmRecord, source: AddSourceObject): Ad
 
   return [
     {
-      id: `${source.id}-preview`,
+      id: `${source.id}-preview-${type}`,
       type,
       source: source.id,
     } as AddLayerObject,

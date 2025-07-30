@@ -1,5 +1,4 @@
 /* Import these here, at the top level */
-@import '~maplibre-gl/dist/maplibre-gl.css';
 @import '~@shoelace-style/shoelace/dist/themes/dark.css';
 @import '~@shoelace-style/shoelace/dist/themes/light.css';
 
@@ -22,70 +21,4 @@
 .map-container {
   position: relative;
   height: 100%;
-}
-
-#map {
-  width: 100%;
-  height: 100%;
-  position: relative;
-}
-
-/* inspection cursor 
-canvas {
-  cursor: crosshair;
-}
-*/
-
-/* Dark mode map adjustments */
-.sl-theme-dark {
-  .tile-border {
-    stroke: white;
-  }
-
-  .maplibregl-ctrl.maplibregl-ctrl-group {
-    filter: invert(1);
-  }
-
-  /* Fix for colors appearing orange due to inversion */
-  .maplibregl-ctrl-group button:focus:focus-visible {
-    box-shadow: 0 0 2px 2px #ff6900;
-  }
-  .maplibregl-ctrl button.maplibregl-ctrl-globe-enabled .maplibregl-ctrl-icon {
-    filter: invert(1);
-  }
-
-  details.maplibregl-ctrl.maplibregl-ctrl-attrib {
-    background-color: black;
-    color: #999;
-  }
-  details.maplibregl-ctrl.maplibregl-ctrl-attrib a {
-    color: #999;
-  }
-  details.maplibregl-ctrl.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
-    background-color: #999;
-  }
-
-  div.maplibregl-popup-content {
-    background-color: black;
-  }
-
-  div.maplibregl-popup-anchor-right div.maplibregl-popup-tip {
-    border-left-color: black;
-  }
-
-  div.maplibregl-popup-anchor-left div.maplibregl-popup-tip {
-    border-right-color: black;
-  }
-
-  div.maplibregl-popup-anchor-bottom div.maplibregl-popup-tip,
-  div.maplibregl-popup-anchor-bottom-right div.maplibregl-popup-tip,
-  div.maplibregl-popup-anchor-bottom-left div.maplibregl-popup-tip {
-    border-top-color: black;
-  }
-
-  div.maplibregl-popup-anchor-top div.maplibregl-popup-tip,
-  div.maplibregl-popup-anchor-top-right div.maplibregl-popup-tip,
-  div.maplibregl-popup-anchor-top-left div.maplibregl-popup-tip {
-    border-bottom-color: black;
-  }
 }
