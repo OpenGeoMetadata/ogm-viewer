@@ -16,11 +16,12 @@
   border: var(--sl-panel-border-width) solid var(--sl-panel-border-color);
   width: 100%;
   min-height: 400px;
+  height: 100%;
 }
 
 .map-container {
   position: relative;
-  height: 400px;
+  height: 100%;
 }
 
 #map {
