@@ -4,6 +4,7 @@ import maplibregl from 'maplibre-gl';
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
 
 import { OgmRecord } from '../../utils/record';
+import { addLayerInspection } from '../../utils/inspection';
 import { getPreviewSource, getPreviewLayers, getBoundsPreviewSource, getBoundsPreviewLayers } from '../../utils/sources';
 
 // Only need to call this once, at the top level
@@ -149,7 +150,7 @@ export class OgmViewer {
       const previewLayers = getPreviewLayers(this.record, previewSource);
       if (previewLayers && !this.record.restricted) {
         this.previewLayerIds = previewLayers.map(layer => layer.id);
-        previewLayers.forEach(layer => this.map.addLayer(layer));
+        previewLayers.forEach(layer => this.addLayerInspection(layer, previewSource.infoUrl));
       }
     }
 
@@ -168,6 +169,11 @@ export class OgmViewer {
     // Fit the map to the bounds of the record's geometry
     const bounds = this.record.getBounds();
     if (bounds) this.map.fitBounds(bounds, { padding: 40 });
+  }
+
+  addLayerInspection(layer, infoUrl){
+    this.map.addLayer(layer)
+    addLayerInspection(layer.source, infoUrl, this.record.references, this.map)
   }
 
   // Style the preview layers based on the current theme (vectors only)

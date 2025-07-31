@@ -1,7 +1,7 @@
 import type { SourceSpecification, AddLayerObject } from 'maplibre-gl';
 import type { OgmRecord } from './record';
 
-type AddSourceObject = { id: string; source: SourceSpecification };
+type AddSourceObject = { id: string; source: SourceSpecification, infoUrl?: string };
 type LayerType = Exclude<AddLayerObject['type'], 'custom'>;
 
 // Given a record, generate the appropriate source for previewing the data
@@ -178,7 +178,7 @@ const recordWMSSource = (record: OgmRecord): AddSourceObject => {
   // Generate the source spec with a unique ID based on the record
   const source = createWMSSource({ wmsUrl, layerIds, attribution: record.attribution });
   const id = record.id;
-  return { id, source };
+  return { id, source, infoUrl: wmsUrl };
 };
 
 // Create a MapLibre raster source specification object for a WMS layer
