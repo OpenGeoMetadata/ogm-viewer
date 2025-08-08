@@ -10,6 +10,10 @@ import { EaseToOptions } from "maplibre-gl";
 export { OgmRecord } from "./utils/record";
 export { EaseToOptions } from "maplibre-gl";
 export namespace Components {
+    interface OgmImage {
+        "record": OgmRecord;
+        "theme": 'light' | 'dark';
+    }
     interface OgmMap {
         "easeMapTo": (options: EaseToOptions) => Promise<maplibregl.Map>;
         "previewOpacity": number;
@@ -35,6 +39,7 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmViewer {
+        "loadRecord": (record: OgmRecord) => Promise<void>;
         "recordUrl": string;
         "theme": 'light' | 'dark';
     }
@@ -52,6 +57,12 @@ export interface OgmSettingsCustomEvent<T> extends CustomEvent<T> {
     target: HTMLOgmSettingsElement;
 }
 declare global {
+    interface HTMLOgmImageElement extends Components.OgmImage, HTMLStencilElement {
+    }
+    var HTMLOgmImageElement: {
+        prototype: HTMLOgmImageElement;
+        new (): HTMLOgmImageElement;
+    };
     interface HTMLOgmMapElementEventMap {
         "mapIdle": void;
         "mapLoading": void;
@@ -123,6 +134,7 @@ declare global {
         new (): HTMLOgmViewerElement;
     };
     interface HTMLElementTagNameMap {
+        "ogm-image": HTMLOgmImageElement;
         "ogm-map": HTMLOgmMapElement;
         "ogm-menubar": HTMLOgmMenubarElement;
         "ogm-metadata": HTMLOgmMetadataElement;
@@ -132,6 +144,10 @@ declare global {
     }
 }
 declare namespace LocalJSX {
+    interface OgmImage {
+        "record"?: OgmRecord;
+        "theme"?: 'light' | 'dark';
+    }
     interface OgmMap {
         "onMapIdle"?: (event: OgmMapCustomEvent<void>) => void;
         "onMapLoading"?: (event: OgmMapCustomEvent<void>) => void;
@@ -164,6 +180,7 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface IntrinsicElements {
+        "ogm-image": OgmImage;
         "ogm-map": OgmMap;
         "ogm-menubar": OgmMenubar;
         "ogm-metadata": OgmMetadata;
@@ -176,6 +193,7 @@ export { LocalJSX as JSX };
 declare module "@stencil/core" {
     export namespace JSX {
         interface IntrinsicElements {
+            "ogm-image": LocalJSX.OgmImage & JSXBase.HTMLAttributes<HTMLOgmImageElement>;
             "ogm-map": LocalJSX.OgmMap & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
             "ogm-menubar": LocalJSX.OgmMenubar & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
             "ogm-metadata": LocalJSX.OgmMetadata & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;

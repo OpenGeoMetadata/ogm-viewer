@@ -85,6 +85,36 @@ export class References {
     return this.references['http://geojson.org/geojson-spec.html'];
   }
 
+  // The TileJSON URL, if any
+  get tilejson() {
+    return this.references['https://tilejson.org/specification/2.2.0/schema.json'];
+  }
+
+  // The Index map URL, if any
+  get indexMap() {
+    return this.references['https://openindexmaps.org'];
+  }
+
+  // The PMTiles URL, if any
+  get pmtiles() {
+    return this.references['https://pmtiles.org'];
+  }
+
+  // The WMTS URL, if any
+  get wmts() {
+    return this.references['http://www.opengis.net/def/serviceType/ogc/wmts'];
+  }
+
+  // The IIIF image URL, if any
+  get iiifImage() {
+    return this.references['http://iiif.io/api/image'];
+  }
+
+  // The IIIF manifest URL, if any
+  get iiifManifest() {
+    return this.references['http://iiif.io/api/presentation#manifest'];
+  }
+
   // List of download links with URL and label
   get downloadLinks(): LabelledLinks {
     const fieldContents = this.references['http://schema.org/downloadUrl'];
@@ -98,5 +128,40 @@ export class References {
     return Object.entries(this.references)
       .filter(([uri]) => METADATA_REFERENCE_URIS.includes(uri))
       .map(([uri, url]: [ReferenceURI, string]) => ({ url, label: REFERENCE_URIS[uri] }));
+  }
+
+  // True if the record has at least one reference that can be rendered for preview
+  get previewable() {
+    return this.previewableReferences.some(Boolean);
+  }
+
+  // True if the record has a reference that can be rendered on a map
+  get mapPreviewable() {
+    return this.mapPreviewableReferences.some(Boolean);
+  }
+
+  // True if the record has any IIIF references (image or manifest)
+  get iiifPreviewable() {
+    return this.iiifReferences.some(Boolean);
+  }
+
+  // True if the record can only be previewed via IIIF references (image or manifest)
+  get iiifOnly() {
+    return !this.mapPreviewable && this.iiifPreviewable;
+  }
+
+  // Get all references that can be rendered for preview
+  private get previewableReferences() {
+    return this.mapPreviewableReferences.concat(this.iiifReferences);
+  }
+
+  // Get all references that can be rendered on a map
+  private get mapPreviewableReferences() {
+    return [this.wms, this.cog, this.tms, this.xyz, this.geojson, this.tilejson, this.indexMap, this.pmtiles, this.wmts];
+  }
+
+  // Get all IIIF references (image and manifest)
+  private get iiifReferences() {
+    return [this.iiifImage, this.iiifManifest];
   }
 }
