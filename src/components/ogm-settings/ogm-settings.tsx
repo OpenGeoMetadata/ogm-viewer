@@ -26,7 +26,7 @@ export class OgmSettings {
   render() {
     return (
       <div class="settings">
-        <sl-range label="Layer opacity" min="0" max="100" step="1" value="100"></sl-range>
+        <sl-range disabled={!this.record || this.record.references.iiifOnly} label="Layer opacity" min="0" max="100" step="1" value="100"></sl-range>
       </div>
     );
   }
