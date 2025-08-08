@@ -9,7 +9,8 @@
 }
 
 .container {
-  display: block;
+  display: flex;
+  flex-direction: column;
   position: relative;
   font-family: var(--sl-font-sans);
   border: var(--sl-panel-border-width) solid var(--sl-panel-border-color);
@@ -20,5 +21,6 @@
 
 .map-container {
   position: relative;
+  min-height: 400px;
   height: 100%;
 }
