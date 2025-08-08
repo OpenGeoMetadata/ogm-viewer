@@ -1,4 +1,4 @@
-:host {
+.menubar {
   display: flex;
   align-items: center;
   gap: var(--sl-spacing-small);
