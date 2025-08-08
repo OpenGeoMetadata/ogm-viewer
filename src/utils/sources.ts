@@ -97,7 +97,7 @@ const getRecordSource = (record: OgmRecord): AddSourceObject => {
 
 const recordXYZSource = (record: OgmRecord): AddSourceObject => {
   // If no XYZ reference, nothing to do
-  const xyzUrl = record.references.xyz;
+  const xyzUrl = record.references.xyzUrl;
   if (!xyzUrl) return null;
 
   return {
@@ -115,7 +115,7 @@ const recordXYZSource = (record: OgmRecord): AddSourceObject => {
 // Given a record, create a MapLibre TMS source, if possible
 const recordTMSSource = (record: OgmRecord): AddSourceObject => {
   // If no TMS reference, nothing to do
-  const tmsUrl = record.references.tms;
+  const tmsUrl = record.references.tmsUrl;
   if (!tmsUrl) return null;
 
   return {
@@ -133,7 +133,7 @@ const recordTMSSource = (record: OgmRecord): AddSourceObject => {
 // Given a record, create a MapLibre GeoJSON source, if possible
 const recordGeoJSONSource = (record: OgmRecord): AddSourceObject => {
   // If no GeoJSON reference, nothing to do
-  const geojsonUrl = record.references.geojson;
+  const geojsonUrl = record.references.geojsonUrl;
   if (!geojsonUrl) return null;
 
   // Create a GeoJSON source with the record's ID and attribution
@@ -150,7 +150,7 @@ const recordGeoJSONSource = (record: OgmRecord): AddSourceObject => {
 // Given a record, create a MapLibre COG source, if possible
 const recordCOGSource = (record: OgmRecord): AddSourceObject => {
   // If no COG reference, nothing to do
-  const cogUrl = record.references.cog;
+  const cogUrl = record.references.cogUrl;
   if (!cogUrl) return null;
 
   // Add the cog:// protocol that will tell MapLibre to use the plugin
@@ -170,7 +170,7 @@ const recordCOGSource = (record: OgmRecord): AddSourceObject => {
 // Given a record, create a MapLibre WMS source, if possible
 const recordWMSSource = (record: OgmRecord): AddSourceObject => {
   // If no WMS reference or no WXS layer identifier, nothing we can do
-  const wmsUrl = record.references.wms;
+  const wmsUrl = record.references.wmsUrl;
   if (!wmsUrl) return null;
   const layerIds = [record.wxsIdentifier];
   if (!layerIds[0]) return null;

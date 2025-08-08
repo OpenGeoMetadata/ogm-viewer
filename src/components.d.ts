@@ -10,6 +10,10 @@ import { EaseToOptions } from "maplibre-gl";
 export { OgmRecord } from "./utils/record";
 export { EaseToOptions } from "maplibre-gl";
 export namespace Components {
+    interface OgmImage {
+        "record": OgmRecord;
+        "theme": 'light' | 'dark';
+    }
     interface OgmMap {
         "easeMapTo": (options: EaseToOptions) => Promise<maplibregl.Map>;
         "previewOpacity": number;
@@ -35,9 +39,14 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmViewer {
+        "loadRecord": (record: OgmRecord) => Promise<void>;
         "recordUrl": string;
         "theme": 'light' | 'dark';
     }
+}
+export interface OgmImageCustomEvent<T> extends CustomEvent<T> {
+    detail: T;
+    target: HTMLOgmImageElement;
 }
 export interface OgmMapCustomEvent<T> extends CustomEvent<T> {
     detail: T;
@@ -52,6 +61,24 @@ export interface OgmSettingsCustomEvent<T> extends CustomEvent<T> {
     target: HTMLOgmSettingsElement;
 }
 declare global {
+    interface HTMLOgmImageElementEventMap {
+        "imageLoaded": void;
+        "imageLoading": void;
+    }
+    interface HTMLOgmImageElement extends Components.OgmImage, HTMLStencilElement {
+        addEventListener<K extends keyof HTMLOgmImageElementEventMap>(type: K, listener: (this: HTMLOgmImageElement, ev: OgmImageCustomEvent<HTMLOgmImageElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLOgmImageElementEventMap>(type: K, listener: (this: HTMLOgmImageElement, ev: OgmImageCustomEvent<HTMLOgmImageElementEventMap[K]>) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
+    }
+    var HTMLOgmImageElement: {
+        prototype: HTMLOgmImageElement;
+        new (): HTMLOgmImageElement;
+    };
     interface HTMLOgmMapElementEventMap {
         "mapIdle": void;
         "mapLoading": void;
@@ -123,6 +150,7 @@ declare global {
         new (): HTMLOgmViewerElement;
     };
     interface HTMLElementTagNameMap {
+        "ogm-image": HTMLOgmImageElement;
         "ogm-map": HTMLOgmMapElement;
         "ogm-menubar": HTMLOgmMenubarElement;
         "ogm-metadata": HTMLOgmMetadataElement;
@@ -132,6 +160,12 @@ declare global {
     }
 }
 declare namespace LocalJSX {
+    interface OgmImage {
+        "onImageLoaded"?: (event: OgmImageCustomEvent<void>) => void;
+        "onImageLoading"?: (event: OgmImageCustomEvent<void>) => void;
+        "record"?: OgmRecord;
+        "theme"?: 'light' | 'dark';
+    }
     interface OgmMap {
         "onMapIdle"?: (event: OgmMapCustomEvent<void>) => void;
         "onMapLoading"?: (event: OgmMapCustomEvent<void>) => void;
@@ -164,6 +198,7 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface IntrinsicElements {
+        "ogm-image": OgmImage;
         "ogm-map": OgmMap;
         "ogm-menubar": OgmMenubar;
         "ogm-metadata": OgmMetadata;
@@ -176,6 +211,7 @@ export { LocalJSX as JSX };
 declare module "@stencil/core" {
     export namespace JSX {
         interface IntrinsicElements {
+            "ogm-image": LocalJSX.OgmImage & JSXBase.HTMLAttributes<HTMLOgmImageElement>;
             "ogm-map": LocalJSX.OgmMap & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
             "ogm-menubar": LocalJSX.OgmMenubar & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
             "ogm-metadata": LocalJSX.OgmMetadata & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;

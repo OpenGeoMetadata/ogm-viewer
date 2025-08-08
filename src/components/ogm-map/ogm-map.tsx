@@ -47,6 +47,7 @@ export class OgmMap {
     this.containerEl = this.el.parentElement.parentElement;
     this.addControls();
     this.map.on('idle', () => this.mapIdle.emit());
+    this.map.on('load', () => this.previewRecord(this.record));
   }
 
   // Add controls to the map
