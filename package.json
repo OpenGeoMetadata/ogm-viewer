@@ -47,6 +47,8 @@
   "license": "MIT",
   "dependencies": {
     "@geomatico/maplibre-cog-protocol": "^0.5.0",
+    "@iiif/presentation-2": "^1.0.4",
+    "@iiif/presentation-3": "^2.2.3",
     "@shoelace-style/shoelace": "^2.20.1",
     "@terraformer/wkt": "^2.2.1",
     "d3-scale": "^4.0.2",

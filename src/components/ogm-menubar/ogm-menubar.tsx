@@ -1,4 +1,4 @@
-import { Component, Prop, EventEmitter, h, Watch, Event } from '@stencil/core';
+import { Component, Prop, EventEmitter, h, Event } from '@stencil/core';
 import type { OgmRecord } from '../../utils/record';
 
 @Component({
@@ -11,11 +11,6 @@ export class OgmMenubar {
   @Prop() theme: 'light' | 'dark';
   @Event() sidebarToggled: EventEmitter;
   @Prop() loading: boolean = false;
-
-  @Watch('loading')
-  handleLoadingChange(newValue: boolean) {
-    console.log(`Loading state changed: ${newValue}`);
-  }
 
   render() {
     return (

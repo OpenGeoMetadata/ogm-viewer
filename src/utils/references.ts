@@ -1,3 +1,6 @@
+import iiif3 from '@iiif/presentation-3';
+import iiif2 from '@iiif/presentation-2'
+
 // Map reference URI keys to user-friendly names
 export const REFERENCE_URIS = {
   'https://github.com/cogeotiff/cog-spec': 'COG',
@@ -50,6 +53,9 @@ export class References {
   // Underlying object to hold references
   private references: ReferencesRecord;
 
+  // Cache for fetched IIIF manifest
+  iiifManifest: iiif3.Manifest | iiif2.Manifest | null;
+
   // Create a new instance with the JSON string from a record
   constructor(dct_references_s: string) {
     try {
@@ -61,58 +67,66 @@ export class References {
   }
 
   // The WMS URL, if any
-  get wms() {
+  get wmsUrl() {
     return this.references['http://www.opengis.net/def/serviceType/ogc/wms'];
   }
 
   // The cloud-optimized GeoTIFF URL, if any
-  get cog() {
+  get cogUrl() {
     return this.references['https://github.com/cogeotiff/cog-spec'];
   }
 
   // The TMS URL, if any
-  get tms() {
+  get tmsUrl() {
     return this.references['https://wiki.osgeo.org/wiki/Tile_Map_Service_Specification'];
   }
 
   // The XYZ tiles URL, if any
-  get xyz() {
+  get xyzUrl() {
     return this.references['https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames'];
   }
 
   // The GeoJSON URL, if any
-  get geojson() {
+  get geojsonUrl() {
     return this.references['http://geojson.org/geojson-spec.html'];
   }
 
   // The TileJSON URL, if any
-  get tilejson() {
+  get tilejsonUrl() {
     return this.references['https://tilejson.org/specification/2.2.0/schema.json'];
   }
 
   // The Index map URL, if any
-  get indexMap() {
+  get indexMapUrl() {
     return this.references['https://openindexmaps.org'];
   }
 
   // The PMTiles URL, if any
-  get pmtiles() {
+  get pmtilesUrl() {
     return this.references['https://pmtiles.org'];
   }
 
   // The WMTS URL, if any
-  get wmts() {
+  get wmtsUrl() {
     return this.references['http://www.opengis.net/def/serviceType/ogc/wmts'];
   }
 
   // The IIIF image URL, if any
-  get iiifImage() {
+  get iiifImageUrl() {
     return this.references['http://iiif.io/api/image'];
   }
 
   // The IIIF manifest URL, if any
-  get iiifManifest() {
+  get iiifManifestUrl() {
     return this.references['http://iiif.io/api/presentation#manifest'];
+  }
+
+  async iiifImages() {
+    if (this.iiifImageUrl) return [this.iiifImageUrl];
+    if (!this.iiifManifest && this.iiifManifestUrl) await this.fetchManifest();
+    if (!this.iiifManifest) return [];
+    if (this.iiifVersion == 3) return this.extractIiif3ImageUrls(this.iiifManifest as iiif3.Manifest);
+    if (this.iiifVersion == 2) return this.extractIiif2ImageUrls(this.iiifManifest as iiif2.Manifest);
   }
 
   // List of download links with URL and label
@@ -157,11 +171,64 @@ export class References {
 
   // Get all references that can be rendered on a map
   private get mapPreviewableReferences() {
-    return [this.wms, this.cog, this.tms, this.xyz, this.geojson, this.tilejson, this.indexMap, this.pmtiles, this.wmts];
+    return [this.wmsUrl, this.cogUrl, this.tmsUrl, this.xyzUrl, this.geojsonUrl, this.tilejsonUrl, this.indexMapUrl, this.pmtilesUrl, this.wmtsUrl];
   }
 
   // Get all IIIF references (image and manifest)
   private get iiifReferences() {
-    return [this.iiifImage, this.iiifManifest];
+    return [this.iiifImageUrl, this.iiifManifestUrl];
+  }
+
+  // Get the IIIF presentation spec version of the manifest, if we have one
+  private get iiifVersion() {
+    if (!this.iiifManifest) return null;
+    return this.iiifManifest['@context']?.includes('http://iiif.io/api/presentation/3/context.json') ? 3 : 2;
+  }
+
+  // Given a v2 manifest, extract all of the IIIF images and format as info.json URLs
+  private extractIiif2ImageUrls(manifest: iiif2.Manifest): string[] {
+    return manifest.sequences
+      .flatMap((seq) => seq.canvases)
+      .flatMap((can) => can.images)
+      .flatMap((img) => img.resource)
+      .flatMap((res) => (res['@type'] === 'dctypes:Image' ? res.service['@id'] + '/info.json' : []));
+  }
+
+  // Given a v3 manifest, extract all of the IIIF images and format as info.json URLs
+  private extractIiif3ImageUrls(manifest: iiif3.Manifest): string[] {
+    // Recursively search the '.items' key until we end up with nodes that have type 'ImageService2'
+    return manifest.items
+      .flatMap((canvas) => canvas.items)
+      .flatMap((annotationPage) => annotationPage.items)
+      .flatMap((annotation) => {
+        if (annotation.body instanceof Array) {
+          return annotation.body
+        }
+        else {
+          return [annotation.body]
+        }
+      })
+      //@ts-ignore
+      .flatMap(annotationBody => annotationBody.service)
+      .flatMap(service => service.id + '/info.json')
+  }
+
+  // TODO: use navPlace as the bounds source if available
+
+  // Attempt to fetch and parse the IIIF manifest, if any
+  async fetchManifest(): Promise<iiif2.Manifest | iiif3.Manifest | null> {
+    if (!this.iiifManifestUrl) return null;
+
+    try {
+      const response = await fetch(this.iiifManifestUrl);
+      if (!response.ok) throw new Error(`Unexpected response fetching IIIF manifest: ${response.statusText}`);
+      const manifest = await response.json();
+      this.iiifManifest = manifest;
+      return manifest;
+    } catch (error) {
+      console.error(error.message);
+      this.iiifManifest = null;
+      return null;
+    }
   }
 }

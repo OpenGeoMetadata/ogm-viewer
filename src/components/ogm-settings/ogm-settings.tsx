@@ -27,7 +27,7 @@ export class OgmSettings {
     return (
       <div class="settings">
         <sl-range
-          disabled={!this.record || !this.record.references.mapPreviewable}
+          disabled={!this.record || this.record.references.iiifOnly}
           label="Layer opacity"
           min="0"
           max="100"

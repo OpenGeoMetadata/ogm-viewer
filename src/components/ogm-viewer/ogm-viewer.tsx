@@ -29,7 +29,7 @@ export class OgmViewer {
   @State() record: OgmRecord;
   @State() sidebarOpen: boolean = false;
   @State() previewOpacity: number = 100;
-  
+
   private loading: boolean = false;
   private map: HTMLOgmMapElement;
 
@@ -43,15 +43,16 @@ export class OgmViewer {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
-  // After loading, find the map element in the shadow DOM
-  componentDidLoad() {
+  // After rendering, find the map element in the shadow DOM, if it's there
+  componentDidRender() {
     this.map = this.el.shadowRoot.querySelector('ogm-map');
   }
 
-  // Shift the map over when the sidebar is toggled open
+  // Shift the map/image over when the sidebar is toggled open
   @Listen('sidebarToggled')
   toggleSidebar() {
     this.sidebarOpen = !this.sidebarOpen;
+    if (!this.map) return;
     if (this.sidebarOpen) this.map.easeMapTo({ padding: { left: 400 } });
     else this.map.easeMapTo({ padding: { left: 20 } });
   }
@@ -76,16 +77,16 @@ export class OgmViewer {
 
   // Listen for map to report loading started
   @Listen('mapLoading')
+  @Listen('imageLoading')
   setLoadingStarted() {
     this.loading = true;
-    console.log('Map loading started');
   }
 
   // Listen for map to report loading finished
   @Listen('mapIdle')
+  @Listen('imageLoaded')
   setLoadingFinished() {
     this.loading = false;
-    console.log('Map loading finished');
   }
 
   // Fetch a record by URL and parse it into an OgmRecord instance
