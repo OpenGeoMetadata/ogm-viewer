@@ -13,6 +13,7 @@ export const getPreviewSource = (record: OgmRecord): AddSourceObject => {
     return;
   }
 
+  console.log(bestSource)
   return bestSource;
 };
 
@@ -41,6 +42,7 @@ export const getPreviewLayers = (record: OgmRecord, source: AddSourceObject): Ad
       id: `${source.id}-preview-${type}`,
       type,
       source: source.id,
+      "source-layer": "default",
     } as AddLayerObject,
   ];
 };
@@ -75,11 +77,13 @@ const getLayerType = (record: OgmRecord, source: SourceSpecification): LayerType
   if (source.type === 'raster') return 'raster';
 
   // For Vector sources, we need to check the resource type to style it
-  if (source.type === 'geojson') {
+  if (source.type === 'geojson' || source.type === 'vector') {
     if (record.resourceType?.includes('Point data')) return 'circle';
     if (record.resourceType?.includes('Line data')) return 'line';
     return 'fill'; // Default to fill for polygons
-  } else throw new Error(`Unsupported source type: ${source.type}`);
+  }
+  
+  throw new Error(`Unsupported source type: ${source.type}`);
 };
 
 // Given a record, choose the best source used to preview it on the map
@@ -88,6 +92,7 @@ const getRecordSource = (record: OgmRecord): AddSourceObject => {
     // Methods that create new sources are added here in order of preference
     // The first one that returns a valid source will be used
     recordGeoJSONSource(record),
+    recordPMTilesVectorSource(record),
     recordCOGSource(record),
     recordWMSSource(record),
     recordTMSSource(record),
@@ -95,9 +100,27 @@ const getRecordSource = (record: OgmRecord): AddSourceObject => {
   ].find(Boolean);
 };
 
+const recordPMTilesVectorSource = (record: OgmRecord): AddSourceObject => {
+  // If no PMTiles reference, nothing to do
+  const pmtilesUrl = record.references.pmtilesUrl;
+  if (!pmtilesUrl) return null;
+
+  // Add the pmtiles:// protocol that will tell MapLibre to use the plugin
+  const url = `pmtiles://${pmtilesUrl}`;
+
+  return {
+    id: record.id,
+    source: {
+      type: 'vector',
+      url,
+      attribution: record.attribution,
+    },
+  };
+};
+
 const recordXYZSource = (record: OgmRecord): AddSourceObject => {
   // If no XYZ reference, nothing to do
-  const xyzUrl = record.references.xyz;
+  const xyzUrl = record.references.xyzUrl;
   if (!xyzUrl) return null;
 
   return {
@@ -115,7 +138,7 @@ const recordXYZSource = (record: OgmRecord): AddSourceObject => {
 // Given a record, create a MapLibre TMS source, if possible
 const recordTMSSource = (record: OgmRecord): AddSourceObject => {
   // If no TMS reference, nothing to do
-  const tmsUrl = record.references.tms;
+  const tmsUrl = record.references.tmsUrl;
   if (!tmsUrl) return null;
 
   return {
@@ -133,7 +156,7 @@ const recordTMSSource = (record: OgmRecord): AddSourceObject => {
 // Given a record, create a MapLibre GeoJSON source, if possible
 const recordGeoJSONSource = (record: OgmRecord): AddSourceObject => {
   // If no GeoJSON reference, nothing to do
-  const geojsonUrl = record.references.geojson;
+  const geojsonUrl = record.references.geojsonUrl;
   if (!geojsonUrl) return null;
 
   // Create a GeoJSON source with the record's ID and attribution
@@ -150,7 +173,7 @@ const recordGeoJSONSource = (record: OgmRecord): AddSourceObject => {
 // Given a record, create a MapLibre COG source, if possible
 const recordCOGSource = (record: OgmRecord): AddSourceObject => {
   // If no COG reference, nothing to do
-  const cogUrl = record.references.cog;
+  const cogUrl = record.references.cogUrl;
   if (!cogUrl) return null;
 
   // Add the cog:// protocol that will tell MapLibre to use the plugin
@@ -170,7 +193,7 @@ const recordCOGSource = (record: OgmRecord): AddSourceObject => {
 // Given a record, create a MapLibre WMS source, if possible
 const recordWMSSource = (record: OgmRecord): AddSourceObject => {
   // If no WMS reference or no WXS layer identifier, nothing we can do
-  const wmsUrl = record.references.wms;
+  const wmsUrl = record.references.wmsUrl;
   if (!wmsUrl) return null;
   const layerIds = [record.wxsIdentifier];
   if (!layerIds[0]) return null;
