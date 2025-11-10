@@ -13,6 +13,7 @@ export const getPreviewSource = (record: OgmRecord): AddSourceObject => {
     return;
   }
 
+  console.log(bestSource)
   return bestSource;
 };
 
@@ -41,6 +42,7 @@ export const getPreviewLayers = (record: OgmRecord, source: AddSourceObject): Ad
       id: `${source.id}-preview-${type}`,
       type,
       source: source.id,
+      "source-layer": "default",
     } as AddLayerObject,
   ];
 };
@@ -75,11 +77,13 @@ const getLayerType = (record: OgmRecord, source: SourceSpecification): LayerType
   if (source.type === 'raster') return 'raster';
 
   // For Vector sources, we need to check the resource type to style it
-  if (source.type === 'geojson') {
+  if (source.type === 'geojson' || source.type === 'vector') {
     if (record.resourceType?.includes('Point data')) return 'circle';
     if (record.resourceType?.includes('Line data')) return 'line';
     return 'fill'; // Default to fill for polygons
-  } else throw new Error(`Unsupported source type: ${source.type}`);
+  }
+  
+  throw new Error(`Unsupported source type: ${source.type}`);
 };
 
 // Given a record, choose the best source used to preview it on the map
@@ -88,11 +92,30 @@ const getRecordSource = (record: OgmRecord): AddSourceObject => {
     // Methods that create new sources are added here in order of preference
     // The first one that returns a valid source will be used
     recordGeoJSONSource(record),
+    recordPMTilesVectorSource(record),
     recordCOGSource(record),
     recordWMSSource(record),
     recordTMSSource(record),
     recordXYZSource(record),
   ].find(Boolean);
+};
+
+const recordPMTilesVectorSource = (record: OgmRecord): AddSourceObject => {
+  // If no PMTiles reference, nothing to do
+  const pmtilesUrl = record.references.pmtilesUrl;
+  if (!pmtilesUrl) return null;
+
+  // Add the pmtiles:// protocol that will tell MapLibre to use the plugin
+  const url = `pmtiles://${pmtilesUrl}`;
+
+  return {
+    id: record.id,
+    source: {
+      type: 'vector',
+      url,
+      attribution: record.attribution,
+    },
+  };
 };
 
 const recordXYZSource = (record: OgmRecord): AddSourceObject => {

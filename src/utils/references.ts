@@ -103,7 +103,7 @@ export class References {
 
   // The PMTiles URL, if any
   get pmtilesUrl() {
-    return this.references['https://pmtiles.org'];
+    return this.references['https://github.com/protomaps/PMTiles'];
   }
 
   // The WMTS URL, if any

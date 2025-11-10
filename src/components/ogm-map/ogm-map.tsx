@@ -1,6 +1,7 @@
 import { Component, Element, Prop, State, h, Watch, Method, Event, EventEmitter } from '@stencil/core';
 import maplibregl from 'maplibre-gl';
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
+import { Protocol as pmtilesProtocol } from 'pmtiles';
 import { getPreviewSource, getPreviewLayers, getBoundsPreviewSource, getBoundsPreviewLayers } from '../../utils/sources';
 
 import type { OgmRecord } from '../../utils/record';
@@ -9,6 +10,10 @@ import type { AddSourceObject } from '../../utils/sources';
 
 // Add support for COG protocol
 maplibregl.addProtocol('cog', cogProtocol);
+
+// Add support for PMTiles protocol
+let pmtProtocol = new pmtilesProtocol();
+maplibregl.addProtocol('pmtiles', pmtProtocol.tile);
 
 @Component({
   tag: 'ogm-map',
@@ -89,10 +94,12 @@ export class OgmMap {
     // Add the sources for the record's geometry and the data preview
     this.boundsSource = getBoundsPreviewSource(this.record);
     this.previewSource = getPreviewSource(this.record);
+    console.log(this.previewSource, 'preview source');
 
     // If the record is not restricted and has a source, add preview layers
     if (this.previewSource && !this.record.restricted) {
       this.previewLayers = getPreviewLayers(this.record, this.previewSource);
+      console.log('preview layers', this.previewLayers);
     }
 
     // Otherwise if we have bounds, just add the bounds preview layers
