@@ -99,4 +99,28 @@ export class References {
       .filter(([uri]) => METADATA_REFERENCE_URIS.includes(uri))
       .map(([uri, url]: [ReferenceURI, string]) => ({ url, label: REFERENCE_URIS[uri] }));
   }
+
+  // The IIIF Presentation manifest URL, if any
+  get iiifManifest() {
+    const url = this.references['http://iiif.io/api/presentation#manifest'];
+    return this.normalizeIiifManifest(url);
+  }
+
+  /**
+   * Some records incorrectly store a IIIF Content Search API endpoint
+   * under the IIIF Presentation manifest key. For known providers,
+   * normalize these URLs to a proper manifest endpoint so downstream
+   * viewers can load them successfully.
+   */
+  private normalizeIiifManifest(url?: string) {
+    if (!url) return url;
+    // University of Michigan (quod.lib.umich.edu) provides manifests at:
+    //   /cgi/i/image/api/manifest/:id
+    // but some records reference the search endpoint instead:
+    //   /cgi/i/image/api/search/:id
+    if (url.includes('quod.lib.umich.edu/cgi/i/image/api/search/')) {
+      return url.replace('/api/search/', '/api/manifest/');
+    }
+    return url;
+  }
 }

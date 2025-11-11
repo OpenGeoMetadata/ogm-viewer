@@ -10,6 +10,10 @@ import { EaseToOptions } from "maplibre-gl";
 export { OgmRecord } from "./utils/record";
 export { EaseToOptions } from "maplibre-gl";
 export namespace Components {
+    interface OgmIiif {
+        "manifestUrl": string;
+        "theme": 'light' | 'dark';
+    }
     interface OgmMap {
         "easeMapTo": (options: EaseToOptions) => Promise<maplibregl.Map>;
         "previewOpacity": number;
@@ -52,6 +56,12 @@ export interface OgmSettingsCustomEvent<T> extends CustomEvent<T> {
     target: HTMLOgmSettingsElement;
 }
 declare global {
+    interface HTMLOgmIiifElement extends Components.OgmIiif, HTMLStencilElement {
+    }
+    var HTMLOgmIiifElement: {
+        prototype: HTMLOgmIiifElement;
+        new (): HTMLOgmIiifElement;
+    };
     interface HTMLOgmMapElementEventMap {
         "mapIdle": void;
         "mapLoading": void;
@@ -123,6 +133,7 @@ declare global {
         new (): HTMLOgmViewerElement;
     };
     interface HTMLElementTagNameMap {
+        "ogm-iiif": HTMLOgmIiifElement;
         "ogm-map": HTMLOgmMapElement;
         "ogm-menubar": HTMLOgmMenubarElement;
         "ogm-metadata": HTMLOgmMetadataElement;
@@ -132,6 +143,10 @@ declare global {
     }
 }
 declare namespace LocalJSX {
+    interface OgmIiif {
+        "manifestUrl"?: string;
+        "theme"?: 'light' | 'dark';
+    }
     interface OgmMap {
         "onMapIdle"?: (event: OgmMapCustomEvent<void>) => void;
         "onMapLoading"?: (event: OgmMapCustomEvent<void>) => void;
@@ -164,6 +179,7 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface IntrinsicElements {
+        "ogm-iiif": OgmIiif;
         "ogm-map": OgmMap;
         "ogm-menubar": OgmMenubar;
         "ogm-metadata": OgmMetadata;
@@ -176,6 +192,7 @@ export { LocalJSX as JSX };
 declare module "@stencil/core" {
     export namespace JSX {
         interface IntrinsicElements {
+            "ogm-iiif": LocalJSX.OgmIiif & JSXBase.HTMLAttributes<HTMLOgmIiifElement>;
             "ogm-map": LocalJSX.OgmMap & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
             "ogm-menubar": LocalJSX.OgmMenubar & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
             "ogm-metadata": LocalJSX.OgmMetadata & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;

@@ -30,15 +30,14 @@ export class OgmViewer {
   @State() sidebarOpen: boolean = false;
   @State() previewOpacity: number = 100;
   @State() loading: boolean = false;
+  @State() resolvedTheme: 'light' | 'dark';
 
   private map: HTMLOgmMapElement;
 
   async componentWillLoad() {
-    // If no theme provided, detect the user's system preference
-    if (!this.theme) {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      this.theme = prefersDark ? 'dark' : 'light';
-    }
+    // Resolve theme without mutating @Prop()
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    this.resolvedTheme = this.theme ?? (prefersDark ? 'dark' : 'light');
 
     // Fetch the record if a URL is provided
     if (this.recordUrl) return await this.updateRecord();
@@ -52,13 +51,20 @@ export class OgmViewer {
   @Listen('sidebarToggled')
   toggleSidebar() {
     this.sidebarOpen = !this.sidebarOpen;
-    if (this.sidebarOpen) this.map.easeMapTo({ padding: { left: 400 } });
-    else this.map.easeMapTo({ padding: { left: 20 } });
+    if (this.map) {
+      if (this.sidebarOpen) this.map.easeMapTo({ padding: { left: 400 } });
+      else this.map.easeMapTo({ padding: { left: 20 } });
+    }
   }
 
   @Watch('recordUrl')
   async updateRecord() {
     this.record = await this.fetchRecord(this.recordUrl);
+  }
+  @Watch('theme')
+  onThemeChanged(newTheme: 'light' | 'dark') {
+    if (!newTheme) return;
+    this.resolvedTheme = newTheme;
   }
 
   // Listen for opacity changes from the sidebar and adjust the preview layer
@@ -70,13 +76,19 @@ export class OgmViewer {
   // Listen for map to report loading started
   @Listen('mapLoading')
   setLoadingStarted() {
-    this.loading = true;
+    // Defer to avoid mutating state during render
+    requestAnimationFrame(() => {
+      this.loading = true;
+    });
   }
 
   // Listen for map to report loading finished
   @Listen('mapIdle')
   setLoadingFinished() {
-    this.loading = false;
+    // Defer to avoid mutating state during render
+    requestAnimationFrame(() => {
+      this.loading = false;
+    });
   }
 
   // Fetch a record by URL and parse it into an OgmRecord instance
@@ -87,12 +99,14 @@ export class OgmViewer {
   }
 
   render() {
+    const iiif = this.record?.references?.iiifManifest;
+    const theme = this.resolvedTheme;
     return (
-      <div class={`container sl-theme-${this.theme}`}>
-        <ogm-menubar theme={this.theme} record={this.record} loading={this.loading}></ogm-menubar>
+      <div class={`container sl-theme-${theme}`}>
+        <ogm-menubar theme={theme} record={this.record} loading={this.loading}></ogm-menubar>
         <div class="map-container">
-          <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen}></ogm-sidebar>
-          <ogm-map preview-opacity={this.previewOpacity} theme={this.theme} record={this.record}></ogm-map>
+          <ogm-sidebar theme={theme} record={this.record} open={this.sidebarOpen}></ogm-sidebar>
+          {iiif ? <ogm-iiif theme={theme} manifestUrl={iiif}></ogm-iiif> : <ogm-map preview-opacity={this.previewOpacity} theme={theme} record={this.record}></ogm-map>}
         </div>
       </div>
     );
