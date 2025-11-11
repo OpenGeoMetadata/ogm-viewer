@@ -106,11 +106,7 @@ export class OgmViewer {
         <ogm-menubar theme={theme} record={this.record} loading={this.loading}></ogm-menubar>
         <div class="map-container">
           <ogm-sidebar theme={theme} record={this.record} open={this.sidebarOpen}></ogm-sidebar>
-          {iiif ? (
-            <ogm-iiif theme={theme} manifestUrl={iiif}></ogm-iiif>
-          ) : (
-            <ogm-map preview-opacity={this.previewOpacity} theme={theme} record={this.record}></ogm-map>
-          )}
+          {iiif ? <ogm-iiif theme={theme} manifestUrl={iiif}></ogm-iiif> : <ogm-map preview-opacity={this.previewOpacity} theme={theme} record={this.record}></ogm-map>}
         </div>
       </div>
     );

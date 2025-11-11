@@ -133,7 +133,7 @@ describe('ogm-iiif', () => {
       });
 
       expect(page.root.getAttribute('class')).toBe('sl-theme-light');
-      
+
       const iframe = page.root.querySelector('iframe');
       const srcdoc = iframe.getAttribute('srcdoc');
       expect(srcdoc).toContain('sl-theme-light');
@@ -147,7 +147,7 @@ describe('ogm-iiif', () => {
       });
 
       expect(page.root.getAttribute('class')).toBe('sl-theme-dark');
-      
+
       const iframe = page.root.querySelector('iframe');
       const srcdoc = iframe.getAttribute('srcdoc');
       expect(srcdoc).toContain('sl-theme-dark');
@@ -161,7 +161,7 @@ describe('ogm-iiif', () => {
       });
 
       expect(page.root.getAttribute('class')).toBeNull();
-      
+
       const iframe = page.root.querySelector('iframe');
       const srcdoc = iframe.getAttribute('srcdoc');
       expect(srcdoc).toContain('<body class="">');
@@ -200,4 +200,3 @@ describe('ogm-iiif', () => {
     });
   });
 });
-

@@ -3,5 +3,3 @@ declare namespace JSX {
     'clover-viewer': any;
   }
 }
-
-

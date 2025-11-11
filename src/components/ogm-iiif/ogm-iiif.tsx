@@ -134,19 +134,9 @@ export class OgmIiif {
               <sl-spinner></sl-spinner>
             </div>
           )}
-          {this.cloverReady && (
-            <iframe
-              class="clover-frame"
-              part="clover-frame"
-              srcdoc={srcdoc}
-              loading="lazy"
-              title="Clover IIIF Viewer"
-            ></iframe>
-          )}
+          {this.cloverReady && <iframe class="clover-frame" part="clover-frame" srcdoc={srcdoc} loading="lazy" title="Clover IIIF Viewer"></iframe>}
         </div>
       </Host>
     );
   }
 }
-
-
