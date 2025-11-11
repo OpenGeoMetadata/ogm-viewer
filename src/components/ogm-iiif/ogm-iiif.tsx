@@ -1,4 +1,7 @@
-import { Component, Prop, State, Watch, h, Host } from '@stencil/core';
+import { Component, Element, Prop, State, Watch, h, Host } from '@stencil/core';
+
+// Import Shoelace spinner component
+import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
 
 @Component({
   tag: 'ogm-iiif',
@@ -6,6 +9,7 @@ import { Component, Prop, State, Watch, h, Host } from '@stencil/core';
   shadow: false,
 })
 export class OgmIiif {
+  @Element() el: HTMLElement;
   @Prop() manifestUrl: string;
   @Prop() theme: 'light' | 'dark';
 
@@ -71,8 +75,46 @@ export class OgmIiif {
     if (this.theme) body.classList.add(`sl-theme-${this.theme}`);
   }
 
+  private setupIframeReference() {
+    const iframe = this.el.querySelector('iframe') as HTMLIFrameElement;
+    if (iframe && iframe !== this.frameEl) {
+      // Remove old listener if exists
+      if (this.frameEl) {
+        this.frameEl.removeEventListener('load', this.handleIframeLoad);
+      }
+      this.frameEl = iframe;
+      this.frameEl.addEventListener('load', this.handleIframeLoad);
+      // Check if iframe is already loaded (for srcdoc, contentDocument is available when loaded)
+      try {
+        if (this.frameEl.contentDocument && this.frameEl.contentDocument.readyState === 'complete') {
+          this.handleIframeLoad();
+        }
+      } catch (e) {
+        // Cross-origin or not yet loaded - will be handled by load event
+      }
+    }
+  }
+
+  private handleIframeLoad = () => {
+    // Defer state update to avoid mutating during render cycle
+    requestAnimationFrame(() => {
+      this.frameLoaded = true;
+      this.updateIframeThemeClass();
+    });
+  };
+
   componentDidLoad() {
-    this.updateIframeThemeClass();
+    this.setupIframeReference();
+  }
+
+  componentDidUpdate() {
+    this.setupIframeReference();
+  }
+
+  // Reset loading state when manifestUrl changes
+  @Watch('manifestUrl')
+  onManifestUrlChanged() {
+    this.frameLoaded = false;
   }
 
   // React to external theme prop changes
@@ -98,11 +140,6 @@ export class OgmIiif {
               part="clover-frame"
               srcdoc={srcdoc}
               loading="lazy"
-              ref={el => (this.frameEl = el as HTMLIFrameElement)}
-              onLoad={() => {
-                this.frameLoaded = true;
-                this.updateIframeThemeClass();
-              }}
               title="Clover IIIF Viewer"
             ></iframe>
           )}
