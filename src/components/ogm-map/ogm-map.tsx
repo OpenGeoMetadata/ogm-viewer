@@ -46,7 +46,9 @@ export class OgmMap {
     });
     this.containerEl = this.el.parentElement.parentElement;
     this.addControls();
-    this.map.on('idle', () => this.mapIdle.emit());
+    this.map.on('idle', () => {
+      if (this.el.isConnected) this.mapIdle.emit();
+    });
   }
 
   // Add controls to the map
@@ -109,6 +111,13 @@ export class OgmMap {
     this.previewLayers = [];
     this.boundsSource = null;
     this.previewSource = null;
+  }
+
+  // Clean up map listeners and instance when removed from DOM
+  disconnectedCallback() {
+    try {
+      this.map?.remove();
+    } catch {}
   }
 
   // Fit the map to the provided bounds
