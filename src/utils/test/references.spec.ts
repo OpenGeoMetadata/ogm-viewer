@@ -72,8 +72,11 @@ describe('References', () => {
     });
 
     it('handles empty string gracefully', () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       const references = new References('');
       expect(references.iiifManifest).toBeUndefined();
+      expect(consoleSpy).toHaveBeenCalled();
+      consoleSpy.mockRestore();
     });
   });
 

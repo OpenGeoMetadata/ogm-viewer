@@ -1,3 +1,8 @@
+// Mock Shoelace spinner import for Jest (must be before other imports)
+jest.mock('@shoelace-style/shoelace/dist/components/spinner/spinner.js', () => ({}), {
+  virtual: true,
+});
+
 import { h } from '@stencil/core';
 import { newSpecPage } from '@stencil/core/testing';
 import { OgmIiif } from '../ogm-iiif';
