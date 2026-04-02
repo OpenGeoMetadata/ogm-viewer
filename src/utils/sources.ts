@@ -1,5 +1,7 @@
 import type { SourceSpecification, AddLayerObject } from 'maplibre-gl';
 import type { OgmRecord } from './record';
+import { COGLayer } from '@developmentseed/deck.gl-geotiff';
+import { DecoderPool } from '@developmentseed/geotiff';
 
 export type AddSourceObject = { id: string; source: SourceSpecification };
 type LayerType = Exclude<AddLayerObject['type'], 'custom'>;
@@ -215,4 +217,19 @@ const createWMSSource = ({
     tileSize,
     attribution,
   };
+};
+
+// Generate a Deck.GL layer for a COG from an OGM record
+export const recordDeckGLCOGLayer = (record: OgmRecord): COGLayer => {
+  return new COGLayer({
+    id: record.id,
+    geotiff: record.references.cogUrl,
+    // Disable the web worker decoder pool; this appears to cause errors because
+    // it can't find /worker.js?
+    // See: https://developmentseed.org/deck.gl-raster/api/geotiff/type-aliases/DecoderPoolOptions/
+    // See also: https://github.com/developmentseed/deck.gl-raster/issues/364
+    pool: new DecoderPool({
+      createWorker: null,
+    }),
+  });
 };

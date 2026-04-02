@@ -42,13 +42,22 @@
     "jest": "^29.7.0",
     "jest-cli": "^29.7.0",
     "prettier": "^3.6.2",
-    "puppeteer": "^24.3.0"
+    "puppeteer": "^24.3.0",
+    "rollup-plugin-node-polyfills": "^0.2.1",
+    "workbox-build": "^4.3.1"
   },
   "license": "MIT",
   "dependencies": {
+    "@deck.gl/core": "^9.2.10",
+    "@deck.gl/geo-layers": "^9.2.11",
+    "@deck.gl/layers": "^9.2.10",
+    "@deck.gl/mapbox": "^9.2.10",
+    "@deck.gl/mesh-layers": "^9.2.11",
+    "@developmentseed/deck.gl-geotiff": "^0.4.0",
     "@geomatico/maplibre-cog-protocol": "^0.5.0",
     "@iiif/presentation-2": "^1.0.4",
     "@iiif/presentation-3": "^2.2.3",
+    "@luma.gl/core": "^9.2.6",
     "@shoelace-style/shoelace": "^2.20.1",
     "@terraformer/wkt": "^2.2.1",
     "d3-scale": "^4.0.2",

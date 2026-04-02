@@ -1,7 +1,8 @@
 import { Component, Element, Prop, State, h, Watch, Method, Event, EventEmitter } from '@stencil/core';
 import maplibregl from 'maplibre-gl';
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
-import { getPreviewSource, getPreviewLayers, getBoundsPreviewSource, getBoundsPreviewLayers } from '../../utils/sources';
+import { getPreviewSource, getPreviewLayers, getBoundsPreviewSource, getBoundsPreviewLayers, recordDeckGLCOGLayer } from '../../utils/sources';
+import { MapboxOverlay as DeckOverlay } from '@deck.gl/mapbox';
 
 import type { OgmRecord } from '../../utils/record';
 import type { AddLayerObject, EaseToOptions } from 'maplibre-gl';
@@ -32,6 +33,9 @@ export class OgmMap {
   // MapLibre map instance
   private map: maplibregl.Map;
 
+  // Deck.gl overlay for rendering rasters
+  private deckOverlay: DeckOverlay;
+
   // Container element reference for fullscreen
   private containerEl: HTMLElement;
 
@@ -45,6 +49,7 @@ export class OgmMap {
       zoom: 1,
     });
     this.containerEl = this.el.parentElement.parentElement;
+    this.deckOverlay = new DeckOverlay({ interleaved: true });
     this.addControls();
     this.map.on('idle', () => this.mapIdle.emit());
     this.map.on('load', () => this.previewRecord(this.record));
@@ -75,6 +80,7 @@ export class OgmMap {
         compact: true,
       }),
     );
+    this.map.addControl(this.deckOverlay);
   }
 
   @Watch('record')
@@ -86,18 +92,30 @@ export class OgmMap {
     // Indicate loading
     this.mapLoading.emit();
 
-    // Add the sources for the record's geometry and the data preview
+    // Get the bounds
     this.boundsSource = getBoundsPreviewSource(this.record);
-    this.previewSource = getPreviewSource(this.record);
 
-    // If the record is not restricted and has a source, add preview layers
-    if (this.previewSource && !this.record.restricted) {
-      this.previewLayers = getPreviewLayers(this.record, this.previewSource);
+    // If a raster, generate a Deck.gl COG layer
+    if (this.record.references.cogUrl) {
+      const deckLayer = recordDeckGLCOGLayer(this.record);
+      this.deckOverlay.setProps({
+        layers: [deckLayer],
+      });
     }
 
-    // Otherwise if we have bounds, just add the bounds preview layers
+    // For vectors...
     else if (this.boundsSource) {
-      this.boundsLayers = getBoundsPreviewLayers(this.record);
+      // Add the sources for the record's geometry and the data preview
+      this.previewSource = getPreviewSource(this.record);
+
+      // If the record is not restricted and has a source, add preview layers
+      if (this.previewSource && !this.record.restricted) {
+        this.previewLayers = getPreviewLayers(this.record, this.previewSource);
+      }
+      // Otherwise if we have bounds, just add the bounds preview layers
+      else {
+        this.boundsLayers = getBoundsPreviewLayers(this.record);
+      }
     }
 
     // Fit the map to the record's bounding box
