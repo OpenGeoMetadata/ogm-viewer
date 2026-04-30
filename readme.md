@@ -76,6 +76,12 @@ Code is formatted using Prettier. To format your code for a pull request, run:
 npx prettier --write .
 ```
 
+To type-check and lint your code, run:
+
+```bash
+npm run lint
+```
+
 ### Tests
 
 To run tests, use:
