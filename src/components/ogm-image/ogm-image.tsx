@@ -1,6 +1,7 @@
 import { Component, Element, h, Host, Watch, Prop, Event, EventEmitter } from '@stencil/core';
 import { Viewer } from 'openseadragon';
 
+import { findElement } from '../../utils/elements';
 import type { OgmRecord } from '../../utils/record';
 
 @Component({
@@ -21,17 +22,18 @@ export class OgmImage {
   // Set up OpenSeadragon viewer on load
   async componentDidLoad() {
     this.viewer = new Viewer({
-      element: this.el.shadowRoot.getElementById('openseadragon'),
+      element: findElement(this.el, '#openseadragon'),
       prefixUrl: 'https://cdnjs.cloudflare.com/ajax/libs/openseadragon/2.4.2/images/',
       visibilityRatio: 1,
       sequenceMode: true,
+      //@ts-ignore
       drawer: typeof jest === 'undefined' ? 'webgl' : 'html', // No WebGL in tests
-      zoomInButton: this.el.shadowRoot.querySelector('.zoom-in'),
-      zoomOutButton: this.el.shadowRoot.querySelector('.zoom-out'),
-      homeButton: this.el.shadowRoot.querySelector('.home'),
-      fullPageButton: this.el.shadowRoot.querySelector('.full-page'),
-      nextButton: this.el.shadowRoot.querySelector('.next'),
-      previousButton: this.el.shadowRoot.querySelector('.prev'),
+      zoomInButton: findElement(this.el, '.zoom-in'),
+      zoomOutButton: findElement(this.el, '.zoom-out'),
+      homeButton: findElement(this.el, '.home'),
+      fullPageButton: findElement(this.el, '.full-page'),
+      nextButton: findElement(this.el, '.next'),
+      previousButton: findElement(this.el, '.prev'),
     });
     this.viewer.addHandler('open', () => this.imageLoaded.emit());
     if (this.record) await this.loadImages();
@@ -48,6 +50,7 @@ export class OgmImage {
   private async loadImages() {
     this.imageLoading.emit();
     const images = await this.record.references.iiifImages();
+    if (!images) throw new Error('No IIIF images found for record');
     this.viewer.open(images);
   }
 

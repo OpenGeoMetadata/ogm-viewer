@@ -1,6 +1,7 @@
 import { setBasePath } from '@shoelace-style/shoelace/dist/utilities/base-path.js';
 import { Component, Element, Listen, Method, Prop, State, Watch, getAssetPath, h } from '@stencil/core';
 
+import { findElement } from '../../utils/elements';
 import { OgmRecord } from '../../utils/record';
 
 // Only need to call this once, at the top level
@@ -46,7 +47,7 @@ export class OgmViewer {
 
   // After rendering, find the map element in the shadow DOM, if it's there
   componentDidRender() {
-    this.map = this.el.shadowRoot.querySelector('ogm-map');
+    this.map = findElement(this.el, 'ogm-map') as HTMLOgmMapElement;
   }
 
   // Shift the map/image over when the sidebar is toggled open

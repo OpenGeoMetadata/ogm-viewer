@@ -1,3 +1,4 @@
+import { describe, it, expect } from '@jest/globals';
 import { h } from '@stencil/core';
 import { newSpecPage } from '@stencil/core/testing';
 import { OgmMenubar } from '../ogm-menubar';

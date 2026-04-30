@@ -211,13 +211,23 @@ export class OgmRecord {
 
   // List of download links with URL and label
   get downloadLinks() {
-    return this.references.downloadLinks.map(link => {
-      // If no label for download, use the format, falling back to 'Object'
-      // If file size is available, append it to the label
-      if (!link.label) link.label = this.format || 'Object';
-      if (this.fileSize) link.label += ` (${this.fileSize})`;
-      return link;
-    });
+    // If multiple download links were provided in the references, use those
+    if (this.references.downloadLinks.length > 0) return this.references.downloadLinks;
+
+    // If there is a single download link, generate a label for it
+    if (this.references.downloadUrl) {
+      let label = this.format || 'Object';
+      if (this.fileSize) label += ` (${this.fileSize})`;
+      return [
+        {
+          label: label,
+          url: this.references.downloadUrl as string,
+        },
+      ];
+    }
+
+    // Otherwise, return an empty list
+    return [];
   }
 
   // Get the bounding box as LngLatBounds
