@@ -4,6 +4,7 @@ import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
 import { getPreviewSource, getPreviewLayers, getBoundsPreviewSource, getBoundsPreviewLayers, recordDeckGLCOGLayer } from '../../utils/sources';
 import { MapboxOverlay as DeckOverlay } from '@deck.gl/mapbox';
 
+import { findElement } from '../../utils/elements';
 import type { OgmRecord } from '../../utils/record';
 import type { AddLayerObject, EaseToOptions } from 'maplibre-gl';
 import type { AddSourceObject } from '../../utils/sources';
@@ -25,9 +26,9 @@ export class OgmMap {
   @Event() mapLoading: EventEmitter<void>;
 
   // Track sources and layers for bounds and preview
-  @State() boundsSource: AddSourceObject;
+  @State() boundsSource: AddSourceObject | null = null;
   @State() boundsLayers: AddLayerObject[] = [];
-  @State() previewSource: AddSourceObject;
+  @State() previewSource: AddSourceObject | null = null;
   @State() previewLayers: AddLayerObject[] = [];
 
   // MapLibre map instance
@@ -42,17 +43,24 @@ export class OgmMap {
   // Set up the mapLibre map and event bindings on load
   componentDidLoad() {
     this.map = new maplibregl.Map({
-      container: this.el.shadowRoot.getElementById('map'),
+      container: findElement(this.el, '#map'),
       attributionControl: false,
       style: this.baseMapStyle,
       center: [0, 0],
       zoom: 1,
     });
-    this.containerEl = this.el.parentElement.parentElement;
+    this.getContainer();
     this.deckOverlay = new DeckOverlay({ interleaved: true });
     this.addControls();
     this.map.on('idle', () => this.mapIdle.emit());
     this.map.on('load', () => this.previewRecord(this.record));
+  }
+
+  // Find the container element for the map (used for fullscreen control)
+  private getContainer() {
+    const containerEl = this.el.parentElement?.parentElement;
+    if (!containerEl) throw new Error('Could not find map container element');
+    this.containerEl = containerEl;
   }
 
   // Add controls to the map
@@ -118,8 +126,9 @@ export class OgmMap {
       }
     }
 
-    // Fit the map to the record's bounding box
-    this.fitMapBounds(this.record.getBounds());
+    // Fit the map to the record's bounding box, if we can
+    const bounds = this.record.getBounds();
+    if (bounds) this.fitMapBounds(bounds);
   }
 
   // Remove all layers and sources from the map

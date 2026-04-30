@@ -2,6 +2,8 @@ import { Component, Listen, Prop, EventEmitter, Event, Element, h } from '@stenc
 import type { OgmRecord } from '../../utils/record';
 import type { SlRange } from '@shoelace-style/shoelace';
 
+import { findElement } from '../../utils/elements';
+
 @Component({
   tag: 'ogm-settings',
   styleUrl: 'ogm-settings.css',
@@ -15,7 +17,7 @@ export class OgmSettings {
   private slRange: SlRange;
 
   componentDidLoad() {
-    this.slRange = this.el.shadowRoot.querySelector('sl-range');
+    this.slRange = findElement(this.el, 'sl-range') as SlRange;
   }
 
   @Listen('sl-input')

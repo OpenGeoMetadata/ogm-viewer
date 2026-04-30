@@ -1,5 +1,6 @@
 import { Component, Element, h, Host, Prop } from '@stencil/core';
 
+import { findElement } from '../../utils/elements';
 import type { OgmRecord } from '../../utils/record';
 import type { SlTabGroup } from '@shoelace-style/shoelace';
 
@@ -18,12 +19,12 @@ export class OgmSidebar {
 
   // Find the tab group element after the component is loaded
   componentDidLoad() {
-    this.tabs = this.el.shadowRoot.querySelector('sl-tab-group');
+    this.tabs = findElement(this.el, 'sl-tab-group') as SlTabGroup;
   }
 
   // Name of the currently active tab panel in sidebar, if one is active
   get activeTabPanel() {
-    const activeTab = this.el.shadowRoot.querySelector('sl-tab[active]');
+    const activeTab = findElement(this.el, 'sl-tab[active]');
     if (activeTab) return activeTab.getAttribute('panel');
   }
 

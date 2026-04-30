@@ -38,7 +38,8 @@ const METADATA_REFERENCE_URIS = [
   'http://www.isotc211.org/schemas/2005/gmd/',
   'http://www.loc.gov/mods/v3',
   'http://lccn.loc.gov/sh85035852',
-];
+] as const;
+type MetadataReferenceURI = (typeof METADATA_REFERENCE_URIS)[number];
 
 // Special handling for download URLs, can be a single string or an array of objects
 export type LabelledLinks = { url: string; label: string }[];
@@ -54,7 +55,7 @@ export class References {
   private references: ReferencesRecord;
 
   // Cache for fetched IIIF manifest
-  iiifManifest: iiif3.Manifest | iiif2.Manifest | null;
+  iiifManifest: iiif3.Manifest | iiif2.Manifest | null = null;
 
   // Create a new instance with the JSON string from a record
   constructor(dct_references_s: string) {
@@ -93,7 +94,7 @@ export class References {
 
   // The TileJSON URL, if any
   get tilejsonUrl() {
-    return this.references['https://tilejson.org/specification/2.2.0/schema.json'];
+    return this.references['https://github.com/mapbox/tilejson-spec'];
   }
 
   // The Index map URL, if any
@@ -103,7 +104,7 @@ export class References {
 
   // The PMTiles URL, if any
   get pmtilesUrl() {
-    return this.references['https://pmtiles.org'];
+    return this.references['https://github.com/protomaps/PMTiles'];
   }
 
   // The WMTS URL, if any
@@ -129,19 +130,30 @@ export class References {
     if (this.iiifVersion == 2) return this.extractIiif2ImageUrls(this.iiifManifest as iiif2.Manifest);
   }
 
-  // List of download links with URL and label
+  // List of download links with URL and label, if using multiple downloads
   get downloadLinks(): LabelledLinks {
     const fieldContents = this.references['http://schema.org/downloadUrl'];
     if (!fieldContents) return [];
     if (Array.isArray(fieldContents)) return fieldContents;
-    return [{ url: fieldContents, label: null }];
+    return [];
+  }
+
+  // If downloads was specified as a single string, return it
+  get downloadUrl(): string | null {
+    const fieldContents = this.references['http://schema.org/downloadUrl'];
+    if (!fieldContents) return null;
+    if (typeof fieldContents === 'string') return fieldContents;
+    return null;
   }
 
   // List of metadata links with URL and label
-  get metadataLinks(): LabelledLinks {
-    return Object.entries(this.references)
-      .filter(([uri]) => METADATA_REFERENCE_URIS.includes(uri))
-      .map(([uri, url]: [ReferenceURI, string]) => ({ url, label: REFERENCE_URIS[uri] }));
+  get metadataLinks() {
+    return (
+      Object.entries(this.references)
+        .filter(([uri]) => METADATA_REFERENCE_URIS.includes(uri as MetadataReferenceURI))
+        //@ts-ignore
+        .map(([uri, url]: [MetadataReferenceURI, string]) => ({ url, label: REFERENCE_URIS[uri] }))
+    );
   }
 
   // True if the record has at least one reference that can be rendered for preview
@@ -187,11 +199,14 @@ export class References {
 
   // Given a v2 manifest, extract all of the IIIF images and format as info.json URLs
   private extractIiif2ImageUrls(manifest: iiif2.Manifest): string[] {
-    return manifest.sequences
-      .flatMap(seq => seq.canvases)
-      .flatMap(can => can.images)
-      .flatMap(img => img.resource)
-      .flatMap(res => (res['@type'] === 'dctypes:Image' ? res.service['@id'] + '/info.json' : []));
+    return (
+      manifest.sequences
+        .flatMap(seq => seq.canvases)
+        .flatMap(can => can.images)
+        .flatMap(img => img.resource)
+        //@ts-ignore
+        .flatMap(res => (res['@type'] === 'dctypes:Image' ? res.service['@id'] + '/info.json' : []))
+    );
   }
 
   // Given a v3 manifest, extract all of the IIIF images and format as info.json URLs
@@ -200,7 +215,7 @@ export class References {
     return (
       manifest.items
         .flatMap(canvas => canvas.items)
-        .flatMap(annotationPage => annotationPage.items)
+        .flatMap(annotationPage => annotationPage?.items || [])
         .flatMap(annotation => {
           if (annotation.body instanceof Array) {
             return annotation.body;
@@ -227,7 +242,7 @@ export class References {
       this.iiifManifest = manifest;
       return manifest;
     } catch (error) {
-      console.error(error.message);
+      console.error((error as Error).message);
       this.iiifManifest = null;
       return null;
     }

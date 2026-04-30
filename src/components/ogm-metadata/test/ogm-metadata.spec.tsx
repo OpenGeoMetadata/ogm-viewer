@@ -1,3 +1,4 @@
+import { describe, it, expect } from '@jest/globals';
 import { h } from '@stencil/core';
 import { newSpecPage } from '@stencil/core/testing';
 import { OgmMetadata } from '../ogm-metadata';
@@ -13,6 +14,7 @@ describe('ogm-metadata', () => {
         template: () => <ogm-metadata record={record}></ogm-metadata>,
       });
 
+      //@ts-ignore
       expect(page.root).toEqualHtml(`
         <ogm-metadata>
           <mock:shadow-root>
@@ -65,6 +67,7 @@ describe('ogm-metadata', () => {
         template: () => <ogm-metadata record={record}></ogm-metadata>,
       });
 
+      //@ts-ignore
       expect(page.root).toEqualHtml(`
         <ogm-metadata>
           <mock:shadow-root>
@@ -126,6 +129,7 @@ describe('ogm-metadata', () => {
         template: () => <ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>,
       });
 
+      //@ts-ignore
       expect(page.root).toEqualHtml(`
         <ogm-metadata>
           <mock:shadow-root>
@@ -170,6 +174,7 @@ describe('ogm-metadata', () => {
         template: () => <ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>,
       });
 
+      //@ts-ignore
       expect(page.root).toEqualHtml(`
         <ogm-metadata>
           <mock:shadow-root>
@@ -218,6 +223,7 @@ describe('ogm-metadata', () => {
         template: () => <ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>,
       });
 
+      //@ts-ignore
       expect(page.root).toEqualHtml(`
       <ogm-metadata>
         <mock:shadow-root>
@@ -264,6 +270,7 @@ describe('ogm-metadata', () => {
         template: () => <ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>,
       });
 
+      //@ts-ignore
       expect(page.root).toEqualHtml(`
       <ogm-metadata>
         <mock:shadow-root>
@@ -310,6 +317,7 @@ describe('ogm-metadata', () => {
         template: () => <ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>,
       });
 
+      //@ts-ignore
       expect(page.root).toEqualHtml(`
       <ogm-metadata>
         <mock:shadow-root>

@@ -27,6 +27,11 @@ export const bboxToBounds = (bbox: string) => {
   if (!coords) return null;
   if (coords.length !== 5) return null;
 
+  // Confirm we have all the necessary groups (west, east, north, south)
+  if (!coords.groups || !coords.groups.west || !coords.groups.east || !coords.groups.north || !coords.groups.south) {
+    return null;
+  }
+
   // Convert to numbers and create LngLatBounds
   const west = parseFloat(coords.groups.west);
   const east = parseFloat(coords.groups.east);
@@ -37,13 +42,13 @@ export const bboxToBounds = (bbox: string) => {
 
 // Convert either WKT or ENVELOPE format geometry to GeoJSON
 // If WKT parsing fails, try ENVELOPE instead
-export const geomToGeoJSON = (geometry: string): object => {
+export const geomToGeoJSON = (geometry: string) => {
   try {
-    return wktToGeoJSON(geometry);
+    return wktToGeoJSON(geometry) as GeoJSON.Geometry;
   } catch (error) {
     const bounds = bboxToBounds(geometry);
     if (bounds) {
-      return boundsToGeoJSON(bounds);
+      return boundsToGeoJSON(bounds) as GeoJSON.Geometry;
     }
     console.warn('Could not parse geometry:', geometry);
     return null;

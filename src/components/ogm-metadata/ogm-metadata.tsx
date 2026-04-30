@@ -54,8 +54,7 @@ export class OgmMetadata {
 
   // Render the value of a field, handling arrays and single values
   private renderFieldValue(value: OgmMetadataValue) {
-    if (Array.isArray(value)) return value.map(v => this.renderFieldValue(v));
-    return <dd>{value}</dd>;
+    return [value].flat().map(v => <dd>{v?.toString()}</dd>);
   }
 
   // References is a special field with multiple parts
@@ -109,10 +108,7 @@ export class OgmMetadata {
     if (!this.record) return;
 
     // Filter the record to only include available fields
-    const record: Partial<OgmRecord> = this.availableFields.reduce((filteredRecord, field) => {
-      filteredRecord[field] = this.record[field];
-      return filteredRecord;
-    }, {});
+    const record = Object.fromEntries(this.availableFields.map(field => [field, this.record[field]])) as Partial<OgmRecord>;
 
     // Render the metadata fields
     return (
