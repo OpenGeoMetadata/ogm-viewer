@@ -58,14 +58,28 @@ export class OgmSidebar {
               <div class="panel-content">
                 <ogm-metadata
                   record={this.record}
-                  fieldNames={['title', 'description', 'resourceClass', 'resourceType', 'format', 'themes', 'subjects', 'spatial', 'temporal', 'issued', 'mdModified']}
+                  fieldNames={[
+                    'title',
+                    'description',
+                    'creators',
+                    'publishers',
+                    'resourceClass',
+                    'resourceType',
+                    'format',
+                    'themes',
+                    'subjects',
+                    'spatial',
+                    'temporal',
+                    'issued',
+                    'mdModified',
+                  ]}
                 />
               </div>
             </sl-tab-panel>
             <sl-tab-panel name="rights">
-              <div class="panel-header">Rights</div>
+              <div class="panel-header">Access conditions</div>
               <div class="panel-content">
-                <ogm-metadata record={this.record} fieldNames={['creators', 'publishers', 'provider', 'license', 'rights', 'accessRights', 'rightsHolder']} />
+                <ogm-metadata record={this.record} fieldNames={['provider', 'license', 'rights', 'rightsHolder']} />
               </div>
             </sl-tab-panel>
             <sl-tab-panel name="links">
