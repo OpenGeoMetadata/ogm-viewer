@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect } from '@stencil/vitest';
 import { LngLatBounds } from 'maplibre-gl';
 import { bboxToBounds, boundsToGeoJSON, geomToGeoJSON } from '../geometry';
 
