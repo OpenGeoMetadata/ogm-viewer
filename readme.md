@@ -88,9 +88,9 @@ Unit tests for logic use the `*.spec.ts` extension, while component tests use `*
 
 ```bash
 npm test          # runs all tests
-npm test:unit     # runs only unit tests
-npm test:spec     # runs only component tests
-npm test:browser  # runs only browser tests
+npm run test:unit     # runs only unit tests
+npm run test:spec     # runs only component tests
+npm run test:e2e      # runs only browser tests
 ```
 
 For more information on testing, see the [Stencil documentation](https://stenciljs.com/docs/testing-overview).
