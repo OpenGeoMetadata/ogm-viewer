@@ -5,9 +5,9 @@
  * It contains typing information for all components that exist in this project.
  */
 import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
-import { OgmRecord } from "./utils/record";
+import { OgmRecord } from "./lib/record";
 import { EaseToOptions } from "maplibre-gl";
-export { OgmRecord } from "./utils/record";
+export { OgmRecord } from "./lib/record";
 export { EaseToOptions } from "maplibre-gl";
 export namespace Components {
     interface OgmImage {

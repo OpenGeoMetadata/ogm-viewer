@@ -1,7 +1,7 @@
 import { Component, Element, h, Host, Prop } from '@stencil/core';
 
-import { findElement } from '../../utils/elements';
-import type { OgmRecord } from '../../utils/record';
+import { findElement } from '../../lib/elements';
+import type { OgmRecord } from '../../lib/record';
 import type { SlTabGroup } from '@shoelace-style/shoelace';
 
 @Component({

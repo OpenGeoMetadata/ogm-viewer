@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@stencil/vitest';
-import { OgmRecord } from '../record';
+import { OgmRecord } from './record';
 
 describe('OgmRecord', () => {
   describe('getGeometry', () => {

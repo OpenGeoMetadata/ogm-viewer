@@ -1,5 +1,5 @@
 import { Component, Prop, EventEmitter, h, Event } from '@stencil/core';
-import type { OgmRecord } from '../../utils/record';
+import type { OgmRecord } from '../../lib/record';
 
 @Component({
   tag: 'ogm-menubar',
