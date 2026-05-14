@@ -1,12 +1,12 @@
 import { Component, Element, Prop, State, h, Watch, Method, Event, EventEmitter } from '@stencil/core';
 import maplibregl from 'maplibre-gl';
-import { getPreviewSource, getPreviewLayers, getBoundsPreviewSource, getBoundsPreviewLayers, recordDeckGLCOGLayer } from '../../utils/sources';
+import { getPreviewSource, getPreviewLayers, getBoundsPreviewSource, getBoundsPreviewLayers, recordDeckGLCOGLayer } from '../../lib/sources';
 import { MapboxOverlay as DeckOverlay } from '@deck.gl/mapbox';
 
-import { findElement } from '../../utils/elements';
-import type { OgmRecord } from '../../utils/record';
+import { findElement } from '../../lib/elements';
+import type { OgmRecord } from '../../lib/record';
 import type { AddLayerObject, EaseToOptions } from 'maplibre-gl';
-import type { AddSourceObject } from '../../utils/sources';
+import type { AddSourceObject } from '../../lib/sources';
 
 @Component({
   tag: 'ogm-map',

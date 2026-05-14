@@ -1,8 +1,8 @@
 import { Component, Listen, Prop, EventEmitter, Event, Element, h } from '@stencil/core';
-import type { OgmRecord } from '../../utils/record';
+import type { OgmRecord } from '../../lib/record';
 import type { SlRange } from '@shoelace-style/shoelace';
 
-import { findElement } from '../../utils/elements';
+import { findElement } from '../../lib/elements';
 
 @Component({
   tag: 'ogm-settings',

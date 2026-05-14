@@ -1,8 +1,8 @@
 import { setBasePath } from '@shoelace-style/shoelace/dist/utilities/base-path.js';
 import { Component, Element, Listen, Method, Prop, State, Watch, getAssetPath, h } from '@stencil/core';
 
-import { findElement } from '../../utils/elements';
-import { OgmRecord } from '../../utils/record';
+import { findElement } from '../../lib/elements';
+import { OgmRecord } from '../../lib/record';
 
 // Only need to call this once, at the top level
 setBasePath(getAssetPath(''));

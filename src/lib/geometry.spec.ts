@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@stencil/vitest';
 import { LngLatBounds } from 'maplibre-gl';
-import { bboxToBounds, boundsToGeoJSON, geomToGeoJSON } from '../geometry';
+import { bboxToBounds, boundsToGeoJSON, geomToGeoJSON } from './geometry';
 
 describe('geomToGeoJSON', () => {
   it('should convert WKT to GeoJSON', () => {

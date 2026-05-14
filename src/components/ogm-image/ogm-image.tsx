@@ -1,8 +1,8 @@
 import { Component, Element, h, Host, Watch, Prop, Event, EventEmitter } from '@stencil/core';
 import { Viewer } from 'openseadragon';
 
-import { findElement } from '../../utils/elements';
-import type { OgmRecord } from '../../utils/record';
+import { findElement } from '../../lib/elements';
+import type { OgmRecord } from '../../lib/record';
 
 @Component({
   tag: 'ogm-image',
