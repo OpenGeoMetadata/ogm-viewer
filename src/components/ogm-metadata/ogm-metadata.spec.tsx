@@ -1,22 +1,16 @@
-import { describe, it, expect } from '@jest/globals';
-import { h } from '@stencil/core';
-import { newSpecPage } from '@stencil/core/testing';
-import { OgmMetadata } from '../ogm-metadata';
-import { OgmRecord } from '../../../utils/record';
+import { render, describe, it, expect, h } from '@stencil/vitest';
+
+import { OgmRecord } from '../../utils/record';
 
 describe('ogm-metadata', () => {
   describe('with no record', () => {
     it('does not render anything', async () => {
       const record = undefined;
 
-      const page = await newSpecPage({
-        components: [OgmMetadata],
-        template: () => <ogm-metadata record={record}></ogm-metadata>,
-      });
+      const { root } = await render(<ogm-metadata record={record}></ogm-metadata>);
 
-      //@ts-ignore
-      expect(page.root).toEqualHtml(`
-        <ogm-metadata>
+      expect(root).toEqualHtml(`
+        <ogm-metadata class="hydrated">
           <mock:shadow-root>
           </mock:shadow-root>
         </ogm-metadata>
@@ -37,13 +31,10 @@ describe('ogm-metadata', () => {
         gbl_mdVersion_s: 'Aardvark',
       });
 
-      const page = await newSpecPage({
-        components: [OgmMetadata],
-        template: () => <ogm-metadata record={record}></ogm-metadata>,
-      });
+      const { root } = await render(<ogm-metadata record={record}></ogm-metadata>);
 
-      expect(page.body.innerHTML).not.toContain('<dt>Description</dt>');
-      expect(page.body.innerHTML).not.toContain('<dt>Format</dt>');
+      expect(root).not.toContain('<dt>Description</dt>');
+      expect(root).not.toContain('<dt>Format</dt>');
     });
   });
 
@@ -62,44 +53,70 @@ describe('ogm-metadata', () => {
         gbl_mdVersion_s: 'Aardvark',
       });
 
-      const page = await newSpecPage({
-        components: [OgmMetadata],
-        template: () => <ogm-metadata record={record}></ogm-metadata>,
-      });
+      const { root } = await render(<ogm-metadata record={record}></ogm-metadata>);
 
-      //@ts-ignore
-      expect(page.root).toEqualHtml(`
-        <ogm-metadata>
+      expect(root).toEqualHtml(`
+        <ogm-metadata class="hydrated">
           <mock:shadow-root>
             <dl class="record-details">
               <div class="field id">
-                <dt>ID</dt>
-                <dd>stanford-ff359cr8805</dd>
+                <dt>
+                  ID
+                </dt>
+                <dd>
+                  stanford-ff359cr8805
+                </dd>
               </div>
               <div class="field title">
-                <dt>Title</dt>
-                <dd>Coho Salmon Watersheds: San Francisco Bay Area, California, 2011</dd>
+                <dt>
+                  Title
+                </dt>
+                <dd>
+                  Coho Salmon Watersheds: San Francisco Bay Area, California, 2011
+                </dd>
               </div>
               <div class="field description">
-                <dt>Description</dt>
-                <dd>This polygon shapefile depicts the Coho Salmon Priority Restoration Areas in the nine county San Francisco Bay Area Region, California, as defined by the National Oceanic and Atmospheric Administration (NOAA), National Marine Fisheries Service (NMFS), Southwest Region, North-Central California Coast Recovery Team.</dd>
-                <dd>This dataset was developed/compiled for use in the San Francisco Bay Area Upland Habitat Goals Project, a Project used to identify a Conservation Lands Network (CLN) for biodiversity preservation to inform conservation investments and lasting cooperative conservation partnerships.</dd>
+                <dt>
+                  Description
+                </dt>
+                <dd>
+                  This polygon shapefile depicts the Coho Salmon Priority Restoration Areas in the nine county San Francisco Bay Area Region, California, as defined by the National Oceanic and Atmospheric Administration (NOAA), National Marine Fisheries Service (NMFS), Southwest Region, North-Central California Coast Recovery Team.
+                </dd>
+                <dd>
+                  This dataset was developed/compiled for use in the San Francisco Bay Area Upland Habitat Goals Project, a Project used to identify a Conservation Lands Network (CLN) for biodiversity preservation to inform conservation investments and lasting cooperative conservation partnerships.
+                </dd>
               </div>
               <div class="field resourceType">
-                <dt>Resource Type</dt>
-                <dd>Polygon data</dd>
+                <dt>
+                  Resource Type
+                </dt>
+                <dd>
+                  Polygon data
+                </dd>
               </div>
               <div class="field resourceClass">
-                <dt>Resource Class</dt>
-                <dd>Datasets</dd>
+                <dt>
+                  Resource Class
+                </dt>
+                <dd>
+                  Datasets
+                </dd>
               </div>
               <div class="field accessRights">
-                <dt>Access Rights</dt>
-                <dd>Public</dd>
+                <dt>
+                  Access Rights
+                </dt>
+                <dd>
+                  Public
+                </dd>
               </div>
               <div class="field mdVersion">
-                <dt>Metadata Version</dt>
-                <dd>Aardvark</dd>
+                <dt>
+                  Metadata Version
+                </dt>
+                <dd>
+                  Aardvark
+                </dd>
               </div>
             </dl>
           </mock:shadow-root>
@@ -124,27 +141,35 @@ describe('ogm-metadata', () => {
 
       const fieldNames = ['id', 'title', 'resourceType'];
 
-      const page = await newSpecPage({
-        components: [OgmMetadata],
-        template: () => <ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>,
-      });
+      const { root } = await render(<ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>);
 
-      //@ts-ignore
-      expect(page.root).toEqualHtml(`
-        <ogm-metadata>
+      expect(root).toEqualHtml(`
+        <ogm-metadata class="hydrated">
           <mock:shadow-root>
             <dl class="record-details">
               <div class="field id">
-                <dt>ID</dt>
-                <dd>stanford-ff359cr8805</dd>
+                <dt>
+                  ID
+                </dt>
+                <dd>
+                  stanford-ff359cr8805
+                </dd>
               </div>
               <div class="field title">
-                <dt>Title</dt>
-                <dd>Coho Salmon Watersheds: San Francisco Bay Area, California, 2011</dd>
+                <dt>
+                  Title
+                </dt>
+                <dd>
+                  Coho Salmon Watersheds: San Francisco Bay Area, California, 2011
+                </dd>
               </div>
               <div class="field resourceType">
-                <dt>Resource Type</dt>
-                <dd>Polygon data</dd>
+                <dt>
+                  Resource Type
+                </dt>
+                <dd>
+                  Polygon data
+                </dd>
               </div>
             </dl>
           </mock:shadow-root>
@@ -169,27 +194,35 @@ describe('ogm-metadata', () => {
 
       const fieldNames = ['id', 'title', 'resourceType'];
 
-      const page = await newSpecPage({
-        components: [OgmMetadata],
-        template: () => <ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>,
-      });
+      const { root } = await render(<ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>);
 
-      //@ts-ignore
-      expect(page.root).toEqualHtml(`
-        <ogm-metadata>
+      expect(root).toEqualHtml(`
+        <ogm-metadata class="hydrated">
           <mock:shadow-root>
             <dl class="record-details">
               <div class="field id">
-                <dt>ID</dt>
-                <dd>stanford-ff359cr8805</dd>
+                <dt>
+                  ID
+                </dt>
+                <dd>
+                  stanford-ff359cr8805
+                </dd>
               </div>
               <div class="field title">
-                <dt>Title</dt>
-                <dd>Coho Salmon Watersheds: San Francisco Bay Area, California, 2011</dd>
+                <dt>
+                  Title
+                </dt>
+                <dd>
+                  Coho Salmon Watersheds: San Francisco Bay Area, California, 2011
+                </dd>
               </div>
               <div class="field resourceType">
-                <dt>Resource Type</dt>
-                <dd>Polygon data</dd>
+                <dt>
+                  Resource Type
+                </dt>
+                <dd>
+                  Polygon data
+                </dd>
               </div>
             </dl>
           </mock:shadow-root>
@@ -218,21 +251,21 @@ describe('ogm-metadata', () => {
       });
       const fieldNames = ['references'];
 
-      const page = await newSpecPage({
-        components: [OgmMetadata],
-        template: () => <ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>,
-      });
+      const { root } = await render(<ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>);
 
-      //@ts-ignore
-      expect(page.root).toEqualHtml(`
-      <ogm-metadata>
+      expect(root).toEqualHtml(`
+      <ogm-metadata class="hydrated">
         <mock:shadow-root>
           <dl class="record-details">
             <div class="references">
               <div class="field downloads">
-                <dt>Downloads</dt>
+                <dt>
+                  Downloads
+                </dt>
                 <dd>
-                  <a href="https://stacks.stanford.edu/object/vx572wx7854">Shapefile</a>
+                  <a href="https://stacks.stanford.edu/object/vx572wx7854">
+                    Shapefile
+                  </a>
                 </dd>
               </div>
             </div>
@@ -265,24 +298,26 @@ describe('ogm-metadata', () => {
       });
       const fieldNames = ['references'];
 
-      const page = await newSpecPage({
-        components: [OgmMetadata],
-        template: () => <ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>,
-      });
+      const { root } = await render(<ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>);
 
-      //@ts-ignore
-      expect(page.root).toEqualHtml(`
-      <ogm-metadata>
+      expect(root).toEqualHtml(`
+      <ogm-metadata class="hydrated">
         <mock:shadow-root>
           <dl class="record-details">
             <div class="references">
               <div class="field downloads">
-                <dt>Downloads</dt>
+                <dt>
+                  Downloads
+                </dt>
                 <dd>
-                  <a href="https://stacks.stanford.edu/object/vx572wx7854">Zipped object1</a>
+                  <a href="https://stacks.stanford.edu/object/vx572wx7854">
+                    Zipped object1
+                  </a>
                 </dd>
                 <dd>
-                  <a href="https://stacks.stanford.edu/object/cz128vq0535">Zipped object2</a>
+                  <a href="https://stacks.stanford.edu/object/cz128vq0535">
+                    Zipped object2
+                  </a>
                 </dd>
               </div>
             </div>
@@ -312,24 +347,26 @@ describe('ogm-metadata', () => {
       });
       const fieldNames = ['references'];
 
-      const page = await newSpecPage({
-        components: [OgmMetadata],
-        template: () => <ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>,
-      });
+      const { root } = await render(<ogm-metadata record={record} fieldNames={fieldNames}></ogm-metadata>);
 
-      //@ts-ignore
-      expect(page.root).toEqualHtml(`
-      <ogm-metadata>
+      expect(root).toEqualHtml(`
+      <ogm-metadata class="hydrated">
         <mock:shadow-root>
           <dl class="record-details">
             <div class="references">
               <div class="field metadata">
-                <dt>Metadata</dt>
+                <dt>
+                  Metadata
+                </dt>
                 <dd>
-                  <a href="https://example.com/fgdc.xml">FGDC metadata</a>
+                  <a href="https://example.com/fgdc.xml">
+                    FGDC metadata
+                  </a>
                 </dd>
                 <dd>
-                  <a href="https://example.com/metadata.html">HTML metadata</a>
+                  <a href="https://example.com/metadata.html">
+                    HTML metadata
+                  </a>
                 </dd>
               </div>
             </div>

@@ -1,6 +1,5 @@
 import { Component, Element, Prop, State, h, Watch, Method, Event, EventEmitter } from '@stencil/core';
 import maplibregl from 'maplibre-gl';
-import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
 import { getPreviewSource, getPreviewLayers, getBoundsPreviewSource, getBoundsPreviewLayers, recordDeckGLCOGLayer } from '../../utils/sources';
 import { MapboxOverlay as DeckOverlay } from '@deck.gl/mapbox';
 
@@ -8,9 +7,6 @@ import { findElement } from '../../utils/elements';
 import type { OgmRecord } from '../../utils/record';
 import type { AddLayerObject, EaseToOptions } from 'maplibre-gl';
 import type { AddSourceObject } from '../../utils/sources';
-
-// Add support for COG protocol
-maplibregl.addProtocol('cog', cogProtocol);
 
 @Component({
   tag: 'ogm-map',
