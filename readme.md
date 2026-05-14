@@ -84,13 +84,16 @@ npm run lint
 
 ### Tests
 
-To run tests, use:
+Unit tests for logic use the `*.spec.ts` extension, while component tests use `*.spec.tsx`. Browser tests are located in the `e2e/` directory. You can run all tests together or specify a test type:
 
 ```bash
-npm test
+npm test          # runs all tests
+npm test:unit     # runs only unit tests
+npm test:spec     # runs only component tests
+npm test:browser  # runs only browser tests
 ```
 
-Component unit tests use [Stencil's testing framework](https://stenciljs.com/docs/unit-testing).
+For more information on testing, see the [Stencil documentation](https://stenciljs.com/docs/testing-overview).
 
 ### Releasing
 
