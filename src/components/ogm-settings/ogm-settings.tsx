@@ -1,8 +1,8 @@
-import { Component, Listen, Prop, EventEmitter, Event, Element, h } from '@stencil/core';
-import type { OgmRecord } from '../../lib/record';
 import type { SlRange } from '@shoelace-style/shoelace';
+import { Component, Element, Event, EventEmitter, h, Listen, Prop } from '@stencil/core';
 
-import { findElement } from '../../lib/elements';
+import { getElement } from '../../lib/elements';
+import type { OgmRecord } from '../../lib/record';
 
 @Component({
   tag: 'ogm-settings',
@@ -17,7 +17,7 @@ export class OgmSettings {
   private slRange: SlRange;
 
   componentDidLoad() {
-    this.slRange = findElement(this.el, 'sl-range') as SlRange;
+    this.slRange = getElement(this.el, 'sl-range') as SlRange;
   }
 
   @Listen('sl-input')

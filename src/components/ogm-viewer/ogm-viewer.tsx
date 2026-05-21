@@ -1,7 +1,6 @@
 import { setBasePath } from '@shoelace-style/shoelace/dist/utilities/base-path.js';
 import { Component, Element, Listen, Method, Prop, State, Watch, getAssetPath, h } from '@stencil/core';
 
-import { findElement } from '../../lib/elements';
 import { OgmRecord } from '../../lib/record';
 
 // Only need to call this once, at the top level
@@ -29,11 +28,11 @@ export class OgmViewer {
   @Prop() recordUrl: string;
   @Prop() theme: 'light' | 'dark' = this.getThemePreference();
   @State() record: OgmRecord;
-  @State() sidebarOpen: boolean = false;
   @State() previewOpacity: number = 100;
+  @State() sidebarOpen: boolean = false;
 
   private loading: boolean = false;
-  private map: HTMLOgmMapElement;
+  private sidebarPadding: number = 0;
 
   // Prior to rendering, fetch the record if a URL is provided
   async componentWillLoad() {
@@ -45,18 +44,11 @@ export class OgmViewer {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
-  // After rendering, find the map element in the shadow DOM, if it's there
-  componentDidRender() {
-    this.map = findElement(this.el, 'ogm-map') as HTMLOgmMapElement;
-  }
-
   // Shift the map/image over when the sidebar is toggled open
   @Listen('sidebarToggled')
   toggleSidebar() {
     this.sidebarOpen = !this.sidebarOpen;
-    if (!this.map) return;
-    if (this.sidebarOpen) this.map.easeMapTo({ padding: { left: 400 } });
-    else this.map.easeMapTo({ padding: { left: 20 } });
+    this.sidebarPadding = this.sidebarOpen ? 400 : 0;
   }
 
   // When URL changes, fetch the new record
@@ -100,8 +92,8 @@ export class OgmViewer {
 
   // Choose a preview component based on the record type
   private renderPreview() {
-    if (this.record && this.record.references.iiifOnly) return <ogm-image theme={this.theme} record={this.record}></ogm-image>;
-    return <ogm-map preview-opacity={this.previewOpacity} theme={this.theme} record={this.record}></ogm-map>;
+    if (this.record && this.record.references.iiifOnly) return <ogm-image theme={this.theme} record={this.record} padding={this.sidebarPadding}></ogm-image>;
+    return <ogm-map preview-opacity={this.previewOpacity} theme={this.theme} record={this.record} padding={this.sidebarPadding}></ogm-map>;
   }
 
   render() {

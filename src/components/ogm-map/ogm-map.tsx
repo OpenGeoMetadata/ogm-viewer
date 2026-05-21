@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl';
 import { getPreviewSource, getPreviewLayers, getBoundsPreviewSource, getBoundsPreviewLayers, recordDeckGLCOGLayer } from '../../lib/sources';
 import { MapboxOverlay as DeckOverlay } from '@deck.gl/mapbox';
 
-import { findElement } from '../../lib/elements';
+import { getElement } from '../../lib/elements';
 import type { OgmRecord } from '../../lib/record';
 import type { AddLayerObject, EaseToOptions } from 'maplibre-gl';
 import type { AddSourceObject } from '../../lib/sources';
@@ -18,6 +18,7 @@ export class OgmMap {
   @Prop() record: OgmRecord;
   @Prop() theme: 'light' | 'dark';
   @Prop() previewOpacity: number = 100;
+  @Prop() padding: number = 0;
   @Event() mapIdle: EventEmitter<void>;
   @Event() mapLoading: EventEmitter<void>;
 
@@ -39,7 +40,7 @@ export class OgmMap {
   // Set up the mapLibre map and event bindings on load
   componentDidLoad() {
     this.map = new maplibregl.Map({
-      container: findElement(this.el, '#map'),
+      container: getElement(this.el, '#map'),
       attributionControl: false,
       style: this.baseMapStyle,
       center: [0, 0],
@@ -138,6 +139,12 @@ export class OgmMap {
   // Fit the map to the provided bounds
   fitMapBounds(bounds: maplibregl.LngLatBoundsLike) {
     this.map.fitBounds(bounds, { padding: 40 });
+  }
+
+  // When padding is changed, move the map over to make room for the sidebar
+  @Watch('padding')
+  async onPaddingChange() {
+    return await this.easeMapTo({ padding: { left: this.padding } });
   }
 
   // Move the map (e.g. when the sidebar moves)
