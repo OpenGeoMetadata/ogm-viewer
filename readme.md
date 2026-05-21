@@ -84,10 +84,18 @@ npm run lint
 
 ### Tests
 
-Unit tests for logic use the `*.spec.ts` extension, while component tests use `*.spec.tsx`. Browser tests are located in the `e2e/` directory. You can run all tests together or specify a test type:
+Unit tests for logic use the `*.spec.ts` extension, while component tests use `*.spec.tsx`.
+
+Browser tests located in `test/` are run using Playwright, for which you need to install browsers first:
 
 ```bash
-npm test          # runs all tests
+npx playwright install
+```
+
+You can run all tests together or specify a test type:
+
+```bash
+npm test              # runs all tests
 npm run test:unit     # runs only unit tests
 npm run test:spec     # runs only component tests
 npm run test:e2e      # runs only browser tests

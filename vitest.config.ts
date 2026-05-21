@@ -13,20 +13,20 @@ export default defineVitestConfig({
           environment: 'node',
         },
       },
-      // Spec tests - via a node DOM of your choice
+      // Component tests that use a node-based DOM
       {
         test: {
-          name: 'spec',
+          name: 'component',
           include: ['src/**/*.spec.tsx'],
           environment: 'stencil',
           setupFiles: ['./vitest-setup.ts'],
         },
       },
-      // Browser tests
+      // End-to-end tests in a browser using Playwright
       {
         test: {
-          name: 'browser',
-          include: ['e2e/**/*.test.{ts,tsx}'],
+          name: 'e2e',
+          include: ['test/**/*.test.{ts,tsx}'],
           setupFiles: ['./vitest-setup.ts'],
           browser: {
             enabled: true,

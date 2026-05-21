@@ -31,25 +31,25 @@
     "build": "stencil build",
     "start": "stencil build --dev --watch --serve",
     "test": "stencil-test",
-    "test:watch": "stencil-test --watch",
-    "test:e2e": "stencil-test --project browser",
-    "test:spec": "stencil-test --project spec",
     "test:unit": "stencil-test --project unit",
+    "test:component": "stencil-test --project component",
+    "test:e2e": "stencil-test --project e2e",
     "generate": "stencil generate",
     "lint": "tsc --noEmit && prettier --check ."
   },
   "devDependencies": {
-    "@stencil/core": "^4.27.1",
+    "@playwright/test": "^1.60.0",
+    "@stencil/core": "^4.43.4",
+    "@stencil/playwright": "^0.4.3",
     "@stencil/vitest": "^1.11.6",
     "@types/node": "^22.13.5",
     "@types/openseadragon": "^5.0.2",
     "@types/terraformer__wkt": "^2.0.3",
-    "@vitest/browser-playwright": "^4.1.6",
+    "@vitest/browser-playwright": "^4.1.7",
     "prettier": "^3.6.2",
     "rollup-plugin-node-polyfills": "^0.2.1",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.6",
-    "workbox-build": "^4.3.1"
+    "vitest": "^4.1.7"
   },
   "license": "MIT",
   "dependencies": {
@@ -65,6 +65,7 @@
     "@shoelace-style/shoelace": "^2.20.1",
     "@terraformer/wkt": "^2.2.1",
     "d3-scale": "^4.0.2",
+    "lerc": "^4.1.1",
     "maplibre-gl": "^5.6.0",
     "openseadragon": "^5.0.1"
   }

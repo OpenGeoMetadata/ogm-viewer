@@ -6,7 +6,8 @@ on:
   pull_request:
 
 jobs:
-  test:
+  lint:
+    name: lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -19,7 +20,48 @@ jobs:
         run: npm install
       - name: Run linting
         run: npm run lint
-      - name: Run tests
-        run: npm test
-      - name: Build project
-        run: npm run build
+
+  test-unit:
+    name: unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Install dependencies
+        run: npm install
+      - name: Run unit tests
+        run: npm run test:unit
+
+  test-component:
+    name: component tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Install dependencies
+        run: npm install
+      - name: Run component tests
+        run: npm run test:component
+
+  test-e2e:
+    name: browser tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Install dependencies
+        run: npm install
+      - name: Run browser tests
+        run: npm run test:e2e

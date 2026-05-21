@@ -12,10 +12,14 @@ export const config: Config = {
       isPrimaryPackageOutputTarget: true,
       copy: [{ src: '../assets', dest: 'assets' }],
     },
-    // This target is used for the GitHub Pages preview site.
+    // This target is used for the GitHub Pages preview site and browser testing.
     {
       type: 'www',
-      copy: [{ src: '../assets', dest: 'build/assets' }],
+      serviceWorker: null,
+      copy: [
+        { src: '../assets', dest: 'build/assets' },
+        { src: '../test/fixtures/records', dest: 'build/records' },
+      ],
     },
   ],
   rollupPlugins: {
