@@ -1,5 +1,4 @@
 import { defineVitestConfig } from '@stencil/vitest/config';
-import { playwright } from '@vitest/browser-playwright';
 
 export default defineVitestConfig({
   stencilConfig: './stencil.config.ts',
@@ -9,31 +8,17 @@ export default defineVitestConfig({
       {
         test: {
           name: 'unit',
-          include: ['src/**/*.spec.ts'],
+          include: ['src/**/*.test.ts'],
           environment: 'node',
         },
       },
-      // Spec tests - via a node DOM of your choice
+      // Component tests that use a node-based DOM
       {
         test: {
-          name: 'spec',
-          include: ['src/**/*.spec.tsx'],
-          environment: 'stencil',
+          name: 'component',
+          include: ['src/**/*.test.tsx'],
+          environment: 'happy-dom',
           setupFiles: ['./vitest-setup.ts'],
-        },
-      },
-      // Browser tests
-      {
-        test: {
-          name: 'browser',
-          include: ['e2e/**/*.test.{ts,tsx}'],
-          setupFiles: ['./vitest-setup.ts'],
-          browser: {
-            enabled: true,
-            provider: playwright(),
-            headless: true,
-            instances: [{ browser: 'chromium' }],
-          },
         },
       },
     ],
