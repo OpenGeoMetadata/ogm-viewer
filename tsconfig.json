@@ -4,7 +4,7 @@
     "allowUnreachableCode": false,
     "declaration": false,
     "experimentalDecorators": true,
-    "lib": ["dom", "es2022"],
+    "lib": ["dom", "es2022", "ESNext.Disposable"],
     "moduleResolution": "bundler",
     "module": "esnext",
     "target": "es2022",
@@ -14,7 +14,8 @@
     "jsxFactory": "h",
     "jsxFragmentFactory": "h.Fragment",
     "skipLibCheck": true,
-    "strictPropertyInitialization": false
+    "strictPropertyInitialization": false,
+    "types": ["@stencil/vitest/globals"]
   },
   "include": ["src"],
   "exclude": ["node_modules"]

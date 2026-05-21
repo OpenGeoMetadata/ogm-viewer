@@ -11,18 +11,30 @@ export { OgmRecord } from "./lib/record";
 export { EaseToOptions } from "maplibre-gl";
 export namespace Components {
     interface OgmImage {
+        /**
+          * @default 0
+         */
         "padding": number;
         "record": OgmRecord;
         "theme": 'light' | 'dark';
     }
     interface OgmMap {
         "easeMapTo": (options: EaseToOptions) => Promise<maplibregl.Map>;
+        /**
+          * @default 0
+         */
         "padding": number;
+        /**
+          * @default 100
+         */
         "previewOpacity": number;
         "record": OgmRecord;
         "theme": 'light' | 'dark';
     }
     interface OgmMenubar {
+        /**
+          * @default false
+         */
         "loading": boolean;
         "record": OgmRecord;
         "theme": 'light' | 'dark';
@@ -36,6 +48,9 @@ export namespace Components {
         "record": OgmRecord;
     }
     interface OgmSidebar {
+        /**
+          * @default false
+         */
         "open": boolean;
         "record": OgmRecord;
         "theme": 'light' | 'dark';
@@ -43,6 +58,9 @@ export namespace Components {
     interface OgmViewer {
         "loadRecord": (record: OgmRecord) => Promise<void>;
         "recordUrl": string;
+        /**
+          * @default this.getThemePreference()
+         */
         "theme": 'light' | 'dark';
     }
 }
@@ -165,6 +183,9 @@ declare namespace LocalJSX {
     interface OgmImage {
         "onImageLoaded"?: (event: OgmImageCustomEvent<void>) => void;
         "onImageLoading"?: (event: OgmImageCustomEvent<void>) => void;
+        /**
+          * @default 0
+         */
         "padding"?: number;
         "record"?: OgmRecord;
         "theme"?: 'light' | 'dark';
@@ -172,12 +193,21 @@ declare namespace LocalJSX {
     interface OgmMap {
         "onMapIdle"?: (event: OgmMapCustomEvent<void>) => void;
         "onMapLoading"?: (event: OgmMapCustomEvent<void>) => void;
+        /**
+          * @default 0
+         */
         "padding"?: number;
+        /**
+          * @default 100
+         */
         "previewOpacity"?: number;
         "record"?: OgmRecord;
         "theme"?: 'light' | 'dark';
     }
     interface OgmMenubar {
+        /**
+          * @default false
+         */
         "loading"?: boolean;
         "onSidebarToggled"?: (event: OgmMenubarCustomEvent<any>) => void;
         "record"?: OgmRecord;
@@ -193,35 +223,67 @@ declare namespace LocalJSX {
         "record"?: OgmRecord;
     }
     interface OgmSidebar {
+        /**
+          * @default false
+         */
         "open"?: boolean;
         "record"?: OgmRecord;
         "theme"?: 'light' | 'dark';
     }
     interface OgmViewer {
         "recordUrl"?: string;
+        /**
+          * @default this.getThemePreference()
+         */
         "theme"?: 'light' | 'dark';
     }
+
+    interface OgmImageAttributes {
+        "theme": 'light' | 'dark';
+        "padding": number;
+    }
+    interface OgmMapAttributes {
+        "theme": 'light' | 'dark';
+        "previewOpacity": number;
+        "padding": number;
+    }
+    interface OgmMenubarAttributes {
+        "theme": 'light' | 'dark';
+        "loading": boolean;
+    }
+    interface OgmMetadataAttributes {
+        "theme": 'light' | 'dark';
+    }
+    interface OgmSidebarAttributes {
+        "theme": 'light' | 'dark';
+        "open": boolean;
+    }
+    interface OgmViewerAttributes {
+        "recordUrl": string;
+        "theme": 'light' | 'dark';
+    }
+
     interface IntrinsicElements {
-        "ogm-image": OgmImage;
-        "ogm-map": OgmMap;
-        "ogm-menubar": OgmMenubar;
-        "ogm-metadata": OgmMetadata;
+        "ogm-image": Omit<OgmImage, keyof OgmImageAttributes> & { [K in keyof OgmImage & keyof OgmImageAttributes]?: OgmImage[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `attr:${K}`]?: OgmImageAttributes[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `prop:${K}`]?: OgmImage[K] };
+        "ogm-map": Omit<OgmMap, keyof OgmMapAttributes> & { [K in keyof OgmMap & keyof OgmMapAttributes]?: OgmMap[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `attr:${K}`]?: OgmMapAttributes[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `prop:${K}`]?: OgmMap[K] };
+        "ogm-menubar": Omit<OgmMenubar, keyof OgmMenubarAttributes> & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes]?: OgmMenubar[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `attr:${K}`]?: OgmMenubarAttributes[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `prop:${K}`]?: OgmMenubar[K] };
+        "ogm-metadata": Omit<OgmMetadata, keyof OgmMetadataAttributes> & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes]?: OgmMetadata[K] } & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes as `attr:${K}`]?: OgmMetadataAttributes[K] } & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes as `prop:${K}`]?: OgmMetadata[K] };
         "ogm-settings": OgmSettings;
-        "ogm-sidebar": OgmSidebar;
-        "ogm-viewer": OgmViewer;
+        "ogm-sidebar": Omit<OgmSidebar, keyof OgmSidebarAttributes> & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes]?: OgmSidebar[K] } & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes as `attr:${K}`]?: OgmSidebarAttributes[K] } & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes as `prop:${K}`]?: OgmSidebar[K] };
+        "ogm-viewer": Omit<OgmViewer, keyof OgmViewerAttributes> & { [K in keyof OgmViewer & keyof OgmViewerAttributes]?: OgmViewer[K] } & { [K in keyof OgmViewer & keyof OgmViewerAttributes as `attr:${K}`]?: OgmViewerAttributes[K] } & { [K in keyof OgmViewer & keyof OgmViewerAttributes as `prop:${K}`]?: OgmViewer[K] };
     }
 }
 export { LocalJSX as JSX };
 declare module "@stencil/core" {
     export namespace JSX {
         interface IntrinsicElements {
-            "ogm-image": LocalJSX.OgmImage & JSXBase.HTMLAttributes<HTMLOgmImageElement>;
-            "ogm-map": LocalJSX.OgmMap & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
-            "ogm-menubar": LocalJSX.OgmMenubar & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
-            "ogm-metadata": LocalJSX.OgmMetadata & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;
-            "ogm-settings": LocalJSX.OgmSettings & JSXBase.HTMLAttributes<HTMLOgmSettingsElement>;
-            "ogm-sidebar": LocalJSX.OgmSidebar & JSXBase.HTMLAttributes<HTMLOgmSidebarElement>;
-            "ogm-viewer": LocalJSX.OgmViewer & JSXBase.HTMLAttributes<HTMLOgmViewerElement>;
+            "ogm-image": LocalJSX.IntrinsicElements["ogm-image"] & JSXBase.HTMLAttributes<HTMLOgmImageElement>;
+            "ogm-map": LocalJSX.IntrinsicElements["ogm-map"] & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
+            "ogm-menubar": LocalJSX.IntrinsicElements["ogm-menubar"] & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
+            "ogm-metadata": LocalJSX.IntrinsicElements["ogm-metadata"] & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;
+            "ogm-settings": LocalJSX.IntrinsicElements["ogm-settings"] & JSXBase.HTMLAttributes<HTMLOgmSettingsElement>;
+            "ogm-sidebar": LocalJSX.IntrinsicElements["ogm-sidebar"] & JSXBase.HTMLAttributes<HTMLOgmSidebarElement>;
+            "ogm-viewer": LocalJSX.IntrinsicElements["ogm-viewer"] & JSXBase.HTMLAttributes<HTMLOgmViewerElement>;
         }
     }
 }

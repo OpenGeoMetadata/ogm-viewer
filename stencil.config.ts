@@ -1,5 +1,4 @@
 import { Config } from '@stencil/core';
-import nodePolyfills from 'rollup-plugin-node-polyfills';
 
 export const config: Config = {
   namespace: 'ogm-viewer',
@@ -15,10 +14,8 @@ export const config: Config = {
     // This target is used for the GitHub Pages preview site.
     {
       type: 'www',
+      serviceWorker: null,
       copy: [{ src: '../assets', dest: 'build/assets' }],
     },
   ],
-  rollupPlugins: {
-    after: [nodePolyfills()],
-  },
 };

@@ -9,12 +9,7 @@ describe('ogm-metadata', () => {
 
       const { root } = await render(<ogm-metadata record={record}></ogm-metadata>);
 
-      expect(root).toEqualHtml(`
-        <ogm-metadata class="hydrated">
-          <mock:shadow-root>
-          </mock:shadow-root>
-        </ogm-metadata>
-      `);
+      expect(root).toEqualLightHtml('<ogm-metadata class="hydrated"></ogm-metadata>');
     });
   });
 
@@ -33,8 +28,8 @@ describe('ogm-metadata', () => {
 
       const { root } = await render(<ogm-metadata record={record}></ogm-metadata>);
 
-      expect(root).not.toContain('<dt>Description</dt>');
-      expect(root).not.toContain('<dt>Format</dt>');
+      expect(root).not.toHaveLightTextContent('Description');
+      expect(root).not.toHaveLightTextContent('Format');
     });
   });
 
