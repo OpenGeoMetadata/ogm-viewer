@@ -11,11 +11,13 @@ export { OgmRecord } from "./lib/record";
 export { EaseToOptions } from "maplibre-gl";
 export namespace Components {
     interface OgmImage {
+        "padding": number;
         "record": OgmRecord;
         "theme": 'light' | 'dark';
     }
     interface OgmMap {
         "easeMapTo": (options: EaseToOptions) => Promise<maplibregl.Map>;
+        "padding": number;
         "previewOpacity": number;
         "record": OgmRecord;
         "theme": 'light' | 'dark';
@@ -163,12 +165,14 @@ declare namespace LocalJSX {
     interface OgmImage {
         "onImageLoaded"?: (event: OgmImageCustomEvent<void>) => void;
         "onImageLoading"?: (event: OgmImageCustomEvent<void>) => void;
+        "padding"?: number;
         "record"?: OgmRecord;
         "theme"?: 'light' | 'dark';
     }
     interface OgmMap {
         "onMapIdle"?: (event: OgmMapCustomEvent<void>) => void;
         "onMapLoading"?: (event: OgmMapCustomEvent<void>) => void;
+        "padding"?: number;
         "previewOpacity"?: number;
         "record"?: OgmRecord;
         "theme"?: 'light' | 'dark';
