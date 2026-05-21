@@ -42,6 +42,7 @@ export class OgmMap {
     this.map = new maplibregl.Map({
       container: getElement(this.el, '#map'),
       attributionControl: false,
+      cooperativeGestures: true,
       style: this.baseMapStyle,
       center: [0, 0],
       zoom: 1,
