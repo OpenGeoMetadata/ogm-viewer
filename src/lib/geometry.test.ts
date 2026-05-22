@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@stencil/vitest';
+import { describe, it, expect, vi } from '@stencil/vitest';
 import { LngLatBounds } from 'maplibre-gl';
 import { bboxToBounds, boundsToGeoJSON, geomToGeoJSON } from './geometry';
 
@@ -28,6 +28,15 @@ describe('geomToGeoJSON', () => {
       ],
     });
   });
+
+  it('should be undefined for invalid geometry', () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const invalidGeom = 'INVALID(-122.6764 45.5165)';
+    const geojson = geomToGeoJSON(invalidGeom);
+    expect(geojson).toBeUndefined();
+    expect(consoleWarnSpy).toHaveBeenCalledWith('Could not parse geometry:', invalidGeom);
+    consoleWarnSpy.mockRestore();
+  });
 });
 
 describe('bboxToBounds', () => {
@@ -37,10 +46,16 @@ describe('bboxToBounds', () => {
     expect(bounds).toEqual(new LngLatBounds([-10, 0], [-5, 5]));
   });
 
-  it('should return null for invalid ENVELOPE strings', () => {
+  it('should be undefined for invalid ENVELOPE strings', () => {
     const invalidBbox = 'INVALID(-10,-5,5,0)';
     const bounds = bboxToBounds(invalidBbox);
-    expect(bounds).toBeNull();
+    expect(bounds).toBeUndefined();
+  });
+
+  it('should be undefined for ENVELOPE strings with missing groups', () => {
+    const incompleteBbox = 'ENVELOPE(-10,-5,5)';
+    const bounds = bboxToBounds(incompleteBbox);
+    expect(bounds).toBeUndefined();
   });
 });
 

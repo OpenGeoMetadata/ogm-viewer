@@ -7,21 +7,21 @@ export type AddSourceObject = { id: string; source: SourceSpecification };
 type LayerType = Exclude<AddLayerObject['type'], 'custom'>;
 
 // Given a record, generate the appropriate source for previewing the data
-export const getPreviewSource = (record: OgmRecord): AddSourceObject | null => {
+export const getPreviewSource = (record: OgmRecord): AddSourceObject | undefined => {
   // If nothing we can render from references, warn and bail out
   const bestSource = getRecordSource(record);
   if (!bestSource) {
     console.warn(`No suitable preview source found for record ${record.id}`);
-    return null;
+    return;
   }
 
   return bestSource;
 };
 
 // Given a record, generate a geoJSON source for its bounding box/geometry
-export const getBoundsPreviewSource = (record: OgmRecord): AddSourceObject | null => {
+export const getBoundsPreviewSource = (record: OgmRecord): AddSourceObject | undefined => {
   const bounds = record.getGeometry();
-  if (!bounds) return null;
+  if (!bounds) return;
 
   return {
     id: `${record.id}-bounds`,
@@ -85,7 +85,7 @@ const getLayerType = (record: OgmRecord, source: SourceSpecification): LayerType
 };
 
 // Given a record, choose the best source used to preview it on the map
-const getRecordSource = (record: OgmRecord): AddSourceObject | null => {
+const getRecordSource = (record: OgmRecord): AddSourceObject | undefined => {
   return (
     [
       // Methods that create new sources are added here in order of preference
@@ -95,14 +95,14 @@ const getRecordSource = (record: OgmRecord): AddSourceObject | null => {
       recordWMSSource(record),
       recordTMSSource(record),
       recordXYZSource(record),
-    ].find(Boolean) || null
+    ].find(Boolean) || undefined
   );
 };
 
-const recordXYZSource = (record: OgmRecord): AddSourceObject | null => {
+const recordXYZSource = (record: OgmRecord): AddSourceObject | undefined => {
   // If no XYZ reference, nothing to do
   const xyzUrl = record.references.xyzUrl;
-  if (!xyzUrl) return null;
+  if (!xyzUrl) return;
 
   return {
     id: record.id,
@@ -117,10 +117,10 @@ const recordXYZSource = (record: OgmRecord): AddSourceObject | null => {
 };
 
 // Given a record, create a MapLibre TMS source, if possible
-const recordTMSSource = (record: OgmRecord): AddSourceObject | null => {
+const recordTMSSource = (record: OgmRecord): AddSourceObject | undefined => {
   // If no TMS reference, nothing to do
   const tmsUrl = record.references.tmsUrl;
-  if (!tmsUrl) return null;
+  if (!tmsUrl) return;
 
   return {
     id: record.id,
@@ -135,10 +135,10 @@ const recordTMSSource = (record: OgmRecord): AddSourceObject | null => {
 };
 
 // Given a record, create a MapLibre GeoJSON source, if possible
-const recordGeoJSONSource = (record: OgmRecord): AddSourceObject | null => {
+const recordGeoJSONSource = (record: OgmRecord): AddSourceObject | undefined => {
   // If no GeoJSON reference, nothing to do
   const geojsonUrl = record.references.geojsonUrl;
-  if (!geojsonUrl) return null;
+  if (!geojsonUrl) return;
 
   // Create a GeoJSON source with the record's ID and attribution
   return {
@@ -152,10 +152,10 @@ const recordGeoJSONSource = (record: OgmRecord): AddSourceObject | null => {
 };
 
 // Given a record, create a MapLibre COG source, if possible
-const recordCOGSource = (record: OgmRecord): AddSourceObject | null => {
+const recordCOGSource = (record: OgmRecord): AddSourceObject | undefined => {
   // If no COG reference, nothing to do
   const cogUrl = record.references.cogUrl;
-  if (!cogUrl) return null;
+  if (!cogUrl) return;
 
   // Add the cog:// protocol that will tell MapLibre to use the plugin
   const url = `cog://${cogUrl}`;
@@ -172,12 +172,12 @@ const recordCOGSource = (record: OgmRecord): AddSourceObject | null => {
 };
 
 // Given a record, create a MapLibre WMS source, if possible
-const recordWMSSource = (record: OgmRecord): AddSourceObject | null => {
+const recordWMSSource = (record: OgmRecord): AddSourceObject | undefined => {
   // If no WMS reference or no WXS layer identifier, nothing we can do
   const wmsUrl = record.references.wmsUrl;
-  if (!wmsUrl) return null;
+  if (!wmsUrl) return;
   const layerIds = [record.wxsIdentifier];
-  if (typeof layerIds[0] !== 'string') return null;
+  if (typeof layerIds[0] !== 'string') return;
 
   // Generate the source spec with a unique ID based on the record
   const source = createWMSSource({ wmsUrl, layerIds: layerIds as string[], attribution: record.attribution });

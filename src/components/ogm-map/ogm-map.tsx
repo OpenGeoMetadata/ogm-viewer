@@ -23,9 +23,9 @@ export class OgmMap {
   @Event() mapLoading: EventEmitter<void>;
 
   // Track sources and layers for bounds and preview
-  @State() boundsSource: AddSourceObject | null = null;
+  @State() boundsSource: AddSourceObject | undefined;
   @State() boundsLayers: AddLayerObject[] = [];
-  @State() previewSource: AddSourceObject | null = null;
+  @State() previewSource: AddSourceObject | undefined;
   @State() previewLayers: AddLayerObject[] = [];
 
   // MapLibre map instance
@@ -133,8 +133,8 @@ export class OgmMap {
   clearMap() {
     this.boundsLayers = [];
     this.previewLayers = [];
-    this.boundsSource = null;
-    this.previewSource = null;
+    this.boundsSource = undefined;
+    this.previewSource = undefined;
   }
 
   // Fit the map to the provided bounds
