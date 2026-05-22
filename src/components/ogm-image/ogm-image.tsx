@@ -60,7 +60,7 @@ export class OgmImage {
   // This makes a request to fetch and cache the manifest
   private async loadImages() {
     this.imageLoading.emit();
-    const images = await this.record.references.iiifImages();
+    const images = await this.record.references.iiifImageUrls();
     if (!images) throw new Error('No IIIF images found for record');
     this.viewer.open(images);
   }

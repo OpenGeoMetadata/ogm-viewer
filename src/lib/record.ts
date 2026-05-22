@@ -47,7 +47,6 @@ export interface GeoBlacklightSchemaAardvark {
   gbl_mdVersion_s: 'Aardvark';
   gbl_suppressed_b?: boolean;
   gbl_georeferenced_b?: boolean;
-  [k: string]: unknown;
 }
 
 /**
@@ -232,7 +231,7 @@ export class OgmRecord {
 
   // Get the bounding box as LngLatBounds
   getBounds() {
-    if (!this.bbox) return null;
+    if (!this.bbox) return;
     return bboxToBounds(this.bbox);
   }
 

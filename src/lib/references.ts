@@ -55,7 +55,7 @@ export class References {
   private references: ReferencesRecord;
 
   // Cache for fetched IIIF manifest
-  iiifManifest: iiif3.Manifest | iiif2.Manifest | null = null;
+  iiifManifest: iiif3.Manifest | iiif2.Manifest;
 
   // Create a new instance with the JSON string from a record
   constructor(dct_references_s: string) {
@@ -122,12 +122,29 @@ export class References {
     return this.references['http://iiif.io/api/presentation#manifest'];
   }
 
-  async iiifImages() {
+  // List of IIIF image URLs extracted from the manifest
+  async iiifImageUrls() {
     if (this.iiifImageUrl) return [this.iiifImageUrl];
-    if (!this.iiifManifest && this.iiifManifestUrl) await this.fetchManifest();
-    if (!this.iiifManifest) return [];
-    if (this.iiifVersion == 3) return this.extractIiif3ImageUrls(this.iiifManifest as iiif3.Manifest);
-    if (this.iiifVersion == 2) return this.extractIiif2ImageUrls(this.iiifManifest as iiif2.Manifest);
+    if (!this.iiifManifestUrl) return [];
+
+    // Fetch and cache the manifest if we haven't already
+    if (!this.iiifManifest) {
+      try {
+        await this.fetchManifest();
+      } catch (error) {
+        console.error('Failed to fetch IIIF manifest:', error);
+        return [];
+      }
+    }
+
+    // Try to extract image URLs from the manifest
+    try {
+      if (this.iiifVersion == 3) return this.extractIiif3ImageUrls(this.iiifManifest as iiif3.Manifest);
+      return this.extractIiif2ImageUrls(this.iiifManifest as iiif2.Manifest);
+    } catch (error) {
+      console.error('Failed to extract IIIF image URLs from manifest:', error);
+      return [];
+    }
   }
 
   // List of download links with URL and label, if using multiple downloads
@@ -139,11 +156,10 @@ export class References {
   }
 
   // If downloads was specified as a single string, return it
-  get downloadUrl(): string | null {
+  get downloadUrl(): string | undefined {
     const fieldContents = this.references['http://schema.org/downloadUrl'];
-    if (!fieldContents) return null;
     if (typeof fieldContents === 'string') return fieldContents;
-    return null;
+    return;
   }
 
   // List of metadata links with URL and label
@@ -193,7 +209,6 @@ export class References {
 
   // Get the IIIF presentation spec version of the manifest, if we have one
   private get iiifVersion() {
-    if (!this.iiifManifest) return null;
     return this.iiifManifest['@context']?.includes('http://iiif.io/api/presentation/3/context.json') ? 3 : 2;
   }
 
@@ -216,13 +231,7 @@ export class References {
       manifest.items
         .flatMap(canvas => canvas.items)
         .flatMap(annotationPage => annotationPage?.items || [])
-        .flatMap(annotation => {
-          if (annotation.body instanceof Array) {
-            return annotation.body;
-          } else {
-            return [annotation.body];
-          }
-        })
+        .flatMap(annotation => (Array.isArray(annotation.body) ? annotation.body : [annotation.body]))
         //@ts-ignore
         .flatMap(annotationBody => annotationBody.service)
         .flatMap(service => service.id + '/info.json')
@@ -232,19 +241,12 @@ export class References {
   // TODO: use navPlace as the bounds source if available
 
   // Attempt to fetch and parse the IIIF manifest, if any
-  async fetchManifest(): Promise<iiif2.Manifest | iiif3.Manifest | null> {
-    if (!this.iiifManifestUrl) return null;
-
-    try {
-      const response = await fetch(this.iiifManifestUrl);
-      if (!response.ok) throw new Error(`Unexpected response fetching IIIF manifest: ${response.statusText}`);
-      const manifest = await response.json();
-      this.iiifManifest = manifest;
-      return manifest;
-    } catch (error) {
-      console.error((error as Error).message);
-      this.iiifManifest = null;
-      return null;
-    }
+  private async fetchManifest(): Promise<iiif2.Manifest | iiif3.Manifest | undefined> {
+    if (!this.iiifManifestUrl) return;
+    const response = await fetch(this.iiifManifestUrl);
+    if (!response.ok) throw new Error(`Unexpected response fetching IIIF manifest: ${response.statusText}`);
+    const manifest = await response.json();
+    this.iiifManifest = manifest;
+    return manifest;
   }
 }
