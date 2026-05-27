@@ -91,7 +91,6 @@ const getRecordSource = (record: OgmRecord): AddSourceObject | undefined => {
       // Methods that create new sources are added here in order of preference
       // The first one that returns a valid source will be used
       recordGeoJSONSource(record),
-      recordCOGSource(record),
       recordWMSSource(record),
       recordTMSSource(record),
       recordXYZSource(record),
@@ -146,26 +145,6 @@ const recordGeoJSONSource = (record: OgmRecord): AddSourceObject | undefined => 
     source: {
       type: 'geojson',
       data: geojsonUrl,
-      attribution: record.attribution,
-    },
-  };
-};
-
-// Given a record, create a MapLibre COG source, if possible
-const recordCOGSource = (record: OgmRecord): AddSourceObject | undefined => {
-  // If no COG reference, nothing to do
-  const cogUrl = record.references.cogUrl;
-  if (!cogUrl) return;
-
-  // Add the cog:// protocol that will tell MapLibre to use the plugin
-  const url = `cog://${cogUrl}`;
-
-  return {
-    id: record.id,
-    source: {
-      type: 'raster',
-      url,
-      tileSize: 256,
       attribution: record.attribution,
     },
   };
