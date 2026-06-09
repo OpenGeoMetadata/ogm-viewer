@@ -9,9 +9,9 @@ type LayerType = Exclude<AddLayerObject['type'], 'custom'>;
 type PMTilesVectorMetadata = { vector_layers?: { id: string }[] };
 
 // Given a record, generate the appropriate source for previewing the data
-export const getPreviewSource = (record: OgmRecord): AddSourceObject | undefined => {
+export const getPreviewSource = async (record: OgmRecord): Promise<AddSourceObject | undefined> => {
   // If nothing we can render from references, warn and bail out
-  const bestSource = getRecordSource(record);
+  const bestSource = await getRecordSource(record);
   if (!bestSource) {
     console.warn(`No suitable preview source found for record ${record.id}`);
     return;
@@ -39,7 +39,13 @@ export const getBoundsPreviewSource = (record: OgmRecord): AddSourceObject | und
 // Given a record and source, generate preview layer(s) for the map
 export const getPreviewLayers = async (record: OgmRecord, source: AddSourceObject): Promise<AddLayerObject[]> => {
   const type = getLayerType(record, source.source);
-  const sourceLayer = await getPMTilesVectorPreviewLayerId(record);
+  const pmTilesMetadata = await getPMTilesMetadata(record);
+
+  // If it's a vector PMTiles source, we need to specify the source layer; we'll just use the first one
+  let sourceLayer: string | undefined;
+  if (type != 'raster' && pmTilesMetadata) {
+    sourceLayer = pmTilesMetadata.vector_layers?.[0].id;
+  }
 
   return [
     {
@@ -51,22 +57,15 @@ export const getPreviewLayers = async (record: OgmRecord, source: AddSourceObjec
   ];
 };
 
-// Special handling for PMTiles: inspect metadata to pick the first layer for preview
-const getPMTilesVectorPreviewLayerId = async (record: OgmRecord): Promise<string | undefined> => {
-  // Nothing to do if no PMTile
+// Fetch metadata for a PMTiles source, if possible
+const getPMTilesMetadata = async (record: OgmRecord): Promise<PMTilesVectorMetadata | undefined> => {
+  // If no PMTile, nothing to do
   if (!record.references.pmtilesUrl) return;
 
-  // Create a PMTiles source to read the metadata and get the first layer name
+  // Create a PMTiles source to read the metadata
   const pmtilesData = new PMTiles(record.references.pmtilesUrl);
   const metadata = (await pmtilesData.getMetadata()) as PMTilesVectorMetadata;
-
-  // Bail out if no layers found in metadata
-  if (!metadata.vector_layers || metadata.vector_layers.length === 0) {
-    throw new Error('No vector layers found in PMTiles metadata');
-  }
-
-  // Use the first layer for preview
-  return metadata.vector_layers[0].id;
+  return metadata;
 };
 
 // Generate two styled layers using a record's geoJSON bounds source
@@ -107,12 +106,12 @@ const getLayerType = (record: OgmRecord, source: SourceSpecification): LayerType
 };
 
 // Given a record, choose the best source used to preview it on the map
-const getRecordSource = (record: OgmRecord): AddSourceObject | undefined => {
+const getRecordSource = async (record: OgmRecord): Promise<AddSourceObject | undefined> => {
   return (
     [
       // Methods that create new sources are added here in order of preference
       // The first one that returns a valid source will be used
-      recordPMTilesVectorSource(record),
+      await recordPMTilesSource(record),
       recordGeoJSONSource(record),
       recordWMSSource(record),
       recordTMSSource(record),
@@ -173,8 +172,8 @@ const recordGeoJSONSource = (record: OgmRecord): AddSourceObject | undefined => 
   };
 };
 
-// Given a record, create a PMTiles vector source, if possible
-const recordPMTilesVectorSource = (record: OgmRecord): AddSourceObject | undefined => {
+// Given a record, create a PMTiles source, if possible
+const recordPMTilesSource = async (record: OgmRecord): Promise<AddSourceObject | undefined> => {
   // If no PMTiles reference, nothing to do
   const pmtilesUrl = record.references.pmtilesUrl;
   if (!pmtilesUrl) return;
@@ -182,10 +181,14 @@ const recordPMTilesVectorSource = (record: OgmRecord): AddSourceObject | undefin
   // Add the pmtiles:// protocol that will tell MapLibre to use the plugin
   const url = `pmtiles://${pmtilesUrl}`;
 
+  // Check if it's a vector
+  const metadata = await getPMTilesMetadata(record);
+  const isVector = !!metadata?.vector_layers && metadata.vector_layers.length > 0;
+
   return {
     id: record.id,
     source: {
-      type: 'vector',
+      type: isVector ? 'vector' : 'raster',
       url,
       attribution: record.attribution,
     },

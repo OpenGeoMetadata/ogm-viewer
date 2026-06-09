@@ -9,6 +9,10 @@ import type { OgmRecord } from '../../lib/record';
 import type { AddLayerObject, EaseToOptions } from 'maplibre-gl';
 import type { AddSourceObject } from '../../lib/sources';
 
+// Register PMTiles protocol
+const protocol = new PMTilesProtocol();
+maplibregl.addProtocol('pmtiles', protocol.tile);
+
 @Component({
   tag: 'ogm-map',
   styleUrl: 'ogm-map.css',
@@ -50,11 +54,6 @@ export class OgmMap {
     });
     this.getContainer();
     this.deckOverlay = new DeckOverlay({ interleaved: true });
-
-    // Register PMTiles protocol for vector tiles
-    const protocol = new PMTilesProtocol();
-    maplibregl.addProtocol('pmtiles', protocol.tile);
-
     this.addControls();
     this.map.on('idle', () => this.mapIdle.emit());
     this.map.on('load', () => this.previewRecord(this.record));
@@ -118,12 +117,13 @@ export class OgmMap {
     // Otherwise...
     else if (this.boundsSource) {
       // Add the sources for the record's geometry and the data preview
-      this.previewSource = getPreviewSource(this.record);
+      this.previewSource = await getPreviewSource(this.record);
 
       // If the record is not restricted and has a source, add preview layers
       if (this.previewSource && !this.record.restricted) {
         this.previewLayers = await getPreviewLayers(this.record, this.previewSource);
       }
+
       // Otherwise if we have bounds, just add the bounds preview layers
       else {
         this.boundsLayers = getBoundsPreviewLayers(this.record);
