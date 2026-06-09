@@ -2,9 +2,11 @@ import type { SourceSpecification, AddLayerObject } from 'maplibre-gl';
 import type { OgmRecord } from './record';
 import { COGLayer } from '@developmentseed/deck.gl-geotiff';
 import { DecoderPool } from '@developmentseed/geotiff';
+import { PMTiles } from 'pmtiles';
 
 export type AddSourceObject = { id: string; source: SourceSpecification };
 type LayerType = Exclude<AddLayerObject['type'], 'custom'>;
+type PMTilesVectorMetadata = { vector_layers?: { id: string }[] };
 
 // Given a record, generate the appropriate source for previewing the data
 export const getPreviewSource = (record: OgmRecord): AddSourceObject | undefined => {
@@ -35,16 +37,36 @@ export const getBoundsPreviewSource = (record: OgmRecord): AddSourceObject | und
 };
 
 // Given a record and source, generate preview layer(s) for the map
-export const getPreviewLayers = (record: OgmRecord, source: AddSourceObject): AddLayerObject[] => {
+export const getPreviewLayers = async (record: OgmRecord, source: AddSourceObject): Promise<AddLayerObject[]> => {
   const type = getLayerType(record, source.source);
+  const sourceLayer = await getPMTilesVectorPreviewLayerId(record);
 
   return [
     {
       id: `${source.id}-preview-${type}`,
       type,
       source: source.id,
+      ...(sourceLayer && { 'source-layer': sourceLayer }),
     } as AddLayerObject,
   ];
+};
+
+// Special handling for PMTiles: inspect metadata to pick the first layer for preview
+const getPMTilesVectorPreviewLayerId = async (record: OgmRecord): Promise<string | undefined> => {
+  // Nothing to do if no PMTile
+  if (!record.references.pmtilesUrl) return;
+
+  // Create a PMTiles source to read the metadata and get the first layer name
+  const pmtilesData = new PMTiles(record.references.pmtilesUrl);
+  const metadata = (await pmtilesData.getMetadata()) as PMTilesVectorMetadata;
+
+  // Bail out if no layers found in metadata
+  if (!metadata.vector_layers || metadata.vector_layers.length === 0) {
+    throw new Error('No vector layers found in PMTiles metadata');
+  }
+
+  // Use the first layer for preview
+  return metadata.vector_layers[0].id;
 };
 
 // Generate two styled layers using a record's geoJSON bounds source
@@ -77,7 +99,7 @@ const getLayerType = (record: OgmRecord, source: SourceSpecification): LayerType
   if (source.type === 'raster') return 'raster';
 
   // For Vector sources, we need to check the resource type to style it
-  if (source.type === 'geojson') {
+  if (source.type === 'geojson' || source.type === 'vector') {
     if (record.resourceType?.includes('Point data')) return 'circle';
     if (record.resourceType?.includes('Line data')) return 'line';
     return 'fill'; // Default to fill for polygons
@@ -90,6 +112,7 @@ const getRecordSource = (record: OgmRecord): AddSourceObject | undefined => {
     [
       // Methods that create new sources are added here in order of preference
       // The first one that returns a valid source will be used
+      recordPMTilesVectorSource(record),
       recordGeoJSONSource(record),
       recordWMSSource(record),
       recordTMSSource(record),
@@ -145,6 +168,25 @@ const recordGeoJSONSource = (record: OgmRecord): AddSourceObject | undefined => 
     source: {
       type: 'geojson',
       data: geojsonUrl,
+      attribution: record.attribution,
+    },
+  };
+};
+
+// Given a record, create a PMTiles vector source, if possible
+const recordPMTilesVectorSource = (record: OgmRecord): AddSourceObject | undefined => {
+  // If no PMTiles reference, nothing to do
+  const pmtilesUrl = record.references.pmtilesUrl;
+  if (!pmtilesUrl) return;
+
+  // Add the pmtiles:// protocol that will tell MapLibre to use the plugin
+  const url = `pmtiles://${pmtilesUrl}`;
+
+  return {
+    id: record.id,
+    source: {
+      type: 'vector',
+      url,
       attribution: record.attribution,
     },
   };

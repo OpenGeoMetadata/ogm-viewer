@@ -2,6 +2,7 @@ import { Component, Element, Prop, State, h, Watch, Method, Event, EventEmitter 
 import maplibregl from 'maplibre-gl';
 import { getPreviewSource, getPreviewLayers, getBoundsPreviewSource, getBoundsPreviewLayers, recordDeckGLCOGLayer } from '../../lib/sources';
 import { MapboxOverlay as DeckOverlay } from '@deck.gl/mapbox';
+import { Protocol as PMTilesProtocol } from 'pmtiles';
 
 import { getElement } from '../../lib/elements';
 import type { OgmRecord } from '../../lib/record';
@@ -49,6 +50,11 @@ export class OgmMap {
     });
     this.getContainer();
     this.deckOverlay = new DeckOverlay({ interleaved: true });
+
+    // Register PMTiles protocol for vector tiles
+    const protocol = new PMTilesProtocol();
+    maplibregl.addProtocol('pmtiles', protocol.tile);
+
     this.addControls();
     this.map.on('idle', () => this.mapIdle.emit());
     this.map.on('load', () => this.previewRecord(this.record));
@@ -90,7 +96,7 @@ export class OgmMap {
   }
 
   @Watch('record')
-  previewRecord(record: OgmRecord) {
+  async previewRecord(record: OgmRecord) {
     // Clear the map of previous layers and sources; if nothing new, bail out
     if (this.record) this.clearMap();
     if (!record) return;
@@ -101,7 +107,7 @@ export class OgmMap {
     // Get the bounds
     this.boundsSource = getBoundsPreviewSource(this.record);
 
-    // If a raster, generate a Deck.gl COG layer
+    // If a COG, generate a Deck.gl COG layer
     if (this.record.references.cogUrl) {
       const deckLayer = recordDeckGLCOGLayer(this.record);
       this.deckOverlay.setProps({
@@ -109,14 +115,14 @@ export class OgmMap {
       });
     }
 
-    // For vectors...
+    // Otherwise...
     else if (this.boundsSource) {
       // Add the sources for the record's geometry and the data preview
       this.previewSource = getPreviewSource(this.record);
 
       // If the record is not restricted and has a source, add preview layers
       if (this.previewSource && !this.record.restricted) {
-        this.previewLayers = getPreviewLayers(this.record, this.previewSource);
+        this.previewLayers = await getPreviewLayers(this.record, this.previewSource);
       }
       // Otherwise if we have bounds, just add the bounds preview layers
       else {
