@@ -112,6 +112,7 @@ const getRecordSource = async (record: OgmRecord): Promise<AddSourceObject | und
       // Methods that create new sources are added here in order of preference
       // The first one that returns a valid source will be used
       await recordPMTilesSource(record),
+      recordIndexMapGeoJSONSource(record),
       recordGeoJSONSource(record),
       recordWMSSource(record),
       recordTMSSource(record),
@@ -167,6 +168,23 @@ const recordGeoJSONSource = (record: OgmRecord): AddSourceObject | undefined => 
     source: {
       type: 'geojson',
       data: geojsonUrl,
+      attribution: record.attribution,
+    },
+  };
+};
+
+// Given a record, create a MapLibre GeoJSON source from an index map URL, if possible
+const recordIndexMapGeoJSONSource = (record: OgmRecord): AddSourceObject | undefined => {
+  // If no index map reference, nothing to do
+  const indexMapUrl = record.references.indexMapUrl;
+  if (!indexMapUrl) return;
+
+  // Create a GeoJSON source with the record's ID and attribution
+  return {
+    id: record.id,
+    source: {
+      type: 'geojson',
+      data: indexMapUrl,
       attribution: record.attribution,
     },
   };
