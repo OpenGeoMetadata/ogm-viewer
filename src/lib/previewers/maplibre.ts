@@ -1,0 +1,93 @@
+import type { SourceSpecification, AddLayerObject } from 'maplibre-gl';
+
+import Previewer from './previewer';
+import Source from '../sources/source';
+
+export type MapLibreOptions = {
+  padding: number; // pixels
+  opacity: number; // decimal between 0 and 1
+};
+
+const defaultOptions: MapLibreOptions = {
+  padding: 40,
+  opacity: 1,
+} as const;
+
+export default abstract class MapLibrePreviewer extends Previewer {
+  protected map: maplibregl.Map;
+  protected options: MapLibreOptions;
+  protected opacity: number;
+  protected sourceId: string | null = null;
+  protected layerIds: string[] = [];
+
+  constructor(source: Source, map: maplibregl.Map, options?: Partial<MapLibreOptions>) {
+    super(source);
+    this.map = map;
+    this.options = { ...defaultOptions, ...options } as MapLibreOptions;
+    this.opacity = this.options.opacity;
+  }
+
+  // Add source and preview layers if they don't already exist
+  async preview(): Promise<void> {
+    if (!this.sourceId) {
+      if (this.map.getSource(this.getSourceId())) {
+        console.debug(`MapLibre source ${this.getSourceId()} exists; skipping creation`);
+        return;
+      }
+
+      const source = await this.createSource();
+      this.map.addSource(this.getSourceId(), source);
+      this.sourceId = this.getSourceId();
+      console.debug('Added MapLibre source', this.getSourceId(), source);
+    }
+
+    if (this.layerIds.length == 0) {
+      const layers = await this.createLayers();
+
+      layers.forEach(layer => {
+        if (this.map.getLayer(layer.id)) {
+          console.debug(`MapLibre layer ${layer.id} exists; skipping creation`);
+          return;
+        }
+
+        this.map.addLayer(layer);
+        this.layerIds.push(layer.id);
+        console.debug('Added MapLibre layer', layer.id);
+      });
+    }
+  }
+
+  // Remove preview layers and source
+  async clearPreview() {
+    this.layerIds.forEach(layerId => {
+      if (this.map.getLayer(layerId)) {
+        console.debug('Removing MapLibre layer', layerId);
+        this.map.removeLayer(layerId);
+      }
+    });
+    this.layerIds = [];
+
+    if (this.sourceId && this.map.getSource(this.getSourceId())) {
+      console.debug('Removing MapLibre source', this.getSourceId());
+      this.map.removeSource(this.getSourceId());
+      this.sourceId = null;
+    }
+  }
+
+  // Unique name for the MapLibre source; default to provided source ID
+  protected getSourceId(): string {
+    return this.source.id;
+  }
+
+  // Set the opacity of the preview layers
+  abstract setOpacity(opacity: number): Promise<void>;
+
+  // Get the bounds of the preview data
+  abstract getBounds(): Promise<maplibregl.LngLatBoundsLike | undefined>;
+
+  // Create MapLibre sources for the preview
+  protected abstract createSource(): Promise<SourceSpecification>;
+
+  // Create MapLibre layers for the preview
+  protected abstract createLayers(): Promise<AddLayerObject[]>;
+}

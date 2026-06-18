@@ -1,13 +1,13 @@
-import { Component, Element, Prop, State, h, Watch, Method, Event, EventEmitter } from '@stencil/core';
-import maplibregl from 'maplibre-gl';
-import { getPreviewSource, getPreviewLayers, getBoundsPreviewSource, getBoundsPreviewLayers, recordDeckGLCOGLayer } from '../../lib/sources';
-import { MapboxOverlay as DeckOverlay } from '@deck.gl/mapbox';
+import { Component, Element, Prop, h, Watch, Method, Event, EventEmitter } from '@stencil/core';
 import { Protocol as PMTilesProtocol } from 'pmtiles';
+import maplibregl from 'maplibre-gl';
+import type { EaseToOptions } from 'maplibre-gl';
 
-import { getElement } from '../../lib/elements';
 import type { OgmRecord } from '../../lib/record';
-import type { AddLayerObject, EaseToOptions } from 'maplibre-gl';
-import type { AddSourceObject } from '../../lib/sources';
+import { getElement } from '../../lib/elements';
+import { getSources } from '../../lib/sources';
+import { getMapPreviewers } from '../../lib/previewers';
+import Previewer from '../../lib/previewers/previewer';
 
 // Register PMTiles protocol
 const protocol = new PMTilesProtocol();
@@ -27,20 +27,14 @@ export class OgmMap {
   @Event() mapIdle: EventEmitter<void>;
   @Event() mapLoading: EventEmitter<void>;
 
-  // Track sources and layers for bounds and preview
-  @State() boundsSource: AddSourceObject | undefined;
-  @State() boundsLayers: AddLayerObject[] = [];
-  @State() previewSource: AddSourceObject | undefined;
-  @State() previewLayers: AddLayerObject[] = [];
-
   // MapLibre map instance
   private map: maplibregl.Map;
 
-  // Deck.gl overlay for rendering rasters
-  private deckOverlay: DeckOverlay;
-
   // Container element reference for fullscreen
   private containerEl: HTMLElement;
+
+  // Previewers for the currently previewed sources
+  private previewers: Previewer[] = [];
 
   // Set up the mapLibre map and event bindings on load
   componentDidLoad() {
@@ -50,13 +44,29 @@ export class OgmMap {
       cooperativeGestures: true,
       style: this.baseMapStyle,
       center: [0, 0],
-      zoom: 1,
+      zoom: 2,
+      minZoom: 2,
     });
     this.getContainer();
-    this.deckOverlay = new DeckOverlay({ interleaved: true });
     this.addControls();
     this.map.on('idle', () => this.mapIdle.emit());
     this.map.on('load', () => this.previewRecord(this.record));
+
+    // View as a globe with atmosphere effects
+    this.map.on('style.load', () => {
+      this.map.setProjection({
+        type: 'globe',
+      });
+      this.map.setSky({
+        'sky-color': '#199EF3',
+        'sky-horizon-blend': 0.5,
+        'horizon-color': '#ffffff',
+        'horizon-fog-blend': 0.5,
+        'fog-color': '#0000ff',
+        'fog-ground-blend': 0.5,
+        'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 10, 1, 12, 0],
+      });
+    });
   }
 
   // Find the container element for the map (used for fullscreen control)
@@ -86,66 +96,41 @@ export class OgmMap {
         },
       }),
     );
-    this.map.addControl(
-      new maplibregl.AttributionControl({
-        compact: true,
-      }),
-    );
-    this.map.addControl(this.deckOverlay);
   }
 
   @Watch('record')
   async previewRecord(record: OgmRecord) {
-    // Clear the map of previous layers and sources; if nothing new, bail out
-    if (this.record) this.clearMap();
     if (!record) return;
-
-    // Indicate loading
     this.mapLoading.emit();
 
-    // Get the bounds
-    this.boundsSource = getBoundsPreviewSource(this.record);
+    // Clear any existing preview layers and sources
+    await Promise.all(this.previewers.map(previewer => previewer.clearPreview()));
+    this.previewers = [];
 
-    // If a COG, generate a Deck.gl COG layer
-    if (this.record.references.cogUrl) {
-      const deckLayer = recordDeckGLCOGLayer(this.record);
-      this.deckOverlay.setProps({
-        layers: [deckLayer],
-      });
+    // Create sources and previewers using references
+    const sources = getSources(record);
+    const previewOptions = { fillColor: this.fillColor, lineColor: this.lineColor, opacity: this.previewOpacity / 100 };
+    const previewers = await getMapPreviewers(sources, this.map, previewOptions);
+
+    // Preview each source
+    for (const previewer of previewers) {
+      this.previewers.push(previewer);
+      await previewer.preview();
     }
 
-    // Otherwise...
-    else if (this.boundsSource) {
-      // Add the sources for the record's geometry and the data preview
-      this.previewSource = await getPreviewSource(this.record);
+    // Fit to bounds from the record
+    const bounds = record.getBounds();
+    if (bounds) await this.fitMapBounds(bounds);
 
-      // If the record is not restricted and has a source, add preview layers
-      if (this.previewSource && !this.record.restricted) {
-        this.previewLayers = await getPreviewLayers(this.record, this.previewSource);
-      }
-
-      // Otherwise if we have bounds, just add the bounds preview layers
-      else {
-        this.boundsLayers = getBoundsPreviewLayers(this.record);
-      }
-    }
-
-    // Fit the map to the record's bounding box, if we can
-    const bounds = this.record.getBounds();
-    if (bounds) this.fitMapBounds(bounds);
-  }
-
-  // Remove all layers and sources from the map
-  clearMap() {
-    this.boundsLayers = [];
-    this.previewLayers = [];
-    this.boundsSource = undefined;
-    this.previewSource = undefined;
+    this.mapIdle.emit();
   }
 
   // Fit the map to the provided bounds
-  fitMapBounds(bounds: maplibregl.LngLatBoundsLike) {
-    this.map.fitBounds(bounds, { padding: 40 });
+  async fitMapBounds(bounds: maplibregl.LngLatBoundsLike) {
+    return new Promise<void>(resolve => {
+      this.map.once('moveend', () => resolve());
+      this.map.fitBounds(bounds, { padding: this.padding });
+    });
   }
 
   // When padding is changed, move the map over to make room for the sidebar
@@ -160,81 +145,6 @@ export class OgmMap {
     return await this.map.easeTo(options);
   }
 
-  // When new bounds/preview sources are set, swap them out for old ones
-  @Watch('boundsSource')
-  @Watch('previewSource')
-  updateSource(source: AddSourceObject, oldSource: AddSourceObject) {
-    if (!source && oldSource) return this.removeSource(oldSource.id);
-    if (source) return this.addSource(source);
-  }
-
-  // When new bounds/preview layers are set, swap them out for old ones
-  @Watch('boundsLayers')
-  @Watch('previewLayers')
-  updateLayers(layers: AddLayerObject[], oldLayers: AddLayerObject[]) {
-    if (!layers || layers.length === 0) return oldLayers.forEach(layer => this.removeLayer(layer.id));
-    layers.forEach(layer => this.addLayer(layer));
-  }
-
-  // Listen for opacity changes and adjust the preview layers
-  @Watch('previewOpacity')
-  updatePreviewOpacity(opacity: number) {
-    this.previewLayers.forEach(layer => this.setLayerOpacity(layer.id, opacity));
-  }
-
-  // Add a source to the map
-  private addSource(source: AddSourceObject) {
-    return this.map.addSource(source.id, source.source);
-  }
-
-  // Remove a source from the map by ID
-  private removeSource(id: string) {
-    return this.map.removeSource(id);
-  }
-
-  // Add a layer to the map and style it based on the theme
-  private addLayer(layer: AddLayerObject) {
-    this.map.addLayer(layer);
-    this.styleLayer(layer.id);
-  }
-
-  // Remove a layer from the map by ID
-  private removeLayer(id: string) {
-    return this.map.removeLayer(id);
-  }
-
-  // Style a layer based on the theme
-  private styleLayer(id: string) {
-    const layer = this.map.getLayer(id);
-    if (!layer) return;
-
-    if (layer.type === 'fill') {
-      this.map.setPaintProperty(id, 'fill-color', this.fillColor);
-      this.map.setPaintProperty(id, 'fill-outline-color', this.lineColor);
-    } else if (layer.type === 'line') {
-      this.map.setPaintProperty(id, 'line-color', this.lineColor);
-    } else if (layer.type === 'circle') {
-      this.map.setPaintProperty(id, 'circle-color', this.fillColor);
-      this.map.setPaintProperty(id, 'circle-stroke-color', this.lineColor);
-    }
-  }
-
-  // Set the opacity of a layer
-  private setLayerOpacity(id: string, opacity: number) {
-    const layer = this.map.getLayer(id);
-    if (!layer) return;
-
-    if (layer.type === 'raster') {
-      this.map.setPaintProperty(layer.id, 'raster-opacity', opacity / 100);
-    } else if (layer.type === 'fill') {
-      this.map.setPaintProperty(layer.id, 'fill-opacity', opacity / 100);
-    } else if (layer.type === 'line') {
-      this.map.setPaintProperty(layer.id, 'line-opacity', opacity / 100);
-    } else if (layer.type === 'circle') {
-      this.map.setPaintProperty(layer.id, 'circle-opacity', opacity / 100);
-    }
-  }
-
   // Base map style based on the theme
   private get baseMapStyle() {
     return this.theme === 'dark' ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json' : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
@@ -242,12 +152,12 @@ export class OgmMap {
 
   // Fill colors for vector data based on the theme
   private get fillColor() {
-    return window.getComputedStyle(this.el).getPropertyValue('--sl-color-primary-200');
+    return window.getComputedStyle(this.el).getPropertyValue('--sl-color-primary-500');
   }
 
   // Line/stroke color for vector data based on the theme
   private get lineColor() {
-    return window.getComputedStyle(this.el).getPropertyValue('--sl-color-primary-500');
+    return window.getComputedStyle(this.el).getPropertyValue('--sl-color-neutral-900');
   }
 
   render() {
