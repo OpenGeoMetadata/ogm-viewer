@@ -18,6 +18,10 @@ canvas {
     stroke: white;
   }
 
+  .maplibregl-canvas {
+    background-color: black;
+  }
+
   .maplibregl-ctrl.maplibregl-ctrl-group {
     filter: invert(1);
   }
