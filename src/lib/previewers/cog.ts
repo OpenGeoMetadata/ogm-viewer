@@ -1,87 +1,32 @@
-import { MapboxOverlay as DeckOverlay } from '@deck.gl/mapbox';
-import { COGLayer } from '@developmentseed/deck.gl-geotiff';
-import { DecoderPool } from '@developmentseed/geotiff';
+import maplibregl, { RasterSourceSpecification } from 'maplibre-gl';
+import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
 
-import Previewer from './previewer';
-import type Source from '../sources/source';
+import RasterPreviewer from './raster';
+import CogSource from '../sources/cog';
+import { MapLibreOptions } from './maplibre';
 
-export default class CogPreviewer extends Previewer {
-  protected map: maplibregl.Map;
-  protected deckOverlay: DeckOverlay;
-  protected layerId: string | undefined = undefined;
+// COG previewer using MapLibre COG protocol plugin
+// Only works for COGs in Web Mercator projection; can't warp in-browser
+// See: https://github.com/geomatico/maplibre-cog-protocol
+export default class CogPreviewer extends RasterPreviewer {
+  declare protected source: CogSource;
 
-  private bounds: maplibregl.LngLatBoundsLike | undefined = undefined;
-
-  constructor(source: Source, map: maplibregl.Map) {
-    super(source);
-    this.map = map;
-    this.deckOverlay = this.getDeckOverlay();
+  // Register the 'cog://' protocol handler with MapLibre when the previewer is created
+  constructor(source: CogSource, map: maplibregl.Map, options?: Partial<MapLibreOptions>) {
+    super(source, map, options);
+    maplibregl.addProtocol('cog', cogProtocol);
   }
 
-  async preview(): Promise<void> {
-    if (!this.layerId) {
-      const layer = this.createLayer();
-      console.debug('Created COG preview layer', layer.id);
-      this.layerId = layer.id;
-      this.deckOverlay.setProps({ layers: [layer] });
-    }
-  }
-
-  async clearPreview() {
-    if (this.layerId) {
-      console.debug('Clearing COG preview layer', this.layerId);
-      this.deckOverlay.setProps({ layers: [] });
-      this.layerId = undefined;
-    }
+  // COG sources use 'url' instead of 'tiles' and have no scheme
+  protected async createSource(): Promise<RasterSourceSpecification> {
+    return {
+      type: 'raster',
+      url: await this.source.getSourceUrl(),
+      tileSize: this.source.getTileSize(),
+    };
   }
 
   protected getSourceId(): string {
     return `${this.source.id}-cog`;
-  }
-
-  protected createLayer(): COGLayer {
-    return new COGLayer({
-      id: this.getSourceId(),
-      geotiff: this.source.getSourceUrl(),
-      onGeoTIFFLoad: (data, options) => {
-        console.debug('COG loaded', data, options);
-        const { west, south, east, north } = options.geographicBounds;
-        this.bounds = [
-          [west, south],
-          [east, north],
-        ];
-      },
-      parameters: { depthCompare: 'always', cullMode: 'back' },
-      // Disable the web worker decoder pool; this appears to cause errors because
-      // it can't find /worker.js?
-      // See: https://developmentseed.org/deck.gl-raster/api/geotiff/type-aliases/DecoderPoolOptions/
-      // See also: https://github.com/developmentseed/deck.gl-raster/issues/364
-      pool: new DecoderPool({
-        createWorker: undefined,
-      }),
-    });
-  }
-
-  async getBounds() {
-    return this.bounds;
-  }
-
-  // Get the shared deck.gl overlay used to render this previewer
-  protected getDeckOverlay(): DeckOverlay {
-    // No built-in way to query existing controls...
-    const overlay = this.map._controls.find(control => control instanceof DeckOverlay);
-    if (overlay) {
-      console.debug('Deck.gl overlay exists; skipping creation', overlay);
-      return overlay;
-    }
-    return this.createDeckOverlay();
-  }
-
-  // Create a deck.gl overlay and add it to the map
-  protected createDeckOverlay(): DeckOverlay {
-    const overlay = new DeckOverlay({ interleaved: true });
-    this.map.addControl(overlay);
-    console.debug('Deck.gl overlay created', overlay);
-    return overlay;
   }
 }

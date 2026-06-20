@@ -1,3 +1,4 @@
+import CogSource from '../sources/cog';
 import GeoJSONSource from '../sources/geojson';
 import OpenIndexMapSource from '../sources/openindexmap';
 import PMTilesSource from '../sources/pmtiles';
@@ -5,6 +6,7 @@ import Source from '../sources/source';
 import WmsSource from '../sources/wms';
 
 import RasterSource from '../sources/raster';
+import CogPreviewer from './cog';
 import GeoJSONPreviewer from './geojson';
 import MapLibrePreviewer from './maplibre';
 import OpenIndexMapPreviewer from './openindexmap';
@@ -24,6 +26,7 @@ export const getMapPreviewers = async (sources: Source[], map: maplibregl.Map, o
       if (await source.isVector()) previewers.push(new PMTilesVectorPreviewer(source, map, options));
       else previewers.push(new PMTilesRasterPreviewer(source, map, options));
     } else if (source instanceof WmsSource) previewers.push(new WmsPreviewer(source, map, options));
+    else if (source instanceof CogSource) previewers.push(new CogPreviewer(source, map, options));
     else if (source instanceof RasterSource) previewers.push(new RasterPreviewer(source, map, options));
   }
 
