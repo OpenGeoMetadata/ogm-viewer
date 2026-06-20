@@ -7,7 +7,8 @@ export const config: Config = {
   outputTargets: [
     // This is the build target used by apps that will consume the viewer.
     {
-      type: 'dist-custom-elements',
+      type: 'dist',
+      esmLoaderPath: '../loader',
       isPrimaryPackageOutputTarget: true,
       copy: [{ src: '../assets', dest: 'assets' }],
     },
