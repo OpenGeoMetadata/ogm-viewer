@@ -1,10 +1,6 @@
 // Load Stencil components and register them as custom elements.
-import { defineCustomElement as defineOgmMetadata } from './dist/components/ogm-metadata.js';
-import { defineCustomElement as defineOgmMenubar } from './dist/components/ogm-menubar.js';
-
-defineOgmMetadata();
-defineOgmMenubar();
-
+import { defineCustomElements } from './dist/esm/loader.js';
+defineCustomElements();
 export {};
 
 // Note: you may need `buildDist: true` in your stencil.config

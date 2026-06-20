@@ -1,4 +1,3 @@
-import CogSource from '../sources/cog';
 import GeoJSONSource from '../sources/geojson';
 import OpenIndexMapSource from '../sources/openindexmap';
 import PMTilesSource from '../sources/pmtiles';
@@ -6,7 +5,6 @@ import Source from '../sources/source';
 import WmsSource from '../sources/wms';
 
 import RasterSource from '../sources/raster';
-import CogPreviewer from './cog';
 import GeoJSONPreviewer from './geojson';
 import MapLibrePreviewer from './maplibre';
 import OpenIndexMapPreviewer from './openindexmap';
@@ -17,7 +15,7 @@ import WmsPreviewer from './wms';
 
 // Given a list of sources, return a list of previewers that can be used to preview them on a map
 export const getMapPreviewers = async (sources: Source[], map: maplibregl.Map, options: any) => {
-  const previewers = [] as (MapLibrePreviewer | CogPreviewer)[];
+  const previewers = [] as MapLibrePreviewer[];
 
   for (const source of sources) {
     if (source instanceof OpenIndexMapSource) previewers.push(new OpenIndexMapPreviewer(source, map, options));
@@ -26,7 +24,6 @@ export const getMapPreviewers = async (sources: Source[], map: maplibregl.Map, o
       if (await source.isVector()) previewers.push(new PMTilesVectorPreviewer(source, map, options));
       else previewers.push(new PMTilesRasterPreviewer(source, map, options));
     } else if (source instanceof WmsSource) previewers.push(new WmsPreviewer(source, map, options));
-    else if (source instanceof CogSource) previewers.push(new CogPreviewer(source, map));
     else if (source instanceof RasterSource) previewers.push(new RasterPreviewer(source, map, options));
   }
 
