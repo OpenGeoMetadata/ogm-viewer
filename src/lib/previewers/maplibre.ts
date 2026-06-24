@@ -14,11 +14,13 @@ const defaultOptions: MapLibreOptions = {
 } as const;
 
 export default abstract class MapLibrePreviewer extends Previewer {
+  // Stored state for added source and layers to allow for cleanup
+  sourceId: string | null = null;
+  layerIds: string[] = [];
+
   protected map: maplibregl.Map;
   protected options: MapLibreOptions;
   protected opacity: number;
-  protected sourceId: string | null = null;
-  protected layerIds: string[] = [];
 
   constructor(source: Source, map: maplibregl.Map, options?: Partial<MapLibreOptions>) {
     super(source);
@@ -31,14 +33,12 @@ export default abstract class MapLibrePreviewer extends Previewer {
   async preview(): Promise<void> {
     if (!this.sourceId) {
       if (this.map.getSource(this.getSourceId())) {
-        console.debug(`MapLibre source ${this.getSourceId()} exists; skipping creation`);
         return;
       }
 
       const source = await this.createSource();
       this.map.addSource(this.getSourceId(), source);
       this.sourceId = this.getSourceId();
-      console.debug('Added MapLibre source', this.getSourceId(), source);
     }
 
     if (this.layerIds.length == 0) {
@@ -46,13 +46,11 @@ export default abstract class MapLibrePreviewer extends Previewer {
 
       layers.forEach(layer => {
         if (this.map.getLayer(layer.id)) {
-          console.debug(`MapLibre layer ${layer.id} exists; skipping creation`);
           return;
         }
 
         this.map.addLayer(layer);
         this.layerIds.push(layer.id);
-        console.debug('Added MapLibre layer', layer.id);
       });
     }
   }
@@ -61,14 +59,12 @@ export default abstract class MapLibrePreviewer extends Previewer {
   async clearPreview() {
     this.layerIds.forEach(layerId => {
       if (this.map.getLayer(layerId)) {
-        console.debug('Removing MapLibre layer', layerId);
         this.map.removeLayer(layerId);
       }
     });
     this.layerIds = [];
 
     if (this.sourceId && this.map.getSource(this.getSourceId())) {
-      console.debug('Removing MapLibre source', this.getSourceId());
       this.map.removeSource(this.getSourceId());
       this.sourceId = null;
     }

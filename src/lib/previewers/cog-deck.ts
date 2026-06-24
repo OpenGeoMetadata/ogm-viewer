@@ -25,7 +25,6 @@ export default class DeckCogPreviewer extends Previewer {
   async preview(): Promise<void> {
     if (!this.layerId) {
       const layer = this.createLayer();
-      console.debug('Created COG preview layer', layer.id);
       this.layerId = layer.id;
       this.deckOverlay.setProps({ layers: [layer] });
     }
@@ -33,7 +32,6 @@ export default class DeckCogPreviewer extends Previewer {
 
   async clearPreview() {
     if (this.layerId) {
-      console.debug('Clearing COG preview layer', this.layerId);
       this.deckOverlay.setProps({ layers: [] });
       this.layerId = undefined;
     }
@@ -47,8 +45,7 @@ export default class DeckCogPreviewer extends Previewer {
     return new COGLayer({
       id: this.getSourceId(),
       geotiff: this.source.getSourceUrl(),
-      onGeoTIFFLoad: (data, options) => {
-        console.debug('COG loaded', data, options);
+      onGeoTIFFLoad: (_data, options) => {
         const { west, south, east, north } = options.geographicBounds;
         this.bounds = [
           [west, south],
@@ -75,7 +72,6 @@ export default class DeckCogPreviewer extends Previewer {
     // No built-in way to query existing controls...
     const overlay = this.map._controls.find(control => control instanceof DeckOverlay);
     if (overlay) {
-      console.debug('Deck.gl overlay exists; skipping creation', overlay);
       return overlay;
     }
     return this.createDeckOverlay();
@@ -85,7 +81,6 @@ export default class DeckCogPreviewer extends Previewer {
   protected createDeckOverlay(): DeckOverlay {
     const overlay = new DeckOverlay({ interleaved: true });
     this.map.addControl(overlay);
-    console.debug('Deck.gl overlay created', overlay);
     return overlay;
   }
 }

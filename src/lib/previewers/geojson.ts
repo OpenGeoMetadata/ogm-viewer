@@ -10,6 +10,7 @@ export default class GeoJSONPreviewer extends VectorPreviewer {
     return {
       type: await this.source.getType(),
       data: await this.source.getSourceUrl(),
+      generateId: true,
     };
   }
 }

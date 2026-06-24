@@ -16,7 +16,16 @@ export default abstract class Source {
 
   // Check that the URL is valid and accessible
   async test() {
-    await fetch(this.url, { method: 'HEAD' });
+    try {
+      const response = await fetch(this.url, {
+        method: 'HEAD',
+        signal: AbortSignal.timeout(8000),
+      });
+      return response.ok;
+    } catch (error) {
+      console.error(`Error checking source URL ${this.url}:`, error);
+      return false;
+    }
   }
 
   // URL used to generate a MapLibre source when adding to map
