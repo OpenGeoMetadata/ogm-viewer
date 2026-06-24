@@ -66,6 +66,7 @@
     "@mapbox/geojson-extent": "^1.0.1",
     "@shoelace-style/shoelace": "^2.20.1",
     "@terraformer/wkt": "^2.2.1",
+    "autolinker": "^4.1.5",
     "d3-scale": "^4.0.2",
     "lerc": "^4.1.1",
     "maplibre-gl": "^5.24.0",

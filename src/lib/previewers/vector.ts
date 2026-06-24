@@ -5,24 +5,30 @@ import type VectorSource from '../sources/vector';
 
 type VectorOptions = {
   fillColor: string; // CSS color string
+  fillHighlightColor: string; // CSS color string
+  fillInvalidColor: string; // CSS color string
+  lineColor: string; // CSS color string
+  lineHighlightColor: string; // CSS color string
+  textColor: string; // CSS color string
   fillOpacity: number; // decimal between 0 and 1
   fillHighlightOpacity: number; // decimal between 0 and 1
-  lineColor: string; // CSS color string
   labelFont: string; // CSS font-family string
   labelSize: number; // in pixels
-  textColor: string; // CSS color string
 };
 
 export type Options = MapLibreOptions & VectorOptions;
 
 const defaultOptions: VectorOptions = {
-  fillColor: '#888888',
+  fillColor: '#00ccff',
+  fillHighlightColor: '#00ff00',
+  fillInvalidColor: '#ffcc00',
+  lineColor: '#555555',
+  lineHighlightColor: '#00ff00',
+  textColor: '#222222',
   fillOpacity: 0.6,
   fillHighlightOpacity: 0.8,
-  lineColor: '#000000',
   labelFont: 'Noto Sans Regular',
   labelSize: 10,
-  textColor: '#000000',
 };
 
 export default abstract class VectorPreviewer extends MapLibrePreviewer {
@@ -51,6 +57,7 @@ export default abstract class VectorPreviewer extends MapLibrePreviewer {
     return layerIds.flatMap(layerId => {
       return [
         this.createPolygonLayer(layerId),
+        this.createPolygonOutlineLayer(layerId),
         this.createLineLayer(layerId),
         this.createPointLayer(layerId),
         this.createPolygonLabelLayer(layerId),
@@ -67,9 +74,22 @@ export default abstract class VectorPreviewer extends MapLibrePreviewer {
       type: 'fill' as const,
       source: this.getSourceId(),
       paint: {
-        'fill-color': this.options.fillColor,
-        'fill-outline-color': this.options.lineColor,
-        'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], this.options.fillHighlightOpacity, this.options.fillOpacity] as const,
+        'fill-color': ['case', ['boolean', ['feature-state', 'selected'], false], this.options.fillHighlightColor, this.options.fillColor] as const,
+        'fill-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], this.options.fillHighlightOpacity, this.options.fillOpacity] as const,
+      },
+      filter: ['==', ['geometry-type'], 'Polygon'] as const,
+    };
+  }
+
+  // Create a styled layer that will be used to outline polygon geometry
+  protected createPolygonOutlineLayer(layerId: string): LineLayerSpecification {
+    return {
+      id: `${this.getSourceId()}-${layerId}-polygon-outlines`,
+      type: 'line' as const,
+      source: this.getSourceId(),
+      paint: {
+        'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], this.options.lineHighlightColor, this.options.lineColor] as const,
+        'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
     };
@@ -82,7 +102,7 @@ export default abstract class VectorPreviewer extends MapLibrePreviewer {
       type: 'line' as const,
       source: this.getSourceId(),
       paint: {
-        'line-color': this.options.lineColor,
+        'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], this.options.lineHighlightColor, this.options.lineColor] as const,
         'line-width': 4,
       },
       filter: ['==', ['geometry-type'], 'LineString'] as const,
@@ -96,11 +116,11 @@ export default abstract class VectorPreviewer extends MapLibrePreviewer {
       type: 'circle' as const,
       source: this.getSourceId(),
       paint: {
-        'circle-color': this.options.fillColor,
-        'circle-stroke-color': this.options.lineColor,
-        'circle-stroke-width': ['case', ['boolean', ['feature-state', 'hover'], false], 2, 1] as const,
+        'circle-color': ['case', ['boolean', ['feature-state', 'selected'], false], this.options.fillHighlightColor, this.options.fillColor] as const,
+        'circle-stroke-color': ['case', ['boolean', ['feature-state', 'selected'], false], this.options.lineHighlightColor, this.options.lineColor] as const,
+        'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 2, 12, 4] as const,
-        'circle-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], this.options.fillHighlightOpacity, this.options.fillOpacity] as const,
+        'circle-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], this.options.fillHighlightOpacity, this.options.fillOpacity] as const,
       },
       filter: ['==', ['geometry-type'], 'Point'] as const,
     };

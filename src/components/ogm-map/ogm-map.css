@@ -6,11 +6,15 @@
   position: relative;
 }
 
-/* inspection cursor 
-canvas {
-  cursor: crosshair;
+/* Inspection popups */
+.maplibregl-popup-content {
+  max-height: 200px;
+  max-width: 400px;
+  overflow: auto;
+  padding: 0;
+  box-shadow: var(--sl-shadow-large);
+  border: var(--sl-panel-border-width) solid var(--sl-panel-border-color);
 }
-*/
 
 /* Dark mode map adjustments */
 .sl-theme-dark {
@@ -47,6 +51,7 @@ canvas {
 
   div.maplibregl-popup-content {
     background-color: black;
+    color: #ccc;
   }
 
   div.maplibregl-popup-anchor-right div.maplibregl-popup-tip {

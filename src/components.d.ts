@@ -5,11 +5,17 @@
  * It contains typing information for all components that exist in this project.
  */
 import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
+import { MapGeoJSONFeature } from "maplibre-gl";
 import { OgmRecord } from "./lib/record";
-import { EaseToOptions } from "maplibre-gl";
+export { MapGeoJSONFeature } from "maplibre-gl";
 export { OgmRecord } from "./lib/record";
-export { EaseToOptions } from "maplibre-gl";
 export namespace Components {
+    interface OgmAttributes {
+        /**
+          * @default []
+         */
+        "features": MapGeoJSONFeature[];
+    }
     interface OgmImage {
         /**
           * @default 0
@@ -19,7 +25,7 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmMap {
-        "easeMapTo": (options: EaseToOptions) => Promise<maplibregl.Map>;
+        "easeMapTo": (options: maplibregl.EaseToOptions) => Promise<maplibregl.Map>;
         /**
           * @default 0
          */
@@ -64,6 +70,10 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
 }
+export interface OgmAttributesCustomEvent<T> extends CustomEvent<T> {
+    detail: T;
+    target: HTMLOgmAttributesElement;
+}
 export interface OgmImageCustomEvent<T> extends CustomEvent<T> {
     detail: T;
     target: HTMLOgmImageElement;
@@ -81,6 +91,23 @@ export interface OgmSettingsCustomEvent<T> extends CustomEvent<T> {
     target: HTMLOgmSettingsElement;
 }
 declare global {
+    interface HTMLOgmAttributesElementEventMap {
+        "featureSelected": MapGeoJSONFeature;
+    }
+    interface HTMLOgmAttributesElement extends Components.OgmAttributes, HTMLStencilElement {
+        addEventListener<K extends keyof HTMLOgmAttributesElementEventMap>(type: K, listener: (this: HTMLOgmAttributesElement, ev: OgmAttributesCustomEvent<HTMLOgmAttributesElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLOgmAttributesElementEventMap>(type: K, listener: (this: HTMLOgmAttributesElement, ev: OgmAttributesCustomEvent<HTMLOgmAttributesElementEventMap[K]>) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
+    }
+    var HTMLOgmAttributesElement: {
+        prototype: HTMLOgmAttributesElement;
+        new (): HTMLOgmAttributesElement;
+    };
     interface HTMLOgmImageElementEventMap {
         "imageLoaded": void;
         "imageLoading": void;
@@ -170,6 +197,7 @@ declare global {
         new (): HTMLOgmViewerElement;
     };
     interface HTMLElementTagNameMap {
+        "ogm-attributes": HTMLOgmAttributesElement;
         "ogm-image": HTMLOgmImageElement;
         "ogm-map": HTMLOgmMapElement;
         "ogm-menubar": HTMLOgmMenubarElement;
@@ -180,6 +208,13 @@ declare global {
     }
 }
 declare namespace LocalJSX {
+    interface OgmAttributes {
+        /**
+          * @default []
+         */
+        "features"?: MapGeoJSONFeature[];
+        "onFeatureSelected"?: (event: OgmAttributesCustomEvent<MapGeoJSONFeature>) => void;
+    }
     interface OgmImage {
         "onImageLoaded"?: (event: OgmImageCustomEvent<void>) => void;
         "onImageLoading"?: (event: OgmImageCustomEvent<void>) => void;
@@ -264,6 +299,7 @@ declare namespace LocalJSX {
     }
 
     interface IntrinsicElements {
+        "ogm-attributes": OgmAttributes;
         "ogm-image": Omit<OgmImage, keyof OgmImageAttributes> & { [K in keyof OgmImage & keyof OgmImageAttributes]?: OgmImage[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `attr:${K}`]?: OgmImageAttributes[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `prop:${K}`]?: OgmImage[K] };
         "ogm-map": Omit<OgmMap, keyof OgmMapAttributes> & { [K in keyof OgmMap & keyof OgmMapAttributes]?: OgmMap[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `attr:${K}`]?: OgmMapAttributes[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `prop:${K}`]?: OgmMap[K] };
         "ogm-menubar": Omit<OgmMenubar, keyof OgmMenubarAttributes> & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes]?: OgmMenubar[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `attr:${K}`]?: OgmMenubarAttributes[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `prop:${K}`]?: OgmMenubar[K] };
@@ -277,6 +313,7 @@ export { LocalJSX as JSX };
 declare module "@stencil/core" {
     export namespace JSX {
         interface IntrinsicElements {
+            "ogm-attributes": LocalJSX.IntrinsicElements["ogm-attributes"] & JSXBase.HTMLAttributes<HTMLOgmAttributesElement>;
             "ogm-image": LocalJSX.IntrinsicElements["ogm-image"] & JSXBase.HTMLAttributes<HTMLOgmImageElement>;
             "ogm-map": LocalJSX.IntrinsicElements["ogm-map"] & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
             "ogm-menubar": LocalJSX.IntrinsicElements["ogm-menubar"] & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
