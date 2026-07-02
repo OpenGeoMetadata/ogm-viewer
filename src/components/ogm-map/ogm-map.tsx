@@ -7,22 +7,11 @@ import { getElement } from '../../lib/elements';
 import { getSources } from '../../lib/sources';
 import { getMapPreviewers } from '../../lib/previewers';
 import MapLibrePreviewer from '../../lib/previewers/maplibre';
+import MapLibreTheme from '../../lib/themes/maplibre';
 
 // Register PMTiles protocol
 const protocol = new PMTilesProtocol();
 maplibregl.addProtocol('pmtiles', protocol.tile);
-
-// Web Awesome's palette tokens are documented inline (e.g. "#0a3a1d /* oklch(...) */").
-// Browsers are supposed to strip CSS comments before exposing a custom property's computed
-// value, but Safari has a bug where the comment survives, which MapLibre then rejects as an
-// invalid color. Strip it defensively here so we don't depend on browser-specific behavior.
-const readColorProperty = (el: Element, property: string): string => {
-  return window
-    .getComputedStyle(el)
-    .getPropertyValue(property)
-    .replace(/\/\*.*?\*\//g, '')
-    .trim();
-};
 
 @Component({
   tag: 'ogm-map',
@@ -33,15 +22,16 @@ export class OgmMap {
   @Element() el: HTMLElement;
   @Prop() record: OgmRecord;
   @Prop() theme: 'light' | 'dark';
-  @Prop() previewOpacity: number = 100;
   @Prop() padding: number = 0;
   @Event() mapIdle: EventEmitter<void>;
   @Event() mapLoading: EventEmitter<void>;
 
   // MapLibre map instance and popup instance for feature info display
   protected map: maplibregl.Map;
+  protected mapTheme: MapLibreTheme;
   protected popup: maplibregl.Popup | undefined = undefined;
   protected attributesEl: HTMLOgmAttributesElement;
+  protected hoveredFeature: maplibregl.MapGeoJSONFeature | undefined = undefined;
 
   // Container element reference for fullscreen
   protected containerEl: HTMLElement;
@@ -51,11 +41,12 @@ export class OgmMap {
 
   // Set up the mapLibre map and event bindings on load
   componentDidLoad() {
+    this.mapTheme = new MapLibreTheme(this.el);
     this.map = new maplibregl.Map({
       container: getElement(this.el, '#map'),
       attributionControl: false,
       cooperativeGestures: true,
-      style: this.baseMapStyle,
+      style: this.mapTheme.getBaseMapStyle(),
       center: [0, 0],
       zoom: 2,
       minZoom: 2,
@@ -69,18 +60,8 @@ export class OgmMap {
 
     // View as a globe with atmosphere effects
     this.map.on('style.load', () => {
-      this.map.setProjection({
-        type: 'globe',
-      });
-      this.map.setSky({
-        'sky-color': '#199EF3',
-        'sky-horizon-blend': 0.5,
-        'horizon-color': '#ffffff',
-        'horizon-fog-blend': 0.5,
-        'fog-color': '#0000ff',
-        'fog-ground-blend': 0.5,
-        'atmosphere-blend': ['interpolate', ['linear'], ['zoom'], 0, 1, 10, 1, 12, 0],
-      });
+      this.map.setProjection({ type: 'globe' });
+      this.map.setSky(this.mapTheme.getSkyStyle());
     });
 
     // Keep attributes outside Stencil render pipeline so that MapLibre can
@@ -135,30 +116,19 @@ export class OgmMap {
     this.clearFeatureSelection();
     this.destroyPopup();
 
-    // Collect previewers to remove after the new record is previewed
-    const oldPreviewers = [];
-    while (this.previewers.length) oldPreviewers.push(this.previewers.pop() as MapLibrePreviewer);
+    // Clear existing previews
+    while (this.previewers.length) await this.previewers.pop()?.clearPreview();
 
     // Populate the new previewers and render them
     const sources = getSources(record);
-    const previewOptions = {
-      fillColor: this.fillColor,
-      fillHighlightColor: this.fillHighlightColor,
-      fillInvalidColor: this.fillInvalidColor,
-      lineColor: this.lineColor,
-      lineHighlightColor: this.lineHighlightColor,
-      opacity: this.previewOpacity / 100,
-    };
-    const newPreviewers = await getMapPreviewers(sources, this.map, previewOptions);
-    while (newPreviewers.length) this.previewers.push(newPreviewers.pop() as MapLibrePreviewer);
-    for (const previewer of this.previewers) await previewer.preview();
+    for (const previewer of await getMapPreviewers(sources, this.map, this.mapTheme.getStyle())) {
+      this.previewers.push(previewer);
+      await previewer.preview();
+    }
 
     // Fit to bounds from the record
     const bounds = record.getBounds();
     if (bounds) await this.fitMapBounds(bounds);
-
-    // Remove old previewers after the new ones are rendered
-    for (const previewer of oldPreviewers) await previewer.clearPreview();
 
     // Emit map idle event to signal that the map is ready
     this.mapIdle.emit();
@@ -186,8 +156,13 @@ export class OgmMap {
   // Use the crosshair cursor if there's something to inspect
   protected handleHover(event: maplibregl.MapMouseEvent) {
     const features = this.map.queryRenderedFeatures(event.point, { layers: this.previewLayers });
-    if (features.length > 0) this.map.getCanvas().style.cursor = 'crosshair';
-    else this.map.getCanvas().style.cursor = '';
+    if (features.length > 0) {
+      this.map.getCanvas().style.cursor = 'crosshair';
+      this.hoverFeature(features[0]);
+    } else {
+      this.map.getCanvas().style.cursor = '';
+      this.clearHoveredFeature();
+    }
   }
 
   // Show the attributes popup on click
@@ -219,11 +194,26 @@ export class OgmMap {
     this.attributesEl.features.forEach(feature => {
       this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, { selected: false });
     });
+    this.attributesEl.features = [];
   }
 
   // Set styling of a single feature to selected state
   protected selectFeature(feature: maplibregl.MapGeoJSONFeature) {
     this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, { selected: true });
+  }
+
+  // Set styling of a single feature to hovered state
+  protected hoverFeature(feature: maplibregl.MapGeoJSONFeature) {
+    this.clearHoveredFeature();
+    this.hoveredFeature = feature;
+    this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, { hover: true });
+  }
+
+  protected clearHoveredFeature() {
+    if (this.hoveredFeature) {
+      this.map.setFeatureState({ source: this.hoveredFeature.source, id: this.hoveredFeature.id, sourceLayer: this.hoveredFeature.sourceLayer }, { hover: false });
+      this.hoveredFeature = undefined;
+    }
   }
 
   // Create a new popup and set its content and location
@@ -242,41 +232,6 @@ export class OgmMap {
   // Get the IDs of all layers in the previewers
   protected get previewLayers() {
     return this.previewers.flatMap(previewer => previewer.layerIds);
-  }
-
-  // Base map style based on the theme
-  protected get baseMapStyle() {
-    return this.theme === 'dark' ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json' : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
-  }
-
-  // Fill colors for vector data, based on the theme
-  protected get fillColor() {
-    return readColorProperty(this.el, '--wa-color-brand-50');
-  }
-
-  // Fill color for vector data when selected, based on the theme
-  protected get fillHighlightColor() {
-    return readColorProperty(this.el, '--wa-color-success-50');
-  }
-
-  // Fill color for vector data when missing/invalid, based on the theme
-  protected get fillInvalidColor() {
-    return readColorProperty(this.el, '--wa-color-warning-50');
-  }
-
-  // Line/stroke color for vector data, based on the theme
-  protected get lineColor() {
-    return readColorProperty(this.el, '--wa-color-brand-80');
-  }
-
-  // Line/stroke color for vector data when selected, based on the theme
-  protected get lineHighlightColor() {
-    return readColorProperty(this.el, '--wa-color-success-80');
-  }
-
-  // Line/stroke color for vector data when missing/invalid, based on the theme
-  protected get lineInvalidColor() {
-    return readColorProperty(this.el, '--wa-color-warning-80');
   }
 
   render() {

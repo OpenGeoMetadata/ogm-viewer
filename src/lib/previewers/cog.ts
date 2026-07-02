@@ -3,7 +3,7 @@ import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
 
 import RasterPreviewer from './raster';
 import CogSource from '../sources/cog';
-import { MapLibreOptions } from './maplibre';
+import { type MapLibreStyle } from '../themes/maplibre';
 
 // COG previewer using MapLibre COG protocol plugin
 // Only works for COGs in Web Mercator projection; can't warp in-browser
@@ -12,8 +12,8 @@ export default class CogPreviewer extends RasterPreviewer {
   declare protected source: CogSource;
 
   // Register the 'cog://' protocol handler with MapLibre when the previewer is created
-  constructor(source: CogSource, map: maplibregl.Map, options?: Partial<MapLibreOptions>) {
-    super(source, map, options);
+  constructor(source: CogSource, map: maplibregl.Map, style: MapLibreStyle) {
+    super(source, map, style);
     maplibregl.addProtocol('cog', cogProtocol);
   }
 

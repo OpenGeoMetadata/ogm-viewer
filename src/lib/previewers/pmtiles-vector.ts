@@ -19,6 +19,13 @@ export default class PMTilesVectorPreviewer extends VectorPreviewer {
     };
   }
 
+  protected createPolygonOutlineLayer(layerId: string): LineLayerSpecification {
+    return {
+      ...super.createPolygonOutlineLayer(layerId),
+      'source-layer': layerId,
+    };
+  }
+
   protected createLineLayer(layerId: string): LineLayerSpecification {
     return {
       ...super.createLineLayer(layerId),
