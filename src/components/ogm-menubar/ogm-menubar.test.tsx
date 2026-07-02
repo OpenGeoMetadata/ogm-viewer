@@ -21,7 +21,9 @@ describe('ogm-menubar', () => {
         <ogm-menubar class="hydrated">
           <mock:shadow-root>
             <div class="menubar undefined">
-              <sl-icon-button name="list" label="Open sidebar" class="menu-button"></sl-icon-button>
+              <wa-button appearance="plain" class="menu-button">
+                <wa-icon name="list" label="Open sidebar" canvas="auto"></wa-icon>
+              </wa-button>
               <div class="title">
                 Coho Salmon Watersheds: San Francisco Bay Area, California, 2011
               </div>
@@ -40,7 +42,9 @@ describe('ogm-menubar', () => {
         <ogm-menubar class="hydrated">
           <mock:shadow-root>
             <div class="menubar undefined">
-              <sl-icon-button name="list" label="Open sidebar" class="menu-button"></sl-icon-button>
+              <wa-button appearance="plain" class="menu-button">
+                <wa-icon name="list" label="Open sidebar" canvas="auto"></wa-icon>
+              </wa-button>
               <div class="title"></div>
             </div>
           </mock:shadow-root>

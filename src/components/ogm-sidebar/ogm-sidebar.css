@@ -1,55 +1,86 @@
-@import '~@shoelace-style/shoelace/dist/themes/light.css';
+/* Contained sliding panel, replacing Shoelace's <sl-drawer contained no-header> */
+.sidebar {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: 700;
+  width: 25rem;
+  max-width: 100%;
+  overflow: hidden;
+  background-color: var(--wa-color-surface-raised);
+  box-shadow: var(--wa-shadow-l);
+  transform: translateX(-100%);
+  transition: transform var(--wa-transition-normal) var(--wa-transition-easing);
+}
 
-/* No inherent padding to sidebar */
-sl-drawer::part(body) {
-  padding: 0;
-  overflow-x: hidden;
+.sidebar.open {
+  transform: translateX(0);
+}
+
+wa-tab-group {
+  display: block;
+  height: 100%;
+}
+
+/* The internal flex wrapper has no height of its own (it sizes to content by default), so
+   without this, ::part(body) never gets a definite cross-axis size to stretch/scroll within */
+wa-tab-group::part(base) {
+  height: 100%;
 }
 
 /* Fixed tabs on the left side of the sidebar */
-sl-tab-group::part(nav) {
+wa-tab-group::part(nav) {
   position: absolute;
   top: 0;
+  width: 2.8rem;
   height: 100%;
-  border-right: var(--sl-panel-border-width) solid var(--sl-panel-border-color);
+  border-right: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
 }
 
-/* Prevent tabs from overlapping their content panels */
-sl-tab-group::part(body) {
+/* Prevent tabs from overlapping their content panels. Body is a flex item internally, so it
+   needs an explicit overflow value here - otherwise its default min-height:auto lets long
+   panel content grow the flex item (and the sidebar around it) instead of scrolling inside it. */
+wa-tab-group::part(body) {
   margin-left: 2.8rem; /* width of the tab nav */
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
-/* Tabs have large icons, small padding */
-sl-tab::part(base) {
-  padding: var(--sl-spacing-small);
+/* Tabs have large icons; width is pinned so tabs can't grow wider than the nav column above */
+wa-tab::part(base) {
+  box-sizing: border-box;
+  width: 2.8rem;
+  padding: var(--wa-space-s) 0;
+  justify-content: center;
 }
 
-sl-tab sl-icon {
-  font-size: var(--sl-font-size-large);
+wa-tab wa-icon {
+  font-size: var(--wa-font-size-l);
 }
 
 /* Tab content with header */
-sl-tab-panel::part(base) {
+wa-tab-panel::part(base) {
   padding: 0;
   margin: 0;
-  color: var(--sl-color-neutral-800);
+  color: var(--wa-color-text-normal);
 }
 
-sl-tab-panel .panel-header {
-  padding: var(--sl-spacing-medium);
-  background: var(--sl-color-neutral-100);
-  font-size: var(--sl-font-size-medium);
-  font-weight: var(--sl-font-weight-light);
+wa-tab-panel .panel-header {
+  padding: var(--wa-space-s);
+  background: var(--wa-color-surface-lowered);
+  font-size: var(--wa-font-size-m);
+  font-weight: var(--wa-font-weight-light);
 }
 
-sl-tab-panel .panel-content {
-  padding: var(--sl-spacing-medium);
+wa-tab-panel .panel-content {
+  padding: var(--wa-space-s);
   overflow-x: hidden;
 }
 
 .record-json {
-  font-family: var(--sl-font-mono);
-  font-size: var(--sl-font-size-x-small);
+  font-family: var(--wa-font-family-code);
+  font-size: var(--wa-font-size-xs);
   white-space: pre-wrap;
   word-break: break-all;
 }

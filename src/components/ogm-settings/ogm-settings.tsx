@@ -1,4 +1,4 @@
-import type { SlRange } from '@shoelace-style/shoelace';
+import type WaSlider from '@awesome.me/webawesome/dist/components/slider/slider.js';
 import { Component, Element, Event, EventEmitter, h, Listen, Prop } from '@stencil/core';
 
 import { getElement } from '../../lib/elements';
@@ -14,21 +14,21 @@ export class OgmSettings {
   @Element() el: HTMLElement;
   @Event() opacityChange: EventEmitter<number>;
 
-  private slRange: SlRange;
+  private waSlider: WaSlider;
 
   componentDidLoad() {
-    this.slRange = getElement(this.el, 'sl-range') as SlRange;
+    this.waSlider = getElement(this.el, 'wa-slider') as WaSlider;
   }
 
-  @Listen('sl-input')
+  @Listen('input')
   handleOpacityChange() {
-    this.opacityChange.emit(this.slRange.value);
+    this.opacityChange.emit(this.waSlider.value);
   }
 
   render() {
     return (
       <div class="settings">
-        <sl-range disabled={!this.record || this.record.references.iiifOnly} label="Layer opacity" min="0" max="100" step="1" value="100"></sl-range>
+        <wa-slider disabled={!this.record || this.record.references.iiifOnly} label="Layer opacity" min="0" max="100" step="1" value="100"></wa-slider>
       </div>
     );
   }

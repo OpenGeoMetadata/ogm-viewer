@@ -70,24 +70,24 @@ export class OgmImage {
       <Host>
         <div id="openseadragon">
           <div class="controls">
-            <sl-button class="zoom-in" size="small" circle>
-              <sl-icon name="zoom-in" label="Zoom In"></sl-icon>
-            </sl-button>
-            <sl-button class="zoom-out" size="small" circle>
-              <sl-icon name="zoom-out" label="Zoom Out"></sl-icon>
-            </sl-button>
-            <sl-button class="home" size="small" circle>
-              <sl-icon name="house" label="Reset View"></sl-icon>
-            </sl-button>
-            <sl-button class="full-page" size="small" circle>
-              <sl-icon name="arrows-fullscreen" label="Full Screen"></sl-icon>
-            </sl-button>
-            <sl-button class="next" size="small" circle>
-              <sl-icon name="arrow-right" label="Next"></sl-icon>
-            </sl-button>
-            <sl-button class="prev" size="small" circle>
-              <sl-icon name="arrow-left" label="Previous"></sl-icon>
-            </sl-button>
+            <wa-button class="zoom-in" size="s" appearance="filled-outlined" pill>
+              <wa-icon name="zoom-in" label="Zoom In" canvas="auto"></wa-icon>
+            </wa-button>
+            <wa-button class="zoom-out" size="s" appearance="filled-outlined" pill>
+              <wa-icon name="zoom-out" label="Zoom Out" canvas="auto"></wa-icon>
+            </wa-button>
+            <wa-button class="home" size="s" appearance="filled-outlined" pill>
+              <wa-icon name="house" label="Reset View" canvas="auto"></wa-icon>
+            </wa-button>
+            <wa-button class="full-page" size="s" appearance="filled-outlined" pill>
+              <wa-icon name="arrows-fullscreen" label="Full Screen" canvas="auto"></wa-icon>
+            </wa-button>
+            <wa-button class="next" size="s" appearance="filled-outlined" pill>
+              <wa-icon name="arrow-right" label="Next" canvas="auto"></wa-icon>
+            </wa-button>
+            <wa-button class="prev" size="s" appearance="filled-outlined" pill>
+              <wa-icon name="arrow-left" label="Previous" canvas="auto"></wa-icon>
+            </wa-button>
           </div>
         </div>
       </Host>

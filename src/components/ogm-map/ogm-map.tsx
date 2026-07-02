@@ -12,6 +12,18 @@ import MapLibrePreviewer from '../../lib/previewers/maplibre';
 const protocol = new PMTilesProtocol();
 maplibregl.addProtocol('pmtiles', protocol.tile);
 
+// Web Awesome's palette tokens are documented inline (e.g. "#0a3a1d /* oklch(...) */").
+// Browsers are supposed to strip CSS comments before exposing a custom property's computed
+// value, but Safari has a bug where the comment survives, which MapLibre then rejects as an
+// invalid color. Strip it defensively here so we don't depend on browser-specific behavior.
+const readColorProperty = (el: Element, property: string): string => {
+  return window
+    .getComputedStyle(el)
+    .getPropertyValue(property)
+    .replace(/\/\*.*?\*\//g, '')
+    .trim();
+};
+
 @Component({
   tag: 'ogm-map',
   styleUrl: 'ogm-map.css',
@@ -152,11 +164,10 @@ export class OgmMap {
     this.mapIdle.emit();
   }
 
-  // Fit the map to the provided bounds
   async fitMapBounds(bounds: maplibregl.LngLatBoundsLike) {
     return new Promise<void>(resolve => {
       this.map.once('moveend', () => resolve());
-      this.map.fitBounds(bounds, { padding: this.padding });
+      this.map.fitBounds(bounds);
     });
   }
 
@@ -240,35 +251,35 @@ export class OgmMap {
 
   // Fill colors for vector data, based on the theme
   protected get fillColor() {
-    return window.getComputedStyle(this.el).getPropertyValue('--sl-color-primary-500');
+    return readColorProperty(this.el, '--wa-color-brand-50');
   }
 
   // Fill color for vector data when selected, based on the theme
   protected get fillHighlightColor() {
-    return window.getComputedStyle(this.el).getPropertyValue('--sl-color-success-500');
+    return readColorProperty(this.el, '--wa-color-success-50');
   }
 
   // Fill color for vector data when missing/invalid, based on the theme
   protected get fillInvalidColor() {
-    return window.getComputedStyle(this.el).getPropertyValue('--sl-color-warning-500');
+    return readColorProperty(this.el, '--wa-color-warning-50');
   }
 
   // Line/stroke color for vector data, based on the theme
   protected get lineColor() {
-    return window.getComputedStyle(this.el).getPropertyValue('--sl-color-primary-800');
+    return readColorProperty(this.el, '--wa-color-brand-80');
   }
 
   // Line/stroke color for vector data when selected, based on the theme
   protected get lineHighlightColor() {
-    return window.getComputedStyle(this.el).getPropertyValue('--sl-color-success-800');
+    return readColorProperty(this.el, '--wa-color-success-80');
   }
 
   // Line/stroke color for vector data when missing/invalid, based on the theme
   protected get lineInvalidColor() {
-    return window.getComputedStyle(this.el).getPropertyValue('--sl-color-warning-800');
+    return readColorProperty(this.el, '--wa-color-warning-80');
   }
 
   render() {
-    return <div id="map" class={`sl-theme-${this.theme}`}></div>;
+    return <div id="map" class={`wa-${this.theme}`}></div>;
   }
 }

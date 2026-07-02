@@ -10,13 +10,19 @@ export const config: Config = {
       type: 'dist',
       esmLoaderPath: '../loader',
       isPrimaryPackageOutputTarget: true,
-      copy: [{ src: '../assets', dest: 'assets' }],
+      copy: [
+        { src: '../assets', dest: 'assets' },
+        { src: '../node_modules/@awesome.me/webawesome/dist/styles', dest: 'assets/webawesome/styles' },
+      ],
     },
     // This target is used for the GitHub Pages preview site.
     {
       type: 'www',
       serviceWorker: null,
-      copy: [{ src: '../assets', dest: 'build/assets' }],
+      copy: [
+        { src: '../assets', dest: 'build/assets' },
+        { src: '../node_modules/@awesome.me/webawesome/dist/styles', dest: 'build/assets/webawesome/styles' },
+      ],
     },
   ],
 };

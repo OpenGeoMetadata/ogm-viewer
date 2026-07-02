@@ -1,8 +1,8 @@
 import { Component, Element, h, Host, Prop } from '@stencil/core';
 
-import { getElement, findElement } from '../../lib/elements';
+import { getElement } from '../../lib/elements';
 import type { OgmRecord } from '../../lib/record';
-import type { SlTabGroup } from '@shoelace-style/shoelace';
+import type WaTabGroup from '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
 
 @Component({
   tag: 'ogm-sidebar',
@@ -15,45 +15,45 @@ export class OgmSidebar {
   @Prop() theme: 'light' | 'dark';
   @Prop() open: boolean = false;
 
-  private tabs: SlTabGroup;
+  private tabs: WaTabGroup;
 
   // Find the tab group element after the component is loaded
   componentDidLoad() {
-    this.tabs = getElement(this.el, 'sl-tab-group') as SlTabGroup;
+    this.tabs = getElement(this.el, 'wa-tab-group') as WaTabGroup;
   }
 
   // Name of the currently active tab panel in sidebar, if one is active
   get activeTabPanel() {
-    const activeTab = findElement(this.el, 'sl-tab[active]');
-    if (activeTab) return activeTab.getAttribute('panel');
+    return this.tabs?.active || undefined;
   }
 
   // If open and no active tab, show the info tab
   componentDidUpdate() {
-    if (this.open && !this.activeTabPanel) this.tabs.show('information');
+    if (this.open && !this.activeTabPanel) this.tabs.active = 'information';
   }
 
   render() {
     return (
-      <Host class={this.theme && `sl-theme-${this.theme}`}>
-        <sl-drawer label="Sidebar" placement="start" class="sidebar" contained no-header open={this.open}>
-          <sl-tab-group placement="start">
-            <sl-tab slot="nav" panel="information">
-              <sl-icon name="info-circle-fill" label="Information"></sl-icon>
-            </sl-tab>
-            <sl-tab slot="nav" panel="rights">
-              <sl-icon name="c-circle" label="Rights"></sl-icon>
-            </sl-tab>
-            <sl-tab slot="nav" panel="links">
-              <sl-icon name="box-arrow-up-right" label="Links"></sl-icon>
-            </sl-tab>
-            <sl-tab slot="nav" panel="record">
-              <sl-icon name="braces" label="Record"></sl-icon>
-            </sl-tab>
-            <sl-tab slot="nav" panel="settings">
-              <sl-icon name="sliders" label="Settings"></sl-icon>
-            </sl-tab>
-            <sl-tab-panel name="information">
+      <Host class={this.theme && `wa-${this.theme}`}>
+        {/* Contained sliding panel; wa-drawer always renders as a full-viewport modal, which doesn't suit an embeddable widget */}
+        <div class={`sidebar ${this.open ? 'open' : ''}`} role="region" aria-label="Sidebar" aria-hidden={this.open ? 'false' : 'true'}>
+          <wa-tab-group placement="start">
+            <wa-tab slot="nav" panel="information">
+              <wa-icon name="info-circle-fill" label="Information" canvas="auto"></wa-icon>
+            </wa-tab>
+            <wa-tab slot="nav" panel="rights">
+              <wa-icon name="c-circle" label="Rights" canvas="auto"></wa-icon>
+            </wa-tab>
+            <wa-tab slot="nav" panel="links">
+              <wa-icon name="box-arrow-up-right" label="Links" canvas="auto"></wa-icon>
+            </wa-tab>
+            <wa-tab slot="nav" panel="record">
+              <wa-icon name="braces" label="Record" canvas="auto"></wa-icon>
+            </wa-tab>
+            <wa-tab slot="nav" panel="settings">
+              <wa-icon name="sliders" label="Settings" canvas="auto"></wa-icon>
+            </wa-tab>
+            <wa-tab-panel name="information">
               <div class="panel-header">About this item</div>
               <div class="panel-content">
                 <ogm-metadata
@@ -75,33 +75,33 @@ export class OgmSidebar {
                   ]}
                 />
               </div>
-            </sl-tab-panel>
-            <sl-tab-panel name="rights">
+            </wa-tab-panel>
+            <wa-tab-panel name="rights">
               <div class="panel-header">Access conditions</div>
               <div class="panel-content">
                 <ogm-metadata record={this.record} fieldNames={['provider', 'license', 'rights', 'rightsHolder']} />
               </div>
-            </sl-tab-panel>
-            <sl-tab-panel name="links">
+            </wa-tab-panel>
+            <wa-tab-panel name="links">
               <div class="panel-header">Links</div>
               <div class="panel-content">
                 <ogm-metadata record={this.record} fieldNames={['references']} />
               </div>
-            </sl-tab-panel>
-            <sl-tab-panel name="record">
+            </wa-tab-panel>
+            <wa-tab-panel name="record">
               <div class="panel-header">Record view</div>
               <div class="panel-content">
                 <div class="record-json">{JSON.stringify(this.record?.json, null, 2)}</div>
               </div>
-            </sl-tab-panel>
-            <sl-tab-panel name="settings">
+            </wa-tab-panel>
+            <wa-tab-panel name="settings">
               <div class="panel-header">Settings</div>
               <div class="panel-content">
                 <ogm-settings record={this.record} />
               </div>
-            </sl-tab-panel>
-          </sl-tab-group>
-        </sl-drawer>
+            </wa-tab-panel>
+          </wa-tab-group>
+        </div>
       </Host>
     );
   }

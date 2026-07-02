@@ -1,10 +1,6 @@
-/* Import these here, at the top level */
-@import '~@shoelace-style/shoelace/dist/themes/dark.css';
-@import '~@shoelace-style/shoelace/dist/themes/light.css';
-
 :host {
   --stanford-cardinal-red: #8f1414;
-  --accent-color: var(--sl-color-primary-500);
+  --accent-color: var(--wa-color-brand-50);
   /* --accent-color: var(--stanford-cardinal-red); */
 }
 
@@ -12,8 +8,8 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  font-family: var(--sl-font-sans);
-  border: var(--sl-panel-border-width) solid var(--sl-panel-border-color);
+  font-family: var(--wa-font-family-body);
+  border: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
   width: 100%;
   min-height: 400px;
   height: 100%;
@@ -21,6 +17,7 @@
 
 .main-container {
   position: relative;
+  overflow: hidden;
   min-height: 400px;
   height: 100%;
 }

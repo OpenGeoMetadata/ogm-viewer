@@ -1,25 +1,23 @@
-@import '~@shoelace-style/shoelace/dist/themes/light.css';
-
 /* Metadata display */
 .record-details {
   margin: 0;
   word-wrap: break-word;
-  line-height: var(--sl-line-height-dense);
+  line-height: var(--wa-line-height-condensed);
 }
 
 .record-details .field + .field {
-  margin: var(--sl-spacing-medium) 0 0 0;
+  margin: var(--wa-space-m) 0 0 0;
 }
 
 .record-details dt {
-  font-weight: var(--sl-font-weight-bold);
-  font-size: var(--sl-font-size-small);
+  font-weight: var(--wa-font-weight-bold);
+  font-size: var(--wa-font-size-s);
 }
 
 .record-details dd {
-  margin: var(--sl-spacing-x-small) 0 0 0;
+  margin: var(--wa-space-xs) 0 0 0;
 }
 
 .record-details a {
-  color: var(--sl-color-primary-500);
+  color: var(--wa-color-text-link);
 }

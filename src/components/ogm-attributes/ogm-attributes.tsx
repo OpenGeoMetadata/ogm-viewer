@@ -40,49 +40,55 @@ export class OgmAttributes {
     const label = getFeatureLabel(feature);
 
     return (
-      <table class="attribute-table">
-        {multiple && label ? (
-          <thead>
-            <tr class="header">
-              <td colSpan={2}>
-                <div class="pagination">
-                  <sl-icon-button name="arrow-left" label="Previous feature" disabled={this.currentIndex === 0} onClick={() => this.currentIndex--} />
-                  {label && (
-                    <div class="label">
-                      <div>{label}</div>
-                    </div>
-                  )}
-                  <div class="count">
-                    {' '}
-                    ({this.currentIndex + 1}/{this.features.length})
-                  </div>
-                  <sl-icon-button name="arrow-right" label="Next feature" disabled={this.currentIndex === this.features.length - 1} onClick={() => this.currentIndex++} />
-                </div>
-              </td>
-            </tr>
-          </thead>
-        ) : (
-          label && (
+      <wa-scroller orientation="vertical">
+        <table class="attribute-table">
+          {multiple && label ? (
             <thead>
               <tr class="header">
                 <td colSpan={2}>
-                  <div class="label">
-                    <div>{label}</div>
+                  <div class="pagination">
+                    <wa-button appearance="plain" disabled={this.currentIndex === 0} onClick={() => this.currentIndex--}>
+                      <wa-icon name="arrow-left" label="Previous feature" canvas="auto"></wa-icon>
+                    </wa-button>
+                    {label && (
+                      <div class="label">
+                        <div>{label}</div>
+                      </div>
+                    )}
+                    <div class="count">
+                      {' '}
+                      ({this.currentIndex + 1}/{this.features.length})
+                    </div>
+                    <wa-button appearance="plain" disabled={this.currentIndex === this.features.length - 1} onClick={() => this.currentIndex++}>
+                      <wa-icon name="arrow-right" label="Next feature" canvas="auto"></wa-icon>
+                    </wa-button>
                   </div>
                 </td>
               </tr>
             </thead>
-          )
-        )}
-        <tbody>
-          {Object.entries(feature.properties || {}).map(([key, value]) => (
-            <tr key={key}>
-              <td class="key">{key}</td>
-              <td class="value" innerHTML={Autolinker.link(value.toString(), { hashtag: false, mention: false, phone: false })}></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          ) : (
+            label && (
+              <thead>
+                <tr class="header">
+                  <td colSpan={2}>
+                    <div class="label">
+                      <div>{label}</div>
+                    </div>
+                  </td>
+                </tr>
+              </thead>
+            )
+          )}
+          <tbody>
+            {Object.entries(feature.properties || {}).map(([key, value]) => (
+              <tr key={key}>
+                <td class="key">{key}</td>
+                <td class="value" innerHTML={Autolinker.link(value.toString(), { hashtag: false, mention: false, phone: false })}></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </wa-scroller>
     );
   }
 }

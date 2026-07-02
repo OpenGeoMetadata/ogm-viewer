@@ -6,18 +6,18 @@
   position: relative;
 }
 
-/* Inspection popups */
+/* Inspection popups. Vertical scrolling (when content is too tall) is handled by the
+   <wa-scroller> inside ogm-attributes, not here - that's what gives it the fading shadow cue. */
 .maplibregl-popup-content {
-  max-height: 200px;
   max-width: 400px;
-  overflow: auto;
+  overflow: hidden;
   padding: 0;
-  box-shadow: var(--sl-shadow-large);
-  border: var(--sl-panel-border-width) solid var(--sl-panel-border-color);
+  box-shadow: var(--wa-shadow-l);
+  border: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
 }
 
 /* Dark mode map adjustments */
-.sl-theme-dark {
+.wa-dark {
   .tile-border {
     stroke: white;
   }

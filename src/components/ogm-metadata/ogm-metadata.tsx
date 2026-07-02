@@ -112,7 +112,7 @@ export class OgmMetadata {
 
     // Render the metadata fields
     return (
-      <Host class={this.theme && `sl-theme-${this.theme}`}>
+      <Host class={this.theme && `wa-${this.theme}`}>
         <dl class="record-details">{this.renderMetadata(record)}</dl>
       </Host>
     );

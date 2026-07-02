@@ -1,22 +1,43 @@
-import { setBasePath } from '@shoelace-style/shoelace/dist/utilities/base-path.js';
-import { Component, Element, Listen, Method, Prop, State, Watch, getAssetPath, h } from '@stencil/core';
+import { setBasePath, getBasePath, registerIconLibrary } from '@awesome.me/webawesome';
+import { Component, Element, Host, Listen, Method, Prop, State, Watch, getAssetPath, h } from '@stencil/core';
 
 import { OgmRecord } from '../../lib/record';
 
 // Only need to call this once, at the top level
 setBasePath(getAssetPath(''));
 
-// Import all required Shoelace components
-import '@shoelace-style/shoelace/dist/components/drawer/drawer.js';
-import '@shoelace-style/shoelace/dist/components/button/button.js';
-import '@shoelace-style/shoelace/dist/components/icon-button/icon-button.js';
-import '@shoelace-style/shoelace/dist/components/icon/icon.js';
-import '@shoelace-style/shoelace/dist/components/range/range.js';
-import '@shoelace-style/shoelace/dist/components/spinner/spinner.js';
-import '@shoelace-style/shoelace/dist/components/tab-group/tab-group.js';
-import '@shoelace-style/shoelace/dist/components/tab-panel/tab-panel.js';
-import '@shoelace-style/shoelace/dist/components/tab/tab.js';
-import '@shoelace-style/shoelace/dist/components/tooltip/tooltip.js';
+// Serve icons from our self-hosted bootstrap-icons subset instead of the default Font Awesome library
+registerIconLibrary('default', {
+  resolver: name => getBasePath(`assets/icons/${name}.svg`),
+});
+
+// Web Awesome's raw color palette is scoped to `:root`, which can only ever match the actual
+// document root - never an element inside a shadow tree, so a component-scoped @import can't
+// activate it. Loading it here, at the document level, lets it match `:root` for real, and lets
+// its `.wa-light`/`.wa-dark` theme rules match the <ogm-viewer> host itself (see render() below),
+// from which every token inherits down through the rest of the shadow tree. Injecting it here
+// means consumers don't have to remember to add it to their own page.
+function loadWebAwesomeStylesheet() {
+  const id = 'ogm-viewer-webawesome-styles';
+  if (document.getElementById(id)) return;
+  const link = document.createElement('link');
+  link.id = id;
+  link.rel = 'stylesheet';
+  link.href = getBasePath('assets/webawesome/styles/webawesome.css');
+  document.head.appendChild(link);
+}
+loadWebAwesomeStylesheet();
+
+// Import all required Web Awesome components
+import '@awesome.me/webawesome/dist/components/button/button.js';
+import '@awesome.me/webawesome/dist/components/icon/icon.js';
+import '@awesome.me/webawesome/dist/components/scroller/scroller.js';
+import '@awesome.me/webawesome/dist/components/slider/slider.js';
+import '@awesome.me/webawesome/dist/components/spinner/spinner.js';
+import '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
+import '@awesome.me/webawesome/dist/components/tab-panel/tab-panel.js';
+import '@awesome.me/webawesome/dist/components/tab/tab.js';
+import '@awesome.me/webawesome/dist/components/tooltip/tooltip.js';
 
 @Component({
   tag: 'ogm-viewer',
@@ -98,13 +119,18 @@ export class OgmViewer {
 
   render() {
     return (
-      <div class={`container sl-theme-${this.theme}`}>
-        <ogm-menubar theme={this.theme} record={this.record} loading={this.loading}></ogm-menubar>
-        <div class="main-container">
-          <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen}></ogm-sidebar>
-          {this.renderPreview()}
+      // Applying the theme class to the host (rather than an internal div) lets the document-level
+      // Web Awesome stylesheet's `.wa-light`/`.wa-dark` rules match it directly, since the host sits
+      // in the consuming page's own light DOM while everything inside this shadow root does not.
+      <Host class={`wa-${this.theme}`}>
+        <div class="container">
+          <ogm-menubar theme={this.theme} record={this.record} loading={this.loading}></ogm-menubar>
+          <div class="main-container">
+            <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen}></ogm-sidebar>
+            {this.renderPreview()}
+          </div>
         </div>
-      </div>
+      </Host>
     );
   }
 }
