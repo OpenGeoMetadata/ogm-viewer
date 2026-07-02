@@ -1,7 +1,12 @@
+wa-scroller {
+  max-height: 200px;
+  overscroll-behavior: none;
+}
+
 .attribute-table {
-  font-family: var(--sl-font-mono);
-  font-size: var(--sl-font-size-x-small);
-  line-height: var(--sl-line-height-dense);
+  font-family: var(--wa-font-family-code);
+  font-size: var(--wa-font-size-xs);
+  line-height: var(--wa-line-height-condensed);
   word-wrap: break-word;
   border-collapse: collapse;
   border-style: hidden;
@@ -9,7 +14,7 @@
 
   th,
   td {
-    border: var(--sl-panel-border-width) solid var(--sl-panel-border-color);
+    border: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
     padding: 0.2em 0.5em;
   }
 
@@ -36,8 +41,8 @@
 }
 
 .label {
-  font-size: var(--sl-font-size-small);
-  font-weight: var(--sl-font-weight-bold);
+  font-size: var(--wa-font-size-s);
+  font-weight: var(--wa-font-weight-bold);
   overflow: hidden;
   min-width: 0;
   max-width: 40ch;
@@ -53,7 +58,7 @@
   }
 }
 
-sl-icon-button + .label {
+wa-button + .label {
   max-width: 30ch;
   padding: 0;
 }

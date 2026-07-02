@@ -14,15 +14,18 @@ export class OgmMenubar {
 
   render() {
     return (
-      <div class={`menubar ${this.theme && `sl-theme-${this.theme}`}`}>
-        <sl-icon-button name="list" label="Open sidebar" class="menu-button" onclick={this.sidebarToggled.emit}></sl-icon-button>
+      <div class={`menubar ${this.theme && `wa-${this.theme}`}`}>
+        <wa-button appearance="plain" class="menu-button" onclick={this.sidebarToggled.emit}>
+          <wa-icon name="list" label="Open sidebar" canvas="auto"></wa-icon>
+        </wa-button>
         {this.record?.restricted && (
-          <sl-tooltip content="Restricted access">
-            <sl-icon name="lock-fill" label="Restricted access" class="restricted-icon"></sl-icon>
-          </sl-tooltip>
+          <>
+            <wa-tooltip for="restricted-icon">Restricted access</wa-tooltip>
+            <wa-icon id="restricted-icon" name="lock-fill" label="Restricted access" class="restricted-icon" canvas="auto"></wa-icon>
+          </>
         )}
         <div class="title">{this.record?.title}</div>
-        {this.loading && <sl-spinner class="loading-spinner"></sl-spinner>}
+        {this.loading && <wa-spinner class="loading-spinner"></wa-spinner>}
       </div>
     );
   }
