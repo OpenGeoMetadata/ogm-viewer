@@ -4,21 +4,27 @@ import { DecoderPool } from '@developmentseed/geotiff';
 
 import Previewer from './previewer';
 import type Source from '../sources/source';
+import { type MapLibreStyle } from '../themes/maplibre';
 
 // Deck.gl-based previewer for Cloud Optimized GeoTIFF (COG) sources
 // Can warp COGs on the fly; supports projections other than Web Mercator
 // NOTE: can't be built currently due to a bug; see:
 // https://github.com/OpenGeoMetadata/ogm-viewer/issues/100
 export default class DeckCogPreviewer extends Previewer {
+  // Store reference to the map and styles
+  protected style: MapLibreStyle;
   protected map: maplibregl.Map;
+
+  // Store reference to the deck.gl overlay and the layer ID for cleanup
   protected deckOverlay: DeckOverlay;
   protected layerId: string | undefined = undefined;
 
   private bounds: maplibregl.LngLatBoundsLike | undefined = undefined;
 
-  constructor(source: Source, map: maplibregl.Map) {
+  constructor(source: Source, map: maplibregl.Map, style: MapLibreStyle) {
     super(source);
     this.map = map;
+    this.style = style;
     this.deckOverlay = this.getDeckOverlay();
   }
 

@@ -30,10 +30,6 @@ export namespace Components {
           * @default 0
          */
         "padding": number;
-        /**
-          * @default 100
-         */
-        "previewOpacity": number;
         "record": OgmRecord;
         "theme": 'light' | 'dark';
     }
@@ -232,10 +228,6 @@ declare namespace LocalJSX {
           * @default 0
          */
         "padding"?: number;
-        /**
-          * @default 100
-         */
-        "previewOpacity"?: number;
         "record"?: OgmRecord;
         "theme"?: 'light' | 'dark';
     }
@@ -279,7 +271,6 @@ declare namespace LocalJSX {
     }
     interface OgmMapAttributes {
         "theme": 'light' | 'dark';
-        "previewOpacity": number;
         "padding": number;
     }
     interface OgmMenubarAttributes {

@@ -1,44 +1,10 @@
-import MapLibrePreviewer, { MapLibreOptions } from './maplibre';
+import MapLibrePreviewer from './maplibre';
 import type { FillLayerSpecification, LineLayerSpecification, CircleLayerSpecification, SymbolLayerSpecification, LayerSpecification } from 'maplibre-gl';
 
 import type VectorSource from '../sources/vector';
 
-type VectorOptions = {
-  fillColor: string; // CSS color string
-  fillHighlightColor: string; // CSS color string
-  fillInvalidColor: string; // CSS color string
-  lineColor: string; // CSS color string
-  lineHighlightColor: string; // CSS color string
-  textColor: string; // CSS color string
-  fillOpacity: number; // decimal between 0 and 1
-  fillHighlightOpacity: number; // decimal between 0 and 1
-  labelFont: string; // CSS font-family string
-  labelSize: number; // in pixels
-};
-
-export type Options = MapLibreOptions & VectorOptions;
-
-const defaultOptions: VectorOptions = {
-  fillColor: '#00ccff',
-  fillHighlightColor: '#00ff00',
-  fillInvalidColor: '#ffcc00',
-  lineColor: '#555555',
-  lineHighlightColor: '#00ff00',
-  textColor: '#222222',
-  fillOpacity: 0.6,
-  fillHighlightOpacity: 0.8,
-  labelFont: 'Noto Sans Regular',
-  labelSize: 10,
-};
-
 export default abstract class VectorPreviewer extends MapLibrePreviewer {
   declare protected source: VectorSource;
-  declare protected options: Options;
-
-  constructor(source: VectorSource, map: maplibregl.Map, options?: Partial<Options>) {
-    super(source, map, options);
-    this.options = { ...defaultOptions, ...options } as Options;
-  }
 
   // Set opacity of all layers in this previewer
   async setOpacity(opacity: number) {
@@ -74,8 +40,15 @@ export default abstract class VectorPreviewer extends MapLibrePreviewer {
       type: 'fill' as const,
       source: this.getSourceId(),
       paint: {
-        'fill-color': ['case', ['boolean', ['feature-state', 'selected'], false], this.options.fillHighlightColor, this.options.fillColor] as const,
-        'fill-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], this.options.fillHighlightOpacity, this.options.fillOpacity] as const,
+        'fill-color': [
+          'case',
+          ['boolean', ['feature-state', 'selected'], false],
+          this.style.fillSelectedColor,
+          ['boolean', ['feature-state', 'hover'], false],
+          this.style.fillHighlightColor,
+          this.style.fillColor,
+        ] as const,
+        'fill-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], this.style.fillHighlightOpacity, this.style.fillOpacity] as const,
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
     };
@@ -88,7 +61,14 @@ export default abstract class VectorPreviewer extends MapLibrePreviewer {
       type: 'line' as const,
       source: this.getSourceId(),
       paint: {
-        'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], this.options.lineHighlightColor, this.options.lineColor] as const,
+        'line-color': [
+          'case',
+          ['boolean', ['feature-state', 'selected'], false],
+          this.style.strokeSelectedColor,
+          ['boolean', ['feature-state', 'hover'], false],
+          this.style.strokeHighlightColor,
+          this.style.strokeColor,
+        ] as const,
         'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
@@ -102,7 +82,14 @@ export default abstract class VectorPreviewer extends MapLibrePreviewer {
       type: 'line' as const,
       source: this.getSourceId(),
       paint: {
-        'line-color': ['case', ['boolean', ['feature-state', 'selected'], false], this.options.lineHighlightColor, this.options.lineColor] as const,
+        'line-color': [
+          'case',
+          ['boolean', ['feature-state', 'selected'], false],
+          this.style.strokeSelectedColor,
+          ['boolean', ['feature-state', 'hover'], false],
+          this.style.strokeHighlightColor,
+          this.style.strokeColor,
+        ] as const,
         'line-width': 4,
       },
       filter: ['==', ['geometry-type'], 'LineString'] as const,
@@ -116,11 +103,25 @@ export default abstract class VectorPreviewer extends MapLibrePreviewer {
       type: 'circle' as const,
       source: this.getSourceId(),
       paint: {
-        'circle-color': ['case', ['boolean', ['feature-state', 'selected'], false], this.options.fillHighlightColor, this.options.fillColor] as const,
-        'circle-stroke-color': ['case', ['boolean', ['feature-state', 'selected'], false], this.options.lineHighlightColor, this.options.lineColor] as const,
+        'circle-color': [
+          'case',
+          ['boolean', ['feature-state', 'selected'], false],
+          this.style.fillSelectedColor,
+          ['boolean', ['feature-state', 'hover'], false],
+          this.style.fillHighlightColor,
+          this.style.fillColor,
+        ] as const,
+        'circle-stroke-color': [
+          'case',
+          ['boolean', ['feature-state', 'selected'], false],
+          this.style.strokeSelectedColor,
+          ['boolean', ['feature-state', 'hover'], false],
+          this.style.strokeHighlightColor,
+          this.style.strokeColor,
+        ] as const,
         'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 2, 12, 4] as const,
-        'circle-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], this.options.fillHighlightOpacity, this.options.fillOpacity] as const,
+        'circle-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], this.style.fillHighlightOpacity, this.style.fillOpacity] as const,
       },
       filter: ['==', ['geometry-type'], 'Point'] as const,
     };
@@ -134,9 +135,9 @@ export default abstract class VectorPreviewer extends MapLibrePreviewer {
       source: this.getSourceId(),
       layout: {
         'text-field': ['get', 'id'] as const,
-        'text-font': [this.options.labelFont],
+        'text-font': [this.style.textFont],
         'text-max-angle': 85,
-        'text-size': this.options.labelSize,
+        'text-size': this.style.textSize,
         'text-offset': [0, 1],
         'text-anchor': 'bottom',
         'text-rotation-alignment': 'map',
@@ -145,7 +146,7 @@ export default abstract class VectorPreviewer extends MapLibrePreviewer {
         'symbol-spacing': 250,
       },
       paint: {
-        'text-color': this.options.textColor,
+        'text-color': this.style.textColor,
         'text-halo-color': 'white',
         'text-halo-width': 1,
       },
@@ -162,11 +163,11 @@ export default abstract class VectorPreviewer extends MapLibrePreviewer {
       layout: {
         'symbol-placement': 'line',
         'text-field': ['get', 'id'] as const,
-        'text-font': [this.options.labelFont],
-        'text-size': this.options.labelSize,
+        'text-font': [this.style.textFont],
+        'text-size': this.style.textSize,
       },
       paint: {
-        'text-color': this.options.textColor,
+        'text-color': this.style.textColor,
         'text-halo-color': 'white',
         'text-halo-width': 1,
       },
@@ -182,12 +183,12 @@ export default abstract class VectorPreviewer extends MapLibrePreviewer {
       source: this.getSourceId(),
       layout: {
         'text-field': ['get', 'id'] as const,
-        'text-font': [this.options.labelFont],
-        'text-size': this.options.labelSize,
+        'text-font': [this.style.textFont],
+        'text-size': this.style.textSize,
         'text-offset': [0, -1],
       },
       paint: {
-        'text-color': this.options.textColor,
+        'text-color': this.style.textColor,
         'text-halo-color': 'white',
         'text-halo-width': 1,
       },

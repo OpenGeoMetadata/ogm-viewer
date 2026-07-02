@@ -2,31 +2,26 @@ import type { SourceSpecification, AddLayerObject } from 'maplibre-gl';
 
 import Previewer from './previewer';
 import Source from '../sources/source';
-
-export type MapLibreOptions = {
-  padding: number; // pixels
-  opacity: number; // decimal between 0 and 1
-};
-
-const defaultOptions: MapLibreOptions = {
-  padding: 40,
-  opacity: 1,
-} as const;
+import { type MapLibreStyle } from '../themes/maplibre';
 
 export default abstract class MapLibrePreviewer extends Previewer {
+  // Store reference to the map and styles
+  protected style: MapLibreStyle;
+  protected map: maplibregl.Map;
+
   // Stored state for added source and layers to allow for cleanup
   sourceId: string | null = null;
   layerIds: string[] = [];
 
-  protected map: maplibregl.Map;
-  protected options: MapLibreOptions;
+  // Current opacity state
   protected opacity: number;
 
-  constructor(source: Source, map: maplibregl.Map, options?: Partial<MapLibreOptions>) {
+  // Initialize with opacity at the theme's opacity value
+  constructor(source: Source, map: maplibregl.Map, style: MapLibreStyle) {
     super(source);
     this.map = map;
-    this.options = { ...defaultOptions, ...options } as MapLibreOptions;
-    this.opacity = this.options.opacity;
+    this.style = style;
+    this.opacity = this.style.opacity;
   }
 
   // Add source and preview layers if they don't already exist

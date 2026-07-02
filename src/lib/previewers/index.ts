@@ -15,19 +15,21 @@ import PMTilesVectorPreviewer from './pmtiles-vector';
 import RasterPreviewer from './raster';
 import WmsPreviewer from './wms';
 
+import { type MapLibreStyle } from '../themes/maplibre';
+
 // Given a list of sources, return a list of previewers that can be used to preview them on a map
-export const getMapPreviewers = async (sources: Source[], map: maplibregl.Map, options: any) => {
+export const getMapPreviewers = async (sources: Source[], map: maplibregl.Map, style: MapLibreStyle) => {
   const previewers = [] as MapLibrePreviewer[];
 
   for (const source of sources) {
-    if (source instanceof OpenIndexMapSource) previewers.push(new OpenIndexMapPreviewer(source, map, options));
-    else if (source instanceof GeoJSONSource) previewers.push(new GeoJSONPreviewer(source, map, options));
+    if (source instanceof OpenIndexMapSource) previewers.push(new OpenIndexMapPreviewer(source, map, style));
+    else if (source instanceof GeoJSONSource) previewers.push(new GeoJSONPreviewer(source, map, style));
     else if (source instanceof PMTilesSource) {
-      if (await source.isVector()) previewers.push(new PMTilesVectorPreviewer(source, map, options));
-      else previewers.push(new PMTilesRasterPreviewer(source, map, options));
-    } else if (source instanceof WmsSource) previewers.push(new WmsPreviewer(source, map, options));
-    else if (source instanceof CogSource) previewers.push(new CogPreviewer(source, map, options));
-    else if (source instanceof RasterSource) previewers.push(new RasterPreviewer(source, map, options));
+      if (await source.isVector()) previewers.push(new PMTilesVectorPreviewer(source, map, style));
+      else previewers.push(new PMTilesRasterPreviewer(source, map, style));
+    } else if (source instanceof WmsSource) previewers.push(new WmsPreviewer(source, map, style));
+    else if (source instanceof CogSource) previewers.push(new CogPreviewer(source, map, style));
+    else if (source instanceof RasterSource) previewers.push(new RasterPreviewer(source, map, style));
   }
 
   return previewers;
