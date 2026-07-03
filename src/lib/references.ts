@@ -1,6 +1,3 @@
-import iiif3 from '@iiif/presentation-3';
-import iiif2 from '@iiif/presentation-2';
-
 // Map reference URI keys to user-friendly names
 export const REFERENCE_URIS = {
   'https://github.com/cogeotiff/cog-spec': 'COG',
@@ -53,9 +50,6 @@ export type ReferencesRecord = Partial<{ [key in NonDownloadReferenceURI]: strin
 export class References {
   // Underlying object to hold references
   private references: ReferencesRecord;
-
-  // Cache for fetched IIIF manifest
-  iiifManifest: iiif3.Manifest | iiif2.Manifest;
 
   // Create a new instance with the JSON string from a record
   constructor(dct_references_s: string) {
@@ -122,31 +116,6 @@ export class References {
     return this.references['http://iiif.io/api/presentation#manifest'];
   }
 
-  // List of IIIF image URLs extracted from the manifest
-  async iiifImageUrls() {
-    if (this.iiifImageUrl) return [this.iiifImageUrl];
-    if (!this.iiifManifestUrl) return [];
-
-    // Fetch and cache the manifest if we haven't already
-    if (!this.iiifManifest) {
-      try {
-        await this.fetchManifest();
-      } catch (error) {
-        console.error('Failed to fetch IIIF manifest:', error);
-        return [];
-      }
-    }
-
-    // Try to extract image URLs from the manifest
-    try {
-      if (this.iiifVersion == 3) return this.extractIiif3ImageUrls(this.iiifManifest as iiif3.Manifest);
-      return this.extractIiif2ImageUrls(this.iiifManifest as iiif2.Manifest);
-    } catch (error) {
-      console.error('Failed to extract IIIF image URLs from manifest:', error);
-      return [];
-    }
-  }
-
   // List of download links with URL and label, if using multiple downloads
   get downloadLinks(): LabelledLinks {
     const fieldContents = this.references['http://schema.org/downloadUrl'];
@@ -205,48 +174,5 @@ export class References {
   // Get all IIIF references (image and manifest)
   private get iiifReferences() {
     return [this.iiifImageUrl, this.iiifManifestUrl];
-  }
-
-  // Get the IIIF presentation spec version of the manifest, if we have one
-  private get iiifVersion() {
-    return this.iiifManifest['@context']?.includes('http://iiif.io/api/presentation/3/context.json') ? 3 : 2;
-  }
-
-  // Given a v2 manifest, extract all of the IIIF images and format as info.json URLs
-  private extractIiif2ImageUrls(manifest: iiif2.Manifest): string[] {
-    return (
-      manifest.sequences
-        .flatMap(seq => seq.canvases)
-        .flatMap(can => can.images)
-        .flatMap(img => img.resource)
-        //@ts-ignore
-        .flatMap(res => (res['@type'] === 'dctypes:Image' ? res.service['@id'] + '/info.json' : []))
-    );
-  }
-
-  // Given a v3 manifest, extract all of the IIIF images and format as info.json URLs
-  private extractIiif3ImageUrls(manifest: iiif3.Manifest): string[] {
-    // Recursively search the '.items' key until we end up with nodes that have type 'ImageService2'
-    return (
-      manifest.items
-        .flatMap(canvas => canvas.items)
-        .flatMap(annotationPage => annotationPage?.items || [])
-        .flatMap(annotation => (Array.isArray(annotation.body) ? annotation.body : [annotation.body]))
-        //@ts-ignore
-        .flatMap(annotationBody => annotationBody.service)
-        .flatMap(service => service.id + '/info.json')
-    );
-  }
-
-  // TODO: use navPlace as the bounds source if available
-
-  // Attempt to fetch and parse the IIIF manifest, if any
-  private async fetchManifest(): Promise<iiif2.Manifest | iiif3.Manifest | undefined> {
-    if (!this.iiifManifestUrl) return;
-    const response = await fetch(this.iiifManifestUrl);
-    if (!response.ok) throw new Error(`Unexpected response fetching IIIF manifest: ${response.statusText}`);
-    const manifest = await response.json();
-    this.iiifManifest = manifest;
-    return manifest;
   }
 }

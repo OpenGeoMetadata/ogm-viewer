@@ -6,9 +6,7 @@
  */
 import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
 import { MapGeoJSONFeature } from "maplibre-gl";
-import { OgmRecord } from "./lib/record";
 export { MapGeoJSONFeature } from "maplibre-gl";
-export { OgmRecord } from "./lib/record";
 export namespace Components {
     interface OgmAttributes {
         /**
@@ -21,7 +19,7 @@ export namespace Components {
           * @default 0
          */
         "padding": number;
-        "record": OgmRecord;
+        "source": IIIFSource;
         "theme": 'light' | 'dark';
     }
     interface OgmMap {
@@ -30,7 +28,7 @@ export namespace Components {
           * @default 0
          */
         "padding": number;
-        "record": OgmRecord;
+        "source": Source;
         "theme": 'light' | 'dark';
     }
     interface OgmMenubar {
@@ -44,6 +42,12 @@ export namespace Components {
     interface OgmMetadata {
         "fieldNames": string[];
         "record": OgmRecord;
+        "theme": 'light' | 'dark';
+    }
+    interface OgmPreviews {
+        "previewOpacity": number;
+        "record": OgmRecord;
+        "sidebarPadding": number;
         "theme": 'light' | 'dark';
     }
     interface OgmSettings {
@@ -163,6 +167,12 @@ declare global {
         prototype: HTMLOgmMetadataElement;
         new (): HTMLOgmMetadataElement;
     };
+    interface HTMLOgmPreviewsElement extends Components.OgmPreviews, HTMLStencilElement {
+    }
+    var HTMLOgmPreviewsElement: {
+        prototype: HTMLOgmPreviewsElement;
+        new (): HTMLOgmPreviewsElement;
+    };
     interface HTMLOgmSettingsElementEventMap {
         "opacityChange": number;
     }
@@ -198,6 +208,7 @@ declare global {
         "ogm-map": HTMLOgmMapElement;
         "ogm-menubar": HTMLOgmMenubarElement;
         "ogm-metadata": HTMLOgmMetadataElement;
+        "ogm-previews": HTMLOgmPreviewsElement;
         "ogm-settings": HTMLOgmSettingsElement;
         "ogm-sidebar": HTMLOgmSidebarElement;
         "ogm-viewer": HTMLOgmViewerElement;
@@ -218,7 +229,7 @@ declare namespace LocalJSX {
           * @default 0
          */
         "padding"?: number;
-        "record"?: OgmRecord;
+        "source"?: IIIFSource;
         "theme"?: 'light' | 'dark';
     }
     interface OgmMap {
@@ -228,7 +239,7 @@ declare namespace LocalJSX {
           * @default 0
          */
         "padding"?: number;
-        "record"?: OgmRecord;
+        "source"?: Source;
         "theme"?: 'light' | 'dark';
     }
     interface OgmMenubar {
@@ -243,6 +254,12 @@ declare namespace LocalJSX {
     interface OgmMetadata {
         "fieldNames"?: string[];
         "record"?: OgmRecord;
+        "theme"?: 'light' | 'dark';
+    }
+    interface OgmPreviews {
+        "previewOpacity"?: number;
+        "record"?: OgmRecord;
+        "sidebarPadding"?: number;
         "theme"?: 'light' | 'dark';
     }
     interface OgmSettings {
@@ -280,6 +297,11 @@ declare namespace LocalJSX {
     interface OgmMetadataAttributes {
         "theme": 'light' | 'dark';
     }
+    interface OgmPreviewsAttributes {
+        "theme": 'light' | 'dark';
+        "previewOpacity": number;
+        "sidebarPadding": number;
+    }
     interface OgmSidebarAttributes {
         "theme": 'light' | 'dark';
         "open": boolean;
@@ -295,6 +317,7 @@ declare namespace LocalJSX {
         "ogm-map": Omit<OgmMap, keyof OgmMapAttributes> & { [K in keyof OgmMap & keyof OgmMapAttributes]?: OgmMap[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `attr:${K}`]?: OgmMapAttributes[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `prop:${K}`]?: OgmMap[K] };
         "ogm-menubar": Omit<OgmMenubar, keyof OgmMenubarAttributes> & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes]?: OgmMenubar[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `attr:${K}`]?: OgmMenubarAttributes[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `prop:${K}`]?: OgmMenubar[K] };
         "ogm-metadata": Omit<OgmMetadata, keyof OgmMetadataAttributes> & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes]?: OgmMetadata[K] } & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes as `attr:${K}`]?: OgmMetadataAttributes[K] } & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes as `prop:${K}`]?: OgmMetadata[K] };
+        "ogm-previews": Omit<OgmPreviews, keyof OgmPreviewsAttributes> & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes]?: OgmPreviews[K] } & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes as `attr:${K}`]?: OgmPreviewsAttributes[K] } & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes as `prop:${K}`]?: OgmPreviews[K] };
         "ogm-settings": OgmSettings;
         "ogm-sidebar": Omit<OgmSidebar, keyof OgmSidebarAttributes> & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes]?: OgmSidebar[K] } & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes as `attr:${K}`]?: OgmSidebarAttributes[K] } & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes as `prop:${K}`]?: OgmSidebar[K] };
         "ogm-viewer": Omit<OgmViewer, keyof OgmViewerAttributes> & { [K in keyof OgmViewer & keyof OgmViewerAttributes]?: OgmViewer[K] } & { [K in keyof OgmViewer & keyof OgmViewerAttributes as `attr:${K}`]?: OgmViewerAttributes[K] } & { [K in keyof OgmViewer & keyof OgmViewerAttributes as `prop:${K}`]?: OgmViewer[K] };
@@ -309,6 +332,7 @@ declare module "@stencil/core" {
             "ogm-map": LocalJSX.IntrinsicElements["ogm-map"] & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
             "ogm-menubar": LocalJSX.IntrinsicElements["ogm-menubar"] & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
             "ogm-metadata": LocalJSX.IntrinsicElements["ogm-metadata"] & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;
+            "ogm-previews": LocalJSX.IntrinsicElements["ogm-previews"] & JSXBase.HTMLAttributes<HTMLOgmPreviewsElement>;
             "ogm-settings": LocalJSX.IntrinsicElements["ogm-settings"] & JSXBase.HTMLAttributes<HTMLOgmSettingsElement>;
             "ogm-sidebar": LocalJSX.IntrinsicElements["ogm-sidebar"] & JSXBase.HTMLAttributes<HTMLOgmSidebarElement>;
             "ogm-viewer": LocalJSX.IntrinsicElements["ogm-viewer"] & JSXBase.HTMLAttributes<HTMLOgmViewerElement>;

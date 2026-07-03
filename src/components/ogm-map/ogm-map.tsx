@@ -1,12 +1,24 @@
-import { Component, Element, Prop, h, Watch, Method, Event, EventEmitter, Listen } from '@stencil/core';
-import { Protocol as PMTilesProtocol } from 'pmtiles';
+import { Component, Element, Event, EventEmitter, h, Listen, Method, Prop, Watch } from '@stencil/core';
 import maplibregl from 'maplibre-gl';
+import { Protocol as PMTilesProtocol } from 'pmtiles';
 
-import type { OgmRecord } from '../../lib/record';
+import CogSource from '../../lib/sources/cog';
+import GeoJSONSource from '../../lib/sources/geojson';
+import OpenIndexMapSource from '../../lib/sources/openindexmap';
+import PMTilesSource from '../../lib/sources/pmtiles';
+import RasterSource from '../../lib/sources/raster';
+import Source from '../../lib/sources/source';
+import WmsSource from '../../lib/sources/wms';
+
 import { getElement } from '../../lib/elements';
-import { getSources } from '../../lib/sources';
-import { getMapPreviewers } from '../../lib/previewers';
+import CogPreviewer from '../../lib/previewers/cog';
+import GeoJSONPreviewer from '../../lib/previewers/geojson';
 import MapLibrePreviewer from '../../lib/previewers/maplibre';
+import OpenIndexMapPreviewer from '../../lib/previewers/openindexmap';
+import PMTilesRasterPreviewer from '../../lib/previewers/pmtiles-raster';
+import PMTilesVectorPreviewer from '../../lib/previewers/pmtiles-vector';
+import RasterPreviewer from '../../lib/previewers/raster';
+import WmsPreviewer from '../../lib/previewers/wms';
 import MapLibreTheme from '../../lib/themes/maplibre';
 
 // Register PMTiles protocol
@@ -20,7 +32,7 @@ maplibregl.addProtocol('pmtiles', protocol.tile);
 })
 export class OgmMap {
   @Element() el: HTMLElement;
-  @Prop() record: OgmRecord;
+  @Prop() source: Source;
   @Prop() theme: 'light' | 'dark';
   @Prop() padding: number = 0;
   @Event() mapIdle: EventEmitter<void>;
@@ -36,8 +48,8 @@ export class OgmMap {
   // Container element reference for fullscreen
   protected containerEl: HTMLElement;
 
-  // Previewers for the currently previewed sources
-  protected previewers: MapLibrePreviewer[] = [];
+  // Previewer for the currently previewed source
+  protected previewer: MapLibrePreviewer | undefined = undefined;
 
   // Set up the mapLibre map and event bindings on load
   componentDidLoad() {
@@ -54,7 +66,7 @@ export class OgmMap {
     this.getContainer();
     this.addControls();
     this.map.on('idle', () => this.mapIdle.emit());
-    this.map.on('load', () => this.previewRecord(this.record));
+    this.map.on('load', () => this.previewSource(this.source));
     this.map.on('mousemove', this.handleHover.bind(this));
     this.map.on('click', this.handleClick.bind(this));
 
@@ -77,7 +89,9 @@ export class OgmMap {
 
   // Find the container element for the map (used for fullscreen control)
   protected getContainer() {
-    const containerEl = this.el.parentElement?.parentElement;
+    const viewerEl = document.querySelector('ogm-viewer') as HTMLElement;
+    if (!viewerEl) throw new Error('Could not find ogm-viewer element');
+    const containerEl = getElement(viewerEl, '.container') as HTMLElement;
     if (!containerEl) throw new Error('Could not find map container element');
     this.containerEl = containerEl;
   }
@@ -104,10 +118,23 @@ export class OgmMap {
     );
   }
 
-  @Watch('record')
-  async previewRecord(record: OgmRecord) {
-    // Do nothing if we didn't get passed a record
-    if (!record) return;
+  // Get the appropriate previewer for our source
+  protected async getMapPreviewer(map: maplibregl.Map) {
+    const style = this.mapTheme.getStyle();
+    if (this.source instanceof OpenIndexMapSource) return new OpenIndexMapPreviewer(this.source, map, style);
+    else if (this.source instanceof GeoJSONSource) return new GeoJSONPreviewer(this.source, map, style);
+    else if (this.source instanceof PMTilesSource) {
+      if (await this.source.isVector()) return new PMTilesVectorPreviewer(this.source, map, style);
+      else return new PMTilesRasterPreviewer(this.source, map, style);
+    } else if (this.source instanceof WmsSource) return new WmsPreviewer(this.source, map, style);
+    else if (this.source instanceof CogSource) return new CogPreviewer(this.source, map, style);
+    else if (this.source instanceof RasterSource) return new RasterPreviewer(this.source, map, style);
+  }
+
+  @Watch('source')
+  async previewSource(source: Source) {
+    // Do nothing if we didn't get passed a source
+    if (!source) return;
 
     // Indicate loading state so we can show the spinner
     this.mapLoading.emit();
@@ -116,24 +143,26 @@ export class OgmMap {
     this.clearFeatureSelection();
     this.destroyPopup();
 
-    // Clear existing previews
-    while (this.previewers.length) await this.previewers.pop()?.clearPreview();
-
-    // Populate the new previewers and render them
-    const sources = getSources(record);
-    for (const previewer of await getMapPreviewers(sources, this.map, this.mapTheme.getStyle())) {
-      this.previewers.push(previewer);
-      await previewer.preview();
+    // Clear existing preview
+    if (this.previewer) {
+      await this.previewer.clearPreview();
+      this.previewer = undefined;
     }
 
+    // Get the appropriate previewer for our source and preview it
+    this.previewer = await this.getMapPreviewer(this.map);
+    if (!this.previewer) throw new Error(`No previewer found for source: ${source.constructor.name}`);
+    await this.previewer.preview();
+
     // Fit to bounds from the record
-    const bounds = record.getBounds();
+    const bounds = await this.source.getBounds();
     if (bounds) await this.fitMapBounds(bounds);
 
     // Emit map idle event to signal that the map is ready
     this.mapIdle.emit();
   }
 
+  // Fit the map to the given bounds; return when moving is finished
   async fitMapBounds(bounds: maplibregl.LngLatBoundsLike) {
     return new Promise<void>(resolve => {
       this.map.once('moveend', () => resolve());
@@ -209,6 +238,7 @@ export class OgmMap {
     this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, { hover: true });
   }
 
+  // Clear the hovered feature state
   protected clearHoveredFeature() {
     if (this.hoveredFeature) {
       this.map.setFeatureState({ source: this.hoveredFeature.source, id: this.hoveredFeature.id, sourceLayer: this.hoveredFeature.sourceLayer }, { hover: false });
@@ -231,7 +261,7 @@ export class OgmMap {
 
   // Get the IDs of all layers in the previewers
   protected get previewLayers() {
-    return this.previewers.flatMap(previewer => previewer.layerIds);
+    return this.previewer?.layerIds || [];
   }
 
   render() {

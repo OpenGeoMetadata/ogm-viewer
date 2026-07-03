@@ -100,7 +100,7 @@ export const OGM_FIELD_NAMES = {
 /**
  * Class for representing an OGM Aardvark record parsed from JSON data.
  */
-export class OgmRecord {
+export default class OgmRecord {
   // Original JSON data
   json: GeoBlacklightSchemaAardvark;
 

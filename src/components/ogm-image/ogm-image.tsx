@@ -2,7 +2,7 @@ import { Component, Element, h, Host, Watch, Prop, Event, EventEmitter } from '@
 import { Viewer } from 'openseadragon';
 
 import { getElement, findElement } from '../../lib/elements';
-import type { OgmRecord } from '../../lib/record';
+import type IIIFSource from '../../lib/sources/iiif';
 
 @Component({
   tag: 'ogm-image',
@@ -11,7 +11,7 @@ import type { OgmRecord } from '../../lib/record';
 })
 export class OgmImage {
   @Element() el: HTMLElement;
-  @Prop() record: OgmRecord;
+  @Prop() source: IIIFSource;
   @Prop() theme: 'light' | 'dark';
   @Prop() padding: number = 0;
   @Event() imageLoaded: EventEmitter<void>;
@@ -37,13 +37,13 @@ export class OgmImage {
       previousButton: getElement(this.el, '.prev'),
     });
     this.viewer.addHandler('open', () => this.imageLoaded.emit());
-    if (this.record) await this.loadImages();
+    if (this.source) await this.loadImages();
   }
 
-  // Update preview when record changes
-  @Watch('record')
-  async onRecordChange() {
-    if (this.record) await this.loadImages();
+  // Update preview when source changes
+  @Watch('source')
+  async onSourceChange() {
+    if (this.source) await this.loadImages();
   }
 
   @Watch('padding')
@@ -60,8 +60,8 @@ export class OgmImage {
   // This makes a request to fetch and cache the manifest
   private async loadImages() {
     this.imageLoading.emit();
-    const images = await this.record.references.iiifImageUrls();
-    if (!images) throw new Error('No IIIF images found for record');
+    const images = await this.source.getIIIFImageUrls();
+    if (!images) throw new Error('No IIIF images found for source');
     this.viewer.open(images);
   }
 

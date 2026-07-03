@@ -1,7 +1,7 @@
 import { setBasePath, getBasePath, registerIconLibrary } from '@awesome.me/webawesome';
 import { Component, Element, Host, Listen, Method, Prop, State, Watch, getAssetPath, h } from '@stencil/core';
 
-import { OgmRecord } from '../../lib/record';
+import OgmRecord from '../../lib/record';
 
 // Only need to call this once, at the top level
 setBasePath(getAssetPath(''));
@@ -111,12 +111,6 @@ export class OgmViewer {
     return new OgmRecord(data);
   }
 
-  // Choose a preview component based on the record type
-  private renderPreview() {
-    if (this.record && this.record.references.iiifOnly) return <ogm-image theme={this.theme} record={this.record} padding={this.sidebarPadding}></ogm-image>;
-    return <ogm-map preview-opacity={this.previewOpacity} theme={this.theme} record={this.record} padding={this.sidebarPadding}></ogm-map>;
-  }
-
   render() {
     return (
       // Applying the theme class to the host (rather than an internal div) lets the document-level
@@ -127,7 +121,7 @@ export class OgmViewer {
           <ogm-menubar theme={this.theme} record={this.record} loading={this.loading}></ogm-menubar>
           <div class="main-container">
             <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen}></ogm-sidebar>
-            {this.renderPreview()}
+            <ogm-previews theme={this.theme} record={this.record} preview-opacity={this.previewOpacity} sidebar-padding={this.sidebarPadding}></ogm-previews>
           </div>
         </div>
       </Host>

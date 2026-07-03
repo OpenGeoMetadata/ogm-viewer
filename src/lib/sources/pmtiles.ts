@@ -3,6 +3,7 @@
 import { PMTiles, TileType, Header } from 'pmtiles';
 
 import Source from './source';
+import { type LngLatBoundsLike } from 'maplibre-gl';
 
 // A single vector layer in a PMTiles tileset
 interface VectorLayer {
@@ -25,9 +26,13 @@ export default class PMTilesSource extends Source {
   private header: Header;
 
   // Store a reference so we can open the archive for metadata inspection
-  constructor(id: string, url: string) {
-    super(id, url);
+  constructor(id: string, url: string, bounds?: LngLatBoundsLike) {
+    super(id, url, bounds);
     this.archive = new PMTiles(url);
+  }
+
+  label() {
+    return 'PMTiles';
   }
 
   // Fetch and memoize PMTiles metadata
@@ -52,7 +57,9 @@ export default class PMTilesSource extends Source {
     return header.tileType === TileType.Mvt || header.tileType === TileType.Mlt;
   }
 
+  // Used to zoom the map to the data once loaded
   async getBounds() {
+    if (this.bounds) return this.bounds;
     const header = await this.getHeader();
     return [
       [header.minLon, header.minLat],
@@ -79,7 +86,7 @@ export default class PMTilesSource extends Source {
   }
 
   // Appends the pmtiles:// protocol; must be registered first to work
-  getSourceUrl() {
+  getMapLibreSourceUrl() {
     return `pmtiles://${this.url}`;
   }
 
@@ -93,7 +100,7 @@ export default class PMTilesSource extends Source {
     return undefined;
   }
 
-  async getType() {
+  async getMapLibreSourceType() {
     if (await this.isVector()) return 'vector' as const;
     return 'raster' as const;
   }

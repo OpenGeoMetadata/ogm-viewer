@@ -1,6 +1,6 @@
 import { render, describe, it, expect, h } from '@stencil/vitest';
 
-import { OgmRecord } from '../../lib/record';
+import OgmRecord from '../../lib/record';
 
 describe('ogm-metadata', () => {
   describe('with no record', () => {

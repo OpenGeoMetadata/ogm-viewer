@@ -1,7 +1,7 @@
 // @ts-ignore
 import { Component, Host, Prop, State, h, Fragment } from '@stencil/core';
 
-import type { OgmRecord } from '../../lib/record';
+import type OgmRecord from '../../lib/record';
 import { OGM_FIELD_NAMES } from '../../lib/record';
 import type { LabelledLinks } from '../../lib/references';
 

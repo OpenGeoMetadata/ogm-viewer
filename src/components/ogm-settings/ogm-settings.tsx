@@ -2,7 +2,7 @@ import type WaSlider from '@awesome.me/webawesome/dist/components/slider/slider.
 import { Component, Element, Event, EventEmitter, h, Listen, Prop } from '@stencil/core';
 
 import { getElement } from '../../lib/elements';
-import type { OgmRecord } from '../../lib/record';
+import type OgmRecord from '../../lib/record';
 
 @Component({
   tag: 'ogm-settings',

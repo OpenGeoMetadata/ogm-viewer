@@ -10,6 +10,10 @@ export default class TileJSONSource extends Source {
   // Metadata parsed from TileJSON document
   private metadata: any;
 
+  label() {
+    return 'TileJSON';
+  }
+
   // Fetch and memoize metadata
   protected async getMetadata() {
     if (!this.metadata) {
@@ -27,7 +31,9 @@ export default class TileJSONSource extends Source {
     return pathname.endsWith('.pbf') || pathname.endsWith('.mvt') || pathname.endsWith('.mlt');
   }
 
+  // Used to zoom the map to the data once loaded
   async getBounds() {
+    if (this.bounds) return this.bounds;
     const metadata = await this.getMetadata();
     return [
       [metadata.bounds[0], metadata.bounds[1]],
@@ -48,7 +54,7 @@ export default class TileJSONSource extends Source {
     return 'mvt';
   }
 
-  async getType() {
+  async getMapLibreSourceType() {
     if (await this.isVector()) return 'vector' as const;
     return 'raster' as const;
   }

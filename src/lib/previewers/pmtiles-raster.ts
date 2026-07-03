@@ -7,7 +7,7 @@ export default class PMTilesRasterPreviewer extends RasterPreviewer {
   protected async createSource(): Promise<RasterSourceSpecification> {
     return {
       type: 'raster',
-      url: await this.source.getSourceUrl(),
+      url: await this.source.getMapLibreSourceUrl(),
     };
   }
 

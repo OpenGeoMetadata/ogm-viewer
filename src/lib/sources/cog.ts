@@ -1,8 +1,12 @@
 import RasterSource from './raster';
 
 export default class CogSource extends RasterSource {
+  label() {
+    return 'Cloud Optimized GeoTIFF';
+  }
+
   // Appends the cog:// protocol; must be registered first to work
-  getSourceUrl() {
+  getMapLibreSourceUrl() {
     return `cog://${this.url}`;
   }
 
@@ -13,6 +17,6 @@ export default class CogSource extends RasterSource {
 
   // TODO: is it possible to read COG metadata to get bounds?
   async getBounds() {
-    return undefined;
+    return super.getBounds();
   }
 }

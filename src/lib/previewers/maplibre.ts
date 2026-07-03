@@ -1,10 +1,12 @@
 import type { SourceSpecification, AddLayerObject } from 'maplibre-gl';
 
 import Previewer from './previewer';
-import Source from '../sources/source';
+import MapLibreSource from '../sources/maplibre';
 import { type MapLibreStyle } from '../themes/maplibre';
 
 export default abstract class MapLibrePreviewer extends Previewer {
+  declare protected source: MapLibreSource;
+
   // Store reference to the map and styles
   protected style: MapLibreStyle;
   protected map: maplibregl.Map;
@@ -17,7 +19,7 @@ export default abstract class MapLibrePreviewer extends Previewer {
   protected opacity: number;
 
   // Initialize with opacity at the theme's opacity value
-  constructor(source: Source, map: maplibregl.Map, style: MapLibreStyle) {
+  constructor(source: MapLibreSource, map: maplibregl.Map, style: MapLibreStyle) {
     super(source);
     this.map = map;
     this.style = style;
