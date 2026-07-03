@@ -9,7 +9,7 @@ export default class RasterPreviewer extends MapLibrePreviewer {
   protected async createSource(): Promise<RasterSourceSpecification> {
     return {
       type: 'raster',
-      tiles: [await this.source.getSourceUrl()],
+      tiles: [await this.source.getMapLibreSourceUrl()],
       scheme: this.source.getScheme(),
       tileSize: this.source.getTileSize(),
     };

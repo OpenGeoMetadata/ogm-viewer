@@ -15,6 +15,10 @@ export default class GeoJSONSource extends VectorSource {
     return this.data;
   }
 
+  label() {
+    return 'GeoJSON';
+  }
+
   // GeoJSON is always a vector source
   async isVector() {
     return true;
@@ -26,7 +30,7 @@ export default class GeoJSONSource extends VectorSource {
   }
 
   // GeoJSON has a special source type
-  async getType() {
+  async getMapLibreSourceType() {
     return 'geojson' as const;
   }
 
@@ -35,7 +39,10 @@ export default class GeoJSONSource extends VectorSource {
     return ['geojson'];
   }
 
+  // Used to zoom the map to the data once loaded
   async getBounds() {
+    if (this.bounds) return this.bounds;
+
     const data = await this.getData();
     const bounds = geojsonExtent(data);
     return [

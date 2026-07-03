@@ -1,0 +1,44 @@
+/* Preview tabs */
+
+:host {
+  display: block;
+  height: 100%;
+  background: var(--wa-color-surface-default);
+}
+
+wa-tab-group,
+wa-tab-group::part(base) {
+  height: 100%;
+}
+
+wa-tab-group::part(body) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+wa-tab-panel,
+wa-tab-panel::part(base) {
+  height: 100%;
+}
+
+wa-tab-panel::part(base) {
+  padding: 0;
+}
+
+/* Full-width tabs */
+wa-tab {
+  flex: 1 1 0;
+  text-align: center;
+}
+
+wa-tab::part(base) {
+  justify-content: center;
+  padding: 0.5em 0.75em;
+  font-size: var(--wa-font-size-s);
+}
+
+ogm-map,
+ogm-image {
+  display: block;
+  height: 100%;
+}

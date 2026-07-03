@@ -9,7 +9,7 @@ export default class WmsPreviewer extends RasterPreviewer {
   protected async createSource(): Promise<RasterSourceSpecification> {
     return {
       type: 'raster',
-      tiles: [await this.source.getSourceUrl()],
+      tiles: [await this.source.getMapLibreSourceUrl()],
       tileSize: this.source.getTileSize(),
     };
   }

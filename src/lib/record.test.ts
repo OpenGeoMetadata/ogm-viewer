@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from '@stencil/vitest';
-import { OgmRecord } from './record';
 import { LngLatBounds } from 'maplibre-gl';
+import OgmRecord from './record';
 
 describe('OgmRecord', () => {
   it('errors when initialized with an unsupported version', () => {

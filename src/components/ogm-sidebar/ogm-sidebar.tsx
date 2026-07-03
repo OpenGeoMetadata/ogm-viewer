@@ -1,7 +1,7 @@
 import { Component, Element, h, Host, Prop } from '@stencil/core';
 
 import { getElement } from '../../lib/elements';
-import type { OgmRecord } from '../../lib/record';
+import type OgmRecord from '../../lib/record';
 import type WaTabGroup from '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
 
 @Component({

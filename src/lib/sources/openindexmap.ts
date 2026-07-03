@@ -5,4 +5,8 @@ export default class OpenIndexMapSource extends GeoJSONSource {
   async getVectorLayers() {
     return ['indexmap'];
   }
+
+  label() {
+    return 'Index Map';
+  }
 }

@@ -1,19 +1,16 @@
-import { LngLatLike, SourceSpecification } from 'maplibre-gl';
+import { SourceSpecification } from 'maplibre-gl';
 
-import Source from './source';
+import MapLibreSource from './maplibre';
 
 // A source of vector data, accessed remotely
-export default abstract class VectorSource extends Source {
+export default abstract class VectorSource extends MapLibreSource {
   async isVector() {
     return true;
   }
 
-  async getType(): Promise<SourceSpecification['type']> {
+  async getMapLibreSourceType(): Promise<SourceSpecification['type']> {
     return 'vector' as const;
   }
-
-  // Used to zoom the map to the data once loaded
-  abstract getBounds(): Promise<[LngLatLike, LngLatLike]>;
 
   // List of layer IDs used to generate MapLibre style layers
   abstract getVectorLayers(): Promise<string[]>;

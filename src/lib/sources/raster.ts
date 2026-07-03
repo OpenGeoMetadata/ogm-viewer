@@ -1,7 +1,7 @@
-import Source from './source';
+import MapLibreSource from './maplibre';
 
 // Tiled raster data, accessed remotely
-export default abstract class RasterSource extends Source {
+export default abstract class RasterSource extends MapLibreSource {
   async isVector() {
     return false;
   }
@@ -10,7 +10,7 @@ export default abstract class RasterSource extends Source {
     return 256;
   }
 
-  async getType() {
+  async getMapLibreSourceType() {
     return 'raster' as const;
   }
 

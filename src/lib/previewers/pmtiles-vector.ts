@@ -5,7 +5,7 @@ export default class PMTilesVectorPreviewer extends VectorPreviewer {
   protected async createSource(): Promise<VectorSourceSpecification> {
     return {
       type: 'vector',
-      url: this.source.getSourceUrl(),
+      url: this.source.getMapLibreSourceUrl(),
       encoding: await this.source.getVectorEncoding(),
     };
   }

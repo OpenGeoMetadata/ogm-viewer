@@ -8,8 +8,8 @@ export default class GeoJSONPreviewer extends VectorPreviewer {
 
   protected async createSource(): Promise<GeoJSONSourceSpecification> {
     return {
-      type: await this.source.getType(),
-      data: await this.source.getSourceUrl(),
+      type: await this.source.getMapLibreSourceType(),
+      data: await this.source.getMapLibreSourceUrl(),
       generateId: true,
     };
   }

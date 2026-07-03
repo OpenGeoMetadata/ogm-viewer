@@ -3,7 +3,7 @@ import { COGLayer } from '@developmentseed/deck.gl-geotiff';
 import { DecoderPool } from '@developmentseed/geotiff';
 
 import Previewer from './previewer';
-import type Source from '../sources/source';
+import type MapLibreSource from '../sources/maplibre';
 import { type MapLibreStyle } from '../themes/maplibre';
 
 // Deck.gl-based previewer for Cloud Optimized GeoTIFF (COG) sources
@@ -11,6 +11,8 @@ import { type MapLibreStyle } from '../themes/maplibre';
 // NOTE: can't be built currently due to a bug; see:
 // https://github.com/OpenGeoMetadata/ogm-viewer/issues/100
 export default class DeckCogPreviewer extends Previewer {
+  declare protected source: MapLibreSource;
+
   // Store reference to the map and styles
   protected style: MapLibreStyle;
   protected map: maplibregl.Map;
@@ -19,12 +21,18 @@ export default class DeckCogPreviewer extends Previewer {
   protected deckOverlay: DeckOverlay;
   protected layerId: string | undefined = undefined;
 
-  private bounds: maplibregl.LngLatBoundsLike | undefined = undefined;
+  // Bounds so we don't recalculate them
+  protected bounds: maplibregl.LngLatBoundsLike | undefined;
 
-  constructor(source: Source, map: maplibregl.Map, style: MapLibreStyle) {
+  // Current opacity state
+  protected opacity: number;
+
+  // Initialize with opacity at the theme's opacity value
+  constructor(source: MapLibreSource, map: maplibregl.Map, style: MapLibreStyle) {
     super(source);
     this.map = map;
     this.style = style;
+    this.opacity = this.style.opacity;
     this.deckOverlay = this.getDeckOverlay();
   }
 
@@ -50,7 +58,7 @@ export default class DeckCogPreviewer extends Previewer {
   protected createLayer(): COGLayer {
     return new COGLayer({
       id: this.getSourceId(),
-      geotiff: this.source.getSourceUrl(),
+      geotiff: this.source.getMapLibreSourceUrl(),
       onGeoTIFFLoad: (_data, options) => {
         const { west, south, east, north } = options.geographicBounds;
         this.bounds = [
@@ -69,6 +77,7 @@ export default class DeckCogPreviewer extends Previewer {
     });
   }
 
+  // We get bounds for free from geoTIFF metadata
   async getBounds() {
     return this.bounds;
   }

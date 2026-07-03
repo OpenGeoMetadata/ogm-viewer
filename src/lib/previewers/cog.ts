@@ -21,7 +21,7 @@ export default class CogPreviewer extends RasterPreviewer {
   protected async createSource(): Promise<RasterSourceSpecification> {
     return {
       type: 'raster',
-      url: await this.source.getSourceUrl(),
+      url: await this.source.getMapLibreSourceUrl(),
       tileSize: this.source.getTileSize(),
     };
   }

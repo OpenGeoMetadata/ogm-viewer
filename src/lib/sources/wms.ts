@@ -1,3 +1,4 @@
+import { type LngLatBoundsLike } from 'maplibre-gl';
 import RasterSource from './raster';
 
 type WmsOptions = {
@@ -27,14 +28,18 @@ export default class WmsSource extends RasterSource {
   // Memoized metadata via GetCapabilities request
   private metadata: Document;
 
-  constructor(id: string, url: string, options: WmsOptions) {
-    super(id, url);
+  constructor(id: string, url: string, options: WmsOptions, bounds?: LngLatBoundsLike) {
+    super(id, url, bounds);
     this.options = { ...defaultOptions, ...options };
 
     // Assume we're using one layer with the given ID if no layer IDs are provided
     if (!this.options.layerIds || this.options.layerIds.length === 0) {
       this.options.layerIds = [id];
     }
+  }
+
+  label() {
+    return 'Web Map Service (WMS)';
   }
 
   // Fetch and memoize WMS GetCapabilities XML document
@@ -47,16 +52,7 @@ export default class WmsSource extends RasterSource {
     return this.metadata;
   }
 
-  // WMS doesn't provide bounds in the URL, so we can't zoom the map
-  // TODO: use getCapabilities to get the bounding box of the layer(s) and return that
-  async getBounds() {
-    return [
-      [-180, -90],
-      [180, 90],
-    ] as [[number, number], [number, number]];
-  }
-
-  getSourceUrl() {
+  getMapLibreSourceUrl() {
     return this.tilesUrl;
   }
 
