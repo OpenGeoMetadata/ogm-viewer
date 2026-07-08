@@ -14,6 +14,11 @@
   padding: 0;
   box-shadow: var(--wa-shadow-l);
   border: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+
+  .maplibregl-popup-close-button {
+    background-color: white;
+    border-radius: 10px;
+  }
 }
 
 /* Dark mode map adjustments */
@@ -52,6 +57,10 @@
   div.maplibregl-popup-content {
     background-color: black;
     color: #ccc;
+  }
+
+  .maplibregl-popup-close-button {
+    background-color: black;
   }
 
   div.maplibregl-popup-anchor-right div.maplibregl-popup-tip {
