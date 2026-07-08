@@ -248,7 +248,8 @@ export class OgmMap {
 
   // Create a new popup and set its content and location
   protected createPopup(location: maplibregl.LngLatLike) {
-    this.popup = new maplibregl.Popup({ maxWidth: 'none', closeButton: false }).setDOMContent(this.attributesEl).setLngLat(location).addTo(this.map);
+    this.popup = new maplibregl.Popup({ maxWidth: 'none' }).setDOMContent(this.attributesEl).setLngLat(location).addTo(this.map);
+    this.popup.on('close', this.clearFeatureSelection.bind(this));
   }
 
   // Remove popup from the map and clear the reference
