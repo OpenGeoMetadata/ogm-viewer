@@ -6,6 +6,11 @@
   position: relative;
 }
 
+/* Color of the map background ("space" around the globe) */
+.maplibregl-canvas {
+  background-color: var(--wa-color-surface-default);
+}
+
 /* Inspection popups. Vertical scrolling (when content is too tall) is handled by the
    <wa-scroller> inside ogm-attributes, not here - that's what gives it the fading shadow cue. */
 .maplibregl-popup-content {
@@ -14,21 +19,40 @@
   padding: 0;
   box-shadow: var(--wa-shadow-l);
   border: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+  color: var(--wa-color-text-normal);
+  background-color: var(--wa-color-surface-default);
 
   .maplibregl-popup-close-button {
-    background-color: white;
+    background-color: var(--wa-color-surface-default);
     border-radius: 10px;
   }
+}
+
+/* Popup tip (the little triangle) */
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--wa-color-surface-border);
+}
+
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--wa-color-surface-border);
+}
+
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip {
+  border-top-color: var(--wa-color-surface-border);
+}
+
+.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-right .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-left .maplibregl-popup-tip {
+  border-bottom-color: var(--wa-color-surface-border);
 }
 
 /* Dark mode map adjustments */
 .wa-dark {
   .tile-border {
     stroke: white;
-  }
-
-  .maplibregl-canvas {
-    background-color: black;
   }
 
   .maplibregl-ctrl.maplibregl-ctrl-group {
@@ -39,47 +63,8 @@
   .maplibregl-ctrl-group button:focus:focus-visible {
     box-shadow: 0 0 2px 2px #ff6900;
   }
+  
   .maplibregl-ctrl button.maplibregl-ctrl-globe-enabled .maplibregl-ctrl-icon {
     filter: invert(1);
-  }
-
-  details.maplibregl-ctrl.maplibregl-ctrl-attrib {
-    background-color: black;
-    color: #999;
-  }
-  details.maplibregl-ctrl.maplibregl-ctrl-attrib a {
-    color: #999;
-  }
-  details.maplibregl-ctrl.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
-    background-color: #999;
-  }
-
-  div.maplibregl-popup-content {
-    background-color: black;
-    color: #ccc;
-  }
-
-  .maplibregl-popup-close-button {
-    background-color: black;
-  }
-
-  div.maplibregl-popup-anchor-right div.maplibregl-popup-tip {
-    border-left-color: black;
-  }
-
-  div.maplibregl-popup-anchor-left div.maplibregl-popup-tip {
-    border-right-color: black;
-  }
-
-  div.maplibregl-popup-anchor-bottom div.maplibregl-popup-tip,
-  div.maplibregl-popup-anchor-bottom-right div.maplibregl-popup-tip,
-  div.maplibregl-popup-anchor-bottom-left div.maplibregl-popup-tip {
-    border-top-color: black;
-  }
-
-  div.maplibregl-popup-anchor-top div.maplibregl-popup-tip,
-  div.maplibregl-popup-anchor-top-right div.maplibregl-popup-tip,
-  div.maplibregl-popup-anchor-top-left div.maplibregl-popup-tip {
-    border-bottom-color: black;
   }
 }
