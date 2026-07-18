@@ -52,4 +52,32 @@ describe('ogm-menubar', () => {
       `);
     });
   });
+
+  describe('loading indicator', () => {
+    it('shows the spinner while loading', async () => {
+      const { root } = await render(<ogm-menubar loading={true}></ogm-menubar>);
+      const shadowRoot = root.shadowRoot as ShadowRoot;
+
+      expect(shadowRoot.querySelector('.loading-spinner')).not.toBeNull();
+    });
+
+    it('hides the spinner when not loading', async () => {
+      const { root } = await render(<ogm-menubar loading={false}></ogm-menubar>);
+      const shadowRoot = root.shadowRoot as ShadowRoot;
+
+      expect(shadowRoot.querySelector('.loading-spinner')).toBeNull();
+    });
+
+    it('toggles the spinner when the loading prop changes', async () => {
+      const { root, setProps } = await render(<ogm-menubar loading={false}></ogm-menubar>);
+      const shadowRoot = root.shadowRoot as ShadowRoot;
+      expect(shadowRoot.querySelector('.loading-spinner')).toBeNull();
+
+      await setProps({ loading: true });
+      expect(shadowRoot.querySelector('.loading-spinner')).not.toBeNull();
+
+      await setProps({ loading: false });
+      expect(shadowRoot.querySelector('.loading-spinner')).toBeNull();
+    });
+  });
 });

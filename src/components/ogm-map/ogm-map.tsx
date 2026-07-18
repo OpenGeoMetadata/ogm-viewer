@@ -65,7 +65,6 @@ export class OgmMap {
     });
     this.getContainer();
     this.addControls();
-    this.map.on('idle', () => this.mapIdle.emit());
     this.map.on('load', () => this.previewSource(this.source));
     this.map.on('mousemove', this.handleHover.bind(this));
     this.map.on('click', this.handleClick.bind(this));
@@ -139,31 +138,38 @@ export class OgmMap {
     // Indicate loading state so we can show the spinner
     this.mapLoading.emit();
 
-    // Close popup if one is open
-    this.clearFeatureSelection();
-    this.destroyPopup();
+    try {
+      // Close popup if one is open
+      this.clearFeatureSelection();
+      this.destroyPopup();
 
-    // Clear existing preview
-    if (this.previewer) {
-      await this.previewer.clearPreview();
-      this.previewer = undefined;
+      // Clear existing preview
+      if (this.previewer) {
+        await this.previewer.clearPreview();
+        this.previewer = undefined;
+      }
+
+      // Get the appropriate previewer for our source and preview it
+      this.previewer = await this.getMapPreviewer(this.map);
+      if (!this.previewer) throw new Error(`No previewer found for source: ${source.constructor.name}`);
+      await this.previewer.preview();
+
+      // Fit to bounds from the record; the spinner stays up until the map finishes moving
+      const bounds = await this.source.getBounds();
+      if (bounds) await this.fitMapBounds(bounds);
+    } finally {
+      // Emit exactly once, after the move completes (or on error), to signal the map is ready. This
+      // is the only signal that hides the spinner, so it must always fire and never fire early.
+      this.mapIdle.emit();
     }
-
-    // Get the appropriate previewer for our source and preview it
-    this.previewer = await this.getMapPreviewer(this.map);
-    if (!this.previewer) throw new Error(`No previewer found for source: ${source.constructor.name}`);
-    await this.previewer.preview();
-
-    // Fit to bounds from the record
-    const bounds = await this.source.getBounds();
-    if (bounds) await this.fitMapBounds(bounds);
-
-    // Emit map idle event to signal that the map is ready
-    this.mapIdle.emit();
   }
 
-  // Fit the map to the given bounds; return when moving is finished
+  // Fit the map to the given bounds; resolve once the move finishes. Guard the case where the bounds
+  // can't produce a camera - e.g. sidebar padding wider than the viewport, or a hidden, zero-size
+  // inactive tab panel - because then fitBounds won't move, 'moveend' never fires, and awaiting this
+  // promise (and the loading state that depends on it) would hang forever.
   async fitMapBounds(bounds: maplibregl.LngLatBoundsLike) {
+    if (!this.map.cameraForBounds(bounds)) return;
     return new Promise<void>(resolve => {
       this.map.once('moveend', () => resolve());
       this.map.fitBounds(bounds);
