@@ -52,7 +52,11 @@ export class OgmViewer {
   @State() previewOpacity: number = 100;
   @State() sidebarOpen: boolean = false;
 
-  private loading: boolean = false;
+  // Whether a preview is currently loading; @State so toggling it re-renders and shows/hides the
+  // spinner. Backed by a reference count because a record can mount several previews at once (one
+  // per source tab) - the spinner should stay up until every in-flight preview has finished.
+  @State() loading: boolean = false;
+  private loadingCount: number = 0;
   private sidebarPadding: number = 0;
 
   // Prior to rendering, fetch the record if a URL is provided
@@ -90,18 +94,21 @@ export class OgmViewer {
     this.previewOpacity = event.detail;
   }
 
-  // Listen for map to report loading started
+  // Listen for a preview to report loading started
   @Listen('mapLoading')
   @Listen('imageLoading')
   setLoadingStarted() {
+    this.loadingCount++;
     this.loading = true;
   }
 
-  // Listen for map to report loading finished
+  // Listen for a preview to report loading finished; only hide the spinner once every in-flight
+  // preview has reported back, so it survives the whole load (including the map move to new bounds)
   @Listen('mapIdle')
   @Listen('imageLoaded')
   setLoadingFinished() {
-    this.loading = false;
+    this.loadingCount = Math.max(0, this.loadingCount - 1);
+    this.loading = this.loadingCount > 0;
   }
 
   // Fetch a record by URL and parse it into an OgmRecord instance

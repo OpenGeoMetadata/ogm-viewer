@@ -36,7 +36,12 @@ export class OgmImage {
       nextButton: getElement(this.el, '.next'),
       previousButton: getElement(this.el, '.prev'),
     });
+
+    // Clear loading state whether we succeeded or failed
     this.viewer.addHandler('open', () => this.imageLoaded.emit());
+    this.viewer.addHandler('open-failed', () => this.imageLoaded.emit());
+
+    // If we do have a source, load the images
     if (this.source) await this.loadImages();
   }
 
@@ -60,9 +65,17 @@ export class OgmImage {
   // This makes a request to fetch and cache the manifest
   private async loadImages() {
     this.imageLoading.emit();
-    const images = await this.source.getIIIFImageUrls();
-    if (!images) throw new Error('No IIIF images found for source');
-    this.viewer.open(images);
+
+    try {
+      const images = await this.source.getIIIFImageUrls();
+      if (!images) throw new Error('No IIIF images found for source');
+      this.viewer.open(images);
+    } catch (error) {
+      // The open/open-failed event handlers won't fire if we errored here, so
+      // we have to emit imageLoaded manually
+      this.imageLoaded.emit();
+      throw error;
+    }
   }
 
   render() {
