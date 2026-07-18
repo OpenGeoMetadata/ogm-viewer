@@ -27,6 +27,11 @@ export class OgmPreviews {
   @Prop() sidebarPadding: number;
   @State() sources: Source[] = [];
 
+  // @Watch only fires on changes; handle the initial load here
+  componentWillLoad() {
+    if (this.record) this.getSources(this.record);
+  }
+
   // Pick the appropriate preview to render based on the source type
   protected renderPreview(source: Source) {
     if (source instanceof IIIFSource) return this.renderImagePreview(source);
@@ -63,7 +68,8 @@ export class OgmPreviews {
 
   // Render as tabs for switching between sources
   render() {
-    if (!this.record) return <ogm-map theme={this.theme} padding={this.sidebarPadding}></ogm-map>;
+    // Render a blank map if there is no record or no sources
+    if (!this.record || !this.sources.length) return <ogm-map theme={this.theme} padding={this.sidebarPadding}></ogm-map>;
 
     return (
       <Host class={this.theme && `wa-${this.theme}`}>

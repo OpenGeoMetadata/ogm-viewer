@@ -63,7 +63,7 @@
   .maplibregl-ctrl-group button:focus:focus-visible {
     box-shadow: 0 0 2px 2px #ff6900;
   }
-  
+
   .maplibregl-ctrl button.maplibregl-ctrl-globe-enabled .maplibregl-ctrl-icon {
     filter: invert(1);
   }
