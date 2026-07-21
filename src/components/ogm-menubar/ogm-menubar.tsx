@@ -9,8 +9,9 @@ import type OgmRecord from '../../lib/record';
 export class OgmMenubar {
   @Prop() record: OgmRecord;
   @Prop() theme: 'light' | 'dark';
-  @Event() sidebarToggled: EventEmitter;
   @Prop() loading: boolean = false;
+  @Prop() hideTitle: boolean = false;
+  @Event() sidebarToggled: EventEmitter;
 
   render() {
     return (
@@ -24,7 +25,7 @@ export class OgmMenubar {
             <wa-icon id="restricted-icon" name="lock-fill" label="Restricted access" class="restricted-icon" canvas="auto"></wa-icon>
           </>
         )}
-        <div class="title">{this.record?.title}</div>
+        {!this.hideTitle && <div class="title">{this.record?.title}</div>}
         {this.loading && <wa-spinner class="loading-spinner"></wa-spinner>}
       </div>
     );

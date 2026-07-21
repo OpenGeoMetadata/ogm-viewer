@@ -39,6 +39,7 @@ export class OgmViewer {
   @Element() el: HTMLElement;
   @Prop() recordUrl: string;
   @Prop() theme: 'light' | 'dark' = this.getThemePreference();
+  @Prop() hideTitle: boolean = false;
   @State() record?: OgmRecord;
   @State() error?: PreviewError;
   @State() previewOpacity: number = 100;
@@ -128,7 +129,7 @@ export class OgmViewer {
       <Host class={`wa-${this.theme}`}>
         <link rel="stylesheet" href={getBasePath('assets/webawesome/styles/themes/default.css')} />
         <div class={`container ${WA_SCOPE} wa-${this.theme}`}>
-          <ogm-menubar theme={this.theme} record={this.record} loading={this.loading}></ogm-menubar>
+          <ogm-menubar theme={this.theme} record={this.record} loading={this.loading} hideTitle={this.hideTitle}></ogm-menubar>
           <div class="main-container">
             <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen}></ogm-sidebar>
             {this.error ? (

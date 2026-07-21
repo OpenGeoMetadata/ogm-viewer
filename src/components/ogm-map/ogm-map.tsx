@@ -177,6 +177,14 @@ export class OgmMap {
     }
   }
 
+  // When the theme changes, swap the basemap to match.
+  @Watch('theme')
+  onThemeChange() {
+    if (!this.map) return;
+    this.map.setStyle(this.mapTheme.getBaseMapStyle());
+    this.map.once('style.load', async () => await this.previewSource(this.source));
+  }
+
   // Surface MapLibre errors tied to the current preview source, skipping the
   // noise from basemap/glyph/sprite loads, and deduped to a single alert per load attempt.
   protected handleMapError(event: maplibregl.ErrorEvent & { sourceId?: string }) {

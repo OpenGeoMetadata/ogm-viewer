@@ -53,6 +53,47 @@ describe('ogm-menubar', () => {
     });
   });
 
+  describe('when hideTitle is true', () => {
+    it('does not render the title', async () => {
+      const record = new OgmRecord({
+        id: 'stanford-ff359cr8805',
+        dct_title_s: 'Coho Salmon Watersheds: San Francisco Bay Area, California, 2011',
+        dct_description_sm: [],
+        gbl_resourceType_sm: ['Polygon data'],
+        gbl_resourceClass_sm: ['Datasets'],
+        dct_accessRights_s: 'Public',
+        gbl_mdVersion_s: 'Aardvark',
+      });
+
+      const { root } = await render(<ogm-menubar record={record} hideTitle={true}></ogm-menubar>);
+      const shadowRoot = root.shadowRoot as ShadowRoot;
+
+      expect(shadowRoot.querySelector('.title')).toBeNull();
+    });
+
+    it('toggles the title when the hideTitle prop changes', async () => {
+      const record = new OgmRecord({
+        id: 'stanford-ff359cr8805',
+        dct_title_s: 'Coho Salmon Watersheds: San Francisco Bay Area, California, 2011',
+        dct_description_sm: [],
+        gbl_resourceType_sm: ['Polygon data'],
+        gbl_resourceClass_sm: ['Datasets'],
+        dct_accessRights_s: 'Public',
+        gbl_mdVersion_s: 'Aardvark',
+      });
+
+      const { root, setProps } = await render(<ogm-menubar record={record} hideTitle={false}></ogm-menubar>);
+      const shadowRoot = root.shadowRoot as ShadowRoot;
+      expect(shadowRoot.querySelector('.title')?.textContent?.trim()).toBe('Coho Salmon Watersheds: San Francisco Bay Area, California, 2011');
+
+      await setProps({ hideTitle: true });
+      expect(shadowRoot.querySelector('.title')).toBeNull();
+
+      await setProps({ hideTitle: false });
+      expect(shadowRoot.querySelector('.title')?.textContent?.trim()).toBe('Coho Salmon Watersheds: San Francisco Bay Area, California, 2011');
+    });
+  });
+
   describe('loading indicator', () => {
     it('shows the spinner while loading', async () => {
       const { root } = await render(<ogm-menubar loading={true}></ogm-menubar>);
