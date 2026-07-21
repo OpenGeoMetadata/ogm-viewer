@@ -1,6 +1,6 @@
-import RasterSource from './raster';
+import RasterResource from './raster';
 
-export default class CogSource extends RasterSource {
+export default class CogResource extends RasterResource {
   label() {
     return 'Cloud Optimized GeoTIFF';
   }

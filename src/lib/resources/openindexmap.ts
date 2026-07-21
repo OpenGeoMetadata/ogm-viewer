@@ -1,6 +1,6 @@
-import GeoJSONSource from './geojson';
+import GeoJsonResource from './geojson';
 
-export default class OpenIndexMapSource extends GeoJSONSource {
+export default class OpenIndexMapResource extends GeoJsonResource {
   // Distinguish the layer name from regular GeoJSON
   async getVectorLayers() {
     return ['indexmap'];

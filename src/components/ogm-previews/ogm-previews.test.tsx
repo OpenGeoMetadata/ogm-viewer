@@ -40,7 +40,7 @@ const flush = () => new Promise<void>(resolve => requestAnimationFrame(() => req
 
 // Render previews and drill into the single <ogm-preview> to see which preview (map or image) it
 // chose. Going through <ogm-previews> means the source is constructed in the built component's module
-// realm, so <ogm-preview>'s `instanceof IIIFSource` check holds (unlike a source built in the test).
+// realm, so <ogm-preview>'s `instanceof IIIFResource` check holds (unlike a source built in the test).
 const renderPreviewChild = async (record: OgmRecord) => {
   const container = document.createElement('div');
   document.body.appendChild(container);

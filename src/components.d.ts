@@ -25,7 +25,7 @@ export namespace Components {
           * @default 0
          */
         "padding": number;
-        "source": IIIFSource;
+        "previewResource": IIIFResource;
         "theme": 'light' | 'dark';
     }
     interface OgmMap {
@@ -34,7 +34,7 @@ export namespace Components {
           * @default 0
          */
         "padding": number;
-        "source": Source;
+        "previewResource": Resource;
         "theme": 'light' | 'dark';
     }
     interface OgmMenubar {
@@ -56,8 +56,8 @@ export namespace Components {
     }
     interface OgmPreview {
         "previewOpacity": number;
+        "previewResource": Resource;
         "sidebarPadding": number;
-        "source": Source;
         "theme": 'light' | 'dark';
     }
     interface OgmPreviews {
@@ -270,7 +270,7 @@ declare namespace LocalJSX {
           * @default 0
          */
         "padding"?: number;
-        "source"?: IIIFSource;
+        "previewResource"?: IIIFResource;
         "theme"?: 'light' | 'dark';
     }
     interface OgmMap {
@@ -281,7 +281,7 @@ declare namespace LocalJSX {
           * @default 0
          */
         "padding"?: number;
-        "source"?: Source;
+        "previewResource"?: Resource;
         "theme"?: 'light' | 'dark';
     }
     interface OgmMenubar {
@@ -304,8 +304,8 @@ declare namespace LocalJSX {
     }
     interface OgmPreview {
         "previewOpacity"?: number;
+        "previewResource"?: Resource;
         "sidebarPadding"?: number;
-        "source"?: Source;
         "theme"?: 'light' | 'dark';
     }
     interface OgmPreviews {

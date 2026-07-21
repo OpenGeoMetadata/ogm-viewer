@@ -1,3 +1,3 @@
-import GeoJSONPreviewer from './geojson';
+import GeoJsonPreviewer from './geojson';
 
-export default class OpenIndexMapPreviewer extends GeoJSONPreviewer {}
+export default class OpenIndexMapPreviewer extends GeoJsonPreviewer {}

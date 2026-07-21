@@ -1,9 +1,9 @@
 import geojsonExtent from '@mapbox/geojson-extent';
 
-import VectorSource from './vector';
+import VectorResource from './vector';
 import { fetchOrThrow } from '../errors';
 
-export default class GeoJSONSource extends VectorSource {
+export default class GeoJsonResource extends VectorResource {
   // Data parsed from GeoJSON document
   private data: any;
 
@@ -20,7 +20,7 @@ export default class GeoJSONSource extends VectorSource {
     return 'GeoJSON';
   }
 
-  // GeoJSON is always a vector source
+  // GeoJSON is always a vector resource
   async isVector() {
     return true;
   }

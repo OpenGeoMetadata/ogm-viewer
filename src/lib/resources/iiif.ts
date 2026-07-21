@@ -1,7 +1,7 @@
-import Source from './source';
+import Resource from './resource';
 
 // A source of IIIF image URL(s) to be previewed
-export default class IIIFSource extends Source {
+export default class IIIFResource extends Resource {
   label() {
     return 'IIIF Image';
   }

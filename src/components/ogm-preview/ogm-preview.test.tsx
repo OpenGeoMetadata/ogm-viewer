@@ -5,17 +5,17 @@ import { describe, it, expect, h, vi } from '@stencil/vitest';
 // when they try to initialize WebGL/OpenSeadragon (unavailable in the test DOM).
 import { render as stencilRender } from '@stencil/core';
 
-import GeoJSONSource from '../../lib/sources/geojson';
+import GeoJsonResource from '../../lib/resources/geojson';
 import { referenceError } from '../../lib/errors';
 
 // Let Stencil's RAF-based update cycle flush after a state change (mirrors the vitest waitForChanges).
 const flush = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
-const renderPreview = async (source: GeoJSONSource) => {
+const renderPreview = async (resource: GeoJsonResource) => {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-  await stencilRender(<ogm-preview source={source}></ogm-preview>, container);
+  await stencilRender(<ogm-preview previewResource={resource}></ogm-preview>, container);
   const el = container.firstElementChild as HTMLElement & { componentOnReady?: () => Promise<unknown> };
   await el.componentOnReady?.();
   consoleError.mockRestore();
@@ -24,14 +24,14 @@ const renderPreview = async (source: GeoJSONSource) => {
 
 describe('ogm-preview', () => {
   it('renders a preview for a source', async () => {
-    const el = await renderPreview(new GeoJSONSource('id', 'http://example.com/data.json'));
+    const el = await renderPreview(new GeoJsonResource('id', 'http://example.com/data.json'));
     const shadowRoot = el.shadowRoot as ShadowRoot;
     expect(shadowRoot.querySelector('ogm-map')).not.toBeNull();
     expect(shadowRoot.querySelector('ogm-alerts')).toBeNull();
   });
 
   it('shows the error over the preview when a previewError is reported', async () => {
-    const el = await renderPreview(new GeoJSONSource('id', 'http://example.com/data.json'));
+    const el = await renderPreview(new GeoJsonResource('id', 'http://example.com/data.json'));
     const error = referenceError(new TypeError('Failed to fetch'), 'GeoJSON', 'http://example.com/data.json');
 
     el.dispatchEvent(new CustomEvent('previewError', { detail: error, bubbles: true }));

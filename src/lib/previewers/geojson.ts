@@ -1,16 +1,18 @@
 import type { GeoJSONSourceSpecification } from 'maplibre-gl';
 
 import VectorPreviewer from './vector';
-import type GeoJSONSource from '../sources/geojson';
+import type GeoJsonResource from '../resources/geojson';
 
-export default class GeoJSONPreviewer extends VectorPreviewer {
-  declare protected source: GeoJSONSource;
+export default class GeoJsonPreviewer extends VectorPreviewer {
+  declare protected resource: GeoJsonResource;
 
-  protected async createSource(): Promise<GeoJSONSourceSpecification> {
-    return {
-      type: await this.source.getMapLibreSourceType(),
-      data: await this.source.getMapLibreSourceUrl(),
-      generateId: true,
-    };
+  protected async createSources(): Promise<GeoJSONSourceSpecification[]> {
+    return [
+      {
+        type: await this.resource.getMapLibreSourceType(),
+        data: await this.resource.getMapLibreSourceUrl(),
+        generateId: true, // autogenerate feature IDs for labeling
+      },
+    ];
   }
 }

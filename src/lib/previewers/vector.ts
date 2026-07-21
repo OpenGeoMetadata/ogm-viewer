@@ -1,10 +1,10 @@
-import MapLibrePreviewer from './maplibre';
+import MapPreviewer from './map';
 import type { FillLayerSpecification, LineLayerSpecification, CircleLayerSpecification, SymbolLayerSpecification, LayerSpecification } from 'maplibre-gl';
 
-import type VectorSource from '../sources/vector';
+import type VectorResource from '../resources/vector';
 
-export default abstract class VectorPreviewer extends MapLibrePreviewer {
-  declare protected source: VectorSource;
+export default abstract class VectorPreviewer extends MapPreviewer {
+  declare protected resource: VectorResource;
 
   // Set opacity of all layers in this previewer
   async setOpacity(opacity: number) {
@@ -15,11 +15,11 @@ export default abstract class VectorPreviewer extends MapLibrePreviewer {
   }
 
   async getBounds() {
-    return await this.source.getBounds();
+    return await this.resource.getBounds();
   }
 
   protected async createLayers(): Promise<LayerSpecification[]> {
-    const layerIds = await this.source.getVectorLayers();
+    const layerIds = await this.resource.getVectorLayers();
     return layerIds.flatMap(layerId => {
       return [
         this.createPolygonLayer(layerId),

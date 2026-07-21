@@ -2,21 +2,21 @@ import { Component, Element, Event, EventEmitter, h, Listen, Method, Prop, Watch
 import maplibregl from 'maplibre-gl';
 import { Protocol as PMTilesProtocol } from 'pmtiles';
 
-import CogSource from '../../lib/sources/cog';
-import GeoJSONSource from '../../lib/sources/geojson';
-import OpenIndexMapSource from '../../lib/sources/openindexmap';
-import PMTilesSource from '../../lib/sources/pmtiles';
-import RasterSource from '../../lib/sources/raster';
-import Source from '../../lib/sources/source';
-import TileJSONSource from '../../lib/sources/tilejson';
-import WmsSource from '../../lib/sources/wms';
+import CogResource from '../../lib/resources/cog';
+import GeoJsonResource from '../../lib/resources/geojson';
+import OpenIndexMapResource from '../../lib/resources/openindexmap';
+import PMTilesResource from '../../lib/resources/pmtiles';
+import RasterResource from '../../lib/resources/raster';
+import Resource from '../../lib/resources/resource';
+import TileJSONResource from '../../lib/resources/tilejson';
+import WmsResource from '../../lib/resources/wms';
 
 import { getElement } from '../../lib/elements';
 import { referenceError, PreviewError } from '../../lib/errors';
 import { mercatorBbox, mercatorGeomToLngLat } from '../../lib/geometry';
 import CogPreviewer from '../../lib/previewers/cog';
-import GeoJSONPreviewer from '../../lib/previewers/geojson';
-import MapLibrePreviewer from '../../lib/previewers/maplibre';
+import GeoJsonPreviewer from '../../lib/previewers/geojson';
+import MapPreviewer from '../../lib/previewers/map';
 import OpenIndexMapPreviewer from '../../lib/previewers/openindexmap';
 import PMTilesRasterPreviewer from '../../lib/previewers/pmtiles-raster';
 import PMTilesVectorPreviewer from '../../lib/previewers/pmtiles-vector';
@@ -45,7 +45,7 @@ const WMS_QUERY_WINDOW = 51;
 })
 export class OgmMap {
   @Element() el: HTMLElement;
-  @Prop() source: Source;
+  @Prop() previewResource: Resource;
   @Prop() theme: 'light' | 'dark';
   @Prop() padding: number = 0;
   @Event() mapIdle: EventEmitter<void>;
@@ -65,8 +65,8 @@ export class OgmMap {
   // Container element reference for fullscreen
   protected containerEl: HTMLElement;
 
-  // Previewer for the currently previewed source
-  protected previewer: MapLibrePreviewer | undefined = undefined;
+  // Previewer for the currently previewed resource
+  protected previewer: MapPreviewer | undefined = undefined;
 
   // Set up the mapLibre map and event bindings on load
   componentDidLoad() {
@@ -82,7 +82,7 @@ export class OgmMap {
     });
     this.getContainer();
     this.addControls();
-    this.map.on('load', () => this.previewSource(this.source));
+    this.map.on('load', () => this.loadResource(this.previewResource));
     this.map.on('mousemove', this.handleHover.bind(this));
     this.map.on('click', this.handleClick.bind(this));
     this.map.on('error', this.handleMapError.bind(this));
@@ -135,26 +135,26 @@ export class OgmMap {
     );
   }
 
-  // Get the appropriate previewer for our source
+  // Get the appropriate previewer for our resource
   protected async getMapPreviewer(map: maplibregl.Map) {
     const style = this.mapTheme.getStyle();
-    if (this.source instanceof OpenIndexMapSource) return new OpenIndexMapPreviewer(this.source, map, style);
-    else if (this.source instanceof GeoJSONSource) return new GeoJSONPreviewer(this.source, map, style);
-    else if (this.source instanceof PMTilesSource) {
-      if (await this.source.isVector()) return new PMTilesVectorPreviewer(this.source, map, style);
-      else return new PMTilesRasterPreviewer(this.source, map, style);
-    } else if (this.source instanceof TileJSONSource) {
-      if (await this.source.isVector()) return new TileJSONVectorPreviewer(this.source, map, style);
-      else return new TileJSONRasterPreviewer(this.source, map, style);
-    } else if (this.source instanceof WmsSource) return new WmsPreviewer(this.source, map, style);
-    else if (this.source instanceof CogSource) return new CogPreviewer(this.source, map, style);
-    else if (this.source instanceof RasterSource) return new RasterPreviewer(this.source, map, style);
+    if (this.previewResource instanceof OpenIndexMapResource) return new OpenIndexMapPreviewer(this.previewResource, map, style);
+    else if (this.previewResource instanceof GeoJsonResource) return new GeoJsonPreviewer(this.previewResource, map, style);
+    else if (this.previewResource instanceof PMTilesResource) {
+      if (await this.previewResource.isVector()) return new PMTilesVectorPreviewer(this.previewResource, map, style);
+      else return new PMTilesRasterPreviewer(this.previewResource, map, style);
+    } else if (this.previewResource instanceof TileJSONResource) {
+      if (await this.previewResource.isVector()) return new TileJSONVectorPreviewer(this.previewResource, map, style);
+      else return new TileJSONRasterPreviewer(this.previewResource, map, style);
+    } else if (this.previewResource instanceof WmsResource) return new WmsPreviewer(this.previewResource, map, style);
+    else if (this.previewResource instanceof CogResource) return new CogPreviewer(this.previewResource, map, style);
+    else if (this.previewResource instanceof RasterResource) return new RasterPreviewer(this.previewResource, map, style);
   }
 
-  @Watch('source')
-  async previewSource(source: Source) {
-    // Do nothing if we didn't get passed a source
-    if (!source) return;
+  @Watch('previewResource')
+  async loadResource(resource: Resource) {
+    // Do nothing if we didn't get passed a resource
+    if (!resource) return;
 
     // Fresh load attempt: allow one error to be reported again for this source
     this.errorReported = false;
@@ -173,19 +173,19 @@ export class OgmMap {
         this.previewer = undefined;
       }
 
-      // Get the appropriate previewer for our source and preview it
+      // Get the appropriate previewer for our resource and preview it
       this.previewer = await this.getMapPreviewer(this.map);
-      if (!this.previewer) throw new Error(`No previewer found for source: ${source.constructor.name}`);
+      if (!this.previewer) throw new Error(`No previewer found for resource: ${resource.constructor.name}`);
       await this.previewer.preview();
 
       // Fit to bounds from the record; the spinner stays up until the map finishes moving
-      const bounds = await this.source.getBounds();
+      const bounds = await this.previewResource.getBounds();
       if (bounds) await this.fitMapBounds(bounds);
     } catch (error) {
-      console.error(`Error previewing source ${source.url}:`, error);
+      console.error(`Error previewing resource ${resource.url}:`, error);
       if (!this.errorReported) {
         this.errorReported = true;
-        this.previewError.emit(referenceError(error, source.label(), source.url));
+        this.previewError.emit(referenceError(error, resource.label(), resource.url));
       }
     } finally {
       this.mapIdle.emit();
@@ -197,16 +197,16 @@ export class OgmMap {
   onThemeChange() {
     if (!this.map) return;
     this.map.setStyle(this.mapTheme.getBaseMapStyle());
-    this.map.once('style.load', async () => await this.previewSource(this.source));
+    this.map.once('style.load', async () => await this.loadResource(this.previewResource));
   }
 
-  // Surface MapLibre errors tied to the current preview source, skipping the
+  // Surface MapLibre errors tied to the current previewed resource, skipping the
   // noise from basemap/glyph/sprite loads, and deduped to a single alert per load attempt.
   protected handleMapError(event: maplibregl.ErrorEvent & { sourceId?: string }) {
-    if (this.errorReported || !this.source || !this.previewer) return;
-    if (event.sourceId !== this.previewer.sourceId) return;
+    if (this.errorReported || !this.previewResource || !this.previewer) return;
+    if (!this.previewer.sourceIds.includes(event.sourceId ?? '')) return;
     this.errorReported = true;
-    this.previewError.emit(referenceError(event.error, this.source.label(), this.source.url));
+    this.previewError.emit(referenceError(event.error, this.previewResource.label(), this.previewResource.url));
   }
 
   // Fit the map to the given bounds; resolve once the move finishes. Guard the case where the bounds

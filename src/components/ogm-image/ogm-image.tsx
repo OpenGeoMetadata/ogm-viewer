@@ -3,7 +3,7 @@ import { Viewer } from 'openseadragon';
 
 import { getElement, findElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
-import type IIIFSource from '../../lib/sources/iiif';
+import type IIIFResource from '../../lib/resources/iiif';
 
 @Component({
   tag: 'ogm-image',
@@ -12,7 +12,7 @@ import type IIIFSource from '../../lib/sources/iiif';
 })
 export class OgmImage {
   @Element() el: HTMLElement;
-  @Prop() source: IIIFSource;
+  @Prop() previewResource: IIIFResource;
   @Prop() theme: 'light' | 'dark';
   @Prop() padding: number = 0;
   @Event() imageLoaded: EventEmitter<void>;
@@ -52,7 +52,7 @@ export class OgmImage {
     });
 
     // If we do have a source, load the images
-    if (this.source) await this.loadImages();
+    if (this.previewResource) await this.loadImages();
   }
 
   // Destroy the viewer when we are removed from the DOM
@@ -61,9 +61,9 @@ export class OgmImage {
   }
 
   // Update preview when source changes
-  @Watch('source')
+  @Watch('previewResource')
   async onSourceChange() {
-    if (this.source) await this.loadImages();
+    if (this.previewResource) await this.loadImages();
   }
 
   @Watch('padding')
@@ -83,11 +83,11 @@ export class OgmImage {
     this.imageLoading.emit();
 
     try {
-      const images = await this.source.getIIIFImageUrls();
+      const images = await this.previewResource.getIIIFImageUrls();
       if (!images) throw new Error('No IIIF images found for source');
       this.viewer.open(images);
     } catch (error) {
-      console.error(`Error loading IIIF images for ${this.source.url}:`, error);
+      console.error(`Error loading IIIF images for ${this.previewResource.url}:`, error);
       this.imageLoaded.emit();
       this.reportError(error);
     }
@@ -95,9 +95,9 @@ export class OgmImage {
 
   // Emit a single preview error per load attempt
   private reportError(error?: unknown) {
-    if (this.errorReported || !this.source) return;
+    if (this.errorReported || !this.previewResource) return;
     this.errorReported = true;
-    this.previewError.emit(referenceError(error, this.source.label(), this.source.url));
+    this.previewError.emit(referenceError(error, this.previewResource.label(), this.previewResource.url));
   }
 
   render() {
