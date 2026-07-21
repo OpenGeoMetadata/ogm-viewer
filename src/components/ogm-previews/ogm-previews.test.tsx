@@ -76,11 +76,11 @@ describe('ogm-previews', () => {
     expect(tabs[0].textContent).toContain('WMS');
   });
 
-  it('falls back to an empty map for a record with no previewable sources', async () => {
+  it('renders nothing for a record with no previewable sources', async () => {
     const shadowRoot = await renderPreviews(buildRecord(false));
 
     expect(shadowRoot.querySelector('wa-tab-group')).toBeNull();
-    expect(shadowRoot.querySelector('ogm-map')).not.toBeNull();
+    expect(shadowRoot.querySelectorAll('wa-tab')).toHaveLength(0);
   });
 
   it('wraps a map source in an ogm-preview that renders the map', async () => {
