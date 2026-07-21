@@ -3,7 +3,7 @@ import type { LngLatBoundsLike } from 'maplibre-gl';
 // A source of previewable data at a URL
 export default abstract class Source {
   // URL to the remote data source
-  protected url: string;
+  url: string;
 
   // Explicitly provided bounds for the source, if any
   protected bounds: LngLatBoundsLike | undefined;

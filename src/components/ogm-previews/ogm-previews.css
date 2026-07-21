@@ -37,8 +37,9 @@ wa-tab::part(base) {
   font-size: var(--wa-font-size-s);
 }
 
-ogm-map,
-ogm-image {
+/* ogm-preview wraps each tab's map/image; ogm-map is also rendered bare as the no-record fallback. */
+ogm-preview,
+ogm-map {
   display: block;
   height: 100%;
 }

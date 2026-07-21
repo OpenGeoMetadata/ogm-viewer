@@ -1,4 +1,4 @@
-import { Component, Element, h, Prop, State, Watch, Host } from '@stencil/core';
+import { Component, h, Prop, State, Watch, Host } from '@stencil/core';
 
 import type OgmRecord from '../../lib/record';
 import type Source from '../../lib/sources/source';
@@ -20,7 +20,6 @@ import IIIFManifestSource from '../../lib/sources/iiif-manifest';
   shadow: true,
 })
 export class OgmPreviews {
-  @Element() el: HTMLElement;
   @Prop() theme: 'light' | 'dark';
   @Prop() record: OgmRecord;
   @Prop() previewOpacity: number;
@@ -30,22 +29,6 @@ export class OgmPreviews {
   // @Watch only fires on changes; handle the initial load here
   componentWillLoad() {
     if (this.record) this.getSources(this.record);
-  }
-
-  // Pick the appropriate preview to render based on the source type
-  protected renderPreview(source: Source) {
-    if (source instanceof IIIFSource) return this.renderImagePreview(source);
-    return this.renderMapPreview(source);
-  }
-
-  // Render an image preview
-  protected renderImagePreview(source: IIIFSource) {
-    return <ogm-image theme={this.theme} source={source} padding={this.sidebarPadding}></ogm-image>;
-  }
-
-  // Render a map preview
-  protected renderMapPreview(source: Source) {
-    return <ogm-map preview-opacity={this.previewOpacity} theme={this.theme} source={source} padding={this.sidebarPadding}></ogm-map>;
   }
 
   // Given a record, get all of the valid sources that can be used to preview it on a map
@@ -81,7 +64,7 @@ export class OgmPreviews {
           ))}
           {this.sources.map((source, idx) => (
             <wa-tab-panel key={idx} name={`${source.constructor.name}-${source.id}-${idx}`} active={idx === 0}>
-              {this.renderPreview(source)}
+              <ogm-preview theme={this.theme} source={source} preview-opacity={this.previewOpacity} sidebar-padding={this.sidebarPadding}></ogm-preview>
             </wa-tab-panel>
           ))}
         </wa-tab-group>

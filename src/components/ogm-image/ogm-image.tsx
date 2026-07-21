@@ -2,6 +2,7 @@ import { Component, Element, h, Host, Watch, Prop, Event, EventEmitter } from '@
 import { Viewer } from 'openseadragon';
 
 import { getElement, findElement } from '../../lib/elements';
+import { referenceError, type PreviewError } from '../../lib/errors';
 import type IIIFSource from '../../lib/sources/iiif';
 
 @Component({
@@ -16,9 +17,13 @@ export class OgmImage {
   @Prop() padding: number = 0;
   @Event() imageLoaded: EventEmitter<void>;
   @Event() imageLoading: EventEmitter<void>;
+  @Event() previewError: EventEmitter<PreviewError>;
 
   // OpenSeadragon viewer instance
   private viewer: Viewer;
+
+  // Guards against reporting more than one error per load attempt
+  private errorReported: boolean = false;
 
   // Set up OpenSeadragon viewer on load
   async componentDidLoad() {
@@ -39,10 +44,20 @@ export class OgmImage {
 
     // Clear loading state whether we succeeded or failed
     this.viewer.addHandler('open', () => this.imageLoaded.emit());
-    this.viewer.addHandler('open-failed', () => this.imageLoaded.emit());
+
+    // Surface OpenSeaDragon decode errors here
+    this.viewer.addHandler('open-failed', event => {
+      this.imageLoaded.emit();
+      this.reportError(new Error(event.message));
+    });
 
     // If we do have a source, load the images
     if (this.source) await this.loadImages();
+  }
+
+  // Destroy the viewer when we are removed from the DOM
+  disconnectedCallback() {
+    this.viewer?.destroy();
   }
 
   // Update preview when source changes
@@ -64,6 +79,7 @@ export class OgmImage {
   // Get all of the IIIF image URLs and send them to OpenSeadragon
   // This makes a request to fetch and cache the manifest
   private async loadImages() {
+    this.errorReported = false;
     this.imageLoading.emit();
 
     try {
@@ -71,11 +87,17 @@ export class OgmImage {
       if (!images) throw new Error('No IIIF images found for source');
       this.viewer.open(images);
     } catch (error) {
-      // The open/open-failed event handlers won't fire if we errored here, so
-      // we have to emit imageLoaded manually
+      console.error(`Error loading IIIF images for ${this.source.url}:`, error);
       this.imageLoaded.emit();
-      throw error;
+      this.reportError(error);
     }
+  }
+
+  // Emit a single preview error per load attempt
+  private reportError(error?: unknown) {
+    if (this.errorReported || !this.source) return;
+    this.errorReported = true;
+    this.previewError.emit(referenceError(error, this.source.label(), this.source.url));
   }
 
   render() {

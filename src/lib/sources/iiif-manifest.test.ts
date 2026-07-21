@@ -73,14 +73,14 @@ describe('IIIFManifestSource', () => {
     it('should fetch and extract image URLs from a IIIF v2 manifest', async () => {
       const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify(v2Manifest)));
       const urls = await createSource().getIIIFImageUrls();
-      expect(fetchSpy).toHaveBeenCalledWith(MANIFEST_URL);
+      expect(fetchSpy.mock.calls[0][0]).toBe(MANIFEST_URL);
       expect(urls).toEqual(['http://example.com/image1/info.json']);
     });
 
     it('should fetch and extract image URLs from a IIIF v3 manifest', async () => {
       const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify(v3Manifest)));
       const urls = await createSource().getIIIFImageUrls();
-      expect(fetchSpy).toHaveBeenCalledWith(MANIFEST_URL);
+      expect(fetchSpy.mock.calls[0][0]).toBe(MANIFEST_URL);
       expect(urls).toEqual(['http://example.com/image1/info.json']);
     });
 
@@ -106,9 +106,9 @@ describe('IIIFManifestSource', () => {
       await expect(createSource().getIIIFImageUrls()).rejects.toThrow('Network error');
     });
 
-    it('should throw if the manifest response is not ok', async () => {
+    it('should throw an HttpError if the manifest response is not ok', async () => {
       vi.spyOn(global, 'fetch').mockResolvedValueOnce(new Response('Not found', { status: 404, statusText: 'Not Found' }));
-      await expect(createSource().getIIIFImageUrls()).rejects.toThrow('Unexpected response fetching IIIF manifest');
+      await expect(createSource().getIIIFImageUrls()).rejects.toMatchObject({ name: 'HttpError', status: 404 });
     });
 
     it('should throw if the manifest is not valid JSON', async () => {

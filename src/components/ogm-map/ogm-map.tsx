@@ -11,6 +11,7 @@ import Source from '../../lib/sources/source';
 import WmsSource from '../../lib/sources/wms';
 
 import { getElement } from '../../lib/elements';
+import { referenceError, type PreviewError } from '../../lib/errors';
 import CogPreviewer from '../../lib/previewers/cog';
 import GeoJSONPreviewer from '../../lib/previewers/geojson';
 import MapLibrePreviewer from '../../lib/previewers/maplibre';
@@ -37,6 +38,10 @@ export class OgmMap {
   @Prop() padding: number = 0;
   @Event() mapIdle: EventEmitter<void>;
   @Event() mapLoading: EventEmitter<void>;
+  @Event() previewError: EventEmitter<PreviewError>;
+
+  // Guards against reporting more than one error per load attempt
+  private errorReported: boolean = false;
 
   // MapLibre map instance and popup instance for feature info display
   protected map: maplibregl.Map;
@@ -68,6 +73,7 @@ export class OgmMap {
     this.map.on('load', () => this.previewSource(this.source));
     this.map.on('mousemove', this.handleHover.bind(this));
     this.map.on('click', this.handleClick.bind(this));
+    this.map.on('error', this.handleMapError.bind(this));
 
     // View as a globe with atmosphere effects
     this.map.on('style.load', () => {
@@ -135,6 +141,9 @@ export class OgmMap {
     // Do nothing if we didn't get passed a source
     if (!source) return;
 
+    // Fresh load attempt: allow one error to be reported again for this source
+    this.errorReported = false;
+
     // Indicate loading state so we can show the spinner
     this.mapLoading.emit();
 
@@ -157,11 +166,24 @@ export class OgmMap {
       // Fit to bounds from the record; the spinner stays up until the map finishes moving
       const bounds = await this.source.getBounds();
       if (bounds) await this.fitMapBounds(bounds);
+    } catch (error) {
+      console.error(`Error previewing source ${source.url}:`, error);
+      if (!this.errorReported) {
+        this.errorReported = true;
+        this.previewError.emit(referenceError(error, source.label(), source.url));
+      }
     } finally {
-      // Emit exactly once, after the move completes (or on error), to signal the map is ready. This
-      // is the only signal that hides the spinner, so it must always fire and never fire early.
       this.mapIdle.emit();
     }
+  }
+
+  // Surface MapLibre errors tied to the current preview source, skipping the
+  // noise from basemap/glyph/sprite loads, and deduped to a single alert per load attempt.
+  protected handleMapError(event: maplibregl.ErrorEvent & { sourceId?: string }) {
+    if (this.errorReported || !this.source || !this.previewer) return;
+    if (event.sourceId !== this.previewer.sourceId) return;
+    this.errorReported = true;
+    this.previewError.emit(referenceError(event.error, this.source.label(), this.source.url));
   }
 
   // Fit the map to the given bounds; resolve once the move finishes. Guard the case where the bounds

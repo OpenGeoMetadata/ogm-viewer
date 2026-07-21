@@ -2,6 +2,7 @@ import iiif3 from '@iiif/presentation-3';
 import iiif2 from '@iiif/presentation-2';
 
 import IIIFSource from './iiif';
+import { fetchOrThrow } from '../errors';
 
 // A manifest containing multiple IIIF image URLs for preview
 export default class IIIFManifestSource extends IIIFSource {
@@ -26,8 +27,7 @@ export default class IIIFManifestSource extends IIIFSource {
   // Attempt to fetch and parse the IIIF manifest, if any
   protected async fetchManifest(): Promise<iiif2.Manifest | iiif3.Manifest | undefined> {
     if (this.manifest) return this.manifest;
-    const response = await fetch(this.url);
-    if (!response.ok) throw new Error(`Unexpected response fetching IIIF manifest: ${response.statusText}`);
+    const response = await fetchOrThrow(this.url);
     const manifest = await response.json();
     this.manifest = manifest;
     return manifest;
