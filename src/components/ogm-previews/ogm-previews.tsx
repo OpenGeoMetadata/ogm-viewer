@@ -51,8 +51,7 @@ export class OgmPreviews {
 
   // Render as tabs for switching between sources
   render() {
-    // Render a blank map if there is no record or no sources
-    if (!this.record || !this.sources.length) return <ogm-map theme={this.theme} padding={this.sidebarPadding}></ogm-map>;
+    if (!this.record || !this.sources.length) return;
 
     return (
       <Host class={this.theme && `wa-${this.theme}`}>
