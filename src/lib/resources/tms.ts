@@ -1,6 +1,6 @@
-import RasterSource from './raster';
+import RasterResource from './raster';
 
-export default class TmsSource extends RasterSource {
+export default class TmsResource extends RasterResource {
   label() {
     return 'Tiled Map Service (TMS)';
   }

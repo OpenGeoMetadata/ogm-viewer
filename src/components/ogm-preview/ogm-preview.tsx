@@ -1,7 +1,7 @@
 import { Component, h, Host, Listen, Prop, State, Watch } from '@stencil/core';
 
-import IIIFSource from '../../lib/sources/iiif';
-import type Source from '../../lib/sources/source';
+import IIIFResource from '../../lib/resources/iiif';
+import type Resource from '../../lib/resources/resource';
 import type { PreviewError } from '../../lib/errors';
 
 // Wraps a single source's preview and surfaces error(s) during the preview.
@@ -12,13 +12,13 @@ import type { PreviewError } from '../../lib/errors';
 })
 export class OgmPreview {
   @Prop() theme: 'light' | 'dark';
-  @Prop() source: Source;
+  @Prop() previewResource: Resource;
   @Prop() previewOpacity: number;
   @Prop() sidebarPadding: number;
   @State() error?: PreviewError;
 
-  // A new source is a fresh load attempt, so clear any error left over from the previous one.
-  @Watch('source')
+  // A new resource is a fresh load attempt, so clear any error left over from the previous one.
+  @Watch('previewResource')
   resetError() {
     this.error = undefined;
   }
@@ -32,10 +32,10 @@ export class OgmPreview {
 
   // IIIF sources use the image viewer; every other source type is previewed on the map.
   private renderPreview() {
-    if (this.source instanceof IIIFSource) {
-      return <ogm-image theme={this.theme} source={this.source} padding={this.sidebarPadding}></ogm-image>;
+    if (this.previewResource instanceof IIIFResource) {
+      return <ogm-image theme={this.theme} previewResource={this.previewResource} padding={this.sidebarPadding}></ogm-image>;
     }
-    return <ogm-map preview-opacity={this.previewOpacity} theme={this.theme} source={this.source} padding={this.sidebarPadding}></ogm-map>;
+    return <ogm-map preview-opacity={this.previewOpacity} theme={this.theme} previewResource={this.previewResource} padding={this.sidebarPadding}></ogm-map>;
   }
 
   render() {

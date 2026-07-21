@@ -1,9 +1,9 @@
 import { SourceSpecification } from 'maplibre-gl';
 
-import MapLibreSource from './maplibre';
+import MapResource from './map';
 
 // A source of vector data, accessed remotely
-export default abstract class VectorSource extends MapLibreSource {
+export default abstract class VectorResource extends MapResource {
   async isVector() {
     return true;
   }

@@ -1,11 +1,11 @@
 import iiif3 from '@iiif/presentation-3';
 import iiif2 from '@iiif/presentation-2';
 
-import IIIFSource from './iiif';
+import IIIFResource from './iiif';
 import { fetchOrThrow } from '../errors';
 
 // A manifest containing multiple IIIF image URLs for preview
-export default class IIIFManifestSource extends IIIFSource {
+export default class IIIFManifestResource extends IIIFResource {
   // The parsed manifest contents
   protected manifest: iiif3.Manifest | iiif2.Manifest | undefined;
 

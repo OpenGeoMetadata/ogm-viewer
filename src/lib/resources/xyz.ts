@@ -1,6 +1,6 @@
-import RasterSource from './raster';
+import RasterResource from './raster';
 
-export default class XyzSource extends RasterSource {
+export default class XyzResource extends RasterResource {
   label() {
     return 'XYZ Tile Service';
   }

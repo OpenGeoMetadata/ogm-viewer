@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
 
-import IIIFManifestSource from './iiif-manifest';
+import IIIFManifestResource from './iiif-manifest';
 
 const MANIFEST_URL = 'http://example.com/manifest.json';
 
 // A source always points at a manifest URL; the manifest itself is fetched lazily
-const createSource = () => new IIIFManifestSource('test-id', MANIFEST_URL);
+const createSource = () => new IIIFManifestResource('test-id', MANIFEST_URL);
 
 // A minimal IIIF v2 manifest with a single image
 const v2Manifest = {
@@ -66,7 +66,7 @@ const v3Manifest = {
   ],
 };
 
-describe('IIIFManifestSource', () => {
+describe('IIIFManifestResource', () => {
   afterEach(() => vi.restoreAllMocks());
 
   describe('getIIIFImageUrls', () => {

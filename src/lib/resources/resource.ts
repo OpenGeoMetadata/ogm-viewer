@@ -1,14 +1,14 @@
 import type { LngLatBoundsLike } from 'maplibre-gl';
 
 // A source of previewable data at a URL
-export default abstract class Source {
+export default abstract class Resource {
   // URL to the remote data source
   url: string;
 
   // Explicitly provided bounds for the source, if any
   protected bounds: LngLatBoundsLike | undefined;
 
-  // Unique ID for this source
+  // Unique ID for this resource
   id: string;
 
   // Store the source URL
@@ -18,7 +18,7 @@ export default abstract class Source {
     this.bounds = bounds;
   }
 
-  // Used to label the tabs for switching between sources, e.g.
+  // Used to label the tabs for switching between previews, e.g.
   label(): string {
     return this.constructor.name;
   }

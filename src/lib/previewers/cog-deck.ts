@@ -3,7 +3,7 @@ import { COGLayer } from '@developmentseed/deck.gl-geotiff';
 import { DecoderPool } from '@developmentseed/geotiff';
 
 import Previewer from './previewer';
-import type MapLibreSource from '../sources/maplibre';
+import type MapResource from '../resources/map';
 import { type MapLibreStyle } from '../themes/maplibre';
 
 // Deck.gl-based previewer for Cloud Optimized GeoTIFF (COG) sources
@@ -11,7 +11,7 @@ import { type MapLibreStyle } from '../themes/maplibre';
 // NOTE: can't be built currently due to a bug; see:
 // https://github.com/OpenGeoMetadata/ogm-viewer/issues/100
 export default class DeckCogPreviewer extends Previewer {
-  declare protected source: MapLibreSource;
+  declare protected resource: MapResource;
 
   // Store reference to the map and styles
   protected style: MapLibreStyle;
@@ -28,8 +28,8 @@ export default class DeckCogPreviewer extends Previewer {
   protected opacity: number;
 
   // Initialize with opacity at the theme's opacity value
-  constructor(source: MapLibreSource, map: maplibregl.Map, style: MapLibreStyle) {
-    super(source);
+  constructor(resource: MapResource, map: maplibregl.Map, style: MapLibreStyle) {
+    super(resource);
     this.map = map;
     this.style = style;
     this.opacity = this.style.opacity;
@@ -52,13 +52,13 @@ export default class DeckCogPreviewer extends Previewer {
   }
 
   protected getSourceId(): string {
-    return `${this.source.id}-cog`;
+    return `${this.resource.id}-cog`;
   }
 
   protected createLayer(): COGLayer {
     return new COGLayer({
       id: this.getSourceId(),
-      geotiff: this.source.getMapLibreSourceUrl(),
+      geotiff: this.resource.getMapLibreSourceUrl(),
       onGeoTIFFLoad: (_data, options) => {
         const { west, south, east, north } = options.geographicBounds;
         this.bounds = [

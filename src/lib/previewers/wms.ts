@@ -1,26 +1,28 @@
 import type { CircleLayerSpecification, GeoJSONSource, LayerSpecification, LineLayerSpecification, MapGeoJSONFeature, RasterSourceSpecification } from 'maplibre-gl';
 
+import type WmsResource from '../resources/wms';
 import RasterPreviewer from './raster';
-import type WmsSource from '../sources/wms';
-import type { GetFeatureInfoOptions } from '../sources/wms';
+
+import type { GetFeatureInfoOptions } from '../resources/wms';
 
 // Contents of the highlight source when nothing is selected
 const NO_FEATURES: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
-
 export default class WmsPreviewer extends RasterPreviewer {
-  declare protected source: WmsSource;
+  declare protected resource: WmsResource;
 
   // WMS sources have no scheme
-  protected async createSource(): Promise<RasterSourceSpecification> {
-    return {
-      type: 'raster',
-      tiles: [await this.source.getMapLibreSourceUrl()],
-      tileSize: this.source.getTileSize(),
-    };
+  protected async createSources(): Promise<RasterSourceSpecification[]> {
+    return [
+      {
+        type: 'raster',
+        tiles: [await this.resource.getMapLibreSourceUrl()],
+        tileSize: this.resource.getTileSize(),
+      },
+    ];
   }
 
   protected getSourceId(): string {
-    return `${this.source.id}-wms`;
+    return `${this.resource.id}-wms`;
   }
 
   // The server draws the tiles, so unlike a vector preview there are no client-side features to

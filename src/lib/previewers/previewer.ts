@@ -1,10 +1,11 @@
-import type Source from '../sources/source';
+import type Resource from '../resources/resource';
 
+// Base class for rendering a resource into a preview
 export default abstract class Previewer {
-  protected source: Source;
+  protected resource: Resource;
 
-  constructor(source: Source) {
-    this.source = source;
+  constructor(resource: Resource) {
+    this.resource = resource;
   }
 
   abstract preview(): Promise<void>;
