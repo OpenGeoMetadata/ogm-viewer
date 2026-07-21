@@ -1,10 +1,14 @@
 :host {
   --stanford-cardinal-red: #8f1414;
-  --accent-color: var(--wa-color-brand-50);
-  /* --accent-color: var(--stanford-cardinal-red); */
 }
 
 .container {
+  /* Defined here rather than on :host because it resolves a Web Awesome token, which is only
+     available on .container (where the palette/theme stylesheet is activated by the
+     wa-palette-default / wa-light|wa-dark classes) and its descendants. */
+  --accent-color: var(--wa-color-brand-50);
+  /* --accent-color: var(--stanford-cardinal-red); */
+
   display: flex;
   flex-direction: column;
   position: relative;

@@ -12,23 +12,6 @@ registerIconLibrary('default', {
   resolver: name => getBasePath(`assets/icons/${name}.svg`),
 });
 
-// Web Awesome's raw color palette is scoped to `:root`, which can only ever match the actual
-// document root - never an element inside a shadow tree, so a component-scoped @import can't
-// activate it. Loading it here, at the document level, lets it match `:root` for real, and lets
-// its `.wa-light`/`.wa-dark` theme rules match Host element in each component because that element
-// is part of the page light DOM and not the shadow DOM. Injecting it here means consumers
-// don't have to remember to add it to their own page.
-function loadWebAwesomeStylesheet() {
-  const id = 'ogm-viewer-webawesome-styles';
-  if (document.getElementById(id)) return;
-  const link = document.createElement('link');
-  link.id = id;
-  link.rel = 'stylesheet';
-  link.href = getBasePath('assets/webawesome/styles/webawesome.css');
-  document.head.appendChild(link);
-}
-loadWebAwesomeStylesheet();
-
 // Import all required Web Awesome components
 import '@awesome.me/webawesome/dist/components/button/button.js';
 import '@awesome.me/webawesome/dist/components/callout/callout.js';
@@ -40,6 +23,12 @@ import '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
 import '@awesome.me/webawesome/dist/components/tab-panel/tab-panel.js';
 import '@awesome.me/webawesome/dist/components/tab/tab.js';
 import '@awesome.me/webawesome/dist/components/tooltip/tooltip.js';
+
+// Web Awesome activates its palette and semantic color variants on `:root` by default (with
+// `.wa-*` classes only needed to override the defaults). `:root` never matches inside a shadow
+// tree, so we opt into each default explicitly on our container to reproduce what a document-level
+// load would give us: the default palette plus the default hue for every color variant.
+const WA_SCOPE = 'wa-palette-default wa-brand-blue wa-neutral-gray wa-success-green wa-warning-yellow wa-danger-red';
 
 @Component({
   tag: 'ogm-viewer',
@@ -132,10 +121,13 @@ export class OgmViewer {
     }
   }
 
+  // Link Web Awesome's stylesheet inside the shadow tree so it doesn't
+  // leak into the host page when rendering.
   render() {
     return (
       <Host class={`wa-${this.theme}`}>
-        <div class="container">
+        <link rel="stylesheet" href={getBasePath('assets/webawesome/styles/themes/default.css')} />
+        <div class={`container ${WA_SCOPE} wa-${this.theme}`}>
           <ogm-menubar theme={this.theme} record={this.record} loading={this.loading}></ogm-menubar>
           <div class="main-container">
             <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen}></ogm-sidebar>
