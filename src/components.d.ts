@@ -5,9 +5,15 @@
  * It contains typing information for all components that exist in this project.
  */
 import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
+import { PreviewError } from "./lib/errors";
 import { MapGeoJSONFeature } from "maplibre-gl";
+export { PreviewError } from "./lib/errors";
 export { MapGeoJSONFeature } from "maplibre-gl";
 export namespace Components {
+    interface OgmAlerts {
+        "error"?: PreviewError;
+        "theme": 'light' | 'dark';
+    }
     interface OgmAttributes {
         /**
           * @default []
@@ -42,6 +48,12 @@ export namespace Components {
     interface OgmMetadata {
         "fieldNames": string[];
         "record": OgmRecord;
+        "theme": 'light' | 'dark';
+    }
+    interface OgmPreview {
+        "previewOpacity": number;
+        "sidebarPadding": number;
+        "source": Source;
         "theme": 'light' | 'dark';
     }
     interface OgmPreviews {
@@ -91,6 +103,12 @@ export interface OgmSettingsCustomEvent<T> extends CustomEvent<T> {
     target: HTMLOgmSettingsElement;
 }
 declare global {
+    interface HTMLOgmAlertsElement extends Components.OgmAlerts, HTMLStencilElement {
+    }
+    var HTMLOgmAlertsElement: {
+        prototype: HTMLOgmAlertsElement;
+        new (): HTMLOgmAlertsElement;
+    };
     interface HTMLOgmAttributesElementEventMap {
         "featureSelected": MapGeoJSONFeature;
     }
@@ -111,6 +129,7 @@ declare global {
     interface HTMLOgmImageElementEventMap {
         "imageLoaded": void;
         "imageLoading": void;
+        "previewError": PreviewError;
     }
     interface HTMLOgmImageElement extends Components.OgmImage, HTMLStencilElement {
         addEventListener<K extends keyof HTMLOgmImageElementEventMap>(type: K, listener: (this: HTMLOgmImageElement, ev: OgmImageCustomEvent<HTMLOgmImageElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
@@ -129,6 +148,7 @@ declare global {
     interface HTMLOgmMapElementEventMap {
         "mapIdle": void;
         "mapLoading": void;
+        "previewError": PreviewError;
     }
     interface HTMLOgmMapElement extends Components.OgmMap, HTMLStencilElement {
         addEventListener<K extends keyof HTMLOgmMapElementEventMap>(type: K, listener: (this: HTMLOgmMapElement, ev: OgmMapCustomEvent<HTMLOgmMapElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
@@ -167,6 +187,12 @@ declare global {
         prototype: HTMLOgmMetadataElement;
         new (): HTMLOgmMetadataElement;
     };
+    interface HTMLOgmPreviewElement extends Components.OgmPreview, HTMLStencilElement {
+    }
+    var HTMLOgmPreviewElement: {
+        prototype: HTMLOgmPreviewElement;
+        new (): HTMLOgmPreviewElement;
+    };
     interface HTMLOgmPreviewsElement extends Components.OgmPreviews, HTMLStencilElement {
     }
     var HTMLOgmPreviewsElement: {
@@ -203,11 +229,13 @@ declare global {
         new (): HTMLOgmViewerElement;
     };
     interface HTMLElementTagNameMap {
+        "ogm-alerts": HTMLOgmAlertsElement;
         "ogm-attributes": HTMLOgmAttributesElement;
         "ogm-image": HTMLOgmImageElement;
         "ogm-map": HTMLOgmMapElement;
         "ogm-menubar": HTMLOgmMenubarElement;
         "ogm-metadata": HTMLOgmMetadataElement;
+        "ogm-preview": HTMLOgmPreviewElement;
         "ogm-previews": HTMLOgmPreviewsElement;
         "ogm-settings": HTMLOgmSettingsElement;
         "ogm-sidebar": HTMLOgmSidebarElement;
@@ -215,6 +243,10 @@ declare global {
     }
 }
 declare namespace LocalJSX {
+    interface OgmAlerts {
+        "error"?: PreviewError;
+        "theme"?: 'light' | 'dark';
+    }
     interface OgmAttributes {
         /**
           * @default []
@@ -225,6 +257,7 @@ declare namespace LocalJSX {
     interface OgmImage {
         "onImageLoaded"?: (event: OgmImageCustomEvent<void>) => void;
         "onImageLoading"?: (event: OgmImageCustomEvent<void>) => void;
+        "onPreviewError"?: (event: OgmImageCustomEvent<PreviewError>) => void;
         /**
           * @default 0
          */
@@ -235,6 +268,7 @@ declare namespace LocalJSX {
     interface OgmMap {
         "onMapIdle"?: (event: OgmMapCustomEvent<void>) => void;
         "onMapLoading"?: (event: OgmMapCustomEvent<void>) => void;
+        "onPreviewError"?: (event: OgmMapCustomEvent<PreviewError>) => void;
         /**
           * @default 0
          */
@@ -254,6 +288,12 @@ declare namespace LocalJSX {
     interface OgmMetadata {
         "fieldNames"?: string[];
         "record"?: OgmRecord;
+        "theme"?: 'light' | 'dark';
+    }
+    interface OgmPreview {
+        "previewOpacity"?: number;
+        "sidebarPadding"?: number;
+        "source"?: Source;
         "theme"?: 'light' | 'dark';
     }
     interface OgmPreviews {
@@ -282,6 +322,9 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
 
+    interface OgmAlertsAttributes {
+        "theme": 'light' | 'dark';
+    }
     interface OgmImageAttributes {
         "theme": 'light' | 'dark';
         "padding": number;
@@ -296,6 +339,11 @@ declare namespace LocalJSX {
     }
     interface OgmMetadataAttributes {
         "theme": 'light' | 'dark';
+    }
+    interface OgmPreviewAttributes {
+        "theme": 'light' | 'dark';
+        "previewOpacity": number;
+        "sidebarPadding": number;
     }
     interface OgmPreviewsAttributes {
         "theme": 'light' | 'dark';
@@ -312,11 +360,13 @@ declare namespace LocalJSX {
     }
 
     interface IntrinsicElements {
+        "ogm-alerts": Omit<OgmAlerts, keyof OgmAlertsAttributes> & { [K in keyof OgmAlerts & keyof OgmAlertsAttributes]?: OgmAlerts[K] } & { [K in keyof OgmAlerts & keyof OgmAlertsAttributes as `attr:${K}`]?: OgmAlertsAttributes[K] } & { [K in keyof OgmAlerts & keyof OgmAlertsAttributes as `prop:${K}`]?: OgmAlerts[K] };
         "ogm-attributes": OgmAttributes;
         "ogm-image": Omit<OgmImage, keyof OgmImageAttributes> & { [K in keyof OgmImage & keyof OgmImageAttributes]?: OgmImage[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `attr:${K}`]?: OgmImageAttributes[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `prop:${K}`]?: OgmImage[K] };
         "ogm-map": Omit<OgmMap, keyof OgmMapAttributes> & { [K in keyof OgmMap & keyof OgmMapAttributes]?: OgmMap[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `attr:${K}`]?: OgmMapAttributes[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `prop:${K}`]?: OgmMap[K] };
         "ogm-menubar": Omit<OgmMenubar, keyof OgmMenubarAttributes> & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes]?: OgmMenubar[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `attr:${K}`]?: OgmMenubarAttributes[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `prop:${K}`]?: OgmMenubar[K] };
         "ogm-metadata": Omit<OgmMetadata, keyof OgmMetadataAttributes> & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes]?: OgmMetadata[K] } & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes as `attr:${K}`]?: OgmMetadataAttributes[K] } & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes as `prop:${K}`]?: OgmMetadata[K] };
+        "ogm-preview": Omit<OgmPreview, keyof OgmPreviewAttributes> & { [K in keyof OgmPreview & keyof OgmPreviewAttributes]?: OgmPreview[K] } & { [K in keyof OgmPreview & keyof OgmPreviewAttributes as `attr:${K}`]?: OgmPreviewAttributes[K] } & { [K in keyof OgmPreview & keyof OgmPreviewAttributes as `prop:${K}`]?: OgmPreview[K] };
         "ogm-previews": Omit<OgmPreviews, keyof OgmPreviewsAttributes> & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes]?: OgmPreviews[K] } & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes as `attr:${K}`]?: OgmPreviewsAttributes[K] } & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes as `prop:${K}`]?: OgmPreviews[K] };
         "ogm-settings": OgmSettings;
         "ogm-sidebar": Omit<OgmSidebar, keyof OgmSidebarAttributes> & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes]?: OgmSidebar[K] } & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes as `attr:${K}`]?: OgmSidebarAttributes[K] } & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes as `prop:${K}`]?: OgmSidebar[K] };
@@ -327,11 +377,13 @@ export { LocalJSX as JSX };
 declare module "@stencil/core" {
     export namespace JSX {
         interface IntrinsicElements {
+            "ogm-alerts": LocalJSX.IntrinsicElements["ogm-alerts"] & JSXBase.HTMLAttributes<HTMLOgmAlertsElement>;
             "ogm-attributes": LocalJSX.IntrinsicElements["ogm-attributes"] & JSXBase.HTMLAttributes<HTMLOgmAttributesElement>;
             "ogm-image": LocalJSX.IntrinsicElements["ogm-image"] & JSXBase.HTMLAttributes<HTMLOgmImageElement>;
             "ogm-map": LocalJSX.IntrinsicElements["ogm-map"] & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
             "ogm-menubar": LocalJSX.IntrinsicElements["ogm-menubar"] & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
             "ogm-metadata": LocalJSX.IntrinsicElements["ogm-metadata"] & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;
+            "ogm-preview": LocalJSX.IntrinsicElements["ogm-preview"] & JSXBase.HTMLAttributes<HTMLOgmPreviewElement>;
             "ogm-previews": LocalJSX.IntrinsicElements["ogm-previews"] & JSXBase.HTMLAttributes<HTMLOgmPreviewsElement>;
             "ogm-settings": LocalJSX.IntrinsicElements["ogm-settings"] & JSXBase.HTMLAttributes<HTMLOgmSettingsElement>;
             "ogm-sidebar": LocalJSX.IntrinsicElements["ogm-sidebar"] & JSXBase.HTMLAttributes<HTMLOgmSidebarElement>;

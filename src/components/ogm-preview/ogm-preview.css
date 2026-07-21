@@ -1,0 +1,16 @@
+:host {
+  display: block;
+  height: 100%;
+  position: relative;
+}
+
+ogm-map,
+ogm-image {
+  display: block;
+  height: 100%;
+}
+
+ogm-alerts {
+  position: absolute;
+  inset: 0;
+}

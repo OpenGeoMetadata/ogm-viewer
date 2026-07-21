@@ -2,6 +2,7 @@ import { setBasePath, getBasePath, registerIconLibrary } from '@awesome.me/webaw
 import { Component, Element, Host, Listen, Method, Prop, State, Watch, getAssetPath, h } from '@stencil/core';
 
 import OgmRecord from '../../lib/record';
+import { fetchOrThrow, recordError, type PreviewError } from '../../lib/errors';
 
 // Only need to call this once, at the top level
 setBasePath(getAssetPath(''));
@@ -14,9 +15,9 @@ registerIconLibrary('default', {
 // Web Awesome's raw color palette is scoped to `:root`, which can only ever match the actual
 // document root - never an element inside a shadow tree, so a component-scoped @import can't
 // activate it. Loading it here, at the document level, lets it match `:root` for real, and lets
-// its `.wa-light`/`.wa-dark` theme rules match the <ogm-viewer> host itself (see render() below),
-// from which every token inherits down through the rest of the shadow tree. Injecting it here
-// means consumers don't have to remember to add it to their own page.
+// its `.wa-light`/`.wa-dark` theme rules match Host element in each component because that element
+// is part of the page light DOM and not the shadow DOM. Injecting it here means consumers
+// don't have to remember to add it to their own page.
 function loadWebAwesomeStylesheet() {
   const id = 'ogm-viewer-webawesome-styles';
   if (document.getElementById(id)) return;
@@ -30,6 +31,7 @@ loadWebAwesomeStylesheet();
 
 // Import all required Web Awesome components
 import '@awesome.me/webawesome/dist/components/button/button.js';
+import '@awesome.me/webawesome/dist/components/callout/callout.js';
 import '@awesome.me/webawesome/dist/components/icon/icon.js';
 import '@awesome.me/webawesome/dist/components/scroller/scroller.js';
 import '@awesome.me/webawesome/dist/components/slider/slider.js';
@@ -48,14 +50,12 @@ export class OgmViewer {
   @Element() el: HTMLElement;
   @Prop() recordUrl: string;
   @Prop() theme: 'light' | 'dark' = this.getThemePreference();
-  @State() record: OgmRecord;
+  @State() record?: OgmRecord;
+  @State() error?: PreviewError;
   @State() previewOpacity: number = 100;
   @State() sidebarOpen: boolean = false;
-
-  // Whether a preview is currently loading; @State so toggling it re-renders and shows/hides the
-  // spinner. Backed by a reference count because a record can mount several previews at once (one
-  // per source tab) - the spinner should stay up until every in-flight preview has finished.
   @State() loading: boolean = false;
+
   private loadingCount: number = 0;
   private sidebarPadding: number = 0;
 
@@ -85,6 +85,7 @@ export class OgmViewer {
   // Can be called externally to set the record directly
   @Method()
   async loadRecord(record: OgmRecord) {
+    this.error = undefined;
     this.record = record;
   }
 
@@ -102,8 +103,7 @@ export class OgmViewer {
     this.loading = true;
   }
 
-  // Listen for a preview to report loading finished; only hide the spinner once every in-flight
-  // preview has reported back, so it survives the whole load (including the map move to new bounds)
+  // When all in-flight previews have loaded, clear loading state
   @Listen('mapIdle')
   @Listen('imageLoaded')
   setLoadingFinished() {
@@ -111,24 +111,39 @@ export class OgmViewer {
     this.loading = this.loadingCount > 0;
   }
 
-  // Fetch a record by URL and parse it into an OgmRecord instance
-  private async fetchRecord(recordUrl: string): Promise<OgmRecord> {
-    const response = await fetch(recordUrl);
-    const data = await response.json();
-    return new OgmRecord(data);
+  // When a new record loads, reset the loading count and loading state
+  @Watch('record')
+  resetLoading() {
+    this.loadingCount = 0;
+    this.loading = false;
+  }
+
+  // Fetch a record by URL and parse it into an OgmRecord instance.
+  private async fetchRecord(recordUrl: string): Promise<OgmRecord | undefined> {
+    this.error = undefined;
+    try {
+      const response = await fetchOrThrow(recordUrl);
+      const data = await response.json();
+      return new OgmRecord(data);
+    } catch (error) {
+      console.error(`Error loading record ${recordUrl}:`, error);
+      this.error = recordError(error, recordUrl);
+      return undefined;
+    }
   }
 
   render() {
     return (
-      // Applying the theme class to the host (rather than an internal div) lets the document-level
-      // Web Awesome stylesheet's `.wa-light`/`.wa-dark` rules match it directly, since the host sits
-      // in the consuming page's own light DOM while everything inside this shadow root does not.
       <Host class={`wa-${this.theme}`}>
         <div class="container">
           <ogm-menubar theme={this.theme} record={this.record} loading={this.loading}></ogm-menubar>
           <div class="main-container">
             <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen}></ogm-sidebar>
-            <ogm-previews theme={this.theme} record={this.record} preview-opacity={this.previewOpacity} sidebar-padding={this.sidebarPadding}></ogm-previews>
+            {this.error ? (
+              <ogm-alerts theme={this.theme} error={this.error}></ogm-alerts>
+            ) : (
+              <ogm-previews theme={this.theme} record={this.record} preview-opacity={this.previewOpacity} sidebar-padding={this.sidebarPadding}></ogm-previews>
+            )}
           </div>
         </div>
       </Host>

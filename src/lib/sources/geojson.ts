@@ -1,6 +1,7 @@
 import geojsonExtent from '@mapbox/geojson-extent';
 
 import VectorSource from './vector';
+import { fetchOrThrow } from '../errors';
 
 export default class GeoJSONSource extends VectorSource {
   // Data parsed from GeoJSON document
@@ -9,7 +10,7 @@ export default class GeoJSONSource extends VectorSource {
   // Fetch and memoize data
   protected async getData() {
     if (!this.data) {
-      const resp = await fetch(this.url);
+      const resp = await fetchOrThrow(this.url);
       this.data = await resp.json();
     }
     return this.data;
