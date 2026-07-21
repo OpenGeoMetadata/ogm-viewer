@@ -33,7 +33,8 @@
         max-width: 800px;
       }
 
-      .buttons {
+      .buttons,
+      .props {
         display: flex;
         flex-wrap: wrap;
         gap: 0.5rem;
@@ -64,6 +65,18 @@
         loadRecordButton.addEventListener('click', () => {
           const recordUrl = recordInput.value.trim();
           if (recordUrl) viewer.recordUrl = recordUrl;
+        });
+
+        // Toggle theme button
+        const toggleThemeButton = document.getElementById('toggleTheme');
+        toggleThemeButton.addEventListener('click', () => {
+          viewer.theme = viewer.theme === 'light' ? 'dark' : 'light';
+        });
+
+        // Hide title checkbox
+        const hideTitleCheckbox = document.getElementById('hideTitle');
+        hideTitleCheckbox.addEventListener('change', () => {
+          viewer.hideTitle = hideTitleCheckbox.checked;
         });
       });
     </script>
@@ -147,6 +160,10 @@
         <label for="recordUrl">Enter an OpenGeoMetadata record URL:</label>
         <input type="text" id="recordUrl" size="80" placeholder="https://example.com/record.json" />
         <button id="loadRecord">Load Record</button>
+      </div>
+      <div class="props">
+        <button id="toggleTheme">Toggle Theme</button>
+        <label>Hide Title <input type="checkbox" id="hideTitle" /></label>
       </div>
     </div>
     <ogm-viewer></ogm-viewer>

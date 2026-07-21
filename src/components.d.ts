@@ -41,6 +41,10 @@ export namespace Components {
         /**
           * @default false
          */
+        "hideTitle": boolean;
+        /**
+          * @default false
+         */
         "loading": boolean;
         "record": OgmRecord;
         "theme": 'light' | 'dark';
@@ -74,6 +78,10 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmViewer {
+        /**
+          * @default false
+         */
+        "hideTitle": boolean;
         "loadRecord": (record: OgmRecord) => Promise<void>;
         "recordUrl": string;
         /**
@@ -280,6 +288,10 @@ declare namespace LocalJSX {
         /**
           * @default false
          */
+        "hideTitle"?: boolean;
+        /**
+          * @default false
+         */
         "loading"?: boolean;
         "onSidebarToggled"?: (event: OgmMenubarCustomEvent<any>) => void;
         "record"?: OgmRecord;
@@ -315,6 +327,10 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface OgmViewer {
+        /**
+          * @default false
+         */
+        "hideTitle"?: boolean;
         "recordUrl"?: string;
         /**
           * @default this.getThemePreference()
@@ -336,6 +352,7 @@ declare namespace LocalJSX {
     interface OgmMenubarAttributes {
         "theme": 'light' | 'dark';
         "loading": boolean;
+        "hideTitle": boolean;
     }
     interface OgmMetadataAttributes {
         "theme": 'light' | 'dark';
@@ -357,6 +374,7 @@ declare namespace LocalJSX {
     interface OgmViewerAttributes {
         "recordUrl": string;
         "theme": 'light' | 'dark';
+        "hideTitle": boolean;
     }
 
     interface IntrinsicElements {
