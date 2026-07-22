@@ -1,5 +1,5 @@
 import { fetchOrThrow } from '../errors';
-import Resource from './resource';
+import MapResource from './map';
 
 // A single vector layer in a TileJSON tileset
 interface VectorLayer {
@@ -7,12 +7,20 @@ interface VectorLayer {
 }
 
 // Vector or raster tileset described in a TileJSON document at a URL
-export default class TileJsonResource extends Resource {
+export default class TileJsonResource extends MapResource {
   // Metadata parsed from TileJSON document
   private metadata: any;
 
   label() {
     return 'TileJSON';
+  }
+
+  getMapLibreSourceUrl() {
+    return this.url;
+  }
+
+  getScheme() {
+    return undefined;
   }
 
   // Fetch and memoize metadata

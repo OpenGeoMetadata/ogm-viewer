@@ -4,6 +4,9 @@ import Previewer from './previewer';
 import MapResource from '../resources/map';
 import { type MapLibreStyle } from '../themes/maplibre';
 
+// MapLibre doesn't bundle the id with the source, but we need to
+type AddSourceObject = SourceSpecification & { id: string };
+
 export default abstract class MapPreviewer extends Previewer {
   declare protected resource: MapResource;
 
@@ -31,10 +34,10 @@ export default abstract class MapPreviewer extends Previewer {
     const sources = await this.createSources();
 
     sources.forEach(source => {
-      const sourceId = this.getSourceId(source);
-      if (this.map.getSource(sourceId)) return;
-      this.map.addSource(sourceId, source);
-      this.sourceIds.push(sourceId);
+      const { id, ...sourceSpec } = source as AddSourceObject;
+      if (this.map.getSource(id)) return;
+      this.map.addSource(id, sourceSpec);
+      this.sourceIds.push(id);
     });
 
     const layers = await this.createLayers();
@@ -63,11 +66,6 @@ export default abstract class MapPreviewer extends Previewer {
     this.sourceIds = [];
   }
 
-  // Unique ID for each MapLibre source
-  protected getSourceId(_source?: SourceSpecification): string {
-    return this.resource.id;
-  }
-
   // Set the opacity of the preview layers
   abstract setOpacity(opacity: number): Promise<void>;
 
@@ -75,7 +73,7 @@ export default abstract class MapPreviewer extends Previewer {
   abstract getBounds(): Promise<maplibregl.LngLatBoundsLike | undefined>;
 
   // Create MapLibre sources for the preview
-  protected abstract createSources(): Promise<SourceSpecification[]>;
+  protected abstract createSources(): Promise<AddSourceObject[]>;
 
   // Create MapLibre layers for the preview
   protected abstract createLayers(): Promise<AddLayerObject[]>;

@@ -1,22 +1,24 @@
-import type { RasterSourceSpecification } from 'maplibre-gl';
-
 import RasterPreviewer from './raster';
-import type TileJSONSource from '../sources/tilejson';
+import type { AddRasterSourceObject } from './raster';
+import type TileJsonSource from '../resources/tilejson';
 
-export default class TileJSONRasterPreviewer extends RasterPreviewer {
+export default class TileJsonRasterPreviewer extends RasterPreviewer {
   // Handed the URL of the document, MapLibre reads it itself and takes the tile templates, zoom
   // range and scheme from there; only the tile size has to come from us
-  protected async createSource(): Promise<RasterSourceSpecification> {
-    return {
-      type: 'raster',
-      url: await this.source.getMapLibreSourceUrl(),
-      tileSize: await this.tilejson.getTileSize(),
-    };
+  protected async createSources(): Promise<AddRasterSourceObject[]> {
+    return [
+      {
+        id: this.getSourceId(),
+        type: 'raster',
+        url: await this.resource.getMapLibreSourceUrl(),
+        tileSize: await this.tilejson.getTileSize(),
+      },
+    ];
   }
 
   // A record can reference the same tileset both ways, so keep the two sources distinct
   protected getSourceId(): string {
-    return `${this.source.id}-tilejson`;
+    return `${this.resource.id}-tilejson`;
   }
 
   // Raster tilesets have their bounds in the TileJSON document
@@ -26,6 +28,6 @@ export default class TileJSONRasterPreviewer extends RasterPreviewer {
 
   // A TileJSON document can describe either kind of tileset, so its source isn't a RasterSource
   private get tilejson() {
-    return this.source as unknown as TileJSONSource;
+    return this.resource as unknown as TileJsonSource;
   }
 }

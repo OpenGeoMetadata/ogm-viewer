@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from '@stencil/vitest';
 import type { MapGeoJSONFeature } from 'maplibre-gl';
 
 import WmsPreviewer from './wms';
-import WmsSource from '../sources/wms';
+import WmsResource from '../resources/wms';
 import type { MapLibreStyle } from '../themes/maplibre';
 
 // Just enough of a MapLibre map to record what the previewer adds, removes and draws
@@ -63,7 +63,7 @@ let previewer: WmsPreviewer;
 
 beforeEach(async () => {
   map = new FakeMap();
-  const source = new WmsSource('s7st30', 'https://geoservices.lib.berkeley.edu/geoserver/wms', { layerIds: [] });
+  const source = new WmsResource('s7st30', 'https://geoservices.lib.berkeley.edu/geoserver/wms', { layerIds: [] });
   previewer = new WmsPreviewer(source, map as unknown as maplibregl.Map, style);
   await previewer.preview();
 });

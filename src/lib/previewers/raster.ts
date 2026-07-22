@@ -3,13 +3,17 @@ import type { RasterSourceSpecification, LayerSpecification } from 'maplibre-gl'
 import MapPreviewer from './map';
 import type RasterResource from '../resources/raster';
 
+// MapLibre doesn't bundle the id with the source, but we need to
+export type AddRasterSourceObject = RasterSourceSpecification & { id: string };
+
 export default class RasterPreviewer extends MapPreviewer {
   declare protected resource: RasterResource;
 
   // By default, rasters only have one source
-  protected async createSources(): Promise<RasterSourceSpecification[]> {
+  protected async createSources(): Promise<AddRasterSourceObject[]> {
     return [
       {
+        id: this.getSourceId(),
         type: 'raster',
         tiles: [await this.resource.getMapLibreSourceUrl()],
         scheme: this.resource.getScheme(),

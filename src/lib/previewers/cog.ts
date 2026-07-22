@@ -1,9 +1,10 @@
-import maplibregl, { RasterSourceSpecification } from 'maplibre-gl';
+import maplibregl from 'maplibre-gl';
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
 
 import RasterPreviewer from './raster';
 import CogResource from '../resources/cog';
 import { type MapLibreStyle } from '../themes/maplibre';
+import { type AddRasterSourceObject } from './raster';
 
 // COG previewer using MapLibre COG protocol plugin
 // Only works for COGs in Web Mercator projection; can't warp in-browser
@@ -18,17 +19,14 @@ export default class CogPreviewer extends RasterPreviewer {
   }
 
   // COG sources use 'url' instead of 'tiles' and have no scheme
-  protected async createSources(): Promise<RasterSourceSpecification[]> {
+  protected async createSources(): Promise<AddRasterSourceObject[]> {
     return [
       {
+        id: `${this.resource.id}-cog`,
         type: 'raster',
         url: await this.resource.getMapLibreSourceUrl(),
         tileSize: this.resource.getTileSize(),
       },
     ];
-  }
-
-  protected getSourceId(): string {
-    return `${this.resource.id}-cog`;
   }
 }

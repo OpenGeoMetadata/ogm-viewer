@@ -1,8 +1,8 @@
 import { describe, it, expect } from '@stencil/vitest';
-import WmsSource from './wms';
+import WmsResource from './wms';
 
 // The GetFeatureInfo URL is built by a protected method, so expose it for testing
-class TestWmsSource extends WmsSource {
+class TestWmsSource extends WmsResource {
   url_for(options: Parameters<TestWmsSource['inspectUrl']>[0]) {
     return new URL(this.inspectUrl(options));
   }

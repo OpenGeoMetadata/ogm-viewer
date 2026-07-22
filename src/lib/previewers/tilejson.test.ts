@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
 
-import TileJSONRasterPreviewer from './tilejson-raster';
-import TileJSONVectorPreviewer from './tilejson-vector';
-import TileJSONSource from '../sources/tilejson';
+import TileJsonRasterPreviewer from './tilejson-raster';
+import TileJsonVectorPreviewer from './tilejson-vector';
+import TileJsonResource from '../resources/tilejson';
 import type { MapLibreStyle } from '../themes/maplibre';
 
 // Just enough of a MapLibre map to record what the previewer adds
@@ -59,15 +59,15 @@ const vectorDoc = {
 // requested until the previewer asks.
 const serve = (doc: object) => {
   vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(doc)));
-  return new TileJSONSource('princeton-fk4544658v', TILEJSON_URL);
+  return new TileJsonResource('princeton-fk4544658v', TILEJSON_URL);
 };
 
 afterEach(() => vi.restoreAllMocks());
 
-describe('TileJSONRasterPreviewer#preview', () => {
+describe('TileJsonRasterPreviewer#preview', () => {
   const preview = async (doc: object) => {
     const map = new FakeMap();
-    const previewer = new TileJSONRasterPreviewer(serve(doc), map as unknown as maplibregl.Map, style);
+    const previewer = new TileJsonRasterPreviewer(serve(doc), map as unknown as maplibregl.Map, style);
     await previewer.preview();
     return { map, previewer };
   };
@@ -122,10 +122,10 @@ describe('TileJSONRasterPreviewer#preview', () => {
   });
 });
 
-describe('TileJSONVectorPreviewer#preview', () => {
+describe('TileJsonVectorPreviewer#preview', () => {
   const preview = async (doc: object) => {
     const map = new FakeMap();
-    const previewer = new TileJSONVectorPreviewer(serve(doc), map as unknown as maplibregl.Map, style);
+    const previewer = new TileJsonVectorPreviewer(serve(doc), map as unknown as maplibregl.Map, style);
     await previewer.preview();
     return { map, previewer };
   };
