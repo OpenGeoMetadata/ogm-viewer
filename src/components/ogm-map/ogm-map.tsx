@@ -8,7 +8,7 @@ import OpenIndexMapResource from '../../lib/resources/openindexmap';
 import PMTilesResource from '../../lib/resources/pmtiles';
 import RasterResource from '../../lib/resources/raster';
 import Resource from '../../lib/resources/resource';
-import TileJSONResource from '../../lib/resources/tilejson';
+import TileJsonResource from '../../lib/resources/tilejson';
 import WmsResource from '../../lib/resources/wms';
 
 import { getElement } from '../../lib/elements';
@@ -21,8 +21,8 @@ import OpenIndexMapPreviewer from '../../lib/previewers/openindexmap';
 import PMTilesRasterPreviewer from '../../lib/previewers/pmtiles-raster';
 import PMTilesVectorPreviewer from '../../lib/previewers/pmtiles-vector';
 import RasterPreviewer from '../../lib/previewers/raster';
-import TileJSONRasterPreviewer from '../../lib/previewers/tilejson-raster';
-import TileJSONVectorPreviewer from '../../lib/previewers/tilejson-vector';
+import TileJsonRasterPreviewer from '../../lib/previewers/tilejson-raster';
+import TileJsonVectorPreviewer from '../../lib/previewers/tilejson-vector';
 import WmsPreviewer from '../../lib/previewers/wms';
 import MapLibreTheme from '../../lib/themes/maplibre';
 
@@ -143,9 +143,9 @@ export class OgmMap {
     else if (this.previewResource instanceof PMTilesResource) {
       if (await this.previewResource.isVector()) return new PMTilesVectorPreviewer(this.previewResource, map, style);
       else return new PMTilesRasterPreviewer(this.previewResource, map, style);
-    } else if (this.previewResource instanceof TileJSONResource) {
-      if (await this.previewResource.isVector()) return new TileJSONVectorPreviewer(this.previewResource, map, style);
-      else return new TileJSONRasterPreviewer(this.previewResource, map, style);
+    } else if (this.previewResource instanceof TileJsonResource) {
+      if (await this.previewResource.isVector()) return new TileJsonVectorPreviewer(this.previewResource, map, style);
+      else return new TileJsonRasterPreviewer(this.previewResource, map, style);
     } else if (this.previewResource instanceof WmsResource) return new WmsPreviewer(this.previewResource, map, style);
     else if (this.previewResource instanceof CogResource) return new CogPreviewer(this.previewResource, map, style);
     else if (this.previewResource instanceof RasterResource) return new RasterPreviewer(this.previewResource, map, style);
@@ -312,7 +312,7 @@ export class OgmMap {
     return data.features.map((feature: any) => ({
       ...feature,
       geometry: feature.geometry && mercatorGeomToLngLat(feature.geometry),
-      source: this.previewer?.sourceId,
+      source: (this.previewer as WmsPreviewer).getSourceId(),
     }));
   }
 

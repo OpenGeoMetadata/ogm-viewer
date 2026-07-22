@@ -1,20 +1,17 @@
 import RasterPreviewer from './raster';
 import PMTilesResource from '../resources/pmtiles';
-import { RasterSourceSpecification } from 'maplibre-gl';
+import type { AddRasterSourceObject } from './raster';
 
 export default class PMTilesRasterPreviewer extends RasterPreviewer {
   // PMTiles sources use 'url' instead of 'tiles' and have no scheme or tileSize
-  protected async createSources(): Promise<RasterSourceSpecification[]> {
+  protected async createSources(): Promise<AddRasterSourceObject[]> {
     return [
       {
+        id: `${this.resource.id}-pmtiles`,
         type: 'raster',
         url: await this.resource.getMapLibreSourceUrl(),
       },
     ];
-  }
-
-  protected getSourceId(): string {
-    return `${this.resource.id}-pmtiles`;
   }
 
   // Raster PMTiles have bounds info in the header

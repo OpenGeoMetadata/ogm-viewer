@@ -1,9 +1,9 @@
-import type { CircleLayerSpecification, GeoJSONSource, LayerSpecification, LineLayerSpecification, MapGeoJSONFeature, RasterSourceSpecification } from 'maplibre-gl';
+import type { CircleLayerSpecification, GeoJSONSource, LayerSpecification, LineLayerSpecification, MapGeoJSONFeature } from 'maplibre-gl';
 
 import type WmsResource from '../resources/wms';
-import RasterPreviewer from './raster';
-
 import type { GetFeatureInfoOptions } from '../resources/wms';
+import type { AddRasterSourceObject } from './raster';
+import RasterPreviewer from './raster';
 
 // Contents of the highlight source when nothing is selected
 const NO_FEATURES: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
@@ -11,9 +11,10 @@ export default class WmsPreviewer extends RasterPreviewer {
   declare protected resource: WmsResource;
 
   // WMS sources have no scheme
-  protected async createSources(): Promise<RasterSourceSpecification[]> {
+  protected async createSources(): Promise<AddRasterSourceObject[]> {
     return [
       {
+        id: `${this.resource.id}-wms`,
         type: 'raster',
         tiles: [await this.resource.getMapLibreSourceUrl()],
         tileSize: this.resource.getTileSize(),
@@ -21,7 +22,7 @@ export default class WmsPreviewer extends RasterPreviewer {
     ];
   }
 
-  protected getSourceId(): string {
+  getSourceId(): string {
     return `${this.resource.id}-wms`;
   }
 
@@ -66,7 +67,7 @@ export default class WmsPreviewer extends RasterPreviewer {
 
   // Delegate inspection to the source, which makes the GetFeatureInfo request
   async inspect(options: GetFeatureInfoOptions) {
-    return await this.source.inspect(options);
+    return await this.resource.inspect(options);
   }
 
   // Tiles first, so the highlight draws over them

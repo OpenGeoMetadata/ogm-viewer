@@ -1,10 +1,17 @@
 import MapPreviewer from './map';
-import type { FillLayerSpecification, LineLayerSpecification, CircleLayerSpecification, SymbolLayerSpecification, LayerSpecification } from 'maplibre-gl';
+import type { FillLayerSpecification, LineLayerSpecification, CircleLayerSpecification, SymbolLayerSpecification, LayerSpecification, VectorSourceSpecification } from 'maplibre-gl';
 
 import type VectorResource from '../resources/vector';
 
+// MapLibre doesn't bundle the id with the source, but we need to
+export type AddVectorSourceObject = VectorSourceSpecification & { id: string };
+
 export default abstract class VectorPreviewer extends MapPreviewer {
   declare protected resource: VectorResource;
+
+  protected getSourceId(): string {
+    return this.resource.id;
+  }
 
   // Set opacity of all layers in this previewer
   async setOpacity(opacity: number) {
