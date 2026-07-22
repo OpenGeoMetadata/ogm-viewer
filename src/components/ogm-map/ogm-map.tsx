@@ -10,6 +10,7 @@ import RasterResource from '../../lib/resources/raster';
 import Resource from '../../lib/resources/resource';
 import TileJsonResource from '../../lib/resources/tilejson';
 import WmsResource from '../../lib/resources/wms';
+import WmtsResource from '../../lib/resources/wmts';
 
 import { getElement } from '../../lib/elements';
 import { referenceError, PreviewError } from '../../lib/errors';
@@ -23,6 +24,7 @@ import PMTilesVectorPreviewer from '../../lib/previewers/pmtiles-vector';
 import RasterPreviewer from '../../lib/previewers/raster';
 import TileJsonRasterPreviewer from '../../lib/previewers/tilejson-raster';
 import TileJsonVectorPreviewer from '../../lib/previewers/tilejson-vector';
+import WmtsPreviewer from '../../lib/previewers/wmts';
 import WmsPreviewer from '../../lib/previewers/wms';
 import MapLibreTheme from '../../lib/themes/maplibre';
 
@@ -148,6 +150,7 @@ export class OgmMap {
       else return new TileJsonRasterPreviewer(this.previewResource, map, style);
     } else if (this.previewResource instanceof WmsResource) return new WmsPreviewer(this.previewResource, map, style);
     else if (this.previewResource instanceof CogResource) return new CogPreviewer(this.previewResource, map, style);
+    else if (this.previewResource instanceof WmtsResource) return new WmtsPreviewer(this.previewResource, map, style);
     else if (this.previewResource instanceof RasterResource) return new RasterPreviewer(this.previewResource, map, style);
   }
 

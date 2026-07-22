@@ -1,5 +1,4 @@
 import { Component, h, Prop, State, Watch, Host } from '@stencil/core';
-
 import type OgmRecord from '../../lib/record';
 import type Resource from '../../lib/resources/resource';
 
@@ -10,6 +9,7 @@ import PMTilesResource from '../../lib/resources/pmtiles';
 import TileJsonResource from '../../lib/resources/tilejson';
 import TmsResource from '../../lib/resources/tms';
 import WmsResource from '../../lib/resources/wms';
+import WmtsResource from '../../lib/resources/wmts';
 import XyzResource from '../../lib/resources/xyz';
 import IIIFResource from '../../lib/resources/iiif';
 import IIIFManifestResource from '../../lib/resources/iiif-manifest';
@@ -46,6 +46,8 @@ export class OgmPreviews {
     if (record.references.cogUrl) this.resources.push(new CogResource(record.id, record.references.cogUrl, recordBounds));
     if (record.references.tmsUrl) this.resources.push(new TmsResource(record.id, record.references.tmsUrl, recordBounds));
     if (record.references.xyzUrl) this.resources.push(new XyzResource(record.id, record.references.xyzUrl, recordBounds));
+    if (record.references.wmtsUrl && record.wxsIdentifier)
+      this.resources.push(new WmtsResource(record.id, record.references.wmtsUrl, { layerIds: [record.wxsIdentifier] }, recordBounds));
     if (record.references.wmsUrl && record.wxsIdentifier)
       this.resources.push(new WmsResource(record.id, record.references.wmsUrl, { layerIds: [record.wxsIdentifier] }, recordBounds));
   }

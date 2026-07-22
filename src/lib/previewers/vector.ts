@@ -1,5 +1,12 @@
 import MapPreviewer from './map';
-import type { FillLayerSpecification, LineLayerSpecification, CircleLayerSpecification, SymbolLayerSpecification, LayerSpecification, VectorSourceSpecification } from 'maplibre-gl';
+import type {
+  FillLayerSpecification,
+  LineLayerSpecification,
+  CircleLayerSpecification,
+  SymbolLayerSpecification,
+  LayerSpecification,
+  VectorSourceSpecification,
+} from 'maplibre-gl';
 
 import type VectorResource from '../resources/vector';
 
