@@ -109,6 +109,7 @@ After tagging, build the project and publish it to npm:
 
 ```bash
 npm run build
+npm login
 npm publish
 ```
 
