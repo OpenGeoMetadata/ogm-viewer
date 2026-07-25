@@ -11,7 +11,8 @@ import Source from '../../lib/sources/source';
 import WmsSource from '../../lib/sources/wms';
 
 import { getElement } from '../../lib/elements';
-import { referenceError, type PreviewError } from '../../lib/errors';
+import { referenceError, PreviewError } from '../../lib/errors';
+import { mercatorBbox, mercatorGeomToLngLat } from '../../lib/geometry';
 import CogPreviewer from '../../lib/previewers/cog';
 import GeoJSONPreviewer from '../../lib/previewers/geojson';
 import MapLibrePreviewer from '../../lib/previewers/maplibre';
@@ -25,6 +26,14 @@ import MapLibreTheme from '../../lib/themes/maplibre';
 // Register PMTiles protocol
 const protocol = new PMTilesProtocol();
 maplibregl.addProtocol('pmtiles', protocol.tile);
+
+// Size in CSS pixels of the window we ask a WMS about when inspecting. GetFeatureInfo
+// locates a click by mapping a pixel grid onto a bbox, which assumes the view is a
+// flat, north-up rectangle - but ours can be rotated, pitched, or drawn as a globe. So
+// we describe a small window around the click rather than the whole viewport, which
+// keeps that assumption true to within a fraction of a pixel. Odd, so the clicked pixel
+// is the exact center of the window.
+const WMS_QUERY_WINDOW = 51;
 
 @Component({
   tag: 'ogm-map',
@@ -220,7 +229,14 @@ export class OgmMap {
 
   // Use the crosshair cursor if there's something to inspect
   protected handleHover(event: maplibregl.MapMouseEvent) {
+    // Always use it for WMS, since we don't know until we make the request
+    if (this.previewer instanceof WmsPreviewer) {
+      this.map.getCanvas().style.cursor = 'crosshair';
+      return;
+    }
+
     const features = this.map.queryRenderedFeatures(event.point, { layers: this.previewLayers });
+
     if (features.length > 0) {
       this.map.getCanvas().style.cursor = 'crosshair';
       this.hoverFeature(features[0]);
@@ -231,19 +247,67 @@ export class OgmMap {
   }
 
   // Show the attributes popup on click
-  protected handleClick(event: maplibregl.MapMouseEvent) {
+  protected async handleClick(event: maplibregl.MapMouseEvent) {
     // Clear any existing popup and feature selection
     this.clearFeatureSelection();
     this.destroyPopup();
 
-    // Check if we have feature(s) to inspect at the clicked point
-    const features = this.map.queryRenderedFeatures(event.point, { layers: this.previewLayers });
+    // Get the features, if any, at the clicked point. If none, do nothing.
+    const features = await this.handleInspection(event.point);
     if (features.length === 0) return;
 
     // Create and populate the attributes popup and select the first feature if multiple
     this.attributesEl.features = features;
     this.createPopup(event.lngLat);
     this.selectFeature(features[0]);
+  }
+
+  // Handle inspection of features, delegating to previewer if WMS
+  protected async handleInspection(point: maplibregl.Point): Promise<maplibregl.MapGeoJSONFeature[]> {
+    if (!this.previewer) return [];
+
+    let features: maplibregl.MapGeoJSONFeature[] = [];
+    if (this.previewer instanceof WmsPreviewer) {
+      features = await this.handleWmsInspection(point);
+    } else {
+      features = this.map.queryRenderedFeatures(point, { layers: this.previewLayers });
+    }
+    return features;
+  }
+
+  // Special handling for WMS inspection, which requires a GetFeatureInfo request
+  protected async handleWmsInspection(point: maplibregl.Point): Promise<maplibregl.MapGeoJSONFeature[]> {
+    if (!(this.previewer instanceof WmsPreviewer)) return [];
+
+    // Corners of the query window, in the same CSS pixel space as the click. Let
+    // MapLibre unproject them so the geography stays right under any projection, then
+    // take their EPSG:3857 envelope, since that is the CRS we request.
+    const half = (WMS_QUERY_WINDOW - 1) / 2;
+    const corners = [
+      [point.x - half, point.y - half],
+      [point.x + half, point.y - half],
+      [point.x + half, point.y + half],
+      [point.x - half, point.y + half],
+    ].map(([x, y]) => this.map.unproject([x, y]));
+
+    const response = await this.previewer.inspect({
+      bbox: mercatorBbox(corners),
+      width: WMS_QUERY_WINDOW,
+      height: WMS_QUERY_WINDOW,
+      x: half,
+      y: half,
+    });
+
+    if (!response.ok) throw new PreviewError(`WMS GetFeatureInfo request failed with status ${response.status}`);
+
+    const data = await response.json();
+    if (!data || !data.features || !Array.isArray(data.features)) return [];
+
+    return data.features.map((feature: any) => ({
+      ...feature,
+      geometry: feature.geometry && mercatorGeomToLngLat(feature.geometry),
+      source: this.previewer?.sourceId,
+    }));
   }
 
   // Listen to selection events from the popup and highlight the selected feature
@@ -256,14 +320,24 @@ export class OgmMap {
 
   // Reset styling of all features to unselected state
   protected clearFeatureSelection() {
-    this.attributesEl.features.forEach(feature => {
-      this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, { selected: false });
-    });
+    if (this.previewer instanceof WmsPreviewer) {
+      this.previewer.clearHighlight();
+    } else {
+      this.attributesEl.features.forEach(feature => {
+        this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, { selected: false });
+      });
+    }
     this.attributesEl.features = [];
   }
 
   // Set styling of a single feature to selected state
   protected selectFeature(feature: maplibregl.MapGeoJSONFeature) {
+    // A WMS raster has no client-side features to restyle, so the previewer outlines the
+    // geometry that GetFeatureInfo returned instead
+    if (this.previewer instanceof WmsPreviewer) {
+      this.previewer.highlightFeatures([feature]);
+      return;
+    }
     this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, { selected: true });
   }
 
