@@ -8,6 +8,7 @@ import OpenIndexMapSource from '../../lib/sources/openindexmap';
 import PMTilesSource from '../../lib/sources/pmtiles';
 import RasterSource from '../../lib/sources/raster';
 import Source from '../../lib/sources/source';
+import TileJSONSource from '../../lib/sources/tilejson';
 import WmsSource from '../../lib/sources/wms';
 
 import { getElement } from '../../lib/elements';
@@ -20,6 +21,8 @@ import OpenIndexMapPreviewer from '../../lib/previewers/openindexmap';
 import PMTilesRasterPreviewer from '../../lib/previewers/pmtiles-raster';
 import PMTilesVectorPreviewer from '../../lib/previewers/pmtiles-vector';
 import RasterPreviewer from '../../lib/previewers/raster';
+import TileJSONRasterPreviewer from '../../lib/previewers/tilejson-raster';
+import TileJSONVectorPreviewer from '../../lib/previewers/tilejson-vector';
 import WmsPreviewer from '../../lib/previewers/wms';
 import MapLibreTheme from '../../lib/themes/maplibre';
 
@@ -140,6 +143,9 @@ export class OgmMap {
     else if (this.source instanceof PMTilesSource) {
       if (await this.source.isVector()) return new PMTilesVectorPreviewer(this.source, map, style);
       else return new PMTilesRasterPreviewer(this.source, map, style);
+    } else if (this.source instanceof TileJSONSource) {
+      if (await this.source.isVector()) return new TileJSONVectorPreviewer(this.source, map, style);
+      else return new TileJSONRasterPreviewer(this.source, map, style);
     } else if (this.source instanceof WmsSource) return new WmsPreviewer(this.source, map, style);
     else if (this.source instanceof CogSource) return new CogPreviewer(this.source, map, style);
     else if (this.source instanceof RasterSource) return new RasterPreviewer(this.source, map, style);

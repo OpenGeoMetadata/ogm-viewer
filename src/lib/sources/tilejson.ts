@@ -1,4 +1,5 @@
-import Source from './source';
+import MapLibreSource from './maplibre';
+import { fetchOrThrow } from '../errors';
 
 // A single vector layer in a TileJSON tileset
 interface VectorLayer {
@@ -6,7 +7,7 @@ interface VectorLayer {
 }
 
 // Vector or raster tileset described in a TileJSON document at a URL
-export default class TileJSONSource extends Source {
+export default class TileJSONSource extends MapLibreSource {
   // Metadata parsed from TileJSON document
   private metadata: any;
 
@@ -17,7 +18,7 @@ export default class TileJSONSource extends Source {
   // Fetch and memoize metadata
   protected async getMetadata() {
     if (!this.metadata) {
-      const resp = await fetch(this.url);
+      const resp = await fetchOrThrow(this.url);
       this.metadata = await resp.json();
     }
     return this.metadata;
@@ -31,14 +32,24 @@ export default class TileJSONSource extends Source {
     return pathname.endsWith('.pbf') || pathname.endsWith('.mvt') || pathname.endsWith('.mlt');
   }
 
-  // Used to zoom the map to the data once loaded
+  // Used to zoom the map to the data once loaded; bounds are optional in TileJSON, and
+  // without them we leave the camera wherever it already is
   async getBounds() {
     if (this.bounds) return this.bounds;
     const metadata = await this.getMetadata();
+    if (!metadata.bounds) return undefined;
     return [
       [metadata.bounds[0], metadata.bounds[1]],
       [metadata.bounds[2], metadata.bounds[3]],
     ] as [[number, number], [number, number]];
+  }
+
+  // TileJSON has no tileSize of its own, though some services add one to the document. Raster
+  // tiles served from a {z}/{x}/{y} template are 256px by convention, so assume that otherwise;
+  // MapLibre would default to 512 and draw them upscaled and blurry.
+  async getTileSize(): Promise<number> {
+    const metadata = await this.getMetadata();
+    return metadata.tileSize ?? 256;
   }
 
   async getVectorLayers() {
