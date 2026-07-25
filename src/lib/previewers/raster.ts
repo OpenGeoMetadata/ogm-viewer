@@ -1,4 +1,4 @@
-import type { RasterSourceSpecification, RasterLayerSpecification } from 'maplibre-gl';
+import type { RasterSourceSpecification, LayerSpecification } from 'maplibre-gl';
 
 import MapLibrePreviewer from './maplibre';
 import type RasterSource from '../sources/raster';
@@ -19,8 +19,8 @@ export default class RasterPreviewer extends MapLibrePreviewer {
     return `${this.source.id}-${this.source.getScheme()}`;
   }
 
-  // Rasters only have one layer
-  protected async createLayers(): Promise<RasterLayerSpecification[]> {
+  // Rasters only have one layer of their own; subclasses may add companion layers after it
+  protected async createLayers(): Promise<LayerSpecification[]> {
     return [
       {
         id: this.getSourceId(),

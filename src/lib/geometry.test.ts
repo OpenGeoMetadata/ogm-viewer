@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from '@stencil/vitest';
 import { LngLatBounds } from 'maplibre-gl';
-import { bboxToBounds, boundsToGeoJSON, geomToGeoJSON } from './geometry';
+import { bboxToBounds, boundsToGeoJSON, geomToGeoJSON, lngLatToMercator, mercatorBbox, mercatorGeomToLngLat, mercatorToLngLat } from './geometry';
 
 describe('geomToGeoJSON', () => {
   it('should convert WKT to GeoJSON', () => {
@@ -75,5 +75,108 @@ describe('boundsToGeoJSON', () => {
         ],
       ],
     });
+  });
+});
+
+describe('lngLatToMercator', () => {
+  it('should put the null island at the origin', () => {
+    expect(lngLatToMercator([0, 0])).toEqual([0, 0]);
+  });
+
+  it('should convert degrees to EPSG:3857 meters', () => {
+    const [x, y] = lngLatToMercator([-120.99553605196368, 37.83228807647538]);
+    expect(x).toBeCloseTo(-13469161.46, 1);
+    expect(y).toBeCloseTo(4555760.76, 1);
+  });
+
+  it('should count north and east as positive', () => {
+    const [x, y] = lngLatToMercator([120, 60]);
+    expect(x).toBeGreaterThan(0);
+    expect(y).toBeGreaterThan(0);
+  });
+});
+
+describe('mercatorBbox', () => {
+  it('should envelope the coordinates as minx,miny,maxx,maxy', () => {
+    // Corners of a query window, in the arbitrary order they were unprojected in
+    const bbox = mercatorBbox([
+      [-120.9, 38.5],
+      [-120.0, 38.5],
+      [-120.0, 37.8],
+      [-120.9, 37.8],
+    ]);
+
+    const [minX, minY, maxX, maxY] = bbox.split(',').map(Number);
+    expect(minX).toBeLessThan(maxX);
+    expect(minY).toBeLessThan(maxY);
+    expect([minX, minY]).toEqual(lngLatToMercator([-120.9, 37.8]));
+    expect([maxX, maxY]).toEqual(lngLatToMercator([-120.0, 38.5]));
+  });
+});
+
+describe('mercatorToLngLat', () => {
+  it('should place the origin at null island', () => {
+    expect(mercatorToLngLat([0, 0])).toEqual([0, 0]);
+  });
+
+  it('should invert lngLatToMercator', () => {
+    const [lng, lat] = mercatorToLngLat(lngLatToMercator([-120.99553605196368, 37.83228807647538]));
+    expect(lng).toBeCloseTo(-120.99553605196368, 9);
+    expect(lat).toBeCloseTo(37.83228807647538, 9);
+  });
+
+  it('should convert a coordinate a WMS returned in EPSG:3857 meters', () => {
+    // A vertex of a Calaveras County tract, as GeoServer reported it
+    const [lng, lat] = mercatorToLngLat([-13402032.01418895, 4622299.14920388]);
+    expect(lng).toBeCloseTo(-120.39250196605, 6);
+    expect(lat).toBeCloseTo(38.30286413751, 6);
+  });
+});
+
+describe('mercatorGeomToLngLat', () => {
+  it('should reproject a point', () => {
+    const geometry = mercatorGeomToLngLat({ type: 'Point', coordinates: lngLatToMercator([-120.5, 38.2]) });
+    expect(geometry.type).toEqual('Point');
+    expect((geometry as GeoJSON.Point).coordinates[0]).toBeCloseTo(-120.5, 9);
+    expect((geometry as GeoJSON.Point).coordinates[1]).toBeCloseTo(38.2, 9);
+  });
+
+  it('should reproject every ring of a nested geometry', () => {
+    const ring: [number, number][] = [
+      [-120.9, 38.5],
+      [-120.0, 38.5],
+      [-120.0, 37.8],
+      [-120.9, 38.5],
+    ];
+    const geometry = mercatorGeomToLngLat({
+      type: 'MultiPolygon',
+      coordinates: [[ring.map(lngLatToMercator)]],
+    }) as GeoJSON.MultiPolygon;
+
+    expect(geometry.type).toEqual('MultiPolygon');
+    geometry.coordinates[0][0].forEach(([lng, lat], index) => {
+      expect(lng).toBeCloseTo(ring[index][0], 9);
+      expect(lat).toBeCloseTo(ring[index][1], 9);
+    });
+  });
+
+  it('should reproject the members of a geometry collection', () => {
+    const geometry = mercatorGeomToLngLat({
+      type: 'GeometryCollection',
+      geometries: [
+        { type: 'Point', coordinates: [0, 0] },
+        { type: 'LineString', coordinates: [lngLatToMercator([-120.5, 38.2]), lngLatToMercator([-120.4, 38.3])] },
+      ],
+    }) as GeoJSON.GeometryCollection;
+
+    expect(geometry.geometries).toHaveLength(2);
+    expect((geometry.geometries[0] as GeoJSON.Point).coordinates).toEqual([0, 0]);
+    expect((geometry.geometries[1] as GeoJSON.LineString).coordinates[1][0]).toBeCloseTo(-120.4, 9);
+  });
+
+  it('should leave the original geometry untouched', () => {
+    const original: GeoJSON.Point = { type: 'Point', coordinates: [-13402032.01418895, 4622299.14920388] };
+    mercatorGeomToLngLat(original);
+    expect(original.coordinates).toEqual([-13402032.01418895, 4622299.14920388]);
   });
 });
