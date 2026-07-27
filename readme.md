@@ -98,7 +98,7 @@ For more information on testing, see the [Stencil documentation](https://stencil
 
 ### Releasing
 
-To publish a new version, update the version in `package.json` and commit your changes. Then create a release tag:
+To publish a new version, update the version in `package.json`, run `npm install`, and commit your changes. Then create a release tag:
 
 ```bash
 git tag vX.Y.Z # replace with your new version number
