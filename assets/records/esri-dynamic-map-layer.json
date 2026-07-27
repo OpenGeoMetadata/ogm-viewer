@@ -1,0 +1,30 @@
+{
+  "dct_title_s": "Glacial Boundaries: Illinois, 1998",
+  "dct_alternative_sm": ["esri-dynamic-map-layer"],
+  "dct_description_sm": [
+    "Points at the top level of an ArcGIS MapServer, which draws the layers it publishes as visible. The same service is also referenced as an ArcGIS WMS, so this record previews both ways.",
+    "Glacial boundary lines representing the extent of glaciation for major glacial episodes in Illinois. Data originally from the Quaternary Deposits in Illinois map by Lineback (1979) and modified according to the reclassification by Hansel and Johnson, ISGS Bulletin 104 (1996). Attribute items include glacial episode identifier."
+  ],
+  "dct_language_sm": ["eng"],
+  "dct_creator_sm": ["Illinois State Geological Survey"],
+  "dct_publisher_sm": ["Illinois State Geological Survey"],
+  "schema_provider_s": "University of Illinois Urbana-Champaign",
+  "gbl_resourceClass_sm": ["Datasets", "Web services"],
+  "gbl_resourceType_sm": ["Polygon data"],
+  "dcat_theme_sm": ["Geology"],
+  "dcat_keyword_sm": ["ogm-viewer fixture records"],
+  "dct_temporal_sm": ["1998"],
+  "gbl_indexYear_im": [1998],
+  "gbl_dateRange_drsim": ["[1998 TO 1998]"],
+  "dct_spatial_sm": ["Illinois"],
+  "locn_geometry": "ENVELOPE(-91.513518,-87.495214,42.508348,36.969972)",
+  "dcat_bbox": "ENVELOPE(-91.513518,-87.495214,42.508348,36.969972)",
+  "dcat_centroid": "39.73916,-89.504366",
+  "dct_accessRights_s": "Public",
+  "dct_format_s": "Shapefile",
+  "gbl_wxsIdentifier_s": "0",
+  "dct_references_s": "{\"http://schema.org/url\":\"https://clearinghouse.isgs.illinois.edu/data/geology/glacial-boundaries\",\"urn:x-esri:serviceType:ArcGIS#DynamicMapLayer\":\"https://data.isgs.illinois.edu/arcgis/rest/services/Geology/Glacial_Boundaries/MapServer\",\"http://www.opengis.net/def/serviceType/ogc/wms\":\"https://data.isgs.illinois.edu/arcgis/services/Geology/Glacial_Boundaries/MapServer/WMSServer\"}",
+  "id": "esri-dynamic-map-layer",
+  "dct_identifier_sm": ["esri-dynamic-map-layer"],
+  "gbl_mdVersion_s": "Aardvark"
+}

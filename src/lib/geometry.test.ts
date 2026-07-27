@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from '@stencil/vitest';
 import { LngLatBounds } from 'maplibre-gl';
-import { bboxToBounds, boundsToGeoJSON, geomToGeoJSON, lngLatToMercator, mercatorBbox, mercatorGeomToLngLat, mercatorToLngLat } from './geometry';
+import { bboxToBounds, boundsToGeoJSON, geomToGeoJSON, lngLatToMercator, mercatorBbox, mercatorGeomToLngLat, mercatorToLngLat, pixelWindowCenter } from './geometry';
 
 describe('geomToGeoJSON', () => {
   it('should convert WKT to GeoJSON', () => {
@@ -178,5 +178,29 @@ describe('mercatorGeomToLngLat', () => {
     const original: GeoJSON.Point = { type: 'Point', coordinates: [-13402032.01418895, 4622299.14920388] };
     mercatorGeomToLngLat(original);
     expect(original.coordinates).toEqual([-13402032.01418895, 4622299.14920388]);
+  });
+});
+
+describe('pixelWindowCenter', () => {
+  // A 51x51 window spanning 510 meters, so each pixel is ten meters across
+  const window = { bbox: '-10000,0,-9490,510', width: 51, height: 51, x: 25, y: 25 };
+
+  it('should find the coordinate at the middle of the named pixel', () => {
+    // Pixel 25 of 51 is the middle one, so its center sits 255m in from each edge
+    expect(pixelWindowCenter(window)).toEqual({ x: -9745, y: 255, resolution: 10 });
+  });
+
+  it('should count rows down from the top edge, the way a screen does', () => {
+    expect(pixelWindowCenter({ ...window, y: 0 }).y).toEqual(505);
+    expect(pixelWindowCenter({ ...window, y: 50 }).y).toEqual(5);
+  });
+
+  it('should count columns right from the left edge', () => {
+    expect(pixelWindowCenter({ ...window, x: 0 }).x).toEqual(-9995);
+    expect(pixelWindowCenter({ ...window, x: 50 }).x).toEqual(-9495);
+  });
+
+  it('should report the pixel size, which is the finest detail worth drawing back', () => {
+    expect(pixelWindowCenter({ ...window, width: 255, height: 255 }).resolution).toEqual(2);
   });
 });

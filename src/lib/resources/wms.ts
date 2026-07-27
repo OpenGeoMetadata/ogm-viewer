@@ -1,5 +1,6 @@
 import { type LngLatBoundsLike } from 'maplibre-gl';
 import RasterResource from './raster';
+import type { PixelWindow } from '../geometry';
 
 // Base params for WMS GetMap requests, which return raster tiles
 type WmsOptions = {
@@ -8,24 +9,26 @@ type WmsOptions = {
   crs?: string;
   tileSize?: number;
   format?: string;
+  styles?: string;
   transparent?: boolean;
   version?: string;
+  infoFormat?: string;
 };
 
-// Additional required params when making a WMS GetFeatureInfo request. The bbox and
-// the pixel grid describe each other: the grid is width x height pixels covering the
-// bbox, and x,y picks the pixel in it to ask about.
-export type GetFeatureInfoOptions = {
-  bbox: string; // minx,miny,maxx,maxy in EPSG:3857 meters
-  width: number; // grid width in pixels
-  height: number; // grid height in pixels
-  x: number; // column to inspect, counted from the left edge
-  y: number; // row to inspect, counted from the top edge
-};
+// The window a GetFeatureInfo request asks about; see PixelWindow for what it describes
+export type GetFeatureInfoOptions = PixelWindow;
 
 // Number of features to ask for when inspecting; the spec defaults this to 1, which
 // hides everything under the cursor but the topmost feature
 const DEFAULT_FEATURE_COUNT = 10;
+
+// GeoJSON info formats, in the order we'd rather have them. All three name the same thing, but a
+// server only answers to the spellings it publishes: ArcGIS takes the OGC-registered one alone,
+// while GeoServer has answered to 'application/json' since long before that was registered.
+const GEOJSON_INFO_FORMATS = ['application/geo+json', 'application/vnd.geo+json', 'application/json'];
+
+// Used when the capabilities document can't be read to find out which formats a server takes
+const DEFAULT_INFO_FORMAT = 'application/json';
 
 const defaultWmsOptions: WmsOptions = {
   layerIds: [],
@@ -33,6 +36,10 @@ const defaultWmsOptions: WmsOptions = {
   crs: 'EPSG:3857',
   tileSize: 256,
   format: 'image/png',
+
+  // Draw every layer with the style the server publishes it with. The spec makes this param
+  // required, and while GeoServer lets it go missing, ArcGIS refuses the request without it.
+  styles: '',
   transparent: true,
   version: '1.3.0',
 };
@@ -82,7 +89,27 @@ export default class WmsResource extends RasterResource {
   }
 
   async inspect(options: GetFeatureInfoOptions) {
-    return await fetch(this.inspectUrl(options));
+    return await fetch(await this.inspectUrl(options));
+  }
+
+  // The info format to ask GetFeatureInfo for. A server rejects the whole request over a format it
+  // doesn't publish, so read the capabilities and pick one it does.
+  protected async getInfoFormat(): Promise<string> {
+    if (this.options.infoFormat) return this.options.infoFormat;
+
+    let supported: string | undefined;
+    try {
+      const metadata = await this.getMetadata();
+      const formats = Array.from(metadata.querySelectorAll('GetFeatureInfo > Format')).map(element => element.textContent?.trim());
+      supported = GEOJSON_INFO_FORMATS.find(format => formats.includes(format));
+    } catch (error) {
+      console.warn(`Could not read the supported info formats from ${this.capabilitiesUrl}:`, error);
+    }
+
+    // Settle on a format either way, so a server that publishes none of them - or whose
+    // capabilities can't be read at all - isn't asked again on every click
+    this.options.infoFormat = supported ?? DEFAULT_INFO_FORMAT;
+    return this.options.infoFormat;
   }
 
   // WMS GetMap URL that will fetch tiles for this source
@@ -99,6 +126,7 @@ export default class WmsResource extends RasterResource {
     tilesUrl.searchParams.set('transparent', String(this.options.transparent));
     tilesUrl.searchParams.set(this.isVersion130 ? 'crs' : 'srs', this.options.crs as string);
     tilesUrl.searchParams.set('format', this.options.format as string);
+    tilesUrl.searchParams.set('styles', this.options.styles as string);
     tilesUrl.searchParams.set('version', this.options.version as string);
 
     // This param can't be encoded because MapLibre needs to template it
@@ -109,7 +137,7 @@ export default class WmsResource extends RasterResource {
   }
 
   // WMS GetFeatureInfo URL, used to fetch information about features at a specific point
-  protected inspectUrl(inspectOptions: GetFeatureInfoOptions) {
+  protected async inspectUrl(inspectOptions: GetFeatureInfoOptions) {
     const inspectUrl = new URL(this.url);
 
     // Merge the provided options with the instance's options
@@ -117,9 +145,10 @@ export default class WmsResource extends RasterResource {
 
     inspectUrl.searchParams.set('service', 'WMS');
     inspectUrl.searchParams.set('request', 'GetFeatureInfo');
-    inspectUrl.searchParams.set('info_format', 'application/json');
+    inspectUrl.searchParams.set('info_format', await this.getInfoFormat());
     inspectUrl.searchParams.set('layers', options.layerIds.join(','));
     inspectUrl.searchParams.set('query_layers', options.layerIds.join(','));
+    inspectUrl.searchParams.set('styles', options.styles as string);
     inspectUrl.searchParams.set('version', options.version as string);
     inspectUrl.searchParams.set('bbox', options.bbox as string);
     inspectUrl.searchParams.set('width', String(options.width));

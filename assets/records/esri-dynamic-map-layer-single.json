@@ -1,0 +1,28 @@
+{
+  "dct_title_s": "Glacial Boundaries (single layer): Illinois, 1998",
+  "dct_alternative_sm": ["esri-dynamic-map-layer-single"],
+  "dct_description_sm": [
+    "Points at one layer inside an ArcGIS MapServer by ending the reference URL with its layer ID, so only that layer is drawn.",
+    "Glacial boundary lines representing the extent of glaciation for major glacial episodes in Illinois. Click a boundary to identify it."
+  ],
+  "dct_language_sm": ["eng"],
+  "dct_creator_sm": ["Illinois State Geological Survey"],
+  "dct_publisher_sm": ["Illinois State Geological Survey"],
+  "schema_provider_s": "University of Illinois Urbana-Champaign",
+  "gbl_resourceClass_sm": ["Datasets", "Web services"],
+  "gbl_resourceType_sm": ["Polygon data"],
+  "dcat_theme_sm": ["Geology"],
+  "dcat_keyword_sm": ["ogm-viewer fixture records"],
+  "dct_temporal_sm": ["1998"],
+  "gbl_indexYear_im": [1998],
+  "dct_spatial_sm": ["Illinois"],
+  "locn_geometry": "ENVELOPE(-91.513518,-87.495214,42.508348,36.969972)",
+  "dcat_bbox": "ENVELOPE(-91.513518,-87.495214,42.508348,36.969972)",
+  "dcat_centroid": "39.73916,-89.504366",
+  "dct_accessRights_s": "Public",
+  "dct_format_s": "Shapefile",
+  "dct_references_s": "{\"http://schema.org/url\":\"https://clearinghouse.isgs.illinois.edu/data/geology/glacial-boundaries\",\"urn:x-esri:serviceType:ArcGIS#DynamicMapLayer\":\"https://data.isgs.illinois.edu/arcgis/rest/services/Geology/Glacial_Boundaries/MapServer/0\"}",
+  "id": "esri-dynamic-map-layer-single",
+  "dct_identifier_sm": ["esri-dynamic-map-layer-single"],
+  "gbl_mdVersion_s": "Aardvark"
+}

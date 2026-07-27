@@ -1,0 +1,26 @@
+{
+  "dct_title_s": "NAIP Aerial Imagery: Iowa",
+  "dct_alternative_sm": ["esri-image-map-layer"],
+  "dct_description_sm": [
+    "Points at an ArcGIS ImageServer, which renders imagery on demand at the extent the map asks for. Click anywhere to read the pixel under the cursor.",
+    "National Agriculture Imagery Program (NAIP) leaf-on aerial photography of the conterminous United States, collected during the agricultural growing season. This record is framed on farmland outside Des Moines, Iowa."
+  ],
+  "dct_language_sm": ["eng"],
+  "dct_creator_sm": ["United States Department of Agriculture", "United States Geological Survey"],
+  "dct_publisher_sm": ["United States Geological Survey"],
+  "schema_provider_s": "The National Map",
+  "gbl_resourceClass_sm": ["Imagery", "Web services"],
+  "gbl_resourceType_sm": ["Aerial photographs"],
+  "dcat_theme_sm": ["Imagery"],
+  "dcat_keyword_sm": ["ogm-viewer fixture records", "Aerial photography"],
+  "dct_spatial_sm": ["Iowa"],
+  "locn_geometry": "ENVELOPE(-93.6943,-93.6045,41.9935,41.9267)",
+  "dcat_bbox": "ENVELOPE(-93.6943,-93.6045,41.9935,41.9267)",
+  "dcat_centroid": "41.9601,-93.6494",
+  "dct_accessRights_s": "Public",
+  "dct_format_s": "Image Service",
+  "dct_references_s": "{\"http://schema.org/url\":\"https://www.usgs.gov/programs/national-geospatial-program/national-map\",\"urn:x-esri:serviceType:ArcGIS#ImageMapLayer\":\"https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPPlus/ImageServer\"}",
+  "id": "esri-image-map-layer",
+  "dct_identifier_sm": ["esri-image-map-layer"],
+  "gbl_mdVersion_s": "Aardvark"
+}

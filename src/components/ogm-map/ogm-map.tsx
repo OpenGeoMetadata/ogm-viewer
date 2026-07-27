@@ -3,6 +3,10 @@ import maplibregl from 'maplibre-gl';
 import { Protocol as PMTilesProtocol } from 'pmtiles';
 
 import CogResource from '../../lib/resources/cog';
+import EsriDynamicMapLayerResource from '../../lib/resources/esri-dynamic-map-layer';
+import EsriFeatureLayerResource from '../../lib/resources/esri-feature-layer';
+import EsriImageMapLayerResource from '../../lib/resources/esri-image-map-layer';
+import EsriTiledMapLayerResource from '../../lib/resources/esri-tiled-map-layer';
 import GeoJsonResource from '../../lib/resources/geojson';
 import OpenIndexMapResource from '../../lib/resources/openindexmap';
 import PMTilesResource from '../../lib/resources/pmtiles';
@@ -13,10 +17,15 @@ import WmsResource from '../../lib/resources/wms';
 import WmtsResource from '../../lib/resources/wmts';
 
 import { getElement } from '../../lib/elements';
-import { referenceError, PreviewError } from '../../lib/errors';
-import { mercatorBbox, mercatorGeomToLngLat } from '../../lib/geometry';
+import { referenceError, type PreviewError } from '../../lib/errors';
+import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
 import CogPreviewer from '../../lib/previewers/cog';
+import EsriDynamicMapLayerPreviewer from '../../lib/previewers/esri-dynamic-map-layer';
+import EsriFeatureLayerPreviewer from '../../lib/previewers/esri-feature-layer';
+import EsriImageMapLayerPreviewer from '../../lib/previewers/esri-image-map-layer';
+import EsriTiledMapLayerPreviewer from '../../lib/previewers/esri-tiled-map-layer';
 import GeoJsonPreviewer from '../../lib/previewers/geojson';
+import InspectableRasterPreviewer from '../../lib/previewers/inspectable-raster';
 import MapPreviewer from '../../lib/previewers/map';
 import OpenIndexMapPreviewer from '../../lib/previewers/openindexmap';
 import PMTilesRasterPreviewer from '../../lib/previewers/pmtiles-raster';
@@ -32,13 +41,12 @@ import MapLibreTheme from '../../lib/themes/maplibre';
 const protocol = new PMTilesProtocol();
 maplibregl.addProtocol('pmtiles', protocol.tile);
 
-// Size in CSS pixels of the window we ask a WMS about when inspecting. GetFeatureInfo
-// locates a click by mapping a pixel grid onto a bbox, which assumes the view is a
-// flat, north-up rectangle - but ours can be rotated, pitched, or drawn as a globe. So
-// we describe a small window around the click rather than the whole viewport, which
-// keeps that assumption true to within a fraction of a pixel. Odd, so the clicked pixel
-// is the exact center of the window.
-const WMS_QUERY_WINDOW = 51;
+// Size in CSS pixels of the window we ask a server about when inspecting. WMS and ArcGIS both
+// locate a click by mapping a pixel grid onto a bbox, which assumes the view is a flat, north-up
+// rectangle - but ours can be rotated, pitched, or drawn as a globe. So we describe a small window
+// around the click rather than the whole viewport, which keeps that assumption true to within a
+// fraction of a pixel. Odd, so the clicked pixel is the exact center of the window.
+const QUERY_WINDOW = 51;
 
 @Component({
   tag: 'ogm-map',
@@ -141,6 +149,8 @@ export class OgmMap {
   protected async getMapPreviewer(map: maplibregl.Map) {
     const style = this.mapTheme.getStyle();
     if (this.previewResource instanceof OpenIndexMapResource) return new OpenIndexMapPreviewer(this.previewResource, map, style);
+    // Checked ahead of GeoJsonResource, which it extends
+    else if (this.previewResource instanceof EsriFeatureLayerResource) return new EsriFeatureLayerPreviewer(this.previewResource, map, style);
     else if (this.previewResource instanceof GeoJsonResource) return new GeoJsonPreviewer(this.previewResource, map, style);
     else if (this.previewResource instanceof PMTilesResource) {
       if (await this.previewResource.isVector()) return new PMTilesVectorPreviewer(this.previewResource, map, style);
@@ -151,6 +161,9 @@ export class OgmMap {
     } else if (this.previewResource instanceof WmsResource) return new WmsPreviewer(this.previewResource, map, style);
     else if (this.previewResource instanceof CogResource) return new CogPreviewer(this.previewResource, map, style);
     else if (this.previewResource instanceof WmtsResource) return new WmtsPreviewer(this.previewResource, map, style);
+    else if (this.previewResource instanceof EsriTiledMapLayerResource) return new EsriTiledMapLayerPreviewer(this.previewResource, map, style);
+    else if (this.previewResource instanceof EsriDynamicMapLayerResource) return new EsriDynamicMapLayerPreviewer(this.previewResource, map, style);
+    else if (this.previewResource instanceof EsriImageMapLayerResource) return new EsriImageMapLayerPreviewer(this.previewResource, map, style);
     else if (this.previewResource instanceof RasterResource) return new RasterPreviewer(this.previewResource, map, style);
   }
 
@@ -238,9 +251,10 @@ export class OgmMap {
 
   // Use the crosshair cursor if there's something to inspect
   protected handleHover(event: maplibregl.MapMouseEvent) {
-    // Always use it for WMS, since we don't know until we make the request
-    if (this.previewer instanceof WmsPreviewer) {
-      this.map.getCanvas().style.cursor = 'crosshair';
+    // A server-drawn preview has no client-side features to test the cursor against, so offer to
+    // inspect anywhere as long as the server will answer at all
+    if (this.previewer instanceof InspectableRasterPreviewer) {
+      this.map.getCanvas().style.cursor = this.previewer.canInspect ? 'crosshair' : '';
       return;
     }
 
@@ -261,8 +275,12 @@ export class OgmMap {
     this.clearFeatureSelection();
     this.destroyPopup();
 
-    // Get the features, if any, at the clicked point. If none, do nothing.
-    const features = await this.handleInspection(event.point);
+    // Get the features, if any, at the clicked point. If none, do nothing. A failed request means
+    // this one click went unanswered, not that the preview is broken, so it stays out of the alerts.
+    const features = await this.handleInspection(event.point).catch(error => {
+      console.error(`Error inspecting ${this.previewResource?.url}:`, error);
+      return [];
+    });
     if (features.length === 0) return;
 
     // Create and populate the attributes popup and select the first feature if multiple
@@ -271,27 +289,24 @@ export class OgmMap {
     this.selectFeature(features[0]);
   }
 
-  // Handle inspection of features, delegating to previewer if WMS
+  // Handle inspection of features, asking the server about the click when the preview is one it
+  // drew for us, and reading the rendered features directly when it isn't
   protected async handleInspection(point: maplibregl.Point): Promise<maplibregl.MapGeoJSONFeature[]> {
     if (!this.previewer) return [];
 
-    let features: maplibregl.MapGeoJSONFeature[] = [];
-    if (this.previewer instanceof WmsPreviewer) {
-      features = await this.handleWmsInspection(point);
-    } else {
-      features = this.map.queryRenderedFeatures(point, { layers: this.previewLayers });
+    if (this.previewer instanceof InspectableRasterPreviewer) {
+      if (!this.previewer.canInspect) return [];
+      return await this.previewer.inspect(this.queryWindow(point));
     }
-    return features;
+
+    return this.map.queryRenderedFeatures(point, { layers: this.previewLayers });
   }
 
-  // Special handling for WMS inspection, which requires a GetFeatureInfo request
-  protected async handleWmsInspection(point: maplibregl.Point): Promise<maplibregl.MapGeoJSONFeature[]> {
-    if (!(this.previewer instanceof WmsPreviewer)) return [];
-
-    // Corners of the query window, in the same CSS pixel space as the click. Let
-    // MapLibre unproject them so the geography stays right under any projection, then
-    // take their EPSG:3857 envelope, since that is the CRS we request.
-    const half = (WMS_QUERY_WINDOW - 1) / 2;
+  // The window around a click to ask a server about. Its corners are in the same CSS pixel space
+  // as the click; let MapLibre unproject them so the geography stays right under any projection,
+  // then take their EPSG:3857 envelope, since that is the CRS we request.
+  protected queryWindow(point: maplibregl.Point): PixelWindow {
+    const half = (QUERY_WINDOW - 1) / 2;
     const corners = [
       [point.x - half, point.y - half],
       [point.x + half, point.y - half],
@@ -299,24 +314,13 @@ export class OgmMap {
       [point.x - half, point.y + half],
     ].map(([x, y]) => this.map.unproject([x, y]));
 
-    const response = await this.previewer.inspect({
+    return {
       bbox: mercatorBbox(corners),
-      width: WMS_QUERY_WINDOW,
-      height: WMS_QUERY_WINDOW,
+      width: QUERY_WINDOW,
+      height: QUERY_WINDOW,
       x: half,
       y: half,
-    });
-
-    if (!response.ok) throw new PreviewError(`WMS GetFeatureInfo request failed with status ${response.status}`);
-
-    const data = await response.json();
-    if (!data || !data.features || !Array.isArray(data.features)) return [];
-
-    return data.features.map((feature: any) => ({
-      ...feature,
-      geometry: feature.geometry && mercatorGeomToLngLat(feature.geometry),
-      source: (this.previewer as WmsPreviewer).getSourceId(),
-    }));
+    };
   }
 
   // Listen to selection events from the popup and highlight the selected feature
@@ -329,7 +333,7 @@ export class OgmMap {
 
   // Reset styling of all features to unselected state
   protected clearFeatureSelection() {
-    if (this.previewer instanceof WmsPreviewer) {
+    if (this.previewer instanceof InspectableRasterPreviewer) {
       this.previewer.clearHighlight();
     } else {
       this.attributesEl.features.forEach(feature => {
@@ -341,9 +345,9 @@ export class OgmMap {
 
   // Set styling of a single feature to selected state
   protected selectFeature(feature: maplibregl.MapGeoJSONFeature) {
-    // A WMS raster has no client-side features to restyle, so the previewer outlines the
-    // geometry that GetFeatureInfo returned instead
-    if (this.previewer instanceof WmsPreviewer) {
+    // A server-drawn raster has no client-side features to restyle, so the previewer outlines the
+    // geometry the server sent back instead
+    if (this.previewer instanceof InspectableRasterPreviewer) {
       this.previewer.highlightFeatures([feature]);
       return;
     }

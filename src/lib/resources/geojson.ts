@@ -1,4 +1,5 @@
 import geojsonExtent from '@mapbox/geojson-extent';
+import type { LngLatBoundsLike } from 'maplibre-gl';
 
 import VectorResource from './vector';
 import { fetchOrThrow } from '../errors';
@@ -40,8 +41,9 @@ export default class GeoJsonResource extends VectorResource {
     return ['geojson'];
   }
 
-  // Used to zoom the map to the data once loaded
-  async getBounds() {
+  // Used to zoom the map to the data once loaded. Subclasses that read from a service may not be
+  // able to work out bounds at all, so the camera can be left where it is.
+  async getBounds(): Promise<LngLatBoundsLike | undefined> {
     if (this.bounds) return this.bounds;
 
     const data = await this.getData();

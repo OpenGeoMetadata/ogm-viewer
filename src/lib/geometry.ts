@@ -50,6 +50,30 @@ export const mercatorBbox = (coords: LngLatLike[]) => {
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)].join(',');
 };
 
+// The small square of the map we ask a service about when inspecting: a width x height grid of
+// pixels laid over an EPSG:3857 bbox, with x,y naming the pixel to ask about, counted from the top
+// left corner. The bbox and the grid describe each other, so a service can locate the pixel either
+// by its place in the grid, as WMS GetFeatureInfo does, or as a coordinate, as ArcGIS does.
+export type PixelWindow = {
+  bbox: string; // minx,miny,maxx,maxy in EPSG:3857 meters
+  width: number; // grid width in pixels
+  height: number; // grid height in pixels
+  x: number; // column to inspect, counted from the left edge
+  y: number; // row to inspect, counted from the top edge
+};
+
+// The EPSG:3857 coordinate at the middle of the window's x,y pixel, along with how many meters
+// across that pixel is - which is also the finest detail worth asking a service to draw back.
+export const pixelWindowCenter = (window: PixelWindow) => {
+  const [minX, minY, maxX, maxY] = window.bbox.split(',').map(Number);
+  const resolution = (maxX - minX) / window.width;
+  return {
+    x: minX + (window.x + 0.5) * resolution,
+    y: maxY - (window.y + 0.5) * ((maxY - minY) / window.height),
+    resolution,
+  };
+};
+
 // Convert an EPSG:3857 (Web Mercator) coordinate in meters back to a geographic coordinate
 export const mercatorToLngLat = ([x, y]: GeoJSON.Position): [number, number] => {
   const { lng, lat } = new MercatorCoordinate((x / MERCATOR_EXTENT + 1) / 2, (1 - y / MERCATOR_EXTENT) / 2).toLngLat();

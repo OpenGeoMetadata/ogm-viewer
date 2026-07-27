@@ -1,0 +1,25 @@
+{
+  "dct_title_s": "Landscape Trees: Asheville, North Carolina",
+  "dct_alternative_sm": ["esri-feature-layer"],
+  "dct_description_sm": [
+    "Points at a single layer of an ArcGIS FeatureServer, which is read as features rather than as a picture of them, so the preview styles, labels and selects them itself.",
+    "A street tree inventory recording species, diameter, height and condition for each tree. Click a tree to see its attributes."
+  ],
+  "dct_language_sm": ["eng"],
+  "dct_publisher_sm": ["Esri"],
+  "schema_provider_s": "Esri",
+  "gbl_resourceClass_sm": ["Datasets", "Web services"],
+  "gbl_resourceType_sm": ["Point data"],
+  "dcat_theme_sm": ["Biology"],
+  "dcat_keyword_sm": ["ogm-viewer fixture records", "Trees"],
+  "dct_spatial_sm": ["Asheville, North Carolina"],
+  "locn_geometry": "ENVELOPE(-82.4487,-82.4335,35.6181,35.6063)",
+  "dcat_bbox": "ENVELOPE(-82.4487,-82.4335,35.6181,35.6063)",
+  "dcat_centroid": "35.6122,-82.4411",
+  "dct_accessRights_s": "Public",
+  "dct_format_s": "Shapefile",
+  "dct_references_s": "{\"urn:x-esri:serviceType:ArcGIS#FeatureLayer\":\"https://services.arcgis.com/V6ZHFr6zdgNZuVG0/arcgis/rest/services/Landscape_Trees/FeatureServer/0\"}",
+  "id": "esri-feature-layer",
+  "dct_identifier_sm": ["esri-feature-layer"],
+  "gbl_mdVersion_s": "Aardvark"
+}
