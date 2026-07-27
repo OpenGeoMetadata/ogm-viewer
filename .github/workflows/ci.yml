@@ -16,7 +16,7 @@ jobs:
         with:
           node-version-file: .node-version
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Run linting
         run: npm run lint
 
@@ -30,6 +30,6 @@ jobs:
         with:
           node-version-file: .node-version
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Run tests
         run: npm test
