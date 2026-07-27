@@ -196,6 +196,29 @@ describe('References', () => {
     });
   });
 
+  describe('ArcGIS URLs', () => {
+    const ESRI_URIS = {
+      'urn:x-esri:serviceType:ArcGIS#DynamicMapLayer': 'esriDynamicMapLayerUrl',
+      'urn:x-esri:serviceType:ArcGIS#FeatureLayer': 'esriFeatureLayerUrl',
+      'urn:x-esri:serviceType:ArcGIS#ImageMapLayer': 'esriImageMapLayerUrl',
+      'urn:x-esri:serviceType:ArcGIS#TiledMapLayer': 'esriTiledMapLayerUrl',
+    } as const;
+
+    Object.entries(ESRI_URIS).forEach(([uri, getter]) => {
+      it(`should fetch the ${uri.split('#')[1]} URL`, () => {
+        const references = new References(JSON.stringify({ [uri]: 'http://example.com/arcgis/rest/services/Test/MapServer' }));
+        expect(references[getter]).toBe('http://example.com/arcgis/rest/services/Test/MapServer');
+      });
+
+      it(`should be map previewable with only a ${uri.split('#')[1]} URL`, () => {
+        const references = new References(JSON.stringify({ [uri]: 'http://example.com/arcgis/rest/services/Test/MapServer' }));
+        expect(references.mapPreviewable).toBe(true);
+        expect(references.previewable).toBe(true);
+        expect(references.iiifOnly).toBe(false);
+      });
+    });
+  });
+
   describe('Map previewable', () => {
     it('should be map previewable if a TMS URL is present', () => {
       const contents = { 'https://wiki.osgeo.org/wiki/Tile_Map_Service_Specification': 'http://example.com/tiles/{z}/{x}/{y}.png' };

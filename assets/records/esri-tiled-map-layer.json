@@ -1,0 +1,29 @@
+{
+  "dct_title_s": "Land Cover and Impervious Surface Area: Minnesota, 2013",
+  "dct_alternative_sm": ["esri-tiled-map-layer"],
+  "dct_description_sm": [
+    "Points at an ArcGIS MapServer whose map has been rendered into a cache of tiles ahead of time, so the preview reads finished images rather than waiting for the server to draw them.",
+    "A 15-meter raster dataset of a land cover and impervious surface classification for 2013, level two classification, created from a combination of multitemporal Landsat 8 data and LiDAR data with object-based image analysis."
+  ],
+  "dct_language_sm": ["eng"],
+  "dct_creator_sm": ["Bauer, Marvin E.", "Knight, Joe F.", "Rampi, Lian P."],
+  "schema_provider_s": "University of Minnesota",
+  "gbl_resourceClass_sm": ["Datasets", "Web services"],
+  "gbl_resourceType_sm": ["Raster data"],
+  "dcat_theme_sm": ["Imagery"],
+  "dcat_keyword_sm": ["ogm-viewer fixture records", "Land cover"],
+  "dct_temporal_sm": ["2013"],
+  "gbl_indexYear_im": [2013],
+  "dct_spatial_sm": ["Minnesota"],
+  "locn_geometry": "POLYGON((-97.23 49.37, -89.53 49.37, -89.53 43.5, -97.23 43.5, -97.23 49.37))",
+  "dcat_bbox": "ENVELOPE(-97.23,-89.53,49.37,43.5)",
+  "dcat_centroid": "46.435,-93.38",
+  "dct_rights_sm": ["https://conservancy.umn.edu/pages/drum/policies/#terms-of-use"],
+  "dct_license_sm": ["http://creativecommons.org/publicdomain/zero/1.0/"],
+  "dct_accessRights_s": "Public",
+  "dct_format_s": "GeoTIFF",
+  "dct_references_s": "{\"http://schema.org/url\":\"http://doi.org/10.13020/D6JP4S\",\"urn:x-esri:serviceType:ArcGIS#TiledMapLayer\":\"https://tiles.arcgis.com/tiles/8df8p0NlLFEShl0r/arcgis/rest/services/mn_landcover_impervious_2013v2_tiles/MapServer\"}",
+  "id": "esri-tiled-map-layer",
+  "dct_identifier_sm": ["http://doi.org/10.13020/D6JP4S"],
+  "gbl_mdVersion_s": "Aardvark"
+}

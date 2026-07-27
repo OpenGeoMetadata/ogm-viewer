@@ -21,6 +21,10 @@ export const REFERENCE_URIS = {
   'http://www.opengis.net/def/serviceType/ogc/wfs': 'WFS',
   'http://www.opengis.net/def/serviceType/ogc/wmts': 'WMTS',
   'https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames': 'XYZ tiles',
+  'urn:x-esri:serviceType:ArcGIS#DynamicMapLayer': 'ArcGIS Dynamic Map Layer',
+  'urn:x-esri:serviceType:ArcGIS#FeatureLayer': 'ArcGIS Feature Layer',
+  'urn:x-esri:serviceType:ArcGIS#ImageMapLayer': 'ArcGIS Image Map Layer',
+  'urn:x-esri:serviceType:ArcGIS#TiledMapLayer': 'ArcGIS Tiled Map Layer',
 } as const;
 
 // Specific types for URI values and their friendly names
@@ -116,6 +120,26 @@ export class References {
     return this.references['http://iiif.io/api/presentation#manifest'];
   }
 
+  // The ArcGIS DynamicMapLayer URL, if any
+  get esriDynamicMapLayerUrl() {
+    return this.references['urn:x-esri:serviceType:ArcGIS#DynamicMapLayer'];
+  }
+
+  // The ArcGIS FeatureLayer URL, if any
+  get esriFeatureLayerUrl() {
+    return this.references['urn:x-esri:serviceType:ArcGIS#FeatureLayer'];
+  }
+
+  // The ArcGIS ImageMapLayer URL, if any
+  get esriImageMapLayerUrl() {
+    return this.references['urn:x-esri:serviceType:ArcGIS#ImageMapLayer'];
+  }
+
+  // The ArcGIS TiledMapLayer URL, if any
+  get esriTiledMapLayerUrl() {
+    return this.references['urn:x-esri:serviceType:ArcGIS#TiledMapLayer'];
+  }
+
   // List of download links with URL and label, if using multiple downloads
   get downloadLinks(): LabelledLinks {
     const fieldContents = this.references['http://schema.org/downloadUrl'];
@@ -168,7 +192,21 @@ export class References {
 
   // Get all references that can be rendered on a map
   private get mapPreviewableReferences() {
-    return [this.wmsUrl, this.cogUrl, this.tmsUrl, this.xyzUrl, this.geojsonUrl, this.tilejsonUrl, this.indexMapUrl, this.pmtilesUrl, this.wmtsUrl];
+    return [
+      this.wmsUrl,
+      this.cogUrl,
+      this.tmsUrl,
+      this.xyzUrl,
+      this.geojsonUrl,
+      this.tilejsonUrl,
+      this.indexMapUrl,
+      this.pmtilesUrl,
+      this.wmtsUrl,
+      this.esriDynamicMapLayerUrl,
+      this.esriFeatureLayerUrl,
+      this.esriImageMapLayerUrl,
+      this.esriTiledMapLayerUrl,
+    ];
   }
 
   // Get all IIIF references (image and manifest)

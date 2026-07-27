@@ -1,14 +1,48 @@
+/** @vitest-environment happy-dom */
 import { describe, it, expect } from '@stencil/vitest';
 import WmsResource from './wms';
 
-// The GetFeatureInfo URL is built by a protected method, so expose it for testing
+// The GetMap and GetFeatureInfo URLs are built by protected methods, so expose them for testing.
+// A capabilities document is read in rather than fetched, so nothing here touches the network.
 class TestWmsSource extends WmsResource {
-  url_for(options: Parameters<TestWmsSource['inspectUrl']>[0]) {
-    return new URL(this.inspectUrl(options));
+  private xml?: string;
+
+  withCapabilities(xml: string) {
+    this.xml = xml;
+    return this;
+  }
+
+  async url_for(options: Parameters<TestWmsSource['inspectUrl']>[0]) {
+    return new URL(await this.inspectUrl(options));
+  }
+
+  map_url() {
+    return new URL(this.tilesUrl.split('&bbox=')[0]);
+  }
+
+  protected async getMetadata() {
+    if (!this.xml) throw new Error('capabilities unavailable');
+    return new DOMParser().parseFromString(this.xml, 'application/xml');
   }
 }
 
 const ENDPOINT = 'https://geoservices.lib.berkeley.edu/geoserver/wms';
+
+// The part of a capabilities document that lists what GetFeatureInfo can answer with
+const capabilities = (formats: string[]) => `<?xml version="1.0" encoding="UTF-8"?>
+<WMS_Capabilities xmlns="http://www.opengis.net/wms" version="1.3.0">
+  <Capability>
+    <Request>
+      <GetMap><Format>image/png</Format></GetMap>
+      <GetFeatureInfo>${formats.map(format => `<Format>${format}</Format>`).join('')}</GetFeatureInfo>
+    </Request>
+  </Capability>
+</WMS_Capabilities>`;
+
+// The formats ArcGIS Server publishes; notably not the 'application/json' GeoServer answers to
+const ARCGIS_FORMATS = ['application/vnd.esri.wms_raw_xml', 'application/geo+json', 'text/xml', 'text/html', 'text/plain'];
+
+const GEOSERVER_FORMATS = ['text/plain', 'application/vnd.ogc.gml', 'application/json', 'text/html'];
 
 // A click in the middle of a 51x51 pixel window over Calaveras County
 const options = {
@@ -19,10 +53,23 @@ const options = {
   y: 25,
 };
 
+// Skips the format negotiation, which is exercised on its own below
+const sourceFor = (overrides = {}) => new TestWmsSource('s7st30', ENDPOINT, { layerIds: [], infoFormat: 'application/json', ...overrides });
+
+describe('WmsSource#tilesUrl', () => {
+  it('sends the styles param the spec requires', () => {
+    // GeoServer lets it go missing, but ArcGIS refuses the whole request without it
+    expect(sourceFor().map_url().searchParams.get('styles')).toEqual('');
+  });
+
+  it('lets a caller name the styles to draw with', () => {
+    expect(sourceFor({ styles: 'population' }).map_url().searchParams.get('styles')).toEqual('population');
+  });
+});
+
 describe('WmsSource#inspectUrl', () => {
-  it('uses the 1.3.0 param names by default', () => {
-    const source = new TestWmsSource('s7st30', ENDPOINT, { layerIds: [] });
-    const params = source.url_for(options).searchParams;
+  it('uses the 1.3.0 param names by default', async () => {
+    const params = (await sourceFor().url_for(options)).searchParams;
 
     expect(params.get('version')).toEqual('1.3.0');
 
@@ -35,9 +82,8 @@ describe('WmsSource#inspectUrl', () => {
     expect(params.get('y')).toBeNull();
   });
 
-  it('uses the older param names for 1.1.1', () => {
-    const source = new TestWmsSource('s7st30', ENDPOINT, { layerIds: [], version: '1.1.1' });
-    const params = source.url_for(options).searchParams;
+  it('uses the older param names for 1.1.1', async () => {
+    const params = (await sourceFor({ version: '1.1.1' }).url_for(options)).searchParams;
 
     expect(params.get('srs')).toEqual('EPSG:3857');
     expect(params.get('x')).toEqual('25');
@@ -47,9 +93,8 @@ describe('WmsSource#inspectUrl', () => {
     expect(params.get('j')).toBeNull();
   });
 
-  it('passes through the query window and asks about the layer', () => {
-    const source = new TestWmsSource('s7st30', ENDPOINT, { layerIds: [] });
-    const params = source.url_for(options).searchParams;
+  it('passes through the query window and asks about the layer', async () => {
+    const params = (await sourceFor().url_for(options)).searchParams;
 
     expect(params.get('request')).toEqual('GetFeatureInfo');
     expect(params.get('bbox')).toEqual(options.bbox);
@@ -61,16 +106,76 @@ describe('WmsSource#inspectUrl', () => {
     expect(params.get('query_layers')).toEqual('s7st30');
   });
 
-  it('asks for more than the one feature the spec defaults to', () => {
-    const source = new TestWmsSource('s7st30', ENDPOINT, { layerIds: [] });
-    const params = source.url_for(options).searchParams;
+  it('sends the styles param the spec requires here too', async () => {
+    expect((await sourceFor().url_for(options)).searchParams.get('styles')).toEqual('');
+  });
+
+  it('asks for more than the one feature the spec defaults to', async () => {
+    const params = (await sourceFor().url_for(options)).searchParams;
     expect(Number(params.get('feature_count'))).toBeGreaterThan(1);
   });
 
-  it('rounds pixel coordinates, which must be integers', () => {
-    const source = new TestWmsSource('s7st30', ENDPOINT, { layerIds: [] });
-    const params = source.url_for({ ...options, x: 25.4, y: 25.6 }).searchParams;
+  it('rounds pixel coordinates, which must be integers', async () => {
+    const params = (await sourceFor().url_for({ ...options, x: 25.4, y: 25.6 })).searchParams;
     expect(params.get('i')).toEqual('25');
     expect(params.get('j')).toEqual('26');
+  });
+});
+
+describe('WmsSource#getInfoFormat', () => {
+  const infoFormatFor = async (xml?: string) => {
+    const source = new TestWmsSource('s7st30', ENDPOINT, { layerIds: [] });
+    if (xml) source.withCapabilities(xml);
+    return (await source.url_for(options)).searchParams.get('info_format');
+  };
+
+  it('picks the OGC-registered spelling ArcGIS is the only one to accept', async () => {
+    expect(await infoFormatFor(capabilities(ARCGIS_FORMATS))).toEqual('application/geo+json');
+  });
+
+  it('falls back to the older spelling a server publishes instead', async () => {
+    expect(await infoFormatFor(capabilities(GEOSERVER_FORMATS))).toEqual('application/json');
+  });
+
+  it('asks for GeoJSON anyway when the capabilities cannot be read, rather than not asking', async () => {
+    expect(await infoFormatFor()).toEqual('application/json');
+  });
+
+  it('asks for GeoJSON anyway when a server publishes none of the spellings', async () => {
+    expect(await infoFormatFor(capabilities(['text/html', 'text/plain']))).toEqual('application/json');
+  });
+
+  it('lets a caller name the format, skipping the capabilities entirely', async () => {
+    const source = new TestWmsSource('s7st30', ENDPOINT, { layerIds: [], infoFormat: 'text/html' });
+    expect((await source.url_for(options)).searchParams.get('info_format')).toEqual('text/html');
+  });
+
+  it('gives up on the capabilities only once, rather than re-reading them on every click', async () => {
+    const source = new TestWmsSource('s7st30', ENDPOINT, { layerIds: [] });
+    let reads = 0;
+    (source as any).getMetadata = async () => {
+      reads += 1;
+      throw new Error('capabilities unavailable');
+    };
+
+    await source.url_for(options);
+    await source.url_for(options);
+
+    expect(reads).toEqual(1);
+  });
+
+  it('reads the capabilities only once', async () => {
+    const source = new TestWmsSource('s7st30', ENDPOINT, { layerIds: [] }).withCapabilities(capabilities(ARCGIS_FORMATS));
+    let reads = 0;
+    const getMetadata = (source as any).getMetadata.bind(source);
+    (source as any).getMetadata = async () => {
+      reads += 1;
+      return await getMetadata();
+    };
+
+    await source.url_for(options);
+    await source.url_for(options);
+
+    expect(reads).toEqual(1);
   });
 });
