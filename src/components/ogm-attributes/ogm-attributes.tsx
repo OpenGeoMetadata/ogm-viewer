@@ -83,7 +83,7 @@ export class OgmAttributes {
             {Object.entries(feature.properties || {}).map(([key, value]) => (
               <tr key={key}>
                 <td class="key">{key}</td>
-                <td class="value" innerHTML={Autolinker.link(value.toString(), { hashtag: false, mention: false, phone: false })}></td>
+                <td class="value" innerHTML={Autolinker.link(value?.toString() ?? '', { hashtag: false, mention: false, phone: false })}></td>
               </tr>
             ))}
           </tbody>
