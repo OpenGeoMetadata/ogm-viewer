@@ -18,11 +18,16 @@ export default class CogPreviewer extends RasterPreviewer {
     maplibregl.addProtocol('cog', cogProtocol);
   }
 
+  // A COG has no scheme to name it by, and the raster layer draws from this too
+  protected getSourceId(): string {
+    return `${this.resource.id}-cog`;
+  }
+
   // COG sources use 'url' instead of 'tiles' and have no scheme
   protected async createSources(): Promise<AddRasterSourceObject[]> {
     return [
       {
-        id: `${this.resource.id}-cog`,
+        id: this.getSourceId(),
         type: 'raster',
         url: await this.resource.getMapLibreSourceUrl(),
         tileSize: this.resource.getTileSize(),

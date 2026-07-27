@@ -14,7 +14,7 @@ export default class WmsPreviewer extends RasterPreviewer {
   protected async createSources(): Promise<AddRasterSourceObject[]> {
     return [
       {
-        id: `${this.resource.id}-wms`,
+        id: this.getSourceId(),
         type: 'raster',
         tiles: [await this.resource.getMapLibreSourceUrl()],
         tileSize: this.resource.getTileSize(),
