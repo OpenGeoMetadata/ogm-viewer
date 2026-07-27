@@ -24,13 +24,17 @@
         margin: 1rem auto;
       }
 
+      #recordUrl {
+        max-width: 400px;
+      }
+
       .inputs {
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: 1rem;
         margin: 1rem;
-        max-width: 800px;
+        max-width: 1000px;
       }
 
       .buttons,
@@ -43,7 +47,7 @@
 
       ogm-viewer {
         width: clamp(800px, 70vw, 1000px);
-        margin: 1rem auto;
+        margin: 1rem auto 0;
       }
     </style>
 
@@ -83,7 +87,6 @@
   </head>
   <body>
     <h1>OpenGeoMetadata Viewer Preview</h1>
-    <p>Click a button to load a record.</p>
     <div class="inputs">
       <div class="buttons">
         <button
