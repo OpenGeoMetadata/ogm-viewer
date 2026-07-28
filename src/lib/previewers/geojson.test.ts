@@ -52,7 +52,6 @@ const style = {
   textColor: '#000',
   textFont: 'Noto Sans Regular',
   textSize: 12,
-  fillOpacity: 0.5,
   fillHighlightOpacity: 0.8,
 } as MapLibreStyle;
 
@@ -113,7 +112,7 @@ describe('GeoJsonPreviewer#previewLayers', () => {
     expect(previewer.previewLayers).toHaveLength(1);
     expect(previewer.previewLayers[0].id).toEqual(ROW_ID);
     expect(previewer.previewLayers[0].title).toEqual('GeoJSON');
-    expect(previewer.previewLayers[0].defaultOpacity).toEqual(1);
+    expect(previewer.previewLayers[0].defaultOpacity).toEqual(style.opacity);
     expect(previewer.previewLayers[0].styleLayers.map(styleLayer => styleLayer.id)).toEqual(SUFFIXES.map(layerId));
   });
 
@@ -139,16 +138,16 @@ describe('GeoJsonPreviewer#applyLayerState', () => {
 
   // The one assertion that matters most here: a flat number written over this expression would
   // silently take the selection highlight with it, and no test of a plain value would notice
-  it('folds opacity into each branch of the selected-state expression on a fill', async () => {
+  it('writes opacity into the unselected branch of a fill, leaving the selected feature solid', async () => {
     const map = await applyOpacity(0.5);
 
-    expect(map.layers.get(layerId('polygons')).paint['fill-opacity']).toEqual(['case', SELECTED, 0.4, 0.25]);
+    expect(map.layers.get(layerId('polygons')).paint['fill-opacity']).toEqual(['case', SELECTED, 1, 0.5]);
   });
 
   it('does the same for circles, which are also drawn differently when selected', async () => {
     const map = await applyOpacity(0.5);
 
-    expect(map.layers.get(layerId('points')).paint['circle-opacity']).toEqual(['case', SELECTED, 0.4, 0.25]);
+    expect(map.layers.get(layerId('points')).paint['circle-opacity']).toEqual(['case', SELECTED, 1, 0.5]);
     expect(map.layers.get(layerId('points')).paint['circle-stroke-opacity']).toEqual(0.5);
   });
 
@@ -170,11 +169,11 @@ describe('GeoJsonPreviewer#applyLayerState', () => {
     });
   });
 
-  it('reproduces the authored paint exactly at full opacity, so re-applying is a no-op', async () => {
+  it('reproduces the authored paint exactly at the default opacity, so re-applying is a no-op', async () => {
     const { map, previewer } = await previewGeoJson();
     const authored = structuredClone(map.layers.get(layerId('polygons')).paint);
 
-    previewer.applyLayerState(new Map([[ROW_ID, { visible: true, opacity: 1 }]]));
+    previewer.applyLayerState(new Map([[ROW_ID, { visible: true, opacity: style.opacity }]]));
 
     expect(map.layers.get(layerId('polygons')).paint).toEqual(authored);
   });
@@ -194,7 +193,7 @@ describe('GeoJsonPreviewer#applyLayerState', () => {
     const { map, previewer } = await previewGeoJson();
     const authored = structuredClone(map.layers.get(layerId('polygons')).paint);
 
-    previewer.applyLayerState(new Map([[ROW_ID, { visible: false, opacity: 1 }]]));
+    previewer.applyLayerState(new Map([[ROW_ID, { visible: false, opacity: style.opacity }]]));
 
     SUFFIXES.forEach(suffix => expect(map.layers.get(layerId(suffix)).layout.visibility).toEqual('none'));
     expect(map.layers.get(layerId('polygons')).paint).toEqual(authored);
@@ -204,8 +203,8 @@ describe('GeoJsonPreviewer#applyLayerState', () => {
   it('shows them again when the row comes back', async () => {
     const { map, previewer } = await previewGeoJson();
 
-    previewer.applyLayerState(new Map([[ROW_ID, { visible: false, opacity: 1 }]]));
-    previewer.applyLayerState(new Map([[ROW_ID, { visible: true, opacity: 1 }]]));
+    previewer.applyLayerState(new Map([[ROW_ID, { visible: false, opacity: style.opacity }]]));
+    previewer.applyLayerState(new Map([[ROW_ID, { visible: true, opacity: style.opacity }]]));
 
     SUFFIXES.forEach(suffix => expect(map.layers.get(layerId(suffix)).layout.visibility).toEqual('visible'));
   });

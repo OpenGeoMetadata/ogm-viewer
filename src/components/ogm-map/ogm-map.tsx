@@ -19,7 +19,7 @@ import WmtsResource from '../../lib/resources/wmts';
 import { getElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
-import { toLayerControlItems, type LayerControlItem, type LayerState } from '../../lib/layers';
+import { isLayerDrawn, toLayerControlItems, type LayerControlItem, type LayerState } from '../../lib/layers';
 import LayersControl from '../../lib/layers-control';
 import CogPreviewer from '../../lib/previewers/cog';
 import EsriDynamicMapLayerPreviewer from '../../lib/previewers/esri-dynamic-map-layer';
@@ -80,6 +80,13 @@ export class OgmMap {
   // Which resource the state above belongs to, so a different one starts clean
   private loadedResourceUrl: string | undefined = undefined;
 
+  // Whether the style document has loaded, which is the one thing that has to be true before a layer
+  // can be styled. Tracked here rather than asked of MapLibre, because map.isStyleLoaded() answers a
+  // much broader question - it goes false whenever any source has tiles in flight - and a vector
+  // layer's opacity is an expression over feature-state, so writing it marks its source for reload
+  // and makes isStyleLoaded() false by itself. Gating on it dropped nearly every frame of a drag.
+  private styleLoaded: boolean = false;
+
   // Guards against reporting more than one error per load attempt
   private errorReported: boolean = false;
 
@@ -118,8 +125,10 @@ export class OgmMap {
     this.map.on('click', this.handleClick.bind(this));
     this.map.on('error', this.handleMapError.bind(this));
 
-    // View as a globe with atmosphere effects
+    // View as a globe with atmosphere effects. Registered before the once() handler a theme change
+    // adds, so the style is marked loaded before anything re-applies the reader's choices to it.
     this.map.on('style.load', () => {
+      this.styleLoaded = true;
       this.map.setProjection({ type: 'globe' });
       this.map.setSky(this.mapTheme.getSkyStyle());
     });
@@ -256,6 +265,8 @@ export class OgmMap {
   @Watch('theme')
   onThemeChange() {
     if (!this.map) return;
+    // The panel is still on screen over the window this opens, and a layer can't be styled inside it
+    this.styleLoaded = false;
     this.map.setStyle(this.mapTheme.getBaseMapStyle());
     this.map.once('style.load', async () => await this.loadResource(this.previewResource));
   }
@@ -310,8 +321,9 @@ export class OgmMap {
   @Listen('allLayersVisibilityChange')
   handleAllLayersVisibilityChange(event: CustomEvent<boolean>) {
     event.stopPropagation();
-    this.layerItems.forEach(item => this.recordLayerState(item.id, { visible: event.detail }));
-    this.commitLayerState();
+    // Mapped, not found: every row has to be recorded, so this can't short-circuit on the first hide
+    const hidden = this.layerItems.map(item => this.recordLayerState(item.id, { visible: event.detail })).some(Boolean);
+    this.commitLayerState(hidden);
   }
 
   // Called by the control button, which is plain DOM outside the render pipeline, so it has to be
@@ -323,33 +335,40 @@ export class OgmMap {
 
   // Remember one row's change, then push everything to the map at once
   private setLayerState(id: string, change: Partial<LayerState>) {
-    this.recordLayerState(id, change);
-    this.commitLayerState();
+    const hidden = this.recordLayerState(id, change);
+    this.commitLayerState(hidden);
   }
 
-  private recordLayerState(id: string, change: Partial<LayerState>) {
+  // Returns whether this change took the row off the map, which is the only thing anything holding a
+  // reference to one of its features needs to hear about
+  private recordLayerState(id: string, change: Partial<LayerState>): boolean {
     const layer = this.previewer?.previewLayers.find(previewLayer => previewLayer.id === id);
-    if (!layer) return;
+    if (!layer) return false;
     const current = this.layerState.get(id) ?? { visible: true, opacity: layer.defaultOpacity };
-    this.layerState.set(id, { ...current, ...change });
+    const next = { ...current, ...change };
+    this.layerState.set(id, next);
+    return isLayerDrawn(current) && !isLayerDrawn(next);
   }
 
-  private commitLayerState() {
+  private commitLayerState(rowHidden: boolean) {
     this.applyLayerState();
     this.publishLayerItems();
 
-    // A layer the reader just hid can't stay selected, hovered, or described by an open popup - and
-    // because the panel is a sibling of the canvas, no mousemove will arrive to reset the cursor
+    // A layer the reader just took off the map can't stay selected, hovered, or described by an open
+    // popup - and because the panel is a sibling of the canvas, no mousemove will arrive to reset the
+    // cursor. Dimming a layer is not that: a selected feature is drawn solid at any opacity for the
+    // express purpose of surviving it, so the popup describing it stays open too.
+    if (!rowHidden) return;
     this.clearFeatureSelection();
     this.destroyPopup();
     this.clearHoveredFeature();
     if (this.map) this.map.getCanvas().style.cursor = '';
   }
 
-  // Styling a layer throws while a style is still loading, which is exactly the window between
-  // setStyle() and style.load that a theme change opens with the panel still on screen
+  // Skipped only inside the setStyle()-to-style.load window a theme change opens with the panel
+  // still on screen, since styling a layer throws there. loadResource re-applies on the far side.
   private applyLayerState() {
-    if (!this.previewer || !this.map?.isStyleLoaded()) return;
+    if (!this.previewer || !this.styleLoaded) return;
     this.previewer.applyLayerState(this.layerState);
   }
 

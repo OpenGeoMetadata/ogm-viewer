@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@stencil/vitest';
 
-import { humanizeLayerName, resolveLayerState, toLayerControlItems, type LayerState, type PreviewLayer } from './layers';
+import { humanizeLayerName, isLayerDrawn, resolveLayerState, toLayerControlItems, type LayerState, type PreviewLayer } from './layers';
 
 const rasterLayer: PreviewLayer = {
   id: 'stanford-abc123-xyz',
@@ -12,7 +12,7 @@ const rasterLayer: PreviewLayer = {
 const vectorLayer: PreviewLayer = {
   id: 'stanford-abc123-geojson-geojson',
   title: 'GeoJSON',
-  defaultOpacity: 1,
+  defaultOpacity: 0.8,
   styleLayers: [
     { id: 'stanford-abc123-geojson-geojson-polygons', type: 'fill' },
     { id: 'stanford-abc123-geojson-geojson-point-labels', type: 'symbol' },
@@ -39,9 +39,11 @@ describe('humanizeLayerName', () => {
 });
 
 describe('resolveLayerState', () => {
-  it('follows the theme for a row the reader has not touched', () => {
+  // The same value for both: a reader comparing a vector overlay with a raster one is comparing two
+  // layers at the same opacity, not one drawn solid over one the theme happened to fade
+  it('follows the theme for a row the reader has not touched, whatever kind of data it is', () => {
     expect(resolveLayerState(rasterLayer, new Map())).toEqual({ visible: true, opacity: 0.8 });
-    expect(resolveLayerState(vectorLayer, new Map())).toEqual({ visible: true, opacity: 1 });
+    expect(resolveLayerState(vectorLayer, new Map())).toEqual({ visible: true, opacity: 0.8 });
   });
 
   it('prefers what the reader asked for', () => {
@@ -51,7 +53,20 @@ describe('resolveLayerState', () => {
 
   it('does not let the state of one row leak into another', () => {
     const states = new Map<string, LayerState>([[rasterLayer.id, { visible: false, opacity: 0.25 }]]);
-    expect(resolveLayerState(vectorLayer, states)).toEqual({ visible: true, opacity: 1 });
+    expect(resolveLayerState(vectorLayer, states)).toEqual({ visible: true, opacity: 0.8 });
+  });
+});
+
+describe('isLayerDrawn', () => {
+  it('is true only for a row that is both shown and not fully faded', () => {
+    expect(isLayerDrawn({ visible: true, opacity: 0.8 })).toBe(true);
+    expect(isLayerDrawn({ visible: false, opacity: 0.8 })).toBe(false);
+  });
+
+  // The case the predicate exists for: a layer faded to nothing is invisible but still answers
+  // queryRenderedFeatures, so it has to count as off the map rather than merely transparent
+  it('treats a row faded to zero as off the map', () => {
+    expect(isLayerDrawn({ visible: true, opacity: 0 })).toBe(false);
   });
 });
 
@@ -64,7 +79,7 @@ describe('toLayerControlItems', () => {
   it('emits only scalars, so the panel never holds a style spec', () => {
     const [item] = toLayerControlItems([vectorLayer], new Map());
 
-    expect(item).toEqual({ id: 'stanford-abc123-geojson-geojson', title: 'GeoJSON', visible: true, opacity: 1 });
+    expect(item).toEqual({ id: 'stanford-abc123-geojson-geojson', title: 'GeoJSON', visible: true, opacity: 0.8 });
     expect(Object.keys(item).sort()).toEqual(['id', 'opacity', 'title', 'visible']);
   });
 
