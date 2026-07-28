@@ -19,6 +19,7 @@ import '@awesome.me/webawesome/dist/components/icon/icon.js';
 import '@awesome.me/webawesome/dist/components/scroller/scroller.js';
 import '@awesome.me/webawesome/dist/components/slider/slider.js';
 import '@awesome.me/webawesome/dist/components/spinner/spinner.js';
+import '@awesome.me/webawesome/dist/components/switch/switch.js';
 import '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
 import '@awesome.me/webawesome/dist/components/tab-panel/tab-panel.js';
 import '@awesome.me/webawesome/dist/components/tab/tab.js';
@@ -40,18 +41,28 @@ export class OgmViewer {
   @Prop() recordUrl: string;
   @Prop() theme: 'light' | 'dark' = this.getThemePreference();
   @Prop() hideTitle: boolean = false;
+  @Prop() hideLayerControls: boolean = false;
   @State() record?: OgmRecord;
   @State() error?: PreviewError;
-  @State() previewOpacity: number = 100;
   @State() sidebarOpen: boolean = false;
   @State() loading: boolean = false;
+  @State() showLayerControls: boolean = true;
 
   private loadingCount: number = 0;
   private sidebarPadding: number = 0;
 
-  // Prior to rendering, fetch the record if a URL is provided
+  // Prior to rendering, fetch the record if a URL is provided. The layer controls are seeded here
+  // rather than in a field initializer, which would run before the attribute was parsed and so
+  // always read the prop default.
   async componentWillLoad() {
+    this.showLayerControls = !this.hideLayerControls;
     if (this.recordUrl) return await this.updateRecord();
+  }
+
+  // An embedder can also turn the controls off after load
+  @Watch('hideLayerControls')
+  onHideLayerControlsChange() {
+    this.showLayerControls = !this.hideLayerControls;
   }
 
   // Check the user's theme preference via CSS media query
@@ -79,10 +90,10 @@ export class OgmViewer {
     this.record = record;
   }
 
-  // Listen for opacity changes from the sidebar and adjust the preview layer
-  @Listen('opacityChange')
-  adjustPreviewOpacity(event: CustomEvent<number>) {
-    this.previewOpacity = event.detail;
+  // Listen for the settings switch and show or hide the on-map layer controls
+  @Listen('layerControlsToggled')
+  toggleLayerControls(event: CustomEvent<boolean>) {
+    this.showLayerControls = event.detail;
   }
 
   // Listen for a preview to report loading started
@@ -131,11 +142,11 @@ export class OgmViewer {
         <div class={`container ${WA_SCOPE} wa-${this.theme}`}>
           <ogm-menubar theme={this.theme} record={this.record} loading={this.loading} hideTitle={this.hideTitle}></ogm-menubar>
           <div class="main-container">
-            <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen}></ogm-sidebar>
+            <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen} layer-controls-visible={this.showLayerControls}></ogm-sidebar>
             {this.error ? (
               <ogm-alerts theme={this.theme} error={this.error}></ogm-alerts>
             ) : (
-              <ogm-previews theme={this.theme} record={this.record} preview-opacity={this.previewOpacity} sidebar-padding={this.sidebarPadding}></ogm-previews>
+              <ogm-previews theme={this.theme} record={this.record} show-layer-controls={this.showLayerControls} sidebar-padding={this.sidebarPadding}></ogm-previews>
             )}
           </div>
         </div>

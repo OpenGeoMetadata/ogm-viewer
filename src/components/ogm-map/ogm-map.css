@@ -1,9 +1,34 @@
 @import '~maplibre-gl/dist/maplibre-gl.css';
 
+/* The layer control is positioned against this, so the host has to be the containing block. The
+   precedent is ogm-image, whose control stack is absolutely positioned the same way. */
+:host {
+  display: block;
+  height: 100%;
+  position: relative;
+}
+
 #map {
   width: 100%;
   height: 100%;
   position: relative;
+}
+
+/* Bottom-left, not bottom-right. The four MapLibre control groups stack down the right edge, and in
+   a short map - an embed, or the demo page - a panel in the bottom-right grows up into them and
+   silently covers the globe and geolocate buttons. Nothing is ever placed on the left, so this
+   corner can't collide at any height. The sidebar does slide over it, but only while the reader has
+   deliberately opened it to read metadata. Above MapLibre's own corner containers (z-index 2) and
+   well below the sidebar. */
+ogm-layers {
+  position: absolute;
+  inset-block-end: var(--wa-space-s);
+  inset-inline-start: var(--wa-space-s);
+  z-index: 3;
+  max-width: calc(100% - 2 * var(--wa-space-s));
+  /* Keep a tall list from running off the top of a short map; the list itself scrolls */
+  max-height: calc(100% - 2 * var(--wa-space-s));
+  display: flex;
 }
 
 /* Color of the map background ("space" around the globe) */

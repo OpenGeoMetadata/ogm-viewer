@@ -8,7 +8,7 @@ import type { MapLibreStyle } from '../themes/maplibre';
 // Just enough of a MapLibre map to record what the previewer adds, removes and draws
 class FakeMap {
   sources = new Map<string, { type: string; data?: GeoJSON.GeoJSON }>();
-  layers = new Map<string, { id: string; type: string; source: string }>();
+  layers = new Map<string, any>();
 
   getSource(id: string) {
     const source = this.sources.get(id);
@@ -31,6 +31,17 @@ class FakeMap {
   }
   removeLayer(id: string) {
     this.layers.delete(id);
+  }
+  setPaintProperty(id: string, name: string, value: unknown) {
+    // MapLibre refuses to style a layer the current style doesn't hold
+    const layer = this.layers.get(id);
+    if (!layer) throw new Error(`No layer ${id} to paint`);
+    layer.paint = { ...layer.paint, [name]: value };
+  }
+  setLayoutProperty(id: string, name: string, value: unknown) {
+    const layer = this.layers.get(id);
+    if (!layer) throw new Error(`No layer ${id} to lay out`);
+    layer.layout = { ...layer.layout, [name]: value };
   }
 }
 
@@ -66,6 +77,51 @@ beforeEach(async () => {
   const source = new WmsResource('s7st30', 'https://geoservices.lib.berkeley.edu/geoserver/wms', { layerIds: [] });
   previewer = new WmsPreviewer(source, map as unknown as maplibregl.Map, style);
   await previewer.preview();
+});
+
+const HIGHLIGHT_LAYERS = ['s7st30-wms-highlight-outlines', 's7st30-wms-highlight-points'];
+
+describe('WmsPreviewer#previewLayers', () => {
+  it('offers the tiles as one row, named for the service', () => {
+    expect(previewer.previewLayers).toHaveLength(1);
+    expect(previewer.previewLayers[0].id).toEqual('s7st30-wms');
+    expect(previewer.previewLayers[0].title).toEqual('Web Map Service (WMS)');
+    expect(previewer.previewLayers[0].defaultOpacity).toEqual(0.8);
+  });
+
+  // The highlight belongs to the tiles' row rather than one of its own: it's machinery for reading
+  // them, not something the reader chose to put on the map
+  it('carries the highlight layers on that row, flagged as machinery', () => {
+    const styleLayers = previewer.previewLayers[0].styleLayers;
+
+    expect(styleLayers.map(styleLayer => styleLayer.id)).toEqual(['s7st30-wms', ...HIGHLIGHT_LAYERS]);
+    expect(styleLayers.filter(styleLayer => styleLayer.internal).map(styleLayer => styleLayer.id)).toEqual(HIGHLIGHT_LAYERS);
+  });
+
+  // An outline the server drew has to stay legible at exactly the moment the reader faded the
+  // tiles to see what was under them
+  it('never fades the highlight along with the tiles', () => {
+    previewer.applyLayerState(new Map([['s7st30-wms', { visible: true, opacity: 0.15 }]]));
+
+    expect(map.layers.get('s7st30-wms').paint['raster-opacity']).toEqual(0.15);
+
+    // The outline never declared an opacity and none was written for it
+    expect(map.layers.get('s7st30-wms-highlight-outlines').paint['line-opacity']).toBeUndefined();
+    // The point keeps the one it was authored with
+    expect(map.layers.get('s7st30-wms-highlight-points').paint['circle-opacity']).toEqual(0.8);
+    expect(map.layers.get('s7st30-wms-highlight-points').paint['circle-stroke-opacity']).toBeUndefined();
+  });
+
+  it('hides the highlight when the tiles are hidden', () => {
+    previewer.applyLayerState(new Map([['s7st30-wms', { visible: false, opacity: 0.8 }]]));
+
+    ['s7st30-wms', ...HIGHLIGHT_LAYERS].forEach(id => expect(map.layers.get(id).layout.visibility).toEqual('none'));
+    expect(previewer.anyLayerVisible).toBe(false);
+  });
+
+  it('keeps the highlight out of what a click may inspect', () => {
+    expect(previewer.visibleLayerIds).toEqual(['s7st30-wms']);
+  });
 });
 
 describe('WmsPreviewer#preview', () => {

@@ -13,7 +13,7 @@ import type { PreviewError } from '../../lib/errors';
 export class OgmPreview {
   @Prop() theme: 'light' | 'dark';
   @Prop() previewResource: Resource;
-  @Prop() previewOpacity: number;
+  @Prop() showLayerControls: boolean = true;
   @Prop() sidebarPadding: number;
   @State() error?: PreviewError;
 
@@ -35,7 +35,7 @@ export class OgmPreview {
     if (this.previewResource instanceof IIIFResource) {
       return <ogm-image theme={this.theme} previewResource={this.previewResource} padding={this.sidebarPadding}></ogm-image>;
     }
-    return <ogm-map preview-opacity={this.previewOpacity} theme={this.theme} previewResource={this.previewResource} padding={this.sidebarPadding}></ogm-map>;
+    return <ogm-map show-layer-controls={this.showLayerControls} theme={this.theme} previewResource={this.previewResource} padding={this.sidebarPadding}></ogm-map>;
   }
 
   render() {

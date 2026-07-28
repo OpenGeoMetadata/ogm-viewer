@@ -30,6 +30,18 @@ describe('ogm-preview', () => {
     expect(shadowRoot.querySelector('ogm-alerts')).toBeNull();
   });
 
+  // The layer control is mounted but draws nothing until a preview publishes rows. That's what keeps
+  // this test green: <ogm-map> can't init WebGL here, so no preview completes, and a panel with no
+  // rows renders no controls at all. Asserting it means the constraint is enforced, not remembered.
+  it('mounts the layer control without drawing it before a preview has loaded', async () => {
+    const el = await renderPreview(new GeoJsonResource('id', 'http://example.com/data.json'));
+    const map = (el.shadowRoot as ShadowRoot).querySelector('ogm-map') as HTMLElement;
+    const layers = map.shadowRoot?.querySelector('ogm-layers') as HTMLElement;
+
+    expect(layers).not.toBeNull();
+    expect(layers.shadowRoot?.querySelector('.panel')).toBeFalsy();
+  });
+
   it('shows the error over the preview when a previewError is reported', async () => {
     const el = await renderPreview(new GeoJsonResource('id', 'http://example.com/data.json'));
     const error = referenceError(new TypeError('Failed to fetch'), 'GeoJSON', 'http://example.com/data.json');

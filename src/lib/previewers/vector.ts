@@ -1,5 +1,6 @@
 import MapPreviewer from './map';
 import type {
+  ExpressionSpecification,
   FillLayerSpecification,
   LineLayerSpecification,
   CircleLayerSpecification,
@@ -8,6 +9,7 @@ import type {
   VectorSourceSpecification,
 } from 'maplibre-gl';
 
+import type { PreviewStyleLayer } from '../layers';
 import type VectorResource from '../resources/vector';
 
 // MapLibre doesn't bundle the id with the source, but we need to
@@ -20,14 +22,6 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     return this.resource.id;
   }
 
-  // Set opacity of all layers in this previewer
-  async setOpacity(opacity: number) {
-    this.opacity = opacity;
-    if (this.layerIds.length > 0) {
-      await Promise.all(this.layerIds.map(id => this.map.setPaintProperty(id, 'fill-opacity', this.opacity / 100)));
-    }
-  }
-
   async getBounds() {
     return await this.resource.getBounds();
   }
@@ -35,7 +29,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
   protected async createLayers(): Promise<LayerSpecification[]> {
     const layerIds = await this.resource.getVectorLayers();
     return layerIds.flatMap(layerId => {
-      return [
+      const layers = [
         this.createPolygonLayer(layerId),
         this.createPolygonOutlineLayer(layerId),
         this.createLineLayer(layerId),
@@ -44,7 +38,46 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         this.createLineLabelLayer(layerId),
         this.createPointLabelLayer(layerId),
       ];
+
+      // Seven style layers, one row: geometry and its labels are how a vector layer is drawn, not
+      // seven things a reader chose to put on the map
+      this.previewLayers.push({
+        id: `${this.getSourceId()}-${layerId}`,
+        title: this.previewLayerTitle(layerId),
+        defaultOpacity: 1,
+        styleLayers: layers.map(layer => ({ id: layer.id, type: layer.type }) as PreviewStyleLayer),
+      });
+
+      return layers;
     });
+  }
+
+  // What to call this layer in the control. A single-layer source names its one layer for our own
+  // benefit ('geojson', 'indexmap'), which would tell a reader nothing, so the resource's own
+  // label is the better name; a tileset that names its layers itself overrides this.
+  protected previewLayerTitle(_layerId: string): string {
+    return this.resource.label();
+  }
+
+  // A fill doesn't carry its opacity as a number: a selected feature is drawn at a different
+  // opacity from the rest, and that is an expression over feature-state. The layer's opacity has to
+  // be folded into each branch - a flat number written over the expression would take the selection
+  // highlight with it, which is the one thing a reader adjusting opacity still needs to see.
+  protected selectedOpacity(scale = 1): ExpressionSpecification {
+    return ['case', ['boolean', ['feature-state', 'selected'], false], this.style.fillHighlightOpacity * scale, this.style.fillOpacity * scale];
+  }
+
+  // Fills and circles keep their case expression; everything else takes the plain number
+  protected applyOpacity(styleLayer: PreviewStyleLayer, opacity: number) {
+    if (styleLayer.type === 'fill') {
+      this.map.setPaintProperty(styleLayer.id, 'fill-opacity', this.selectedOpacity(opacity));
+    } else if (styleLayer.type === 'circle') {
+      this.map.setPaintProperty(styleLayer.id, 'circle-opacity', this.selectedOpacity(opacity));
+      // The ring is a flat colour, so it fades on its own or it stays solid over a faded fill
+      this.map.setPaintProperty(styleLayer.id, 'circle-stroke-opacity', opacity);
+    } else {
+      super.applyOpacity(styleLayer, opacity);
+    }
   }
 
   // Create a styled layer that will be used for polygon geometry
@@ -53,6 +86,9 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       id: `${this.getSourceId()}-${layerId}-polygons`,
       type: 'fill' as const,
       source: this.getSourceId(),
+      layout: {
+        visibility: 'visible' as const,
+      },
       paint: {
         'fill-color': [
           'case',
@@ -62,7 +98,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
           this.style.fillHighlightColor,
           this.style.fillColor,
         ] as const,
-        'fill-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], this.style.fillHighlightOpacity, this.style.fillOpacity] as const,
+        'fill-opacity': this.selectedOpacity(),
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
     };
@@ -74,6 +110,9 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       id: `${this.getSourceId()}-${layerId}-polygon-outlines`,
       type: 'line' as const,
       source: this.getSourceId(),
+      layout: {
+        visibility: 'visible' as const,
+      },
       paint: {
         'line-color': [
           'case',
@@ -84,6 +123,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
           this.style.strokeColor,
         ] as const,
         'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
+        'line-opacity': 1,
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
     };
@@ -95,6 +135,9 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       id: `${this.getSourceId()}-${layerId}-lines`,
       type: 'line' as const,
       source: this.getSourceId(),
+      layout: {
+        visibility: 'visible' as const,
+      },
       paint: {
         'line-color': [
           'case',
@@ -105,6 +148,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
           this.style.strokeColor,
         ] as const,
         'line-width': 4,
+        'line-opacity': 1,
       },
       filter: ['==', ['geometry-type'], 'LineString'] as const,
     };
@@ -116,6 +160,9 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       id: `${this.getSourceId()}-${layerId}-points`,
       type: 'circle' as const,
       source: this.getSourceId(),
+      layout: {
+        visibility: 'visible' as const,
+      },
       paint: {
         'circle-color': [
           'case',
@@ -135,7 +182,8 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         ] as const,
         'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 2, 12, 4] as const,
-        'circle-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], this.style.fillHighlightOpacity, this.style.fillOpacity] as const,
+        'circle-opacity': this.selectedOpacity(),
+        'circle-stroke-opacity': 1,
       },
       filter: ['==', ['geometry-type'], 'Point'] as const,
     };
@@ -148,6 +196,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       type: 'symbol' as const,
       source: this.getSourceId(),
       layout: {
+        'visibility': 'visible' as const,
         'text-field': ['get', 'id'] as const,
         'text-font': [this.style.textFont],
         'text-max-angle': 85,
@@ -163,6 +212,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-color': this.style.textColor,
         'text-halo-color': 'white',
         'text-halo-width': 1,
+        'text-opacity': 1,
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
     };
@@ -175,6 +225,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       type: 'symbol' as const,
       source: this.getSourceId(),
       layout: {
+        'visibility': 'visible' as const,
         'symbol-placement': 'line',
         'text-field': ['get', 'id'] as const,
         'text-font': [this.style.textFont],
@@ -184,6 +235,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-color': this.style.textColor,
         'text-halo-color': 'white',
         'text-halo-width': 1,
+        'text-opacity': 1,
       },
       filter: ['==', ['geometry-type'], 'LineString'] as const,
     };
@@ -196,6 +248,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       type: 'symbol' as const,
       source: this.getSourceId(),
       layout: {
+        'visibility': 'visible' as const,
         'text-field': ['get', 'id'] as const,
         'text-font': [this.style.textFont],
         'text-size': this.style.textSize,
@@ -205,6 +258,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-color': this.style.textColor,
         'text-halo-color': 'white',
         'text-halo-width': 1,
+        'text-opacity': 1,
       },
       filter: ['==', ['geometry-type'], 'Point'] as const,
     };

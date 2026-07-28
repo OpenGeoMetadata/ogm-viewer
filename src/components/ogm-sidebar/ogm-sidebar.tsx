@@ -14,6 +14,7 @@ export class OgmSidebar {
   @Prop() record: OgmRecord;
   @Prop() theme: 'light' | 'dark';
   @Prop() open: boolean = false;
+  @Prop() layerControlsVisible: boolean = true;
 
   private tabs: WaTabGroup;
 
@@ -49,9 +50,6 @@ export class OgmSidebar {
             </wa-tab>
             <wa-tab slot="nav" panel="record">
               <wa-icon name="braces" label="Record" canvas="auto"></wa-icon>
-            </wa-tab>
-            <wa-tab slot="nav" panel="settings">
-              <wa-icon name="sliders" label="Settings" canvas="auto"></wa-icon>
             </wa-tab>
             <wa-tab-panel name="information">
               <div class="panel-header">About this item</div>
@@ -92,12 +90,6 @@ export class OgmSidebar {
               <div class="panel-header">Record view</div>
               <div class="panel-content">
                 <div class="record-json">{JSON.stringify(this.record?.json, null, 2)}</div>
-              </div>
-            </wa-tab-panel>
-            <wa-tab-panel name="settings">
-              <div class="panel-header">Settings</div>
-              <div class="panel-content">
-                <ogm-settings record={this.record} />
               </div>
             </wa-tab-panel>
           </wa-tab-group>
