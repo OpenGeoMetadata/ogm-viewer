@@ -7,7 +7,7 @@ import type { MapLibreStyle } from '../themes/maplibre';
 // Just enough of a MapLibre map to record what the previewer adds
 class FakeMap {
   sources = new Map<string, Record<string, unknown>>();
-  layers = new Map<string, { id: string; type: string; source: string }>();
+  layers = new Map<string, any>();
 
   getSource(id: string) {
     return this.sources.get(id);
@@ -28,6 +28,17 @@ class FakeMap {
   }
   removeLayer(id: string) {
     this.layers.delete(id);
+  }
+  setPaintProperty(id: string, name: string, value: unknown) {
+    // MapLibre refuses to style a layer the current style doesn't hold
+    const layer = this.layers.get(id);
+    if (!layer) throw new Error(`No layer ${id} to paint`);
+    layer.paint = { ...layer.paint, [name]: value };
+  }
+  setLayoutProperty(id: string, name: string, value: unknown) {
+    const layer = this.layers.get(id);
+    if (!layer) throw new Error(`No layer ${id} to lay out`);
+    layer.layout = { ...layer.layout, [name]: value };
   }
 }
 
@@ -74,6 +85,36 @@ beforeEach(async () => {
   resource.layers = LAYERS;
   previewer = new WmtsPreviewer(resource, map as unknown as maplibregl.Map, style);
   await previewer.preview();
+});
+
+describe('WmtsPreviewer#previewLayers', () => {
+  // The service writes <ows:Title> for people to read; its identifier is only an address
+  it('names each row from the title the service published', () => {
+    expect(previewer.previewLayers.map(layer => layer.title)).toEqual(['Night Lights', 'Orthophoto']);
+  });
+
+  it('gives each layer of the service its own row', () => {
+    expect(previewer.previewLayers.map(layer => layer.id)).toEqual(['night-lights-lights', 'night-lights-ortho']);
+    expect(previewer.previewLayers.map(layer => layer.styleLayers.map(styleLayer => styleLayer.id))).toEqual([['night-lights-lights'], ['night-lights-ortho']]);
+    expect(previewer.previewLayers.every(layer => layer.defaultOpacity === 0.8)).toBe(true);
+  });
+
+  it('falls back to the identifier when the service published no title', async () => {
+    resource.layers = [{ ...LAYERS[0], title: '   ' }];
+    previewer = new WmtsPreviewer(resource, map as unknown as maplibregl.Map, style);
+    await previewer.preview();
+
+    expect(previewer.previewLayers.map(layer => layer.title)).toEqual(['lights']);
+  });
+
+  it('leaves the other layers of the service alone when one row changes', () => {
+    previewer.applyLayerState(new Map([['night-lights-lights', { visible: false, opacity: 0.5 }]]));
+
+    expect(map.layers.get('night-lights-lights')?.layout.visibility).toEqual('none');
+    expect(map.layers.get('night-lights-ortho')?.layout.visibility).toEqual('visible');
+    expect(map.layers.get('night-lights-ortho')?.paint['raster-opacity']).toEqual(0.8);
+    expect(previewer.visibleLayerIds).toEqual(['night-lights-ortho']);
+  });
 });
 
 describe('WmtsPreviewer#preview', () => {

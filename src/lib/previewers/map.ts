@@ -2,6 +2,7 @@ import type { SourceSpecification, AddLayerObject } from 'maplibre-gl';
 
 import Previewer from './previewer';
 import MapResource from '../resources/map';
+import { resolveLayerState, type LayerState, type PreviewLayer, type PreviewStyleLayer } from '../layers';
 import { type MapLibreStyle } from '../themes/maplibre';
 
 // MapLibre doesn't bundle the id with the source, but we need to
@@ -18,15 +19,19 @@ export default abstract class MapPreviewer extends Previewer {
   sourceIds: string[] = [];
   layerIds: string[] = [];
 
-  // Current opacity state
-  protected opacity: number;
+  // The logical layers this preview offers the reader, in the order they're painted. Subclasses
+  // fill this in from createLayers(), which is the only code that knows how one resource expands
+  // into style layers.
+  previewLayers: PreviewLayer[] = [];
 
-  // Initialize with opacity at the theme's opacity value
+  // A memo of the last instruction applyLayerState was given, not a source of truth: ogm-map owns
+  // the reader's choices, because setStyle rebuilds this object from scratch on every theme change.
+  private layerState: ReadonlyMap<string, LayerState> = new Map();
+
   constructor(resource: MapResource, map: maplibregl.Map, style: MapLibreStyle) {
     super(resource);
     this.map = map;
     this.style = style;
-    this.opacity = this.style.opacity;
   }
 
   // Add source and preview layers if they don't already exist
@@ -64,10 +69,83 @@ export default abstract class MapPreviewer extends Previewer {
       }
     });
     this.sourceIds = [];
+    this.previewLayers = [];
+    this.layerState = new Map();
   }
 
-  // Set the opacity of the preview layers
-  abstract setOpacity(opacity: number): Promise<void>;
+  // Push the reader's choices onto the layers already on the map. Idempotent: every value is
+  // rebuilt from the theme and the requested state rather than read back off the map, so
+  // re-applying it - after a basemap swap, or on every frame of a slider drag - can't compound.
+  // Callers must check map.isStyleLoaded() first, since setPaintProperty throws while a style is
+  // still loading.
+  applyLayerState(states: ReadonlyMap<string, LayerState>) {
+    this.layerState = states;
+
+    this.previewLayers.forEach(layer => {
+      const { visible, opacity } = resolveLayerState(layer, states);
+
+      layer.styleLayers.forEach(styleLayer => {
+        // A layer the style no longer holds is one a rebuild hasn't finished replacing
+        if (!this.map.getLayer(styleLayer.id)) return;
+
+        // An opacity of zero has to hide the layer outright, not just make it invisible:
+        // queryRenderedFeatures skips layers set to `visibility: none` but still reports features
+        // from a layer drawn at zero opacity, which would let a reader click what they can't see.
+        this.map.setLayoutProperty(styleLayer.id, 'visibility', visible && opacity > 0 ? 'visible' : 'none');
+
+        // A highlight is drawn for us by the server we asked; dimming it would make the answer
+        // harder to read at exactly the moment the reader asked for it
+        if (!styleLayer.internal) this.applyOpacity(styleLayer, opacity);
+      });
+    });
+  }
+
+  // The style layers a rendered-feature query should consider. Always a subset of layerIds:
+  // queryRenderedFeatures errors and returns nothing for the whole query if it names a layer the
+  // style doesn't hold.
+  get visibleLayerIds(): string[] {
+    return this.previewLayers.flatMap(layer => {
+      const { visible, opacity } = resolveLayerState(layer, this.layerState);
+      if (!visible || opacity === 0) return [];
+      return layer.styleLayers.filter(styleLayer => !styleLayer.internal).map(styleLayer => styleLayer.id);
+    });
+  }
+
+  // Whether any of this preview is drawn. A server-drawn raster has no client-side features to
+  // filter a query by, so ogm-map has to ask before offering to inspect one.
+  get anyLayerVisible(): boolean {
+    return this.previewLayers.some(layer => {
+      const { visible, opacity } = resolveLayerState(layer, this.layerState);
+      return visible && opacity > 0;
+    });
+  }
+
+  // Write the opacity a style layer carries. Only the property its type owns: MapLibre rejects a
+  // paint property a layer type doesn't define, and fires an error on the map when it does.
+  protected applyOpacity(styleLayer: PreviewStyleLayer, opacity: number) {
+    switch (styleLayer.type) {
+      case 'raster':
+        this.map.setPaintProperty(styleLayer.id, 'raster-opacity', opacity);
+        break;
+      case 'fill':
+        this.map.setPaintProperty(styleLayer.id, 'fill-opacity', opacity);
+        break;
+      case 'line':
+        this.map.setPaintProperty(styleLayer.id, 'line-opacity', opacity);
+        break;
+      case 'circle':
+        this.map.setPaintProperty(styleLayer.id, 'circle-opacity', opacity);
+        this.map.setPaintProperty(styleLayer.id, 'circle-stroke-opacity', opacity);
+        break;
+      case 'symbol':
+        this.map.setPaintProperty(styleLayer.id, 'text-opacity', opacity);
+        break;
+    }
+  }
+
+  protected findPreviewLayer(id: string): PreviewLayer | undefined {
+    return this.previewLayers.find(layer => layer.id === id);
+  }
 
   // Get the bounds of the preview data
   abstract getBounds(): Promise<maplibregl.LngLatBoundsLike | undefined>;

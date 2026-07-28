@@ -67,9 +67,18 @@ export default abstract class InspectableRasterPreviewer extends RasterPreviewer
     return true;
   }
 
-  // Tiles first, so the highlight draws over them
+  // Tiles first, so the highlight draws over them. The highlight belongs to the tiles' own row
+  // rather than one of its own: it's machinery for reading the tiles, so it hides when they do,
+  // but it's flagged internal so fading them never fades the answer drawn on top.
   protected async createLayers(): Promise<LayerSpecification[]> {
-    return [...(await super.createLayers()), this.createHighlightOutlineLayer(), this.createHighlightPointLayer()];
+    const layers = [...(await super.createLayers()), this.createHighlightOutlineLayer(), this.createHighlightPointLayer()];
+
+    this.findPreviewLayer(this.getSourceId())?.styleLayers.push(
+      { id: `${this.highlightSourceId}-outlines`, type: 'line', internal: true },
+      { id: `${this.highlightSourceId}-points`, type: 'circle', internal: true },
+    );
+
+    return layers;
   }
 
   protected get highlightSourceId(): string {
@@ -82,6 +91,9 @@ export default abstract class InspectableRasterPreviewer extends RasterPreviewer
       id: `${this.highlightSourceId}-outlines`,
       type: 'line',
       source: this.highlightSourceId,
+      layout: {
+        visibility: 'visible',
+      },
       paint: {
         'line-color': this.style.strokeSelectedColor,
         'line-width': 2,
@@ -96,6 +108,9 @@ export default abstract class InspectableRasterPreviewer extends RasterPreviewer
       id: `${this.highlightSourceId}-points`,
       type: 'circle',
       source: this.highlightSourceId,
+      layout: {
+        visibility: 'visible',
+      },
       paint: {
         'circle-color': this.style.fillSelectedColor,
         'circle-opacity': this.style.fillHighlightOpacity,

@@ -1,0 +1,119 @@
+:host {
+  display: block;
+  /* The host is height-capped by the map, so pass that cap down to the panel and let the list
+     inside it be what scrolls */
+  min-height: 0;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+  background-color: var(--wa-color-surface-default);
+  border: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+  border-radius: var(--wa-border-radius-m, 0.25rem);
+  box-shadow: var(--wa-shadow-m);
+  color: var(--wa-color-text-normal);
+  font-family: var(--wa-font-family-body);
+  font-size: var(--wa-font-size-s);
+  line-height: var(--wa-line-height-condensed);
+  min-width: 13rem;
+  max-width: 18rem;
+}
+
+.header {
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: var(--wa-space-xs);
+  padding: var(--wa-space-2xs) var(--wa-space-xs);
+}
+
+/* A plain button rather than <wa-button>: this is map chrome, where MapLibre's own controls are
+   plain buttons too, and it keeps the panel free of form-associated components */
+.disclosure {
+  align-items: center;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  font: inherit;
+  font-weight: var(--wa-font-weight-semibold);
+  gap: var(--wa-space-xs);
+  min-width: 0;
+  padding: var(--wa-space-2xs);
+  text-align: start;
+}
+
+.disclosure:hover {
+  color: var(--wa-color-text-link);
+}
+
+.chevron {
+  flex: none;
+  transition: transform var(--wa-transition-normal);
+  transform: rotate(-90deg);
+}
+
+.chevron.open {
+  transform: rotate(0deg);
+}
+
+.layers {
+  list-style: none;
+  margin: 0;
+  min-height: 0;
+  /* Tall enough for four rows; a twenty-layer tileset scrolls rather than covering the map */
+  max-height: 14rem;
+  overflow-y: auto;
+  padding: var(--wa-space-2xs);
+}
+
+/* A single-layer record has no header above the list, so the list carries the padding */
+.header + .layers {
+  border-top: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+  padding-top: var(--wa-space-2xs);
+}
+
+.layer + .layer {
+  border-top: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+  margin-top: var(--wa-space-2xs);
+  padding-top: var(--wa-space-2xs);
+}
+
+.row {
+  align-items: center;
+  display: flex;
+  gap: var(--wa-space-xs);
+  padding: var(--wa-space-3xs) var(--wa-space-2xs);
+}
+
+.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.visibility {
+  accent-color: var(--wa-color-brand-fill-loud, currentColor);
+  flex: none;
+  margin: 0;
+}
+
+.opacity {
+  accent-color: var(--wa-color-brand-fill-loud, currentColor);
+  flex: 1;
+  min-width: 0;
+}
+
+.percent {
+  color: var(--wa-color-text-quiet);
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  /* Room for "100%" so the slider doesn't resize as the value changes */
+  min-width: 2.75rem;
+  text-align: end;
+}

@@ -26,7 +26,7 @@ import IIIFManifestResource from '../../lib/resources/iiif-manifest';
 export class OgmPreviews {
   @Prop() theme: 'light' | 'dark';
   @Prop() record: OgmRecord;
-  @Prop() previewOpacity: number;
+  @Prop() showLayerControls: boolean = true;
   @Prop() sidebarPadding: number;
   @State() resources: Resource[] = [];
 
@@ -74,7 +74,7 @@ export class OgmPreviews {
           ))}
           {this.resources.map((resource, idx) => (
             <wa-tab-panel key={idx} name={`${resource.constructor.name}-${resource.id}-${idx}`} active={idx === 0}>
-              <ogm-preview theme={this.theme} previewResource={resource} preview-opacity={this.previewOpacity} sidebar-padding={this.sidebarPadding}></ogm-preview>
+              <ogm-preview theme={this.theme} previewResource={resource} show-layer-controls={this.showLayerControls} sidebar-padding={this.sidebarPadding}></ogm-preview>
             </wa-tab-panel>
           ))}
         </wa-tab-group>

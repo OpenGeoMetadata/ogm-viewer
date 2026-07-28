@@ -26,15 +26,28 @@ export default class RasterPreviewer extends MapPreviewer {
     return `${this.resource.id}-${this.resource.getScheme()}`;
   }
 
-  // Rasters only have one layer of their own; subclasses may add companion layers after it
+  // Rasters only have one layer of their own; subclasses may add companion layers after it.
+  // `visibility` is declared even though it's MapLibre's default, so that re-applying the reader's
+  // state is a no-op: MapLibre compares against the value the layer declared, and an undefined one
+  // never matches 'visible', which would send the source back to be reloaded on every preview.
   protected async createLayers(): Promise<LayerSpecification[]> {
+    this.previewLayers.push({
+      id: this.getSourceId(),
+      title: this.resource.label(),
+      defaultOpacity: this.style.opacity,
+      styleLayers: [{ id: this.getSourceId(), type: 'raster' }],
+    });
+
     return [
       {
         id: this.getSourceId(),
         type: 'raster',
         source: this.getSourceId(),
+        layout: {
+          visibility: 'visible',
+        },
         paint: {
-          'raster-opacity': this.opacity,
+          'raster-opacity': this.style.opacity,
         },
       },
     ];
@@ -42,12 +55,5 @@ export default class RasterPreviewer extends MapPreviewer {
 
   async getBounds(): Promise<maplibregl.LngLatBoundsLike | undefined> {
     return undefined;
-  }
-
-  async setOpacity(opacity: number) {
-    this.opacity = opacity;
-    if (this.layerIds.length > 0) {
-      await this.map.setPaintProperty(this.layerIds[0], 'raster-opacity', this.opacity);
-    }
   }
 }

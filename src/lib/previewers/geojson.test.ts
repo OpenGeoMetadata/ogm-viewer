@@ -31,10 +31,30 @@ class FakeMap {
   removeLayer(id: string) {
     this.layers.delete(id);
   }
+  setPaintProperty(id: string, name: string, value: unknown) {
+    // MapLibre refuses to style a layer the current style doesn't hold
+    const layer = this.layers.get(id);
+    if (!layer) throw new Error(`No layer ${id} to paint`);
+    layer.paint = { ...layer.paint, [name]: value };
+  }
+  setLayoutProperty(id: string, name: string, value: unknown) {
+    const layer = this.layers.get(id);
+    if (!layer) throw new Error(`No layer ${id} to lay out`);
+    layer.layout = { ...layer.layout, [name]: value };
+  }
 }
 
 // The previewers only read the colors and label styles, none of which these tests assert on
-const style = { opacity: 0.8, fillColor: '#00f', strokeColor: '#009', textColor: '#000', textFont: 'Noto Sans Regular', textSize: 12 } as MapLibreStyle;
+const style = {
+  opacity: 0.8,
+  fillColor: '#00f',
+  strokeColor: '#009',
+  textColor: '#000',
+  textFont: 'Noto Sans Regular',
+  textSize: 12,
+  fillOpacity: 0.5,
+  fillHighlightOpacity: 0.8,
+} as MapLibreStyle;
 
 const GEOJSON_URL = 'https://example.com/index-map.json';
 
@@ -79,6 +99,148 @@ describe('GeoJsonPreviewer#preview', () => {
 
     expect(map.sources.size).toEqual(0);
     expect(map.layers.size).toEqual(0);
+  });
+});
+
+const ROW_ID = 'princeton-fk4544658v-geojson-geojson';
+const layerId = (suffix: string) => `princeton-fk4544658v-geojson-geojson-${suffix}`;
+const SELECTED = ['boolean', ['feature-state', 'selected'], false];
+
+describe('GeoJsonPreviewer#previewLayers', () => {
+  it('offers the reader one layer, not the seven it takes to draw it', async () => {
+    const { previewer } = await previewGeoJson();
+
+    expect(previewer.previewLayers).toHaveLength(1);
+    expect(previewer.previewLayers[0].id).toEqual(ROW_ID);
+    expect(previewer.previewLayers[0].title).toEqual('GeoJSON');
+    expect(previewer.previewLayers[0].defaultOpacity).toEqual(1);
+    expect(previewer.previewLayers[0].styleLayers.map(styleLayer => styleLayer.id)).toEqual(SUFFIXES.map(layerId));
+  });
+
+  it('records the type of each style layer, since that decides which paint property carries opacity', async () => {
+    const { previewer } = await previewGeoJson();
+
+    expect(previewer.previewLayers[0].styleLayers.map(styleLayer => styleLayer.type)).toEqual(['fill', 'line', 'line', 'circle', 'symbol', 'symbol', 'symbol']);
+  });
+
+  it('names an index map after the resource, not the layer id we invented for it', async () => {
+    const { previewer } = await previewIndexMap();
+
+    expect(previewer.previewLayers.map(layer => layer.title)).toEqual(['Index Map']);
+  });
+});
+
+describe('GeoJsonPreviewer#applyLayerState', () => {
+  const applyOpacity = async (opacity: number) => {
+    const { map, previewer } = await previewGeoJson();
+    previewer.applyLayerState(new Map([[ROW_ID, { visible: true, opacity }]]));
+    return map;
+  };
+
+  // The one assertion that matters most here: a flat number written over this expression would
+  // silently take the selection highlight with it, and no test of a plain value would notice
+  it('folds opacity into each branch of the selected-state expression on a fill', async () => {
+    const map = await applyOpacity(0.5);
+
+    expect(map.layers.get(layerId('polygons')).paint['fill-opacity']).toEqual(['case', SELECTED, 0.4, 0.25]);
+  });
+
+  it('does the same for circles, which are also drawn differently when selected', async () => {
+    const map = await applyOpacity(0.5);
+
+    expect(map.layers.get(layerId('points')).paint['circle-opacity']).toEqual(['case', SELECTED, 0.4, 0.25]);
+    expect(map.layers.get(layerId('points')).paint['circle-stroke-opacity']).toEqual(0.5);
+  });
+
+  it('writes a plain number where there is no selected state to preserve', async () => {
+    const map = await applyOpacity(0.5);
+
+    expect(map.layers.get(layerId('polygon-outlines')).paint['line-opacity']).toEqual(0.5);
+    expect(map.layers.get(layerId('lines')).paint['line-opacity']).toEqual(0.5);
+    expect(map.layers.get(layerId('point-labels')).paint['text-opacity']).toEqual(0.5);
+  });
+
+  // The bug in the setOpacity this replaced: it wrote fill-opacity to all seven layers, six of
+  // which have no such paint property
+  it('never writes fill-opacity to a layer that has no fill', async () => {
+    const map = await applyOpacity(0.5);
+
+    SUFFIXES.filter(suffix => suffix !== 'polygons').forEach(suffix => {
+      expect(map.layers.get(layerId(suffix)).paint['fill-opacity']).toBeUndefined();
+    });
+  });
+
+  it('reproduces the authored paint exactly at full opacity, so re-applying is a no-op', async () => {
+    const { map, previewer } = await previewGeoJson();
+    const authored = structuredClone(map.layers.get(layerId('polygons')).paint);
+
+    previewer.applyLayerState(new Map([[ROW_ID, { visible: true, opacity: 1 }]]));
+
+    expect(map.layers.get(layerId('polygons')).paint).toEqual(authored);
+  });
+
+  it('does not compound when applied repeatedly, as a slider drag does', async () => {
+    const { map, previewer } = await previewGeoJson();
+    const states = new Map([[ROW_ID, { visible: true, opacity: 0.5 }]]);
+
+    previewer.applyLayerState(states);
+    const once = structuredClone(map.layers.get(layerId('polygons')).paint);
+    previewer.applyLayerState(states);
+
+    expect(map.layers.get(layerId('polygons')).paint).toEqual(once);
+  });
+
+  it('hides every style layer the row draws through, and leaves their paint alone', async () => {
+    const { map, previewer } = await previewGeoJson();
+    const authored = structuredClone(map.layers.get(layerId('polygons')).paint);
+
+    previewer.applyLayerState(new Map([[ROW_ID, { visible: false, opacity: 1 }]]));
+
+    SUFFIXES.forEach(suffix => expect(map.layers.get(layerId(suffix)).layout.visibility).toEqual('none'));
+    expect(map.layers.get(layerId('polygons')).paint).toEqual(authored);
+    expect(previewer.layerIds).toEqual(SUFFIXES.map(layerId));
+  });
+
+  it('shows them again when the row comes back', async () => {
+    const { map, previewer } = await previewGeoJson();
+
+    previewer.applyLayerState(new Map([[ROW_ID, { visible: false, opacity: 1 }]]));
+    previewer.applyLayerState(new Map([[ROW_ID, { visible: true, opacity: 1 }]]));
+
+    SUFFIXES.forEach(suffix => expect(map.layers.get(layerId(suffix)).layout.visibility).toEqual('visible'));
+  });
+
+  // Zero opacity has to hide the layer rather than just make it invisible, or a reader could still
+  // click a feature they can't see
+  it('hides a row faded all the way out', async () => {
+    const map = await applyOpacity(0);
+
+    SUFFIXES.forEach(suffix => expect(map.layers.get(layerId(suffix)).layout.visibility).toEqual('none'));
+  });
+});
+
+describe('GeoJsonPreviewer#visibleLayerIds', () => {
+  it('offers every style layer for inspection while the row is drawn', async () => {
+    const { previewer } = await previewGeoJson();
+
+    expect(previewer.visibleLayerIds).toEqual(SUFFIXES.map(layerId));
+    expect(previewer.anyLayerVisible).toBe(true);
+  });
+
+  it('offers none once the row is hidden', async () => {
+    const { previewer } = await previewGeoJson();
+    previewer.applyLayerState(new Map([[ROW_ID, { visible: false, opacity: 1 }]]));
+
+    expect(previewer.visibleLayerIds).toEqual([]);
+    expect(previewer.anyLayerVisible).toBe(false);
+  });
+
+  it('offers none once the row is faded all the way out', async () => {
+    const { previewer } = await previewGeoJson();
+    previewer.applyLayerState(new Map([[ROW_ID, { visible: true, opacity: 0 }]]));
+
+    expect(previewer.visibleLayerIds).toEqual([]);
+    expect(previewer.anyLayerVisible).toBe(false);
   });
 });
 

@@ -82,6 +82,12 @@
         hideTitleCheckbox.addEventListener('change', () => {
           viewer.hideTitle = hideTitleCheckbox.checked;
         });
+
+        // Hide layer controls checkbox
+        const hideLayerControlsCheckbox = document.getElementById('hideLayerControls');
+        hideLayerControlsCheckbox.addEventListener('change', () => {
+          viewer.hideLayerControls = hideLayerControlsCheckbox.checked;
+        });
       });
     </script>
   </head>
@@ -194,6 +200,7 @@
       <div class="props">
         <button id="toggleTheme">Toggle Theme</button>
         <label>Hide Title <input type="checkbox" id="hideTitle" /></label>
+        <label>Hide Layer Controls <input type="checkbox" id="hideLayerControls" /></label>
       </div>
     </div>
     <ogm-viewer></ogm-viewer>

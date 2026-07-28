@@ -30,6 +30,17 @@ class FakeMap {
   removeLayer(id: string) {
     this.layers.delete(id);
   }
+  setPaintProperty(id: string, name: string, value: unknown) {
+    // MapLibre refuses to style a layer the current style doesn't hold
+    const layer = this.layers.get(id);
+    if (!layer) throw new Error(`No layer ${id} to paint`);
+    layer.paint = { ...layer.paint, [name]: value };
+  }
+  setLayoutProperty(id: string, name: string, value: unknown) {
+    const layer = this.layers.get(id);
+    if (!layer) throw new Error(`No layer ${id} to lay out`);
+    layer.layout = { ...layer.layout, [name]: value };
+  }
 }
 
 // The previewers only read the colors and label styles, none of which these tests assert on
@@ -119,6 +130,68 @@ describe('TileJsonRasterPreviewer#preview', () => {
 
     expect(map.sources.size).toEqual(0);
     expect(map.layers.size).toEqual(0);
+  });
+});
+
+// The genuinely multi-row case: a tileset holding more than one named layer. Every other previewer
+// yields exactly one row in production, so this is where independent per-layer control is exercised.
+describe('TileJsonVectorPreviewer#previewLayers', () => {
+  const SUFFIXES = ['polygons', 'polygon-outlines', 'lines', 'points', 'polygon-labels', 'line-labels', 'point-labels'];
+  const styleLayerIds = (layerId: string) => SUFFIXES.map(suffix => `princeton-fk4544658v-tilejson-${layerId}-${suffix}`);
+
+  const preview = async (doc: object) => {
+    const map = new FakeMap();
+    const previewer = new TileJsonVectorPreviewer(serve(doc), map as unknown as maplibregl.Map, style);
+    await previewer.preview();
+    return { map, previewer };
+  };
+
+  it('gives each layer of the tileset its own row, named as the tileset named it', async () => {
+    const { previewer } = await preview(vectorDoc);
+
+    expect(previewer.previewLayers.map(layer => layer.id)).toEqual(['princeton-fk4544658v-tilejson-districts', 'princeton-fk4544658v-tilejson-places']);
+    expect(previewer.previewLayers.map(layer => layer.title)).toEqual(['Districts', 'Places']);
+  });
+
+  it('drives all seven style layers from each row', async () => {
+    const { previewer } = await preview(vectorDoc);
+
+    expect(previewer.previewLayers.map(layer => layer.styleLayers.map(styleLayer => styleLayer.id))).toEqual([styleLayerIds('districts'), styleLayerIds('places')]);
+  });
+
+  it('reads every style layer from the named layer of the tileset', async () => {
+    const { map } = await preview(vectorDoc);
+
+    styleLayerIds('places').forEach(id => expect(map.layers.get(id)['source-layer']).toEqual('places'));
+  });
+
+  it('leaves one row untouched when the other is hidden', async () => {
+    const { map, previewer } = await preview(vectorDoc);
+
+    previewer.applyLayerState(new Map([['princeton-fk4544658v-tilejson-places', { visible: false, opacity: 1 }]]));
+
+    styleLayerIds('places').forEach(id => expect(map.layers.get(id).layout.visibility).toEqual('none'));
+    styleLayerIds('districts').forEach(id => expect(map.layers.get(id).layout.visibility).toEqual('visible'));
+    expect(previewer.visibleLayerIds).toEqual(styleLayerIds('districts'));
+    // One row still drawn is still a drawn preview
+    expect(previewer.anyLayerVisible).toBe(true);
+  });
+
+  it('fades one row without touching the other', async () => {
+    const { map, previewer } = await preview(vectorDoc);
+
+    previewer.applyLayerState(new Map([['princeton-fk4544658v-tilejson-places', { visible: true, opacity: 0.5 }]]));
+
+    expect(map.layers.get('princeton-fk4544658v-tilejson-places-lines').paint['line-opacity']).toEqual(0.5);
+    expect(map.layers.get('princeton-fk4544658v-tilejson-districts-lines').paint['line-opacity']).toEqual(1);
+  });
+
+  it('still offers a raster tileset exactly one row', async () => {
+    const map = new FakeMap();
+    const previewer = new TileJsonRasterPreviewer(serve(rasterDoc), map as unknown as maplibregl.Map, style);
+    await previewer.preview();
+
+    expect(previewer.previewLayers.map(layer => layer.title)).toEqual(['TileJSON']);
   });
 });
 
