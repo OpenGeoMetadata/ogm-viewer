@@ -30,17 +30,6 @@ describe('ogm-preview', () => {
     expect(shadowRoot.querySelector('ogm-alerts')).toBeNull();
   });
 
-  // The layer panel only exists once the reader has asked for it, so a fresh preview shows the map
-  // alone. That is also what keeps this test green: nothing in the panel is ever constructed here,
-  // and a Web Awesome form control in this environment would fail the whole run. Asserting it means
-  // the constraint is enforced, not remembered.
-  it('draws no layer panel until the reader opens one', async () => {
-    const el = await renderPreview(new GeoJsonResource('id', 'http://example.com/data.json'));
-    const map = (el.shadowRoot as ShadowRoot).querySelector('ogm-map') as HTMLElement;
-
-    expect(map.shadowRoot?.querySelector('ogm-layers')).toBeNull();
-  });
-
   it('shows the error over the preview when a previewError is reported', async () => {
     const el = await renderPreview(new GeoJsonResource('id', 'http://example.com/data.json'));
     const error = referenceError(new TypeError('Failed to fetch'), 'GeoJSON', 'http://example.com/data.json');

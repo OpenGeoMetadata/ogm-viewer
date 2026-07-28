@@ -44,10 +44,6 @@ export namespace Components {
          */
         "padding": number;
         "previewResource": Resource;
-        /**
-          * @default true
-         */
-        "showLayerControls": boolean;
         "theme": 'light' | 'dark';
     }
     interface OgmMenubar {
@@ -69,19 +65,11 @@ export namespace Components {
     }
     interface OgmPreview {
         "previewResource": Resource;
-        /**
-          * @default true
-         */
-        "showLayerControls": boolean;
         "sidebarPadding": number;
         "theme": 'light' | 'dark';
     }
     interface OgmPreviews {
         "record": OgmRecord;
-        /**
-          * @default true
-         */
-        "showLayerControls": boolean;
         "sidebarPadding": number;
         "theme": 'light' | 'dark';
     }
@@ -94,10 +82,6 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmViewer {
-        /**
-          * @default false
-         */
-        "hideLayerControls": boolean;
         /**
           * @default false
          */
@@ -314,10 +298,6 @@ declare namespace LocalJSX {
          */
         "padding"?: number;
         "previewResource"?: Resource;
-        /**
-          * @default true
-         */
-        "showLayerControls"?: boolean;
         "theme"?: 'light' | 'dark';
     }
     interface OgmMenubar {
@@ -340,19 +320,11 @@ declare namespace LocalJSX {
     }
     interface OgmPreview {
         "previewResource"?: Resource;
-        /**
-          * @default true
-         */
-        "showLayerControls"?: boolean;
         "sidebarPadding"?: number;
         "theme"?: 'light' | 'dark';
     }
     interface OgmPreviews {
         "record"?: OgmRecord;
-        /**
-          * @default true
-         */
-        "showLayerControls"?: boolean;
         "sidebarPadding"?: number;
         "theme"?: 'light' | 'dark';
     }
@@ -365,10 +337,6 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface OgmViewer {
-        /**
-          * @default false
-         */
-        "hideLayerControls"?: boolean;
         /**
           * @default false
          */
@@ -393,7 +361,6 @@ declare namespace LocalJSX {
     interface OgmMapAttributes {
         "theme": 'light' | 'dark';
         "padding": number;
-        "showLayerControls": boolean;
     }
     interface OgmMenubarAttributes {
         "theme": 'light' | 'dark';
@@ -405,12 +372,10 @@ declare namespace LocalJSX {
     }
     interface OgmPreviewAttributes {
         "theme": 'light' | 'dark';
-        "showLayerControls": boolean;
         "sidebarPadding": number;
     }
     interface OgmPreviewsAttributes {
         "theme": 'light' | 'dark';
-        "showLayerControls": boolean;
         "sidebarPadding": number;
     }
     interface OgmSidebarAttributes {
@@ -421,7 +386,6 @@ declare namespace LocalJSX {
         "recordUrl": string;
         "theme": 'light' | 'dark';
         "hideTitle": boolean;
-        "hideLayerControls": boolean;
     }
 
     interface IntrinsicElements {
