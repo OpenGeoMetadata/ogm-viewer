@@ -34,6 +34,11 @@ export type LayerControlItem = { id: string; title: string; visible: boolean; op
 export const resolveLayerState = (layer: PreviewLayer, states: ReadonlyMap<string, LayerState>): LayerState =>
   states.get(layer.id) ?? { visible: true, opacity: layer.defaultOpacity };
 
+// Whether a row is actually on the map. An opacity of zero counts as off it: a layer drawn at zero
+// opacity is invisible but still answers queryRenderedFeatures, so anything that asks what the
+// reader can see has to treat the two the same way.
+export const isLayerDrawn = ({ visible, opacity }: LayerState): boolean => visible && opacity > 0;
+
 export const toLayerControlItems = (layers: readonly PreviewLayer[], states: ReadonlyMap<string, LayerState>): LayerControlItem[] =>
   layers.map(layer => {
     const { visible, opacity } = resolveLayerState(layer, states);

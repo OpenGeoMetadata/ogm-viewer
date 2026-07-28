@@ -44,7 +44,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       this.previewLayers.push({
         id: `${this.getSourceId()}-${layerId}`,
         title: this.previewLayerTitle(layerId),
-        defaultOpacity: 1,
+        defaultOpacity: this.style.opacity,
         styleLayers: layers.map(layer => ({ id: layer.id, type: layer.type }) as PreviewStyleLayer),
       });
 
@@ -59,12 +59,14 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     return this.resource.label();
   }
 
-  // A fill doesn't carry its opacity as a number: a selected feature is drawn at a different
-  // opacity from the rest, and that is an expression over feature-state. The layer's opacity has to
-  // be folded into each branch - a flat number written over the expression would take the selection
-  // highlight with it, which is the one thing a reader adjusting opacity still needs to see.
-  protected selectedOpacity(scale = 1): ExpressionSpecification {
-    return ['case', ['boolean', ['feature-state', 'selected'], false], this.style.fillHighlightOpacity * scale, this.style.fillOpacity * scale];
+  // A fill doesn't carry its opacity as a number: a selected feature is drawn at a different opacity
+  // from the rest, and that is an expression over feature-state. The layer's opacity has to be
+  // written into the unselected branch alone - a flat number over the whole expression would take
+  // the selection highlight with it, which is the one thing a reader adjusting opacity still needs
+  // to see. So the selected feature stays solid at any opacity: someone who faded a layer down to
+  // read the basemap through it has all the more reason to want the feature they clicked to stand out.
+  protected selectedOpacity(opacity: number): ExpressionSpecification {
+    return ['case', ['boolean', ['feature-state', 'selected'], false], 1, opacity];
   }
 
   // Fills and circles keep their case expression; everything else takes the plain number
@@ -98,7 +100,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
           this.style.fillHighlightColor,
           this.style.fillColor,
         ] as const,
-        'fill-opacity': this.selectedOpacity(),
+        'fill-opacity': this.selectedOpacity(this.style.opacity),
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
     };
@@ -123,7 +125,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
           this.style.strokeColor,
         ] as const,
         'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
-        'line-opacity': 1,
+        'line-opacity': this.style.opacity,
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
     };
@@ -148,7 +150,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
           this.style.strokeColor,
         ] as const,
         'line-width': 4,
-        'line-opacity': 1,
+        'line-opacity': this.style.opacity,
       },
       filter: ['==', ['geometry-type'], 'LineString'] as const,
     };
@@ -182,8 +184,8 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         ] as const,
         'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 2, 12, 4] as const,
-        'circle-opacity': this.selectedOpacity(),
-        'circle-stroke-opacity': 1,
+        'circle-opacity': this.selectedOpacity(this.style.opacity),
+        'circle-stroke-opacity': this.style.opacity,
       },
       filter: ['==', ['geometry-type'], 'Point'] as const,
     };
@@ -212,7 +214,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-color': this.style.textColor,
         'text-halo-color': 'white',
         'text-halo-width': 1,
-        'text-opacity': 1,
+        'text-opacity': this.style.opacity,
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
     };
@@ -235,7 +237,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-color': this.style.textColor,
         'text-halo-color': 'white',
         'text-halo-width': 1,
-        'text-opacity': 1,
+        'text-opacity': this.style.opacity,
       },
       filter: ['==', ['geometry-type'], 'LineString'] as const,
     };
@@ -258,7 +260,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-color': this.style.textColor,
         'text-halo-color': 'white',
         'text-halo-width': 1,
-        'text-opacity': 1,
+        'text-opacity': this.style.opacity,
       },
       filter: ['==', ['geometry-type'], 'Point'] as const,
     };

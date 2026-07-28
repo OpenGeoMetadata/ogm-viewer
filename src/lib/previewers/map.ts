@@ -2,7 +2,7 @@ import type { SourceSpecification, AddLayerObject } from 'maplibre-gl';
 
 import Previewer from './previewer';
 import MapResource from '../resources/map';
-import { resolveLayerState, type LayerState, type PreviewLayer, type PreviewStyleLayer } from '../layers';
+import { isLayerDrawn, resolveLayerState, type LayerState, type PreviewLayer, type PreviewStyleLayer } from '../layers';
 import { type MapLibreStyle } from '../themes/maplibre';
 
 // MapLibre doesn't bundle the id with the source, but we need to
@@ -76,13 +76,13 @@ export default abstract class MapPreviewer extends Previewer {
   // Push the reader's choices onto the layers already on the map. Idempotent: every value is
   // rebuilt from the theme and the requested state rather than read back off the map, so
   // re-applying it - after a basemap swap, or on every frame of a slider drag - can't compound.
-  // Callers must check map.isStyleLoaded() first, since setPaintProperty throws while a style is
-  // still loading.
+  // Callers must only call this once the style document itself has loaded, since setPaintProperty
+  // throws before that.
   applyLayerState(states: ReadonlyMap<string, LayerState>) {
     this.layerState = states;
 
     this.previewLayers.forEach(layer => {
-      const { visible, opacity } = resolveLayerState(layer, states);
+      const state = resolveLayerState(layer, states);
 
       layer.styleLayers.forEach(styleLayer => {
         // A layer the style no longer holds is one a rebuild hasn't finished replacing
@@ -91,11 +91,11 @@ export default abstract class MapPreviewer extends Previewer {
         // An opacity of zero has to hide the layer outright, not just make it invisible:
         // queryRenderedFeatures skips layers set to `visibility: none` but still reports features
         // from a layer drawn at zero opacity, which would let a reader click what they can't see.
-        this.map.setLayoutProperty(styleLayer.id, 'visibility', visible && opacity > 0 ? 'visible' : 'none');
+        this.map.setLayoutProperty(styleLayer.id, 'visibility', isLayerDrawn(state) ? 'visible' : 'none');
 
         // A highlight is drawn for us by the server we asked; dimming it would make the answer
         // harder to read at exactly the moment the reader asked for it
-        if (!styleLayer.internal) this.applyOpacity(styleLayer, opacity);
+        if (!styleLayer.internal) this.applyOpacity(styleLayer, state.opacity);
       });
     });
   }
@@ -105,8 +105,7 @@ export default abstract class MapPreviewer extends Previewer {
   // style doesn't hold.
   get visibleLayerIds(): string[] {
     return this.previewLayers.flatMap(layer => {
-      const { visible, opacity } = resolveLayerState(layer, this.layerState);
-      if (!visible || opacity === 0) return [];
+      if (!isLayerDrawn(resolveLayerState(layer, this.layerState))) return [];
       return layer.styleLayers.filter(styleLayer => !styleLayer.internal).map(styleLayer => styleLayer.id);
     });
   }
@@ -114,10 +113,7 @@ export default abstract class MapPreviewer extends Previewer {
   // Whether any of this preview is drawn. A server-drawn raster has no client-side features to
   // filter a query by, so ogm-map has to ask before offering to inspect one.
   get anyLayerVisible(): boolean {
-    return this.previewLayers.some(layer => {
-      const { visible, opacity } = resolveLayerState(layer, this.layerState);
-      return visible && opacity > 0;
-    });
+    return this.previewLayers.some(layer => isLayerDrawn(resolveLayerState(layer, this.layerState)));
   }
 
   // Write the opacity a style layer carries. Only the property its type owns: MapLibre rejects a
