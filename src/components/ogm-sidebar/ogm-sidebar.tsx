@@ -14,7 +14,6 @@ export class OgmSidebar {
   @Prop() record: OgmRecord;
   @Prop() theme: 'light' | 'dark';
   @Prop() open: boolean = false;
-  @Prop() layerControlsVisible: boolean = true;
 
   private tabs: WaTabGroup;
 

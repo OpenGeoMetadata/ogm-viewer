@@ -8,8 +8,8 @@ const item = (id: string, title: string, overrides: Partial<LayerControlItem> = 
 const ONE = [item('districts', 'Districts', { opacity: 0.8 })];
 const TWO = [item('districts', 'Districts'), item('places', 'Places')];
 
-const renderLayers = async (layers: LayerControlItem[], open = false) => {
-  const { root } = await render(<ogm-layers layers={layers} open={open}></ogm-layers>);
+const renderLayers = async (layers: LayerControlItem[]) => {
+  const { root } = await render(<ogm-layers layers={layers}></ogm-layers>);
   return root.shadowRoot as ShadowRoot;
 };
 
@@ -37,35 +37,25 @@ describe('ogm-layers', () => {
     expect(shadowRoot.querySelector('.percent')?.textContent).toEqual('80%');
   });
 
-  it('summarizes a real list and keeps it closed until asked', async () => {
+  // The panel is only on screen because the reader pressed the button that opens it, so there is
+  // nothing left to collapse: every row is listed, and the header just counts and governs them
+  it('counts a real list above the rows it governs', async () => {
     const shadowRoot = await renderLayers(TWO);
 
     expect(shadowRoot.querySelector('.header .title')?.textContent).toEqual('Layers (2)');
-    expect(shadowRoot.querySelector('.disclosure')?.getAttribute('aria-expanded')).toEqual('false');
-    expect(shadowRoot.querySelectorAll('.layer')).toHaveLength(0);
+    expect(shadowRoot.querySelectorAll('.layer')).toHaveLength(2);
   });
 
   // MapLibre paints in the order layers were added, so the last is on top; reading the list
   // top-down should match reading the map top-down
-  it('lists an open panel in the order the map draws it, topmost first', async () => {
-    const shadowRoot = await renderLayers(TWO, true);
+  it('lists the rows in the order the map draws them, topmost first', async () => {
+    const shadowRoot = await renderLayers(TWO);
 
     expect(titles(shadowRoot)).toEqual(['Places', 'Districts']);
   });
 
-  it('asks to be opened when the header is clicked', async () => {
-    const { root, waitForChanges } = await render(<ogm-layers layers={TWO}></ogm-layers>);
-    const toggled: boolean[] = [];
-    root.addEventListener('layerListToggled', (event: Event) => toggled.push((event as CustomEvent<boolean>).detail));
-
-    getElement(root, '.disclosure').click();
-    await waitForChanges();
-
-    expect(toggled).toEqual([true]);
-  });
-
   it('reports which layer the reader hid', async () => {
-    const { root, waitForChanges } = await render(<ogm-layers layers={TWO} open={true}></ogm-layers>);
+    const { root, waitForChanges } = await render(<ogm-layers layers={TWO}></ogm-layers>);
     const changes: { id: string; visible: boolean }[] = [];
     root.addEventListener('layerVisibilityChange', (event: Event) => changes.push((event as CustomEvent<{ id: string; visible: boolean }>).detail));
 

@@ -22,44 +22,19 @@
   max-width: 18rem;
 }
 
+/* Only a multi-layer record has this: the count, and one checkbox for the whole list */
 .header {
   align-items: center;
   display: flex;
   flex: none;
   gap: var(--wa-space-xs);
-  padding: var(--wa-space-2xs) var(--wa-space-xs);
+  padding: var(--wa-space-xs);
 }
 
-/* A plain button rather than <wa-button>: this is map chrome, where MapLibre's own controls are
-   plain buttons too, and it keeps the panel free of form-associated components */
-.disclosure {
-  align-items: center;
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  display: flex;
+.header .title {
   flex: 1;
-  font: inherit;
   font-weight: var(--wa-font-weight-semibold);
-  gap: var(--wa-space-xs);
   min-width: 0;
-  padding: var(--wa-space-2xs);
-  text-align: start;
-}
-
-.disclosure:hover {
-  color: var(--wa-color-text-link);
-}
-
-.chevron {
-  flex: none;
-  transition: transform var(--wa-transition-normal);
-  transform: rotate(-90deg);
-}
-
-.chevron.open {
-  transform: rotate(0deg);
 }
 
 .layers {
