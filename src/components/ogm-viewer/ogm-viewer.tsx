@@ -39,7 +39,6 @@ export class OgmViewer {
   @Prop() recordUrl: string;
   @Prop() theme: 'light' | 'dark' = this.getThemePreference();
   @Prop() hideTitle: boolean = false;
-  @Prop() hideLayerControls: boolean = false;
   @State() record?: OgmRecord;
   @State() error?: PreviewError;
   @State() sidebarOpen: boolean = false;
@@ -128,7 +127,7 @@ export class OgmViewer {
             {this.error ? (
               <ogm-alerts theme={this.theme} error={this.error}></ogm-alerts>
             ) : (
-              <ogm-previews theme={this.theme} record={this.record} show-layer-controls={!this.hideLayerControls} sidebar-padding={this.sidebarPadding}></ogm-previews>
+              <ogm-previews theme={this.theme} record={this.record} sidebar-padding={this.sidebarPadding}></ogm-previews>
             )}
           </div>
         </div>

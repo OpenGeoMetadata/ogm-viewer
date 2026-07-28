@@ -60,7 +60,6 @@ export class OgmMap {
   @Prop() previewResource: Resource;
   @Prop() theme: 'light' | 'dark';
   @Prop() padding: number = 0;
-  @Prop() showLayerControls: boolean = true;
   @Event() mapIdle: EventEmitter<void>;
   @Event() mapLoading: EventEmitter<void>;
   @Event() previewError: EventEmitter<PreviewError>;
@@ -157,7 +156,6 @@ export class OgmMap {
     );
     this.layersControl = new LayersControl(this.toggleLayerList.bind(this));
     this.map.addControl(this.layersControl);
-    this.layersControl.setHidden(!this.showLayerControls);
     this.map.addControl(
       new maplibregl.FullscreenControl({
         container: this.containerEl,
@@ -281,12 +279,6 @@ export class OgmMap {
       this.map.once('moveend', () => resolve());
       this.map.fitBounds(bounds);
     });
-  }
-
-  // An embedder can turn the layer controls off after load, which takes the button with it
-  @Watch('showLayerControls')
-  onShowLayerControlsChange() {
-    this.layersControl?.setHidden(!this.showLayerControls);
   }
 
   // When padding is changed, move the map over to make room for the sidebar
@@ -517,7 +509,7 @@ export class OgmMap {
     return (
       <Host>
         <div id="map" class={`wa-${this.theme}`}></div>
-        {this.showLayerControls && this.layersOpen && <ogm-layers theme={this.theme} layers={this.layerItems}></ogm-layers>}
+        {this.layersOpen && <ogm-layers theme={this.theme} layers={this.layerItems}></ogm-layers>}
       </Host>
     );
   }
