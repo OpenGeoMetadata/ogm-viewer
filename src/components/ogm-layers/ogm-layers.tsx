@@ -16,22 +16,14 @@ export class OgmLayers {
   @Prop() theme: 'light' | 'dark';
   @Prop() layers: LayerControlItem[] = [];
 
-  // Owned by ogm-map so it survives the previewer being rebuilt on a theme change
-  @Prop() open: boolean = false;
-
   @Event() layerVisibilityChange: EventEmitter<{ id: string; visible: boolean }>;
   @Event() layerOpacityChange: EventEmitter<{ id: string; opacity: number }>;
   @Event() allLayersVisibilityChange: EventEmitter<boolean>;
-  @Event() layerListToggled: EventEmitter<boolean>;
 
-  // A single-layer record - nearly every record - gets the row itself with no header to open, so
-  // fading an overlay against the basemap costs no clicks. Only a genuine list needs summarizing.
-  private get collapsible(): boolean {
+  // A single-layer record - nearly every record - is just its one row: there is nothing to summarize,
+  // and the row's own title names the panel. Only a genuine list needs a count and a hide-all.
+  private get summarized(): boolean {
     return this.layers.length > 1;
-  }
-
-  private get expanded(): boolean {
-    return !this.collapsible || this.open;
   }
 
   private get allVisible(): boolean {
@@ -61,12 +53,9 @@ export class OgmLayers {
     return (
       <Host class={this.theme && `wa-${this.theme}`}>
         <div class="panel" role="group" aria-label="Layer controls">
-          {this.collapsible && (
+          {this.summarized && (
             <div class="header">
-              <button class="disclosure" type="button" aria-expanded={String(this.expanded)} onClick={() => this.layerListToggled.emit(!this.open)}>
-                <wa-icon class={this.expanded ? 'chevron open' : 'chevron'} name="chevron-down" label={this.expanded ? 'Hide layers' : 'Show layers'} canvas="auto"></wa-icon>
-                <span class="title">Layers ({this.layers.length})</span>
-              </button>
+              <span class="title">Layers ({this.layers.length})</span>
               <input
                 class="visibility"
                 type="checkbox"
@@ -76,33 +65,31 @@ export class OgmLayers {
               />
             </div>
           )}
-          {this.expanded && (
-            <ul class="layers">
-              {this.rows.map(layer => (
-                <li class="layer" key={layer.id}>
-                  <div class="row">
-                    <input class="visibility" type="checkbox" checked={layer.visible} aria-label={layer.title} onChange={event => this.onVisibilityInput(layer, event)} />
-                    <span class="title" title={layer.title}>
-                      {layer.title}
-                    </span>
-                  </div>
-                  <div class="row">
-                    <input
-                      class="opacity"
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="1"
-                      value={Math.round(layer.opacity * 100)}
-                      aria-label={`Opacity of ${layer.title}`}
-                      onInput={event => this.onOpacityInput(layer, event)}
-                    />
-                    <span class="percent">{Math.round(layer.opacity * 100)}%</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ul class="layers">
+            {this.rows.map(layer => (
+              <li class="layer" key={layer.id}>
+                <div class="row">
+                  <input class="visibility" type="checkbox" checked={layer.visible} aria-label={layer.title} onChange={event => this.onVisibilityInput(layer, event)} />
+                  <span class="title" title={layer.title}>
+                    {layer.title}
+                  </span>
+                </div>
+                <div class="row">
+                  <input
+                    class="opacity"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={Math.round(layer.opacity * 100)}
+                    aria-label={`Opacity of ${layer.title}`}
+                    onInput={event => this.onOpacityInput(layer, event)}
+                  />
+                  <span class="percent">{Math.round(layer.opacity * 100)}%</span>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       </Host>
     );

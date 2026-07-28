@@ -35,10 +35,6 @@ export namespace Components {
           * @default []
          */
         "layers": LayerControlItem[];
-        /**
-          * @default false
-         */
-        "open": boolean;
         "theme": 'light' | 'dark';
     }
     interface OgmMap {
@@ -90,10 +86,6 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmSidebar {
-        /**
-          * @default true
-         */
-        "layerControlsVisible": boolean;
         /**
           * @default false
          */
@@ -185,7 +177,6 @@ declare global {
         "layerVisibilityChange": { id: string; visible: boolean };
         "layerOpacityChange": { id: string; opacity: number };
         "allLayersVisibilityChange": boolean;
-        "layerListToggled": boolean;
     }
     interface HTMLOgmLayersElement extends Components.OgmLayers, HTMLStencilElement {
         addEventListener<K extends keyof HTMLOgmLayersElementEventMap>(type: K, listener: (this: HTMLOgmLayersElement, ev: OgmLayersCustomEvent<HTMLOgmLayersElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
@@ -310,13 +301,8 @@ declare namespace LocalJSX {
          */
         "layers"?: LayerControlItem[];
         "onAllLayersVisibilityChange"?: (event: OgmLayersCustomEvent<boolean>) => void;
-        "onLayerListToggled"?: (event: OgmLayersCustomEvent<boolean>) => void;
         "onLayerOpacityChange"?: (event: OgmLayersCustomEvent<{ id: string; opacity: number }>) => void;
         "onLayerVisibilityChange"?: (event: OgmLayersCustomEvent<{ id: string; visible: boolean }>) => void;
-        /**
-          * @default false
-         */
-        "open"?: boolean;
         "theme"?: 'light' | 'dark';
     }
     interface OgmMap {
@@ -372,10 +358,6 @@ declare namespace LocalJSX {
     }
     interface OgmSidebar {
         /**
-          * @default true
-         */
-        "layerControlsVisible"?: boolean;
-        /**
           * @default false
          */
         "open"?: boolean;
@@ -407,7 +389,6 @@ declare namespace LocalJSX {
     }
     interface OgmLayersAttributes {
         "theme": 'light' | 'dark';
-        "open": boolean;
     }
     interface OgmMapAttributes {
         "theme": 'light' | 'dark';
@@ -435,7 +416,6 @@ declare namespace LocalJSX {
     interface OgmSidebarAttributes {
         "theme": 'light' | 'dark';
         "open": boolean;
-        "layerControlsVisible": boolean;
     }
     interface OgmViewerAttributes {
         "recordUrl": string;

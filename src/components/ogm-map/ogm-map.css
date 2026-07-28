@@ -6,6 +6,12 @@
   display: block;
   height: 100%;
   position: relative;
+
+  /* MapLibre's control metrics, which it publishes no custom properties for: each .maplibregl-ctrl
+     group floats to the right with a 10px margin inside the corner container, and each button in a
+     group is 29px square. The layer panel is placed against these, so name them once. */
+  --ogm-control-inset: 10px;
+  --ogm-control-size: 29px;
 }
 
 #map {
@@ -14,21 +20,33 @@
   position: relative;
 }
 
-/* Bottom-left, not bottom-right. The four MapLibre control groups stack down the right edge, and in
-   a short map - an embed, or the demo page - a panel in the bottom-right grows up into them and
-   silently covers the globe and geolocate buttons. Nothing is ever placed on the left, so this
-   corner can't collide at any height. The sidebar does slide over it, but only while the reader has
-   deliberately opened it to read metadata. Above MapLibre's own corner containers (z-index 2) and
-   well below the sidebar. */
+/* Top-right, level with the control stack that opens it but clear of the column those buttons form.
+   Above MapLibre's own corner containers (z-index 2) and well below the sidebar - which slides in
+   from the left, so it no longer covers this. */
 ogm-layers {
   position: absolute;
-  inset-block-end: var(--wa-space-s);
-  inset-inline-start: var(--wa-space-s);
+  inset-block-start: var(--ogm-control-inset);
+  /* Past the button column, then the same gap again that the column keeps from the map's edge */
+  inset-inline-end: calc(2 * var(--ogm-control-inset) + var(--ogm-control-size));
   z-index: 3;
-  max-width: calc(100% - 2 * var(--wa-space-s));
-  /* Keep a tall list from running off the top of a short map; the list itself scrolls */
-  max-height: calc(100% - 2 * var(--wa-space-s));
+  max-width: calc(100% - 3 * var(--ogm-control-inset) - var(--ogm-control-size));
+  /* Keep a tall list from running off the bottom of a short map; the list itself scrolls */
+  max-height: calc(100% - 2 * var(--ogm-control-inset));
   display: flex;
+}
+
+/* Our own control button, drawn the way MapLibre draws its own: the glyph is a background image with
+   its ink baked in at #333 rather than following currentColor, because the dark-mode rule below
+   inverts the whole group - a themed glyph would turn near-white and then invert to black on black.
+   Bootstrap Icons "stack", at 17px inside the 29px button to match the padding of its neighbours. */
+.maplibregl-ctrl button.maplibregl-ctrl-layers .maplibregl-ctrl-icon {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' fill='%23333' viewBox='0 0 16 16'%3E%3Cpath d='m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z'/%3E%3Cpath d='m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z'/%3E%3C/svg%3E");
+}
+
+/* Panel showing. A background tint, not MapLibre's own convention of recoloring the glyph: a colored
+   icon under that same inversion is what forced the globe workaround at the bottom of this file. */
+.maplibregl-ctrl button.maplibregl-ctrl-layers.pressed {
+  background-color: rgb(0 0 0 / 10%);
 }
 
 /* Color of the map background ("space" around the globe) */

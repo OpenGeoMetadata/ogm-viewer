@@ -20,6 +20,7 @@ import { getElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
 import { toLayerControlItems, type LayerControlItem, type LayerState } from '../../lib/layers';
+import LayersControl from '../../lib/layers-control';
 import CogPreviewer from '../../lib/previewers/cog';
 import EsriDynamicMapLayerPreviewer from '../../lib/previewers/esri-dynamic-map-layer';
 import EsriFeatureLayerPreviewer from '../../lib/previewers/esri-feature-layer';
@@ -66,6 +67,9 @@ export class OgmMap {
 
   // The rows the layer control renders, republished whenever the reader changes one
   @State() layerItems: LayerControlItem[] = [];
+
+  // Whether the reader has asked for the layer panel. Closed on load so the map arrives unobstructed,
+  // and kept across resources: it's a preference about the chrome, not a fact about these layers.
   @State() layersOpen: boolean = false;
 
   // What the reader asked for, by logical layer id. Held here rather than on the previewer because
@@ -89,6 +93,9 @@ export class OgmMap {
 
   // Container element reference for fullscreen
   protected containerEl: HTMLElement;
+
+  // The button in the map's control stack that opens and closes the layer panel
+  protected layersControl: LayersControl;
 
   // Previewer for the currently previewed resource
   protected previewer: MapPreviewer | undefined = undefined;
@@ -138,13 +145,19 @@ export class OgmMap {
     this.containerEl = containerEl;
   }
 
-  // Add controls to the map
+  // Add controls to the map. Order is the order they stack down the top-right corner, so the layer
+  // button goes second: zoom stays where readers expect it, and the button still sits near the top
+  // edge of the panel it opens. It is always added and hidden when unwanted rather than added
+  // conditionally, so that an embedder toggling the controls back on gets it back in this position.
   protected addControls() {
     this.map.addControl(
       new maplibregl.NavigationControl({
         visualizePitch: true,
       }),
     );
+    this.layersControl = new LayersControl(this.toggleLayerList.bind(this));
+    this.map.addControl(this.layersControl);
+    this.layersControl.setHidden(!this.showLayerControls);
     this.map.addControl(
       new maplibregl.FullscreenControl({
         container: this.containerEl,
@@ -199,10 +212,10 @@ export class OgmMap {
 
     // A theme change re-runs this for the same resource, so the reader's choices are re-applied to
     // the rebuilt layers. A different resource has different layers, so they start clean - without
-    // this a hidden row would silently hide the next record's preview.
+    // this a hidden row would silently hide the next record's preview. Whether the panel is open
+    // isn't reset here: it describes what the reader wants to see, not which layers exist.
     if (resource.url !== this.loadedResourceUrl) {
       this.layerState.clear();
-      this.layersOpen = false;
       this.loadedResourceUrl = resource.url;
     }
 
@@ -270,6 +283,12 @@ export class OgmMap {
     });
   }
 
+  // An embedder can turn the layer controls off after load, which takes the button with it
+  @Watch('showLayerControls')
+  onShowLayerControlsChange() {
+    this.layersControl?.setHidden(!this.showLayerControls);
+  }
+
   // When padding is changed, move the map over to make room for the sidebar
   @Watch('padding')
   async onPaddingChange() {
@@ -303,10 +322,11 @@ export class OgmMap {
     this.commitLayerState();
   }
 
-  @Listen('layerListToggled')
-  handleLayerListToggled(event: CustomEvent<boolean>) {
-    event.stopPropagation();
-    this.layersOpen = event.detail;
+  // Called by the control button, which is plain DOM outside the render pipeline, so it has to be
+  // told about the new state rather than being handed it as a prop
+  protected toggleLayerList() {
+    this.layersOpen = !this.layersOpen;
+    this.layersControl.setPressed(this.layersOpen);
   }
 
   // Remember one row's change, then push everything to the map at once
@@ -486,10 +506,10 @@ export class OgmMap {
     return this.previewer?.visibleLayerIds || [];
   }
 
-  // The layer control is a sibling of #map rather than a MapLibre control. MapLibre owns the
-  // children of #map, so anything Stencil renders in there is fighting it for the same DOM - the
-  // reason ogm-attributes has to be built by hand. Out here it stays declarative, and it also stays
-  // out of the control group that dark mode inverts wholesale.
+  // The layer panel is a sibling of #map rather than a MapLibre control, even though the button that
+  // opens it is one. MapLibre owns the children of #map, so anything Stencil renders in there is
+  // fighting it for the same DOM - the reason ogm-attributes has to be built by hand. Out here the
+  // panel stays declarative, and it stays out of the control group that dark mode inverts wholesale.
   // The theme class stays on #map, not the Host: the dark-mode rules in ogm-map.css select MapLibre
   // chrome as descendants of it, and a class on the host element isn't matched by `.wa-dark` from
   // inside the shadow root.
@@ -497,7 +517,7 @@ export class OgmMap {
     return (
       <Host>
         <div id="map" class={`wa-${this.theme}`}></div>
-        {this.showLayerControls && <ogm-layers theme={this.theme} layers={this.layerItems} open={this.layersOpen}></ogm-layers>}
+        {this.showLayerControls && this.layersOpen && <ogm-layers theme={this.theme} layers={this.layerItems}></ogm-layers>}
       </Host>
     );
   }
