@@ -90,7 +90,7 @@ describe('WmsPreviewer#previewLayers', () => {
   });
 
   // The highlight belongs to the tiles' row rather than one of its own: it's machinery for reading
-  // them, not something the reader chose to put on the map
+  // them, not something the user chose to put on the map
   it('carries the highlight layers on that row, flagged as machinery', () => {
     const styleLayers = previewer.previewLayers[0].styleLayers;
 
@@ -98,7 +98,7 @@ describe('WmsPreviewer#previewLayers', () => {
     expect(styleLayers.filter(styleLayer => styleLayer.internal).map(styleLayer => styleLayer.id)).toEqual(HIGHLIGHT_LAYERS);
   });
 
-  // An outline the server drew has to stay legible at exactly the moment the reader faded the
+  // An outline the server drew has to stay legible at exactly the moment the user faded the
   // tiles to see what was under them
   it('never fades the highlight along with the tiles', () => {
     previewer.applyLayerState(new Map([['s7st30-wms', { visible: true, opacity: 0.15 }]]));

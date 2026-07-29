@@ -5,7 +5,6 @@ import Theme from './theme';
 export type MapLibreStyle = {
   // Generic properties used for all data
   padding: string;
-  // The opacity every layer is drawn at until a reader moves its slider, whatever kind of data it is
   opacity: number;
   // CSS colors used for polygons & circles
   fillColor: string;
@@ -21,7 +20,7 @@ export type MapLibreStyle = {
   textColor: string;
   textFont: string;
   textSize: number;
-  // The opacity a highlight a server drew for us is traced at (decimal between 0 and 1)
+  // Opacity for highlighted polygons/circles
   fillHighlightOpacity: number;
 };
 

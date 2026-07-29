@@ -1,9 +1,6 @@
 import type { IControl, Map } from 'maplibre-gl';
 
-// A button in the map's control stack that shows and hides the layer panel. It builds the same DOM
-// MapLibre's own controls build, which is the whole point: the group chrome, the hover tint, the
-// focus ring and the dark-mode inversion in ogm-map.css all already select these class names, so
-// this button is styled by the rules that style its neighbours rather than by rules of its own.
+// A button in the map's control stack that shows and hides the layer panel
 export default class LayersControl implements IControl {
   private container: HTMLElement | undefined;
   private button: HTMLButtonElement | undefined;

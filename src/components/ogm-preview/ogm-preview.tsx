@@ -4,7 +4,7 @@ import IIIFResource from '../../lib/resources/iiif';
 import type Resource from '../../lib/resources/resource';
 import type { PreviewError } from '../../lib/errors';
 
-// Wraps a single source's preview and surfaces error(s) during the preview.
+// Wraps a single resource's preview and surfaces error(s) during the preview.
 @Component({
   tag: 'ogm-preview',
   styleUrl: 'ogm-preview.css',

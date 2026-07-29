@@ -2,7 +2,7 @@ import type { SourceSpecification, AddLayerObject } from 'maplibre-gl';
 
 import Previewer from './previewer';
 import MapResource from '../resources/map';
-import { isLayerDrawn, resolveLayerState, type LayerState, type PreviewLayer, type PreviewStyleLayer } from '../layers';
+import { isLayerDrawn, resolveLayerState, type LayerState, type Layer, type PreviewStyleLayer } from '../layers';
 import { type MapLibreStyle } from '../themes/maplibre';
 
 // MapLibre doesn't bundle the id with the source, but we need to
@@ -19,13 +19,13 @@ export default abstract class MapPreviewer extends Previewer {
   sourceIds: string[] = [];
   layerIds: string[] = [];
 
-  // The logical layers this preview offers the reader, in the order they're painted. Subclasses
+  // The logical layers this preview offers the user, in the order they're painted. Subclasses
   // fill this in from createLayers(), which is the only code that knows how one resource expands
   // into style layers.
-  previewLayers: PreviewLayer[] = [];
+  previewLayers: Layer[] = [];
 
   // A memo of the last instruction applyLayerState was given, not a source of truth: ogm-map owns
-  // the reader's choices, because setStyle rebuilds this object from scratch on every theme change.
+  // the user's choices, because setStyle rebuilds this object from scratch on every theme change.
   private layerState: ReadonlyMap<string, LayerState> = new Map();
 
   constructor(resource: MapResource, map: maplibregl.Map, style: MapLibreStyle) {
@@ -73,7 +73,7 @@ export default abstract class MapPreviewer extends Previewer {
     this.layerState = new Map();
   }
 
-  // Push the reader's choices onto the layers already on the map. Idempotent: every value is
+  // Push the user's choices onto the layers already on the map. Idempotent: every value is
   // rebuilt from the theme and the requested state rather than read back off the map, so
   // re-applying it - after a basemap swap, or on every frame of a slider drag - can't compound.
   // Callers must only call this once the style document itself has loaded, since setPaintProperty
@@ -90,11 +90,11 @@ export default abstract class MapPreviewer extends Previewer {
 
         // An opacity of zero has to hide the layer outright, not just make it invisible:
         // queryRenderedFeatures skips layers set to `visibility: none` but still reports features
-        // from a layer drawn at zero opacity, which would let a reader click what they can't see.
+        // from a layer drawn at zero opacity, which would let a user click what they can't see.
         this.map.setLayoutProperty(styleLayer.id, 'visibility', isLayerDrawn(state) ? 'visible' : 'none');
 
         // A highlight is drawn for us by the server we asked; dimming it would make the answer
-        // harder to read at exactly the moment the reader asked for it
+        // harder to read at exactly the moment the user asked for it
         if (!styleLayer.internal) this.applyOpacity(styleLayer, state.opacity);
       });
     });
@@ -139,7 +139,7 @@ export default abstract class MapPreviewer extends Previewer {
     }
   }
 
-  protected findPreviewLayer(id: string): PreviewLayer | undefined {
+  protected findPreviewLayer(id: string): Layer | undefined {
     return this.previewLayers.find(layer => layer.id === id);
   }
 

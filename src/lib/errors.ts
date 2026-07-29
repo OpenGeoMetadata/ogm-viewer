@@ -1,6 +1,4 @@
-// Supertype for errors thrown inside ogm-viewer. `message` is inherited from Error; redeclaring it
-// here would emit an uninitialized class field that clobbers the value super() sets (under the
-// es2022 define-fields semantics this project compiles with), leaving every subtype's message empty.
+// Supertype for errors thrown inside ogm-viewer.
 export class PreviewError extends Error {
   title: string;
   url?: string;

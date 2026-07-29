@@ -27,7 +27,7 @@ export default class RasterPreviewer extends MapPreviewer {
   }
 
   // Rasters only have one layer of their own; subclasses may add companion layers after it.
-  // `visibility` is declared even though it's MapLibre's default, so that re-applying the reader's
+  // `visibility` is declared even though it's MapLibre's default, so that re-applying the user's
   // state is a no-op: MapLibre compares against the value the layer declared, and an undefined one
   // never matches 'visible', which would send the source back to be reloaded on every preview.
   protected async createLayers(): Promise<LayerSpecification[]> {

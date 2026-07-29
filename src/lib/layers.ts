@@ -1,45 +1,37 @@
-import type { LayerSpecification } from 'maplibre-gl';
+import type { LayerSpecification as MapLibreLayerSpecification } from 'maplibre-gl';
 
-// One MapLibre style layer inside a logical layer, and what we need in order to control it
+// A MapLibre style layer, one piece of a logical layer. Vector layers can have
+// multiple of these, e.g. to style fills, outlines, and labels separately.
 export type PreviewStyleLayer = {
   id: string;
-  type: LayerSpecification['type'];
-  // Machinery rather than data - a selection highlight. It hides with its layer, but never dims
-  // with it: an outline the server drew for us has to stay legible at any opacity.
+  type: MapLibreLayerSpecification['type'];
+  // "Internal" means it's a style layer that is created artificially, e.g. to
+  // highlight a feature on the map, and thus shouldn't be listed in layer controls
   internal?: boolean;
 };
 
-// A layer as a reader thinks of it: one row in the layer control. One row is often several style
-// layers - a vector layer is drawn by seven - so the control names the group, not the style layer.
-// `id` is always derived from a source id, never an array index or fetched text, so the reader's
-// choices survive the wholesale style rebuild that a basemap swap causes.
-export type PreviewLayer = {
+// A logical layer, which can be turned off/on and have its opacity adjusted.
+// Can comprise multiple style layers, e.g. a vector layer with fills, outlines, and labels.
+export type Layer = {
   id: string;
   title: string;
-  // The opacity the theme draws this layer at. The slider opens here, and returning to it
-  // reproduces the authored paint exactly, which is what makes re-applying state a genuine no-op.
   defaultOpacity: number;
   styleLayers: PreviewStyleLayer[];
 };
 
-// What the reader asked for, per row. Opacity is 0-1; the 0-100 integer is a detail of the slider.
+// Attributes of a layer that the user can toggle in the control panel
 export type LayerState = { visible: boolean; opacity: number };
 
-// One row as the panel renders it: plain scalars only, so the component never holds a style spec
-// or a reference back to the previewer
-export type LayerControlItem = { id: string; title: string; visible: boolean; opacity: number };
+// Data for a single entry in the layers control panel
+export type LayerControl = { id: string; title: string } & LayerState;
 
-// A row the reader hasn't touched follows the theme, rather than a value copied at preview time
-// that would go stale the moment the theme changed
-export const resolveLayerState = (layer: PreviewLayer, states: ReadonlyMap<string, LayerState>): LayerState =>
-  states.get(layer.id) ?? { visible: true, opacity: layer.defaultOpacity };
+// Get the initial state for a layer
+export const resolveLayerState = (layer: Layer, states: ReadonlyMap<string, LayerState>): LayerState => states.get(layer.id) ?? { visible: true, opacity: layer.defaultOpacity };
 
-// Whether a row is actually on the map. An opacity of zero counts as off it: a layer drawn at zero
-// opacity is invisible but still answers queryRenderedFeatures, so anything that asks what the
-// reader can see has to treat the two the same way.
+// Used to check if the layer should be inspectable; needs to be both toggled on and not fully faded
 export const isLayerDrawn = ({ visible, opacity }: LayerState): boolean => visible && opacity > 0;
 
-export const toLayerControlItems = (layers: readonly PreviewLayer[], states: ReadonlyMap<string, LayerState>): LayerControlItem[] =>
+export const toLayerControlItems = (layers: readonly Layer[], states: ReadonlyMap<string, LayerState>): LayerControl[] =>
   layers.map(layer => {
     const { visible, opacity } = resolveLayerState(layer, states);
     return { id: layer.id, title: layer.title, visible, opacity };
