@@ -183,7 +183,7 @@ describe('TileJsonVectorPreviewer#previewLayers', () => {
     previewer.applyLayerState(new Map([['princeton-fk4544658v-tilejson-places', { visible: true, opacity: 0.5 }]]));
 
     expect(map.layers.get('princeton-fk4544658v-tilejson-places-lines').paint['line-opacity']).toEqual(0.5);
-    // The row the reader never touched keeps the opacity the theme drew it at
+    // The row the user never touched keeps the opacity the theme drew it at
     expect(map.layers.get('princeton-fk4544658v-tilejson-districts-lines').paint['line-opacity']).toEqual(style.opacity);
   });
 

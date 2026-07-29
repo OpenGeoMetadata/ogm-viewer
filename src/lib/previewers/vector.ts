@@ -40,7 +40,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       ];
 
       // Seven style layers, one row: geometry and its labels are how a vector layer is drawn, not
-      // seven things a reader chose to put on the map
+      // seven things a user chose to put on the map
       this.previewLayers.push({
         id: `${this.getSourceId()}-${layerId}`,
         title: this.previewLayerTitle(layerId),
@@ -53,7 +53,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
   }
 
   // What to call this layer in the control. A single-layer source names its one layer for our own
-  // benefit ('geojson', 'indexmap'), which would tell a reader nothing, so the resource's own
+  // benefit ('geojson', 'indexmap'), which would tell a user nothing, so the resource's own
   // label is the better name; a tileset that names its layers itself overrides this.
   protected previewLayerTitle(_layerId: string): string {
     return this.resource.label();
@@ -62,7 +62,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
   // A fill doesn't carry its opacity as a number: a selected feature is drawn at a different opacity
   // from the rest, and that is an expression over feature-state. The layer's opacity has to be
   // written into the unselected branch alone - a flat number over the whole expression would take
-  // the selection highlight with it, which is the one thing a reader adjusting opacity still needs
+  // the selection highlight with it, which is the one thing a user adjusting opacity still needs
   // to see. So the selected feature stays solid at any opacity: someone who faded a layer down to
   // read the basemap through it has all the more reason to want the feature they clicked to stand out.
   protected selectedOpacity(opacity: number): ExpressionSpecification {

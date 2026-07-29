@@ -18,8 +18,9 @@ import WmtsResource from '../../lib/resources/wmts';
 
 import { getElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
+import { dedupeFeatures } from '../../lib/features';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
-import { isLayerDrawn, toLayerControlItems, type LayerControlItem, type LayerState } from '../../lib/layers';
+import { isLayerDrawn, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
 import LayersControl from '../../lib/layers-control';
 import CogPreviewer from '../../lib/previewers/cog';
 import EsriDynamicMapLayerPreviewer from '../../lib/previewers/esri-dynamic-map-layer';
@@ -47,7 +48,7 @@ maplibregl.addProtocol('pmtiles', protocol.tile);
 // locate a click by mapping a pixel grid onto a bbox, which assumes the view is a flat, north-up
 // rectangle - but ours can be rotated, pitched, or drawn as a globe. So we describe a small window
 // around the click rather than the whole viewport, which keeps that assumption true to within a
-// fraction of a pixel. Odd, so the clicked pixel is the exact center of the window.
+// fraction of a pixel. Odd-numbered so the clicked pixel is the exact center of the window.
 const QUERY_WINDOW = 51;
 
 @Component({
@@ -64,28 +65,14 @@ export class OgmMap {
   @Event() mapLoading: EventEmitter<void>;
   @Event() previewError: EventEmitter<PreviewError>;
 
-  // The rows the layer control renders, republished whenever the reader changes one
-  @State() layerItems: LayerControlItem[] = [];
-
-  // Whether the reader has asked for the layer panel. Closed on load so the map arrives unobstructed,
-  // and kept across resources: it's a preference about the chrome, not a fact about these layers.
-  @State() layersOpen: boolean = false;
-
-  // What the reader asked for, by logical layer id. Held here rather than on the previewer because
-  // a theme change rebuilds the previewer from scratch; row ids derive from source ids, so the same
-  // resource produces the same ids and these choices survive it. Only rows the reader has actually
-  // touched get an entry - the rest follow the theme.
+  // Layer control panel state tracking
+  @State() layerControls: LayerControl[] = [];
+  @State() layersPanelOpen: boolean = false;
+  protected layersControl: LayersControl;
   private layerState = new Map<string, LayerState>();
 
-  // Which resource the state above belongs to, so a different one starts clean
-  private loadedResourceUrl: string | undefined = undefined;
-
-  // Whether the style document has loaded, which is the one thing that has to be true before a layer
-  // can be styled. Tracked here rather than asked of MapLibre, because map.isStyleLoaded() answers a
-  // much broader question - it goes false whenever any source has tiles in flight - and a vector
-  // layer's opacity is an expression over feature-state, so writing it marks its source for reload
-  // and makes isStyleLoaded() false by itself. Gating on it dropped nearly every frame of a drag.
-  private styleLoaded: boolean = false;
+  // Used to prevent trying to style layers before the map is ready
+  private mapStyleLoaded: boolean = false;
 
   // Guards against reporting more than one error per load attempt
   private errorReported: boolean = false;
@@ -96,12 +83,10 @@ export class OgmMap {
   protected popup: maplibregl.Popup | undefined = undefined;
   protected attributesEl: HTMLOgmAttributesElement;
   protected hoveredFeature: maplibregl.MapGeoJSONFeature | undefined = undefined;
+  protected selectedFeature: maplibregl.MapGeoJSONFeature | undefined = undefined;
 
   // Container element reference for fullscreen
   protected containerEl: HTMLElement;
-
-  // The button in the map's control stack that opens and closes the layer panel
-  protected layersControl: LayersControl;
 
   // Previewer for the currently previewed resource
   protected previewer: MapPreviewer | undefined = undefined;
@@ -125,10 +110,9 @@ export class OgmMap {
     this.map.on('click', this.handleClick.bind(this));
     this.map.on('error', this.handleMapError.bind(this));
 
-    // View as a globe with atmosphere effects. Registered before the once() handler a theme change
-    // adds, so the style is marked loaded before anything re-applies the reader's choices to it.
+    // Style as a globe with atmosphere once style is loaded and set the flag
     this.map.on('style.load', () => {
-      this.styleLoaded = true;
+      this.mapStyleLoaded = true;
       this.map.setProjection({ type: 'globe' });
       this.map.setSky(this.mapTheme.getSkyStyle());
     });
@@ -153,17 +137,14 @@ export class OgmMap {
     this.containerEl = containerEl;
   }
 
-  // Add controls to the map. Order is the order they stack down the top-right corner, so the layer
-  // button goes second: zoom stays where readers expect it, and the button still sits near the top
-  // edge of the panel it opens. It is always added and hidden when unwanted rather than added
-  // conditionally, so that an embedder toggling the controls back on gets it back in this position.
+  // Add controls to the map, ordered from top down
   protected addControls() {
     this.map.addControl(
       new maplibregl.NavigationControl({
         visualizePitch: true,
       }),
     );
-    this.layersControl = new LayersControl(this.toggleLayerList.bind(this));
+    this.layersControl = new LayersControl(this.toggleLayersPanel.bind(this));
     this.map.addControl(this.layersControl);
     this.map.addControl(
       new maplibregl.FullscreenControl({
@@ -184,7 +165,6 @@ export class OgmMap {
   protected async getMapPreviewer(map: maplibregl.Map) {
     const style = this.mapTheme.getStyle();
     if (this.previewResource instanceof OpenIndexMapResource) return new OpenIndexMapPreviewer(this.previewResource, map, style);
-    // Checked ahead of GeoJsonResource, which it extends
     else if (this.previewResource instanceof EsriFeatureLayerResource) return new EsriFeatureLayerPreviewer(this.previewResource, map, style);
     else if (this.previewResource instanceof GeoJsonResource) return new GeoJsonPreviewer(this.previewResource, map, style);
     else if (this.previewResource instanceof PMTilesResource) {
@@ -213,39 +193,30 @@ export class OgmMap {
     // Indicate loading state so we can show the spinner
     this.mapLoading.emit();
 
-    // Take the old rows down first: a load that fails shouldn't leave the previous resource's
-    // layers listed over an empty map
-    this.layerItems = [];
+    // Clear layer controls list and state
+    this.layerControls = [];
+    this.layerState.clear();
+    this.layersPanelOpen = false;
+    this.layersControl.setPressed(false);
 
-    // A theme change re-runs this for the same resource, so the reader's choices are re-applied to
-    // the rebuilt layers. A different resource has different layers, so they start clean - without
-    // this a hidden row would silently hide the next record's preview. Whether the panel is open
-    // isn't reset here: it describes what the reader wants to see, not which layers exist.
-    if (resource.url !== this.loadedResourceUrl) {
-      this.layerState.clear();
-      this.loadedResourceUrl = resource.url;
+    // Close popup if one is open
+    this.destroyPopup();
+
+    // Clear the existing preview
+    if (this.previewer) {
+      await this.previewer.clearPreview();
+      this.previewer = undefined;
     }
 
     try {
-      // Close popup if one is open
-      this.clearFeatureSelection();
-      this.destroyPopup();
-
-      // Clear existing preview
-      if (this.previewer) {
-        await this.previewer.clearPreview();
-        this.previewer = undefined;
-      }
-
       // Get the appropriate previewer for our resource and preview it
       this.previewer = await this.getMapPreviewer(this.map);
       if (!this.previewer) throw new Error(`No previewer found for resource: ${resource.constructor.name}`);
       await this.previewer.preview();
 
-      // Nothing awaited between these two, so no hover or click can read a freshly built previewer
-      // before it has been told what the reader asked for
+      // Set up the layer controls
       this.applyLayerState();
-      this.publishLayerItems();
+      this.setupLayerControls();
 
       // Fit to bounds from the record; the spinner stays up until the map finishes moving
       const bounds = await this.previewResource.getBounds();
@@ -266,7 +237,7 @@ export class OgmMap {
   onThemeChange() {
     if (!this.map) return;
     // The panel is still on screen over the window this opens, and a layer can't be styled inside it
-    this.styleLoaded = false;
+    this.mapStyleLoaded = false;
     this.map.setStyle(this.mapTheme.getBaseMapStyle());
     this.map.once('style.load', async () => await this.loadResource(this.previewResource));
   }
@@ -280,10 +251,7 @@ export class OgmMap {
     this.previewError.emit(referenceError(event.error, this.previewResource.label(), this.previewResource.url));
   }
 
-  // Fit the map to the given bounds; resolve once the move finishes. Guard the case where the bounds
-  // can't produce a camera - e.g. sidebar padding wider than the viewport, or a hidden, zero-size
-  // inactive tab panel - because then fitBounds won't move, 'moveend' never fires, and awaiting this
-  // promise (and the loading state that depends on it) would hang forever.
+  // Fit the map to the given bounds; resolve once the move finishes
   async fitMapBounds(bounds: maplibregl.LngLatBoundsLike) {
     if (!this.map.cameraForBounds(bounds)) return;
     return new Promise<void>(resolve => {
@@ -304,8 +272,6 @@ export class OgmMap {
     return await this.map.easeTo(options);
   }
 
-  // Row ids mean nothing outside this shadow tree, so these events stop here rather than reaching
-  // the host page or a sibling preview tab
   @Listen('layerVisibilityChange')
   handleLayerVisibilityChange(event: CustomEvent<{ id: string; visible: boolean }>) {
     event.stopPropagation();
@@ -318,19 +284,18 @@ export class OgmMap {
     this.setLayerState(event.detail.id, { opacity: event.detail.opacity });
   }
 
+  // Used when the user toggles the summary checkbox to show/hide all layers at once
   @Listen('allLayersVisibilityChange')
   handleAllLayersVisibilityChange(event: CustomEvent<boolean>) {
     event.stopPropagation();
-    // Mapped, not found: every row has to be recorded, so this can't short-circuit on the first hide
-    const hidden = this.layerItems.map(item => this.recordLayerState(item.id, { visible: event.detail })).some(Boolean);
+    const hidden = this.layerControls.map(item => this.recordLayerState(item.id, { visible: event.detail })).some(Boolean);
     this.commitLayerState(hidden);
   }
 
-  // Called by the control button, which is plain DOM outside the render pipeline, so it has to be
-  // told about the new state rather than being handed it as a prop
-  protected toggleLayerList() {
-    this.layersOpen = !this.layersOpen;
-    this.layersControl.setPressed(this.layersOpen);
+  // Show/hide the layers panel
+  protected toggleLayersPanel() {
+    this.layersPanelOpen = !this.layersPanelOpen;
+    this.layersControl.setPressed(this.layersPanelOpen);
   }
 
   // Remember one row's change, then push everything to the map at once
@@ -339,8 +304,8 @@ export class OgmMap {
     this.commitLayerState(hidden);
   }
 
-  // Returns whether this change took the row off the map, which is the only thing anything holding a
-  // reference to one of its features needs to hear about
+  // Update the layer state for a layer; return true if it just changed
+  // to hidden so we can clear popups/highlights
   private recordLayerState(id: string, change: Partial<LayerState>): boolean {
     const layer = this.previewer?.previewLayers.find(previewLayer => previewLayer.id === id);
     if (!layer) return false;
@@ -350,30 +315,24 @@ export class OgmMap {
     return isLayerDrawn(current) && !isLayerDrawn(next);
   }
 
-  private commitLayerState(rowHidden: boolean) {
+  private commitLayerState(hidden: boolean) {
     this.applyLayerState();
-    this.publishLayerItems();
-
-    // A layer the reader just took off the map can't stay selected, hovered, or described by an open
-    // popup - and because the panel is a sibling of the canvas, no mousemove will arrive to reset the
-    // cursor. Dimming a layer is not that: a selected feature is drawn solid at any opacity for the
-    // express purpose of surviving it, so the popup describing it stays open too.
-    if (!rowHidden) return;
-    this.clearFeatureSelection();
+    this.setupLayerControls();
+    if (!hidden) return;
     this.destroyPopup();
     this.clearHoveredFeature();
     if (this.map) this.map.getCanvas().style.cursor = '';
   }
 
-  // Skipped only inside the setStyle()-to-style.load window a theme change opens with the panel
-  // still on screen, since styling a layer throws there. loadResource re-applies on the far side.
+  // Send changes to the layer state to the previewer
   private applyLayerState() {
-    if (!this.previewer || !this.styleLoaded) return;
+    if (!this.previewer || !this.mapStyleLoaded) return;
     this.previewer.applyLayerState(this.layerState);
   }
 
-  private publishLayerItems() {
-    this.layerItems = toLayerControlItems(this.previewer?.previewLayers ?? [], this.layerState);
+  // Populate the layer controls in the panel
+  private setupLayerControls() {
+    this.layerControls = getLayerControls(this.previewer?.previewLayers ?? [], this.layerState);
   }
 
   // Use the crosshair cursor if there's something to inspect
@@ -400,7 +359,6 @@ export class OgmMap {
   // Show the attributes popup on click
   protected async handleClick(event: maplibregl.MapMouseEvent) {
     // Clear any existing popup and feature selection
-    this.clearFeatureSelection();
     this.destroyPopup();
 
     // Get the features, if any, at the clicked point. If none, do nothing. A failed request means
@@ -417,17 +375,16 @@ export class OgmMap {
     this.selectFeature(features[0]);
   }
 
-  // Handle inspection of features, asking the server about the click when the preview is one it
-  // drew for us, and reading the rendered features directly when it isn't
+  // Delegate to server for raster inspection, or query directly for vector
   protected async handleInspection(point: maplibregl.Point): Promise<maplibregl.MapGeoJSONFeature[]> {
     if (!this.previewer) return [];
 
     if (this.previewer instanceof InspectableRasterPreviewer) {
       if (!this.previewer.canInspect || !this.previewer.anyLayerVisible) return [];
-      return await this.previewer.inspect(this.queryWindow(point));
+      return dedupeFeatures(await this.previewer.inspect(this.queryWindow(point)));
     }
 
-    return this.map.queryRenderedFeatures(point, { layers: this.queryableLayerIds });
+    return dedupeFeatures(this.map.queryRenderedFeatures(point, { layers: this.queryableLayerIds }));
   }
 
   // The window around a click to ask a server about. Its corners are in the same CSS pixel space
@@ -454,31 +411,31 @@ export class OgmMap {
   // Listen to selection events from the popup and highlight the selected feature
   @Listen('featureSelected', { target: 'body' })
   handleFeatureSelected(event: CustomEvent<maplibregl.MapGeoJSONFeature>) {
-    this.clearFeatureSelection();
-    const feature = event.detail;
-    this.selectFeature(feature);
+    this.selectFeature(event.detail);
   }
 
-  // Reset styling of all features to unselected state
+  // Reset styling of the selected feature to unselected state
   protected clearFeatureSelection() {
     if (this.previewer instanceof InspectableRasterPreviewer) {
       this.previewer.clearHighlight();
-    } else {
-      this.attributesEl.features.forEach(feature => {
-        this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, { selected: false });
-      });
+      return;
     }
-    this.attributesEl.features = [];
+    if (!this.selectedFeature) return;
+    const { source, id, sourceLayer } = this.selectedFeature;
+    this.map.setFeatureState({ source, id, sourceLayer }, { selected: false });
+    this.selectedFeature = undefined;
   }
 
-  // Set styling of a single feature to selected state
+  // Set styling of a single feature to selected state, releasing whatever was selected before it
   protected selectFeature(feature: maplibregl.MapGeoJSONFeature) {
     // A server-drawn raster has no client-side features to restyle, so the previewer outlines the
-    // geometry the server sent back instead
+    // geometry the server sent back instead - and one highlight replaces the last
     if (this.previewer instanceof InspectableRasterPreviewer) {
       this.previewer.highlightFeatures([feature]);
       return;
     }
+    this.clearFeatureSelection();
+    this.selectedFeature = feature;
     this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, { selected: true });
   }
 
@@ -500,15 +457,21 @@ export class OgmMap {
   // Create a new popup and set its content and location
   protected createPopup(location: maplibregl.LngLatLike) {
     this.popup = new maplibregl.Popup({ maxWidth: 'none' }).setDOMContent(this.attributesEl).setLngLat(location).addTo(this.map);
-    this.popup.on('close', this.clearFeatureSelection.bind(this));
+
+    // Closing the popup - by the user's click on its X, or by our own remove() - is what ends an
+    // inspection, and the only thing that hands the features back. Emptying the list is what blanks
+    // the table, so paging must not do it: it only moves the highlight from one feature to the next.
+    this.popup.on('close', () => {
+      this.popup = undefined;
+      this.clearFeatureSelection();
+      this.attributesEl.features = [];
+    });
   }
 
-  // Remove popup from the map and clear the reference
+  // Remove popup from the map. MapLibre fires 'close' from remove(), and only for a popup still on
+  // the map, so the handler above does the rest of the teardown exactly once.
   protected destroyPopup() {
-    if (this.popup) {
-      this.popup.remove();
-      this.popup = undefined;
-    }
+    if (this.popup) this.popup.remove();
   }
 
   // The layers a click may inspect: only what's actually drawn, and never the previewer's own
@@ -519,8 +482,8 @@ export class OgmMap {
 
   // The layer panel is a sibling of #map rather than a MapLibre control, even though the button that
   // opens it is one. MapLibre owns the children of #map, so anything Stencil renders in there is
-  // fighting it for the same DOM - the reason ogm-attributes has to be built by hand. Out here the
-  // panel stays declarative, and it stays out of the control group that dark mode inverts wholesale.
+  // fighting it for the same DOM - the reason ogm-attributes has to be built by hand.
+  //
   // The theme class stays on #map, not the Host: the dark-mode rules in ogm-map.css select MapLibre
   // chrome as descendants of it, and a class on the host element isn't matched by `.wa-dark` from
   // inside the shadow root.
@@ -528,7 +491,7 @@ export class OgmMap {
     return (
       <Host>
         <div id="map" class={`wa-${this.theme}`}></div>
-        {this.layersOpen && <ogm-layers theme={this.theme} layers={this.layerItems}></ogm-layers>}
+        {this.layersPanelOpen && <ogm-layers theme={this.theme} layers={this.layerControls}></ogm-layers>}
       </Host>
     );
   }

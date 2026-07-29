@@ -1,15 +1,15 @@
 import { describe, it, expect } from '@stencil/vitest';
 
-import { humanizeLayerName, isLayerDrawn, resolveLayerState, toLayerControlItems, type LayerState, type PreviewLayer } from './layers';
+import { humanizeLayerName, isLayerDrawn, resolveLayerState, toLayerControlItems, type LayerState, type Layer } from './layers';
 
-const rasterLayer: PreviewLayer = {
+const rasterLayer: Layer = {
   id: 'stanford-abc123-xyz',
   title: 'XYZ Tiles',
   defaultOpacity: 0.8,
   styleLayers: [{ id: 'stanford-abc123-xyz', type: 'raster' }],
 };
 
-const vectorLayer: PreviewLayer = {
+const vectorLayer: Layer = {
   id: 'stanford-abc123-geojson-geojson',
   title: 'GeoJSON',
   defaultOpacity: 0.8,
@@ -39,14 +39,14 @@ describe('humanizeLayerName', () => {
 });
 
 describe('resolveLayerState', () => {
-  // The same value for both: a reader comparing a vector overlay with a raster one is comparing two
+  // The same value for both: a user comparing a vector overlay with a raster one is comparing two
   // layers at the same opacity, not one drawn solid over one the theme happened to fade
-  it('follows the theme for a row the reader has not touched, whatever kind of data it is', () => {
+  it('follows the theme for a row the user has not touched, whatever kind of data it is', () => {
     expect(resolveLayerState(rasterLayer, new Map())).toEqual({ visible: true, opacity: 0.8 });
     expect(resolveLayerState(vectorLayer, new Map())).toEqual({ visible: true, opacity: 0.8 });
   });
 
-  it('prefers what the reader asked for', () => {
+  it('prefers what the user asked for', () => {
     const states = new Map<string, LayerState>([[rasterLayer.id, { visible: false, opacity: 0.25 }]]);
     expect(resolveLayerState(rasterLayer, states)).toEqual({ visible: false, opacity: 0.25 });
   });
@@ -83,7 +83,7 @@ describe('toLayerControlItems', () => {
     expect(Object.keys(item).sort()).toEqual(['id', 'opacity', 'title', 'visible']);
   });
 
-  it('reflects what the reader asked for', () => {
+  it('reflects what the user asked for', () => {
     const states = new Map<string, LayerState>([[vectorLayer.id, { visible: false, opacity: 0.4 }]]);
     const [item] = toLayerControlItems([vectorLayer], states);
 

@@ -1,12 +1,9 @@
 import { Component, Event, EventEmitter, h, Host, Prop } from '@stencil/core';
 
-import type { LayerControlItem } from '../../lib/layers';
+import type { LayerControl } from '../../lib/layers';
 
-// The checkbox and range input here are deliberately native rather than <wa-switch>/<wa-slider>.
-// Web Awesome's form controls are form-associated, and their base class reads ElementInternals,
-// which the component test environment doesn't implement - constructing one throws and fails the
-// whole run. Native inputs style identically from --wa-* tokens, are keyboard accessible without
-// help, and let the opacity interaction actually be tested.
+// Panel for controlling visibility and opacity of MapLibre layers.
+// Uses native HTML elements because they're easier to style and test.
 @Component({
   tag: 'ogm-layers',
   styleUrl: 'ogm-layers.css',
@@ -14,14 +11,13 @@ import type { LayerControlItem } from '../../lib/layers';
 })
 export class OgmLayers {
   @Prop() theme: 'light' | 'dark';
-  @Prop() layers: LayerControlItem[] = [];
+  @Prop() layers: LayerControl[] = [];
 
   @Event() layerVisibilityChange: EventEmitter<{ id: string; visible: boolean }>;
   @Event() layerOpacityChange: EventEmitter<{ id: string; opacity: number }>;
   @Event() allLayersVisibilityChange: EventEmitter<boolean>;
 
-  // A single-layer record - nearly every record - is just its one row: there is nothing to summarize,
-  // and the row's own title names the panel. Only a genuine list needs a count and a hide-all.
+  // Render a summary with its own checkbox, for multi-layered objects
   private get summarized(): boolean {
     return this.layers.length > 1;
   }
@@ -30,24 +26,20 @@ export class OgmLayers {
     return this.layers.every(layer => layer.visible);
   }
 
-  // MapLibre paints in the order layers were added, so the last one added is drawn on top. Reading
-  // the list top-down should match reading the map top-down.
-  private get rows(): LayerControlItem[] {
+  // MapLibre paints in the order layers were added; last is on top
+  private get rows(): LayerControl[] {
     return [...this.layers].reverse();
   }
 
-  private onVisibilityInput(layer: LayerControlItem, event: Event) {
+  private onVisibilityInput(layer: LayerControl, event: Event) {
     this.layerVisibilityChange.emit({ id: layer.id, visible: (event.target as HTMLInputElement).checked });
   }
 
-  // The slider speaks whole percentages because that's what a reader adjusts; everything below this
-  // component works in 0-1, and this is the only place the two meet
-  private onOpacityInput(layer: LayerControlItem, event: Event) {
+  private onOpacityInput(layer: LayerControl, event: Event) {
     this.layerOpacityChange.emit({ id: layer.id, opacity: Number((event.target as HTMLInputElement).value) / 100 });
   }
 
   render() {
-    // Nothing to show while a preview is loading, or when one failed: no chrome over an empty map
     if (!this.layers.length) return null;
 
     return (

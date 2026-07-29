@@ -7,7 +7,7 @@ import { humanizeLayerName } from '../layers';
 // layer drawn from one has to name the layer it reads. Subclasses supply the source itself.
 export default abstract class TiledVectorPreviewer extends VectorPreviewer {
   // Unlike a single-layer source, a tileset names its layers itself, so those names are what the
-  // reader should see - the resource label would repeat itself once per row
+  // user should see - the resource label would repeat itself once per row
   protected previewLayerTitle(layerId: string): string {
     return humanizeLayerName(layerId);
   }

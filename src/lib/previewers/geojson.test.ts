@@ -106,7 +106,7 @@ const layerId = (suffix: string) => `princeton-fk4544658v-geojson-geojson-${suff
 const SELECTED = ['boolean', ['feature-state', 'selected'], false];
 
 describe('GeoJsonPreviewer#previewLayers', () => {
-  it('offers the reader one layer, not the seven it takes to draw it', async () => {
+  it('offers the user one layer, not the seven it takes to draw it', async () => {
     const { previewer } = await previewGeoJson();
 
     expect(previewer.previewLayers).toHaveLength(1);
@@ -209,7 +209,7 @@ describe('GeoJsonPreviewer#applyLayerState', () => {
     SUFFIXES.forEach(suffix => expect(map.layers.get(layerId(suffix)).layout.visibility).toEqual('visible'));
   });
 
-  // Zero opacity has to hide the layer rather than just make it invisible, or a reader could still
+  // Zero opacity has to hide the layer rather than just make it invisible, or a user could still
   // click a feature they can't see
   it('hides a row faded all the way out', async () => {
     const map = await applyOpacity(0);
