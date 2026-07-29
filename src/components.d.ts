@@ -7,10 +7,10 @@
 import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
 import { PreviewError } from "./lib/errors";
 import { MapGeoJSONFeature } from "maplibre-gl";
-import { LayerControlItem } from "./lib/layers";
+import { LayerControl } from "./lib/layers";
 export { PreviewError } from "./lib/errors";
 export { MapGeoJSONFeature } from "maplibre-gl";
-export { LayerControlItem } from "./lib/layers";
+export { LayerControl } from "./lib/layers";
 export namespace Components {
     interface OgmAlerts {
         "error"?: PreviewError;
@@ -34,7 +34,7 @@ export namespace Components {
         /**
           * @default []
          */
-        "layers": LayerControlItem[];
+        "layers": LayerControl[];
         "theme": 'light' | 'dark';
     }
     interface OgmMap {
@@ -283,7 +283,7 @@ declare namespace LocalJSX {
         /**
           * @default []
          */
-        "layers"?: LayerControlItem[];
+        "layers"?: LayerControl[];
         "onAllLayersVisibilityChange"?: (event: OgmLayersCustomEvent<boolean>) => void;
         "onLayerOpacityChange"?: (event: OgmLayersCustomEvent<{ id: string; opacity: number }>) => void;
         "onLayerVisibilityChange"?: (event: OgmLayersCustomEvent<{ id: string; visible: boolean }>) => void;
