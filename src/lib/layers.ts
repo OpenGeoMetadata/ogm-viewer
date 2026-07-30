@@ -2,6 +2,11 @@ import type { LayerSpecification as MapLibreLayerSpecification } from 'maplibre-
 
 // A MapLibre style layer, one piece of a logical layer. Vector layers can have
 // multiple of these, e.g. to style fills, outlines, and labels separately.
+//
+// A preview drawn by something other than MapLibre - an Allmaps warped map, a deck.gl overlay -
+// goes on as a CustomLayerInterface, whose type is 'custom'. That isn't one of the types below, so
+// the union will have to widen for one, and such a layer paints itself rather than through
+// setPaintProperty, so its previewer overrides applyOpacity.
 export type PreviewStyleLayer = {
   id: string;
   type: MapLibreLayerSpecification['type'];

@@ -2,9 +2,12 @@ import geojsonExtent from '@mapbox/geojson-extent';
 import type { LngLatBoundsLike } from 'maplibre-gl';
 
 import VectorResource from './vector';
+import type { ResourceKind } from './resource';
 import { fetchOrThrow } from '../errors';
 
 export default class GeoJsonResource extends VectorResource {
+  readonly kind: ResourceKind = 'geojson';
+
   // Data parsed from GeoJSON document
   private data: any;
 

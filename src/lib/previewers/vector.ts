@@ -22,10 +22,6 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     return this.resource.id;
   }
 
-  async getBounds() {
-    return await this.resource.getBounds();
-  }
-
   protected async createLayers(): Promise<LayerSpecification[]> {
     const layerIds = await this.resource.getVectorLayers();
     return layerIds.flatMap(layerId => {

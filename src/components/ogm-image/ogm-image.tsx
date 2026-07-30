@@ -3,7 +3,7 @@ import { Viewer } from 'openseadragon';
 
 import { getElement, findElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
-import type IIIFResource from '../../lib/resources/iiif';
+import type ImagePreviewer from '../../lib/previewers/image';
 
 @Component({
   tag: 'ogm-image',
@@ -12,7 +12,7 @@ import type IIIFResource from '../../lib/resources/iiif';
 })
 export class OgmImage {
   @Element() el: HTMLElement;
-  @Prop() previewResource: IIIFResource;
+  @Prop() previewer: ImagePreviewer;
   @Prop() theme: 'light' | 'dark';
   @Prop() padding: number = 0;
   @Event() imageLoaded: EventEmitter<void>;
@@ -51,8 +51,8 @@ export class OgmImage {
       this.reportError(new Error(event.message));
     });
 
-    // If we do have a source, load the images
-    if (this.previewResource) await this.loadImages();
+    // The viewer is ready, so whatever preview we were given can be drawn into it
+    await this.loadPreview();
   }
 
   // Destroy the viewer when we are removed from the DOM
@@ -60,10 +60,11 @@ export class OgmImage {
     this.viewer?.destroy();
   }
 
-  // Update preview when source changes
-  @Watch('previewResource')
-  async onSourceChange() {
-    if (this.previewResource) await this.loadImages();
+  // A different preview to draw. The one leaving closes itself out of the viewer first.
+  @Watch('previewer')
+  async onPreviewerChange(_previewer: ImagePreviewer, previous?: ImagePreviewer) {
+    if (previous) await previous.clearPreview();
+    await this.loadPreview();
   }
 
   @Watch('padding')
@@ -76,18 +77,19 @@ export class OgmImage {
     return await this.viewer.viewport.setMargins({ left: this.padding });
   }
 
-  // Get all of the IIIF image URLs and send them to OpenSeadragon
-  // This makes a request to fetch and cache the manifest
-  private async loadImages() {
+  // Draw the current preview into the viewer. Reading a manifest is a fetch, so this is where a
+  // IIIF preview first has the chance to fail.
+  private async loadPreview() {
+    if (!this.previewer || !this.viewer) return;
+
     this.errorReported = false;
     this.imageLoading.emit();
 
     try {
-      const images = await this.previewResource.getIIIFImageUrls();
-      if (!images) throw new Error('No IIIF images found for source');
-      this.viewer.open(images);
+      this.previewer.attach(this.viewer);
+      await this.previewer.preview();
     } catch (error) {
-      console.error(`Error loading IIIF images for ${this.previewResource.url}:`, error);
+      console.error(`Error previewing ${this.previewer.url}:`, error);
       this.imageLoaded.emit();
       this.reportError(error);
     }
@@ -95,9 +97,9 @@ export class OgmImage {
 
   // Emit a single preview error per load attempt
   private reportError(error?: unknown) {
-    if (this.errorReported || !this.previewResource) return;
+    if (this.errorReported || !this.previewer) return;
     this.errorReported = true;
-    this.previewError.emit(referenceError(error, this.previewResource.label(), this.previewResource.url));
+    this.previewError.emit(referenceError(error, this.previewer.label(), this.previewer.url));
   }
 
   render() {

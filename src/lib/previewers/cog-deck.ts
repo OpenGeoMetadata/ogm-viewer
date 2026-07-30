@@ -11,9 +11,11 @@ import { type MapLibreStyle } from '../themes/maplibre';
 // NOTE: can't be built currently due to a bug; see:
 // https://github.com/OpenGeoMetadata/ogm-viewer/issues/100
 export default class DeckCogPreviewer extends Previewer {
+  readonly renderer = 'map' as const;
+
   declare protected resource: MapResource;
 
-  // Store reference to the map and styles
+  // Set by attach(), before anything is drawn; see MapPreviewer#attach
   protected style: MapLibreStyle;
   protected map: maplibregl.Map;
 
@@ -27,13 +29,13 @@ export default class DeckCogPreviewer extends Previewer {
   // Current opacity state
   protected opacity: number;
 
-  // Initialize with opacity at the theme's opacity value
-  constructor(resource: MapResource, map: maplibregl.Map, style: MapLibreStyle) {
-    super(resource);
+  // Bind to the map, and start out at the theme's opacity value
+  attach(map: maplibregl.Map, style: MapLibreStyle): this {
     this.map = map;
     this.style = style;
     this.opacity = this.style.opacity;
     this.deckOverlay = this.getDeckOverlay();
+    return this;
   }
 
   async preview(): Promise<void> {

@@ -77,7 +77,9 @@ export class OgmViewer {
     this.record = record;
   }
 
-  // Listen for a preview to report loading started
+  // Listen for a preview to report loading started. Working out which previews a record even has
+  // can mean reading a remote document, so that wait is counted here too.
+  @Listen('previewsLoading')
   @Listen('mapLoading')
   @Listen('imageLoading')
   setLoadingStarted() {
@@ -86,6 +88,7 @@ export class OgmViewer {
   }
 
   // When all in-flight previews have loaded, clear loading state
+  @Listen('previewsLoaded')
   @Listen('mapIdle')
   @Listen('imageLoaded')
   setLoadingFinished() {

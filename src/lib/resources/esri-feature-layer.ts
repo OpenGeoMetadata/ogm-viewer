@@ -2,6 +2,7 @@ import geojsonExtent from '@mapbox/geojson-extent';
 import type { LngLatBoundsLike } from 'maplibre-gl';
 
 import GeoJsonResource from './geojson';
+import type { ResourceKind } from './resource';
 import { esriExtentToBounds, esriQueryFeaturesToGeoJSON, fetchEsriJson, type EsriMetadata, type EsriQueryFeature } from '../esri';
 
 // How many features to ask for at once when the service doesn't say. ArcGIS caps this itself, and
@@ -23,6 +24,8 @@ type EsriQueryResponse = {
 // A single layer of a FeatureServer - or of a MapServer that allows querying - read as features
 // rather than as a picture of them, so the preview can style, label and select them client-side.
 export default class EsriFeatureLayerResource extends GeoJsonResource {
+  readonly kind: ResourceKind = 'esri-feature-layer';
+
   // Layer endpoint the requests are built from, with any trailing slash removed
   private layerUrl: string;
 

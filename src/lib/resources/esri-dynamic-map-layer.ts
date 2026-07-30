@@ -1,8 +1,11 @@
 import EsriMapServerResource from './esri-map-server';
+import type { ResourceKind } from './resource';
 
 // A MapServer that draws the map on demand rather than serving tiles cut in advance. The service
 // re-renders at whatever extent MapLibre asks for, so a preview always shows the current data.
 export default class EsriDynamicMapLayerResource extends EsriMapServerResource {
+  readonly kind: ResourceKind = 'esri-dynamic-map-layer';
+
   label() {
     return 'ArcGIS Dynamic Map Layer';
   }

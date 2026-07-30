@@ -63,7 +63,7 @@ let previewer: EsriFeatureLayerPreviewer;
 
 beforeEach(async () => {
   map = new FakeMap();
-  previewer = new EsriFeatureLayerPreviewer(new TestResource('trees', LAYER), map as unknown as maplibregl.Map, style);
+  previewer = new EsriFeatureLayerPreviewer(new TestResource('trees', LAYER)).attach(map as unknown as maplibregl.Map, style);
   await previewer.preview();
 });
 

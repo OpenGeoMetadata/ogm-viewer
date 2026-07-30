@@ -39,7 +39,7 @@ const COG_URL = 'https://example.com/scan.tif';
 // Nothing here reads the GeoTIFF: the source is built from the URL alone
 const preview = async () => {
   const map = new FakeMap();
-  const previewer = new CogPreviewer(new CogResource('princeton-fk4544658v', COG_URL), map as unknown as maplibregl.Map, style);
+  const previewer = new CogPreviewer(new CogResource('princeton-fk4544658v', COG_URL)).attach(map as unknown as maplibregl.Map, style);
   await previewer.preview();
   return { map, previewer };
 };

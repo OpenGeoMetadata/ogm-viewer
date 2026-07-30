@@ -8,9 +8,11 @@ import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
 import { PreviewError } from "./lib/errors";
 import { MapGeoJSONFeature } from "maplibre-gl";
 import { LayerControl } from "./lib/layers";
+import { AnyPreviewer } from "./lib/previewers/factory";
 export { PreviewError } from "./lib/errors";
 export { MapGeoJSONFeature } from "maplibre-gl";
 export { LayerControl } from "./lib/layers";
+export { AnyPreviewer } from "./lib/previewers/factory";
 export namespace Components {
     interface OgmAlerts {
         "error"?: PreviewError;
@@ -27,7 +29,7 @@ export namespace Components {
           * @default 0
          */
         "padding": number;
-        "previewResource": IIIFResource;
+        "previewer": ImagePreviewer;
         "theme": 'light' | 'dark';
     }
     interface OgmLayers {
@@ -43,7 +45,7 @@ export namespace Components {
           * @default 0
          */
         "padding": number;
-        "previewResource": Resource;
+        "previewer": MapPreviewer;
         "theme": 'light' | 'dark';
     }
     interface OgmMenubar {
@@ -64,7 +66,7 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmPreview {
-        "previewResource": Resource;
+        "previewer": AnyPreviewer;
         "sidebarPadding": number;
         "theme": 'light' | 'dark';
     }
@@ -113,6 +115,10 @@ export interface OgmMapCustomEvent<T> extends CustomEvent<T> {
 export interface OgmMenubarCustomEvent<T> extends CustomEvent<T> {
     detail: T;
     target: HTMLOgmMenubarElement;
+}
+export interface OgmPreviewsCustomEvent<T> extends CustomEvent<T> {
+    detail: T;
+    target: HTMLOgmPreviewsElement;
 }
 declare global {
     interface HTMLOgmAlertsElement extends Components.OgmAlerts, HTMLStencilElement {
@@ -224,7 +230,19 @@ declare global {
         prototype: HTMLOgmPreviewElement;
         new (): HTMLOgmPreviewElement;
     };
+    interface HTMLOgmPreviewsElementEventMap {
+        "previewsLoading": void;
+        "previewsLoaded": void;
+    }
     interface HTMLOgmPreviewsElement extends Components.OgmPreviews, HTMLStencilElement {
+        addEventListener<K extends keyof HTMLOgmPreviewsElementEventMap>(type: K, listener: (this: HTMLOgmPreviewsElement, ev: OgmPreviewsCustomEvent<HTMLOgmPreviewsElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLOgmPreviewsElementEventMap>(type: K, listener: (this: HTMLOgmPreviewsElement, ev: OgmPreviewsCustomEvent<HTMLOgmPreviewsElementEventMap[K]>) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
     }
     var HTMLOgmPreviewsElement: {
         prototype: HTMLOgmPreviewsElement;
@@ -276,7 +294,7 @@ declare namespace LocalJSX {
           * @default 0
          */
         "padding"?: number;
-        "previewResource"?: IIIFResource;
+        "previewer"?: ImagePreviewer;
         "theme"?: 'light' | 'dark';
     }
     interface OgmLayers {
@@ -297,7 +315,7 @@ declare namespace LocalJSX {
           * @default 0
          */
         "padding"?: number;
-        "previewResource"?: Resource;
+        "previewer"?: MapPreviewer;
         "theme"?: 'light' | 'dark';
     }
     interface OgmMenubar {
@@ -319,11 +337,13 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface OgmPreview {
-        "previewResource"?: Resource;
+        "previewer"?: AnyPreviewer;
         "sidebarPadding"?: number;
         "theme"?: 'light' | 'dark';
     }
     interface OgmPreviews {
+        "onPreviewsLoaded"?: (event: OgmPreviewsCustomEvent<void>) => void;
+        "onPreviewsLoading"?: (event: OgmPreviewsCustomEvent<void>) => void;
         "record"?: OgmRecord;
         "sidebarPadding"?: number;
         "theme"?: 'light' | 'dark';

@@ -75,7 +75,7 @@ let previewer: WmsPreviewer;
 beforeEach(async () => {
   map = new FakeMap();
   const source = new WmsResource('s7st30', 'https://geoservices.lib.berkeley.edu/geoserver/wms', { layerIds: [] });
-  previewer = new WmsPreviewer(source, map as unknown as maplibregl.Map, style);
+  previewer = new WmsPreviewer(source).attach(map as unknown as maplibregl.Map, style);
   await previewer.preview();
 });
 

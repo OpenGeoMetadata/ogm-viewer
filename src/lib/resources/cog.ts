@@ -1,6 +1,9 @@
 import RasterResource from './raster';
+import type { ResourceKind } from './resource';
 
 export default class CogResource extends RasterResource {
+  readonly kind: ResourceKind = 'cog';
+
   label() {
     return 'Cloud Optimized GeoTIFF';
   }

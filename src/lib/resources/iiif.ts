@@ -1,7 +1,9 @@
-import Resource from './resource';
+import Resource, { type ResourceKind } from './resource';
 
 // A source of IIIF image URL(s) to be previewed
 export default class IIIFResource extends Resource {
+  readonly kind: ResourceKind = 'iiif-image';
+
   label() {
     return 'IIIF Image';
   }

@@ -1,4 +1,5 @@
 import EsriResource from './esri';
+import type { ResourceKind } from './resource';
 import { fetchEsriJson, hasCapability } from '../esri';
 import { pixelWindowCenter, type PixelWindow } from '../geometry';
 
@@ -16,6 +17,8 @@ const NO_DATA = 'NoData';
 // An ImageServer, which serves imagery or a raster of measurements - aerial photography, a
 // digital elevation model, a satellite mosaic - rendered on demand at the extent we ask for.
 export default class EsriImageMapLayerResource extends EsriResource {
+  readonly kind: ResourceKind = 'esri-image-map-layer';
+
   label() {
     return 'ArcGIS Image Map Layer';
   }

@@ -21,11 +21,6 @@ export default class TileJsonRasterPreviewer extends RasterPreviewer {
     return `${this.resource.id}-tilejson`;
   }
 
-  // Raster tilesets have their bounds in the TileJSON document
-  async getBounds(): Promise<maplibregl.LngLatBoundsLike | undefined> {
-    return await this.tilejson.getBounds();
-  }
-
   // A TileJSON document can describe either kind of tileset, so its source isn't a RasterSource
   private get tilejson() {
     return this.resource as unknown as TileJsonSource;

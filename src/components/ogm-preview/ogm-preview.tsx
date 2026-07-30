@@ -1,10 +1,9 @@
 import { Component, h, Host, Listen, Prop, State, Watch } from '@stencil/core';
 
-import IIIFResource from '../../lib/resources/iiif';
-import type Resource from '../../lib/resources/resource';
+import type { AnyPreviewer } from '../../lib/previewers/factory';
 import type { PreviewError } from '../../lib/errors';
 
-// Wraps a single resource's preview and surfaces error(s) during the preview.
+// Wraps a single preview and surfaces error(s) during it.
 @Component({
   tag: 'ogm-preview',
   styleUrl: 'ogm-preview.css',
@@ -12,12 +11,12 @@ import type { PreviewError } from '../../lib/errors';
 })
 export class OgmPreview {
   @Prop() theme: 'light' | 'dark';
-  @Prop() previewResource: Resource;
+  @Prop() previewer: AnyPreviewer;
   @Prop() sidebarPadding: number;
   @State() error?: PreviewError;
 
-  // A new resource is a fresh load attempt, so clear any error left over from the previous one.
-  @Watch('previewResource')
+  // A new preview is a fresh load attempt, so clear any error left over from the previous one.
+  @Watch('previewer')
   resetError() {
     this.error = undefined;
   }
@@ -29,12 +28,12 @@ export class OgmPreview {
     this.error = event.detail;
   }
 
-  // IIIF sources use the image viewer; every other source type is previewed on the map.
   private renderPreview() {
-    if (this.previewResource instanceof IIIFResource) {
-      return <ogm-image theme={this.theme} previewResource={this.previewResource} padding={this.sidebarPadding}></ogm-image>;
+    if (!this.previewer) return;
+    if (this.previewer.renderer === 'image') {
+      return <ogm-image theme={this.theme} previewer={this.previewer} padding={this.sidebarPadding}></ogm-image>;
     }
-    return <ogm-map theme={this.theme} previewResource={this.previewResource} padding={this.sidebarPadding}></ogm-map>;
+    return <ogm-map theme={this.theme} previewer={this.previewer} padding={this.sidebarPadding}></ogm-map>;
   }
 
   render() {
