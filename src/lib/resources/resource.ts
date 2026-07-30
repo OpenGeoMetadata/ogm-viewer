@@ -1,7 +1,30 @@
 import type { LngLatBoundsLike } from 'maplibre-gl';
 
+// Names the kind of data a resource holds. Previewers are chosen by matching on this string rather
+// than with `instanceof`: a class test only holds when both sides came from the same copy of the
+// module, and it forces every subclass to be tested ahead of its parent to be reachable at all.
+export type ResourceKind =
+  | 'cog'
+  | 'esri-dynamic-map-layer'
+  | 'esri-feature-layer'
+  | 'esri-image-map-layer'
+  | 'esri-tiled-map-layer'
+  | 'geojson'
+  | 'iiif-image'
+  | 'iiif-manifest'
+  | 'openindexmap'
+  | 'pmtiles'
+  | 'tilejson'
+  | 'tms'
+  | 'wms'
+  | 'wmts'
+  | 'xyz';
+
 // A source of previewable data at a URL
 export default abstract class Resource {
+  // Which kind of data this is; see ResourceKind
+  abstract readonly kind: ResourceKind;
+
   // URL to the remote data source
   url: string;
 

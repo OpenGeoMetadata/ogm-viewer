@@ -38,6 +38,7 @@ export default abstract class InspectableRasterPreviewer extends RasterPreviewer
   // but the extra source is ours to clean up
   async clearPreview(): Promise<void> {
     await super.clearPreview();
+    if (!this.attached) return;
     if (this.map.getSource(this.highlightSourceId)) {
       this.map.removeSource(this.highlightSourceId);
     }

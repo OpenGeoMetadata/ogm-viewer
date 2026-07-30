@@ -2,8 +2,8 @@ import maplibregl from 'maplibre-gl';
 import { cogProtocol } from '@geomatico/maplibre-cog-protocol';
 
 import RasterPreviewer from './raster';
-import CogResource from '../resources/cog';
-import { type MapLibreStyle } from '../themes/maplibre';
+import type CogResource from '../resources/cog';
+import type Resource from '../resources/resource';
 import { type AddRasterSourceObject } from './raster';
 
 // COG previewer using MapLibre COG protocol plugin
@@ -12,9 +12,10 @@ import { type AddRasterSourceObject } from './raster';
 export default class CogPreviewer extends RasterPreviewer {
   declare protected resource: CogResource;
 
-  // Register the 'cog://' protocol handler with MapLibre when the previewer is created
-  constructor(resource: CogResource, map: maplibregl.Map, style: MapLibreStyle) {
-    super(resource, map, style);
+  // Register the 'cog://' protocol handler with MapLibre when the previewer is created. Takes a
+  // Resource like every other previewer - the narrowing that matters is on the field above.
+  constructor(resource: Resource) {
+    super(resource);
     maplibregl.addProtocol('cog', cogProtocol);
   }
 

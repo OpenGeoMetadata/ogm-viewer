@@ -77,7 +77,7 @@ beforeEach(() => {
 
 const dynamicPreviewer = (metadata: EsriMetadata = { capabilities: 'Map,Query,Data' }) => {
   const resource = stubMetadata(new EsriDynamicMapLayerResource('glacial', SERVICE), metadata);
-  return new EsriDynamicMapLayerPreviewer(resource, map as unknown as maplibregl.Map, style);
+  return new EsriDynamicMapLayerPreviewer(resource).attach(map as unknown as maplibregl.Map, style);
 };
 
 describe('EsriRasterPreviewer#preview', () => {
@@ -123,7 +123,7 @@ describe('EsriRasterPreviewer#preview', () => {
     (resource as unknown as { getMetadata: () => Promise<EsriMetadata> }).getMetadata = async () => {
       throw new Error('unreachable');
     };
-    const previewer = new EsriDynamicMapLayerPreviewer(resource, map as unknown as maplibregl.Map, style);
+    const previewer = new EsriDynamicMapLayerPreviewer(resource).attach(map as unknown as maplibregl.Map, style);
 
     await previewer.preview();
 
@@ -134,8 +134,8 @@ describe('EsriRasterPreviewer#preview', () => {
 
   it('gives each kind of ArcGIS layer its own source, so a record can carry several', async () => {
     const dynamic = dynamicPreviewer();
-    const image = new EsriImageMapLayerPreviewer(stubMetadata(new EsriImageMapLayerResource('glacial', IMAGE_SERVICE), {}), map as unknown as maplibregl.Map, style);
-    const tiled = new EsriTiledMapLayerPreviewer(stubMetadata(new EsriTiledMapLayerResource('glacial', SERVICE), XYZ_CACHE), map as unknown as maplibregl.Map, style);
+    const image = new EsriImageMapLayerPreviewer(stubMetadata(new EsriImageMapLayerResource('glacial', IMAGE_SERVICE), {})).attach(map as unknown as maplibregl.Map, style);
+    const tiled = new EsriTiledMapLayerPreviewer(stubMetadata(new EsriTiledMapLayerResource('glacial', SERVICE), XYZ_CACHE)).attach(map as unknown as maplibregl.Map, style);
 
     await dynamic.preview();
     await image.preview();
@@ -150,7 +150,7 @@ describe('EsriRasterPreviewer#preview', () => {
 describe('EsriTiledMapLayerPreviewer#preview', () => {
   it('passes the cache tiling straight through to the source', async () => {
     const resource = stubMetadata(new EsriTiledMapLayerResource('mn-landcover', SERVICE), XYZ_CACHE);
-    const previewer = new EsriTiledMapLayerPreviewer(resource, map as unknown as maplibregl.Map, style);
+    const previewer = new EsriTiledMapLayerPreviewer(resource).attach(map as unknown as maplibregl.Map, style);
     await previewer.preview();
 
     const source = map.sources.get('mn-landcover-esri-tiled-map-layer');

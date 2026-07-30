@@ -78,7 +78,7 @@ afterEach(() => vi.restoreAllMocks());
 describe('TileJsonRasterPreviewer#preview', () => {
   const preview = async (doc: object) => {
     const map = new FakeMap();
-    const previewer = new TileJsonRasterPreviewer(serve(doc), map as unknown as maplibregl.Map, style);
+    const previewer = new TileJsonRasterPreviewer(serve(doc)).attach(map as unknown as maplibregl.Map, style);
     await previewer.preview();
     return { map, previewer };
   };
@@ -141,7 +141,7 @@ describe('TileJsonVectorPreviewer#previewLayers', () => {
 
   const preview = async (doc: object) => {
     const map = new FakeMap();
-    const previewer = new TileJsonVectorPreviewer(serve(doc), map as unknown as maplibregl.Map, style);
+    const previewer = new TileJsonVectorPreviewer(serve(doc)).attach(map as unknown as maplibregl.Map, style);
     await previewer.preview();
     return { map, previewer };
   };
@@ -189,7 +189,7 @@ describe('TileJsonVectorPreviewer#previewLayers', () => {
 
   it('still offers a raster tileset exactly one row', async () => {
     const map = new FakeMap();
-    const previewer = new TileJsonRasterPreviewer(serve(rasterDoc), map as unknown as maplibregl.Map, style);
+    const previewer = new TileJsonRasterPreviewer(serve(rasterDoc)).attach(map as unknown as maplibregl.Map, style);
     await previewer.preview();
 
     expect(previewer.previewLayers.map(layer => layer.title)).toEqual(['TileJSON']);
@@ -199,7 +199,7 @@ describe('TileJsonVectorPreviewer#previewLayers', () => {
 describe('TileJsonVectorPreviewer#preview', () => {
   const preview = async (doc: object) => {
     const map = new FakeMap();
-    const previewer = new TileJsonVectorPreviewer(serve(doc), map as unknown as maplibregl.Map, style);
+    const previewer = new TileJsonVectorPreviewer(serve(doc)).attach(map as unknown as maplibregl.Map, style);
     await previewer.preview();
     return { map, previewer };
   };

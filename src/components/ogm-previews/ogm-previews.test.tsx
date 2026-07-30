@@ -39,8 +39,8 @@ const renderPreviews = async (record?: OgmRecord) => {
 const flush = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
 // Render previews and drill into the single <ogm-preview> to see which preview (map or image) it
-// chose. Going through <ogm-previews> means the source is constructed in the built component's module
-// realm, so <ogm-preview>'s `instanceof IIIFResource` check holds (unlike a source built in the test).
+// chose. The record here is built in the test's own module realm and the components come from the
+// built dist bundle; nothing downstream may test a class, only the strings they agree on.
 const renderPreviewChild = async (record: OgmRecord) => {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -95,5 +95,23 @@ describe('ogm-previews', () => {
 
     expect(previewShadow.querySelector('ogm-image')).not.toBeNull();
     expect(previewShadow.querySelector('ogm-map')).toBeNull();
+  });
+
+  // A tab is one preview, not one reference: a resource that can be shown more than one way gets a
+  // tab for each, and each of those tabs drives a panel holding exactly one preview.
+  it('gives every preview its own tab, and every tab its own panel', async () => {
+    const shadowRoot = await renderPreviews(
+      buildRecordWith({
+        'http://iiif.io/api/image': 'https://example.com/iiif/info.json',
+        'http://geojson.org/geojson-spec.html': 'https://example.com/data.json',
+      }),
+    );
+
+    const tabs = Array.from(shadowRoot.querySelectorAll('wa-tab'));
+    const panels = Array.from(shadowRoot.querySelectorAll('wa-tab-panel'));
+
+    expect(tabs.map(tab => tab.textContent?.trim())).toEqual(['IIIF Image', 'GeoJSON']);
+    expect(tabs.map(tab => tab.getAttribute('panel'))).toEqual(panels.map(panel => panel.getAttribute('name')));
+    expect(shadowRoot.querySelectorAll('ogm-preview')).toHaveLength(2);
   });
 });

@@ -40,7 +40,7 @@ const PMTILES_URL = 'https://example.com/tiles.pmtiles';
 // touched for bounds
 const preview = async () => {
   const map = new FakeMap();
-  const previewer = new PMTilesRasterPreviewer(new PMTilesResource('princeton-fk4544658v', PMTILES_URL), map as unknown as maplibregl.Map, style);
+  const previewer = new PMTilesRasterPreviewer(new PMTilesResource('princeton-fk4544658v', PMTILES_URL)).attach(map as unknown as maplibregl.Map, style);
   await previewer.preview();
   return { map, previewer };
 };

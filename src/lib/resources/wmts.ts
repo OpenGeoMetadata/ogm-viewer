@@ -1,5 +1,6 @@
 import { LngLatBounds, type LngLatBoundsLike, type RasterSourceSpecification } from 'maplibre-gl';
 import RasterResource from './raster';
+import type { ResourceKind } from './resource';
 
 export type WmtsOptions = {
   layerIds: string[];
@@ -68,6 +69,8 @@ const MERCATOR_MAX_LATITUDE = 85.051129;
 // Layers (potentially multiple) accessed via WMTS GetTile requests
 // NOTE: in Aardvark, the reference URL is the GetCapabilities URL, not the tile URL
 export default class WmtsResource extends RasterResource {
+  readonly kind: ResourceKind = 'wmts';
+
   private options: WmtsOptions;
 
   // Memoized metadata via GetCapabilities request

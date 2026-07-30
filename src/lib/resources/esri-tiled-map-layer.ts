@@ -1,4 +1,5 @@
 import EsriMapServerResource from './esri-map-server';
+import type { ResourceKind } from './resource';
 import { esriExtentToSourceBounds, hasCapability, isWebMercator, type EsriTileInfo } from '../esri';
 import type { EsriRasterSourceSpec } from './esri';
 
@@ -15,6 +16,8 @@ const ORIGIN_TOLERANCE = 1;
 // A MapServer whose map has been rendered into a cache of tiles ahead of time, so a preview reads
 // finished images instead of waiting for the server to draw them.
 export default class EsriTiledMapLayerResource extends EsriMapServerResource {
+  readonly kind: ResourceKind = 'esri-tiled-map-layer';
+
   label() {
     return 'ArcGIS Tiled Map Layer';
   }

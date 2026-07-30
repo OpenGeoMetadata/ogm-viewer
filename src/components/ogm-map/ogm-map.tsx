@@ -2,42 +2,14 @@ import { Component, Element, Event, EventEmitter, h, Host, Listen, Method, Prop,
 import maplibregl from 'maplibre-gl';
 import { Protocol as PMTilesProtocol } from 'pmtiles';
 
-import CogResource from '../../lib/resources/cog';
-import EsriDynamicMapLayerResource from '../../lib/resources/esri-dynamic-map-layer';
-import EsriFeatureLayerResource from '../../lib/resources/esri-feature-layer';
-import EsriImageMapLayerResource from '../../lib/resources/esri-image-map-layer';
-import EsriTiledMapLayerResource from '../../lib/resources/esri-tiled-map-layer';
-import GeoJsonResource from '../../lib/resources/geojson';
-import OpenIndexMapResource from '../../lib/resources/openindexmap';
-import PMTilesResource from '../../lib/resources/pmtiles';
-import RasterResource from '../../lib/resources/raster';
-import Resource from '../../lib/resources/resource';
-import TileJsonResource from '../../lib/resources/tilejson';
-import WmsResource from '../../lib/resources/wms';
-import WmtsResource from '../../lib/resources/wmts';
-
 import { getElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
 import { dedupeFeatures } from '../../lib/features';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
 import { isLayerDrawn, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
 import LayersControl from '../../lib/layers-control';
-import CogPreviewer from '../../lib/previewers/cog';
-import EsriDynamicMapLayerPreviewer from '../../lib/previewers/esri-dynamic-map-layer';
-import EsriFeatureLayerPreviewer from '../../lib/previewers/esri-feature-layer';
-import EsriImageMapLayerPreviewer from '../../lib/previewers/esri-image-map-layer';
-import EsriTiledMapLayerPreviewer from '../../lib/previewers/esri-tiled-map-layer';
-import GeoJsonPreviewer from '../../lib/previewers/geojson';
 import InspectableRasterPreviewer from '../../lib/previewers/inspectable-raster';
-import MapPreviewer from '../../lib/previewers/map';
-import OpenIndexMapPreviewer from '../../lib/previewers/openindexmap';
-import PMTilesRasterPreviewer from '../../lib/previewers/pmtiles-raster';
-import PMTilesVectorPreviewer from '../../lib/previewers/pmtiles-vector';
-import RasterPreviewer from '../../lib/previewers/raster';
-import TileJsonRasterPreviewer from '../../lib/previewers/tilejson-raster';
-import TileJsonVectorPreviewer from '../../lib/previewers/tilejson-vector';
-import WmtsPreviewer from '../../lib/previewers/wmts';
-import WmsPreviewer from '../../lib/previewers/wms';
+import type MapPreviewer from '../../lib/previewers/map';
 import MapLibreTheme from '../../lib/themes/maplibre';
 
 // Register PMTiles protocol
@@ -58,7 +30,7 @@ const QUERY_WINDOW = 51;
 })
 export class OgmMap {
   @Element() el: HTMLElement;
-  @Prop() previewResource: Resource;
+  @Prop() previewer: MapPreviewer;
   @Prop() theme: 'light' | 'dark';
   @Prop() padding: number = 0;
   @Event() mapIdle: EventEmitter<void>;
@@ -88,9 +60,6 @@ export class OgmMap {
   // Container element reference for fullscreen
   protected containerEl: HTMLElement;
 
-  // Previewer for the currently previewed resource
-  protected previewer: MapPreviewer | undefined = undefined;
-
   // Set up the mapLibre map and event bindings on load
   componentDidLoad() {
     this.mapTheme = new MapLibreTheme(this.el);
@@ -105,7 +74,7 @@ export class OgmMap {
     });
     this.getContainer();
     this.addControls();
-    this.map.on('load', () => this.loadResource(this.previewResource));
+    this.map.on('load', () => this.loadPreview());
     this.map.on('mousemove', this.handleHover.bind(this));
     this.map.on('click', this.handleClick.bind(this));
     this.map.on('error', this.handleMapError.bind(this));
@@ -161,33 +130,17 @@ export class OgmMap {
     );
   }
 
-  // Get the appropriate previewer for our resource
-  protected async getMapPreviewer(map: maplibregl.Map) {
-    const style = this.mapTheme.getStyle();
-    if (this.previewResource instanceof OpenIndexMapResource) return new OpenIndexMapPreviewer(this.previewResource, map, style);
-    else if (this.previewResource instanceof EsriFeatureLayerResource) return new EsriFeatureLayerPreviewer(this.previewResource, map, style);
-    else if (this.previewResource instanceof GeoJsonResource) return new GeoJsonPreviewer(this.previewResource, map, style);
-    else if (this.previewResource instanceof PMTilesResource) {
-      if (await this.previewResource.isVector()) return new PMTilesVectorPreviewer(this.previewResource, map, style);
-      else return new PMTilesRasterPreviewer(this.previewResource, map, style);
-    } else if (this.previewResource instanceof TileJsonResource) {
-      if (await this.previewResource.isVector()) return new TileJsonVectorPreviewer(this.previewResource, map, style);
-      else return new TileJsonRasterPreviewer(this.previewResource, map, style);
-    } else if (this.previewResource instanceof WmsResource) return new WmsPreviewer(this.previewResource, map, style);
-    else if (this.previewResource instanceof CogResource) return new CogPreviewer(this.previewResource, map, style);
-    else if (this.previewResource instanceof WmtsResource) return new WmtsPreviewer(this.previewResource, map, style);
-    else if (this.previewResource instanceof EsriTiledMapLayerResource) return new EsriTiledMapLayerPreviewer(this.previewResource, map, style);
-    else if (this.previewResource instanceof EsriDynamicMapLayerResource) return new EsriDynamicMapLayerPreviewer(this.previewResource, map, style);
-    else if (this.previewResource instanceof EsriImageMapLayerResource) return new EsriImageMapLayerPreviewer(this.previewResource, map, style);
-    else if (this.previewResource instanceof RasterResource) return new RasterPreviewer(this.previewResource, map, style);
+  @Watch('previewer')
+  async onPreviewerChange(_previewer: MapPreviewer, previous?: MapPreviewer) {
+    if (previous) await previous.clearPreview();
+    await this.loadPreview();
   }
 
-  @Watch('previewResource')
-  async loadResource(resource: Resource) {
-    // Do nothing if we didn't get passed a resource
-    if (!resource) return;
+  // Draw the current preview onto the map.
+  async loadPreview() {
+    if (!this.previewer || !this.map) return;
 
-    // Fresh load attempt: allow one error to be reported again for this source
+    // Fresh load attempt: allow one error to be reported again for this preview
     this.errorReported = false;
 
     // Indicate loading state so we can show the spinner
@@ -202,31 +155,22 @@ export class OgmMap {
     // Close popup if one is open
     this.destroyPopup();
 
-    // Clear the existing preview
-    if (this.previewer) {
-      await this.previewer.clearPreview();
-      this.previewer = undefined;
-    }
-
     try {
-      // Get the appropriate previewer for our resource and preview it
-      this.previewer = await this.getMapPreviewer(this.map);
-      if (!this.previewer) throw new Error(`No previewer found for resource: ${resource.constructor.name}`);
+      // The style is only known now: it comes out of the theme, and the theme can change under a
+      // preview that is already on screen
+      this.previewer.attach(this.map, this.mapTheme.getStyle());
       await this.previewer.preview();
 
       // Set up the layer controls
       this.applyLayerState();
       this.setupLayerControls();
 
-      // Fit to bounds from the record; the spinner stays up until the map finishes moving
-      const bounds = await this.previewResource.getBounds();
+      // Fit to the preview's bounds; the spinner stays up until the map finishes moving
+      const bounds = await this.previewer.getBounds();
       if (bounds) await this.fitMapBounds(bounds);
     } catch (error) {
-      console.error(`Error previewing resource ${resource.url}:`, error);
-      if (!this.errorReported) {
-        this.errorReported = true;
-        this.previewError.emit(referenceError(error, resource.label(), resource.url));
-      }
+      console.error(`Error previewing ${this.previewer.url}:`, error);
+      this.reportError(error);
     } finally {
       this.mapIdle.emit();
     }
@@ -236,19 +180,28 @@ export class OgmMap {
   @Watch('theme')
   onThemeChange() {
     if (!this.map) return;
+    // The popup reads from sources setStyle is about to drop, so it goes first
+    this.destroyPopup();
     // The panel is still on screen over the window this opens, and a layer can't be styled inside it
     this.mapStyleLoaded = false;
     this.map.setStyle(this.mapTheme.getBaseMapStyle());
-    this.map.once('style.load', async () => await this.loadResource(this.previewResource));
+    // The same preview, drawn again into the style document the swap just emptied
+    this.map.once('style.load', async () => await this.loadPreview());
   }
 
-  // Surface MapLibre errors tied to the current previewed resource, skipping the
-  // noise from basemap/glyph/sprite loads, and deduped to a single alert per load attempt.
+  // Surface MapLibre errors tied to the current preview, skipping the noise from basemap/glyph/
+  // sprite loads, and deduped to a single alert per load attempt.
   protected handleMapError(event: maplibregl.ErrorEvent & { sourceId?: string }) {
-    if (this.errorReported || !this.previewResource || !this.previewer) return;
+    if (this.errorReported || !this.previewer) return;
     if (!this.previewer.sourceIds.includes(event.sourceId ?? '')) return;
+    this.reportError(event.error);
+  }
+
+  // Emit a single preview error per load attempt
+  private reportError(error: unknown) {
+    if (this.errorReported || !this.previewer) return;
     this.errorReported = true;
-    this.previewError.emit(referenceError(event.error, this.previewResource.label(), this.previewResource.url));
+    this.previewError.emit(referenceError(error, this.previewer.label(), this.previewer.url));
   }
 
   // Fit the map to the given bounds; resolve once the move finishes
@@ -364,7 +317,7 @@ export class OgmMap {
     // Get the features, if any, at the clicked point. If none, do nothing. A failed request means
     // this one click went unanswered, not that the preview is broken, so it stays out of the alerts.
     const features = await this.handleInspection(event.point).catch(error => {
-      console.error(`Error inspecting ${this.previewResource?.url}:`, error);
+      console.error(`Error inspecting ${this.previewer?.url}:`, error);
       return [];
     });
     if (features.length === 0) return;

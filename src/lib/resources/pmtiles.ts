@@ -2,7 +2,7 @@
 
 import { PMTiles, TileType, Header } from 'pmtiles';
 
-import Resource from './resource';
+import Resource, { type ResourceKind } from './resource';
 import { type LngLatBoundsLike } from 'maplibre-gl';
 
 // A single vector layer in a PMTiles tileset
@@ -18,6 +18,8 @@ interface Metadata {
 
 // Vector or raster tileset stored in a PMTiles archive at a URL
 export default class PMTilesResource extends Resource {
+  readonly kind: ResourceKind = 'pmtiles';
+
   // PMTiles object for reading metadata and tiles from the archive
   private archive: PMTiles;
 

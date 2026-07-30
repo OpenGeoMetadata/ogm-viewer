@@ -60,14 +60,14 @@ const GEOJSON_URL = 'https://example.com/index-map.json';
 // Nothing here fetches: the source URL and the layer names are known without reading the document
 const previewGeoJson = async () => {
   const map = new FakeMap();
-  const previewer = new GeoJsonPreviewer(new GeoJsonResource('princeton-fk4544658v', GEOJSON_URL), map as unknown as maplibregl.Map, style);
+  const previewer = new GeoJsonPreviewer(new GeoJsonResource('princeton-fk4544658v', GEOJSON_URL)).attach(map as unknown as maplibregl.Map, style);
   await previewer.preview();
   return { map, previewer };
 };
 
 const previewIndexMap = async () => {
   const map = new FakeMap();
-  const previewer = new OpenIndexMapPreviewer(new OpenIndexMapResource('princeton-fk4544658v', GEOJSON_URL), map as unknown as maplibregl.Map, style);
+  const previewer = new OpenIndexMapPreviewer(new OpenIndexMapResource('princeton-fk4544658v', GEOJSON_URL)).attach(map as unknown as maplibregl.Map, style);
   await previewer.preview();
   return { map, previewer };
 };
@@ -98,6 +98,23 @@ describe('GeoJsonPreviewer#preview', () => {
 
     expect(map.sources.size).toEqual(0);
     expect(map.layers.size).toEqual(0);
+  });
+
+  // What a theme change leaves behind: setStyle() empties the style document, and the same
+  // previewer is asked to draw itself into the new one. What it says it put there has to describe
+  // the document in front of it, not every document it has ever drawn into - a second copy of a
+  // row would show the user the same layer twice in the layers panel.
+  it('draws again into an emptied style without doubling what it says it added', async () => {
+    const { map, previewer } = await previewGeoJson();
+
+    map.sources.clear();
+    map.layers.clear();
+    await previewer.preview();
+
+    expect(previewer.sourceIds).toEqual(['princeton-fk4544658v-geojson']);
+    expect(previewer.layerIds).toEqual(SUFFIXES.map(suffix => `princeton-fk4544658v-geojson-geojson-${suffix}`));
+    expect(previewer.previewLayers).toHaveLength(1);
+    expect(map.layers.size).toEqual(SUFFIXES.length);
   });
 });
 

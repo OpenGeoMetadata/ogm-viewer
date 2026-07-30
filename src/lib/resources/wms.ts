@@ -1,5 +1,6 @@
 import { type LngLatBoundsLike } from 'maplibre-gl';
 import RasterResource from './raster';
+import type { ResourceKind } from './resource';
 import type { PixelWindow } from '../geometry';
 
 // Base params for WMS GetMap requests, which return raster tiles
@@ -46,6 +47,8 @@ const defaultWmsOptions: WmsOptions = {
 
 // Data accessed via WMS GetMap requests, which return raster tiles
 export default class WmsResource extends RasterResource {
+  readonly kind: ResourceKind = 'wms';
+
   private options: WmsOptions;
 
   // Memoized metadata via GetCapabilities request

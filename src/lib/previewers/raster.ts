@@ -52,8 +52,4 @@ export default class RasterPreviewer extends MapPreviewer {
       },
     ];
   }
-
-  async getBounds(): Promise<maplibregl.LngLatBoundsLike | undefined> {
-    return undefined;
-  }
 }

@@ -83,7 +83,7 @@ beforeEach(async () => {
   map = new FakeMap();
   resource = new StubWmtsResource('night-lights', 'https://example.org/wmts/1.0.0/WMTSCapabilities.xml', { layerIds: [] });
   resource.layers = LAYERS;
-  previewer = new WmtsPreviewer(resource, map as unknown as maplibregl.Map, style);
+  previewer = new WmtsPreviewer(resource).attach(map as unknown as maplibregl.Map, style);
   await previewer.preview();
 });
 
@@ -101,7 +101,7 @@ describe('WmtsPreviewer#previewLayers', () => {
 
   it('falls back to the identifier when the service published no title', async () => {
     resource.layers = [{ ...LAYERS[0], title: '   ' }];
-    previewer = new WmtsPreviewer(resource, map as unknown as maplibregl.Map, style);
+    previewer = new WmtsPreviewer(resource).attach(map as unknown as maplibregl.Map, style);
     await previewer.preview();
 
     expect(previewer.previewLayers.map(layer => layer.title)).toEqual(['lights']);
