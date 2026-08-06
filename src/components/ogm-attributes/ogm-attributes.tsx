@@ -2,7 +2,7 @@ import { Component, Prop, State, Watch, Event, EventEmitter, h } from '@stencil/
 import { MapGeoJSONFeature } from 'maplibre-gl';
 import Autolinker from 'autolinker';
 
-const LABEL_KEYS = ['name', 'title', 'label', 'id'] as const;
+const LABEL_KEYS = ['label', 'name', 'title', 'id'] as const;
 
 const getFeatureLabel = (feature: MapGeoJSONFeature): string | undefined => {
   const originalKeys = Object.keys(feature.properties || {});
