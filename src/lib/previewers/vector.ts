@@ -65,6 +65,35 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     return ['case', ['boolean', ['feature-state', 'selected'], false], 1, opacity];
   }
 
+  // Selection and hover are transient client-side state, set via feature-state; availability is
+  // static per-feature data already on the GeoJSON, read straight off its properties. Selected/
+  // hover still win so a user can inspect an unavailable feature without losing that feedback.
+  protected fillColorExpression(): ExpressionSpecification {
+    return [
+      'case',
+      ['boolean', ['feature-state', 'selected'], false],
+      this.style.fillSelectedColor,
+      ['boolean', ['feature-state', 'hover'], false],
+      this.style.fillHighlightColor,
+      ['==', ['get', 'available'], false],
+      this.style.fillInvalidColor,
+      this.style.fillColor,
+    ];
+  }
+
+  protected strokeColorExpression(): ExpressionSpecification {
+    return [
+      'case',
+      ['boolean', ['feature-state', 'selected'], false],
+      this.style.strokeSelectedColor,
+      ['boolean', ['feature-state', 'hover'], false],
+      this.style.strokeHighlightColor,
+      ['==', ['get', 'available'], false],
+      this.style.strokeInvalidColor,
+      this.style.strokeColor,
+    ];
+  }
+
   // Fills and circles keep their case expression; everything else takes the plain number
   protected applyOpacity(styleLayer: PreviewStyleLayer, opacity: number) {
     if (styleLayer.type === 'fill') {
@@ -88,14 +117,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         visibility: 'visible' as const,
       },
       paint: {
-        'fill-color': [
-          'case',
-          ['boolean', ['feature-state', 'selected'], false],
-          this.style.fillSelectedColor,
-          ['boolean', ['feature-state', 'hover'], false],
-          this.style.fillHighlightColor,
-          this.style.fillColor,
-        ] as const,
+        'fill-color': this.fillColorExpression(),
         'fill-opacity': this.selectedOpacity(this.style.opacity),
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
@@ -112,14 +134,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         visibility: 'visible' as const,
       },
       paint: {
-        'line-color': [
-          'case',
-          ['boolean', ['feature-state', 'selected'], false],
-          this.style.strokeSelectedColor,
-          ['boolean', ['feature-state', 'hover'], false],
-          this.style.strokeHighlightColor,
-          this.style.strokeColor,
-        ] as const,
+        'line-color': this.strokeColorExpression(),
         'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
         'line-opacity': this.style.opacity,
       },
@@ -137,14 +152,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         visibility: 'visible' as const,
       },
       paint: {
-        'line-color': [
-          'case',
-          ['boolean', ['feature-state', 'selected'], false],
-          this.style.strokeSelectedColor,
-          ['boolean', ['feature-state', 'hover'], false],
-          this.style.strokeHighlightColor,
-          this.style.strokeColor,
-        ] as const,
+        'line-color': this.strokeColorExpression(),
         'line-width': 4,
         'line-opacity': this.style.opacity,
       },
@@ -162,22 +170,8 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         visibility: 'visible' as const,
       },
       paint: {
-        'circle-color': [
-          'case',
-          ['boolean', ['feature-state', 'selected'], false],
-          this.style.fillSelectedColor,
-          ['boolean', ['feature-state', 'hover'], false],
-          this.style.fillHighlightColor,
-          this.style.fillColor,
-        ] as const,
-        'circle-stroke-color': [
-          'case',
-          ['boolean', ['feature-state', 'selected'], false],
-          this.style.strokeSelectedColor,
-          ['boolean', ['feature-state', 'hover'], false],
-          this.style.strokeHighlightColor,
-          this.style.strokeColor,
-        ] as const,
+        'circle-color': this.fillColorExpression(),
+        'circle-stroke-color': this.strokeColorExpression(),
         'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 2, 12, 4] as const,
         'circle-opacity': this.selectedOpacity(this.style.opacity),

@@ -44,11 +44,17 @@ class FakeMap {
   }
 }
 
-// The previewers only read the colors and label styles, none of which these tests assert on
+// Distinct values for every color so a wrong branch in a case expression shows up as a mismatch
 const style = {
   opacity: 0.8,
   fillColor: '#00f',
+  fillHighlightColor: '#0ff',
+  fillSelectedColor: '#0f0',
+  fillInvalidColor: '#ff0',
   strokeColor: '#009',
+  strokeHighlightColor: '#099',
+  strokeSelectedColor: '#090',
+  strokeInvalidColor: '#990',
   textColor: '#000',
   textFont: 'Noto Sans Regular',
   textSize: 12,
@@ -121,6 +127,8 @@ describe('GeoJsonPreviewer#preview', () => {
 const ROW_ID = 'princeton-fk4544658v-geojson-geojson';
 const layerId = (suffix: string) => `princeton-fk4544658v-geojson-geojson-${suffix}`;
 const SELECTED = ['boolean', ['feature-state', 'selected'], false];
+const HOVER = ['boolean', ['feature-state', 'hover'], false];
+const UNAVAILABLE = ['==', ['get', 'available'], false];
 
 describe('GeoJsonPreviewer#previewLayers', () => {
   it('offers the user one layer, not the seven it takes to draw it', async () => {
@@ -143,6 +151,59 @@ describe('GeoJsonPreviewer#previewLayers', () => {
     const { previewer } = await previewIndexMap();
 
     expect(previewer.previewLayers.map(layer => layer.title)).toEqual(['Index Map']);
+  });
+});
+
+// A feature's availability is static data already on the GeoJSON, not feature-state, so it reads
+// straight off ['get', 'available'] - but it still has to rank below selected/hover, or hovering
+// an unavailable feature would give no visual feedback at all
+describe('GeoJsonPreviewer#colors', () => {
+  it('falls back to the invalid fill color for a feature marked unavailable, below selected and hover', async () => {
+    const { map } = await previewGeoJson();
+
+    expect(map.layers.get(layerId('polygons')).paint['fill-color']).toEqual([
+      'case',
+      SELECTED,
+      style.fillSelectedColor,
+      HOVER,
+      style.fillHighlightColor,
+      UNAVAILABLE,
+      style.fillInvalidColor,
+      style.fillColor,
+    ]);
+  });
+
+  it('does the same for stroke colors, on both polygon outlines and lines', async () => {
+    const { map } = await previewGeoJson();
+    const expected = ['case', SELECTED, style.strokeSelectedColor, HOVER, style.strokeHighlightColor, UNAVAILABLE, style.strokeInvalidColor, style.strokeColor];
+
+    expect(map.layers.get(layerId('polygon-outlines')).paint['line-color']).toEqual(expected);
+    expect(map.layers.get(layerId('lines')).paint['line-color']).toEqual(expected);
+  });
+
+  it('does the same for circle fill and stroke colors', async () => {
+    const { map } = await previewGeoJson();
+
+    expect(map.layers.get(layerId('points')).paint['circle-color']).toEqual([
+      'case',
+      SELECTED,
+      style.fillSelectedColor,
+      HOVER,
+      style.fillHighlightColor,
+      UNAVAILABLE,
+      style.fillInvalidColor,
+      style.fillColor,
+    ]);
+    expect(map.layers.get(layerId('points')).paint['circle-stroke-color']).toEqual([
+      'case',
+      SELECTED,
+      style.strokeSelectedColor,
+      HOVER,
+      style.strokeHighlightColor,
+      UNAVAILABLE,
+      style.strokeInvalidColor,
+      style.strokeColor,
+    ]);
   });
 });
 
