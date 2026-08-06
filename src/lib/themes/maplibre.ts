@@ -18,6 +18,7 @@ export type MapLibreStyle = {
   strokeInvalidColor: string;
   // CSS text styles for labels
   textColor: string;
+  textHaloColor: string;
   textFont: string;
   textSize: number;
   // Opacity for highlighted polygons/circles
@@ -42,9 +43,10 @@ export default class MapLibreTheme extends Theme {
       strokeHighlightColor: this.dualCssColors('--wa-color-cyan-80', '--wa-color-cyan-60'),
       strokeSelectedColor: this.dualCssColors('--wa-color-green-80', '--wa-color-green-50'),
       strokeInvalidColor: this.dualCssColors('--wa-color-red-80', '--wa-color-red-30'),
-      textColor: this.readCssProperty('--wa-color-text-normal'),
+      textColor: this.dualCssColors('--wa-color-gray-95', '--wa-color-gray-05'),
+      textHaloColor: this.dualCssColors('--wa-color-gray-05', '--wa-color-gray-95'),
       textFont: this.readCssProperty('--wa-font-family-body'),
-      textSize: 12,
+      textSize: 14,
       fillHighlightOpacity: 0.8,
     };
   }

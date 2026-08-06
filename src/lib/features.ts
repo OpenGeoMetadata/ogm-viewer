@@ -25,3 +25,18 @@ export const dedupeFeatures = (features: readonly MapGeoJSONFeature[]): MapGeoJS
     return true;
   });
 };
+
+// Preference order for feature properties used to render the popup title
+// when inspecting the feature. These are just commonly used names for
+// properties, we prefer an explicit 'title' but will take anything
+// reasonable that we find. More descriptive is better.
+const TITLE_KEYS = ['title', 'name', 'label', 'id'] as const;
+
+// Derive a title for a feature from its properties, using the first match
+// from TITLE_KEYS in the order listed above. Used by the attributes popup.
+export const getFeatureTitle = (feature: MapGeoJSONFeature): string | undefined => {
+  const originalKeys = Object.keys(feature.properties || {});
+  if (originalKeys.length === 0) return;
+  const key = TITLE_KEYS.map(k => originalKeys.find(ok => ok.toLowerCase() === k)).find(Boolean);
+  if (key) return feature.properties?.[key];
+};
