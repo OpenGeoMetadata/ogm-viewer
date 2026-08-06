@@ -1,15 +1,7 @@
 import { Component, Prop, State, Watch, Event, EventEmitter, h } from '@stencil/core';
 import { MapGeoJSONFeature } from 'maplibre-gl';
 import Autolinker from 'autolinker';
-
-const LABEL_KEYS = ['label', 'name', 'title', 'id'] as const;
-
-const getFeatureLabel = (feature: MapGeoJSONFeature): string | undefined => {
-  const originalKeys = Object.keys(feature.properties || {});
-  if (originalKeys.length === 0) return;
-  const key = LABEL_KEYS.map(k => originalKeys.find(ok => ok.toLowerCase() === k)).find(Boolean);
-  if (key) return feature.properties?.[key];
-};
+import { getFeatureTitle } from '../../lib/features';
 
 @Component({
   tag: 'ogm-attributes',
@@ -37,17 +29,17 @@ export class OgmAttributes {
 
     const feature = this.features[this.currentIndex];
     const multiple = this.features.length > 1;
-    const label = getFeatureLabel(feature);
-    const labelEl = label && (
-      <div class="label">
-        <div>{label}</div>
+    const title = getFeatureTitle(feature);
+    const titleEl = title && (
+      <div class="title">
+        <div>{title}</div>
       </div>
     );
 
     return (
       <wa-scroller orientation="vertical">
         <table class="attribute-table">
-          {(multiple || label) && (
+          {(multiple || title) && (
             <thead>
               <tr class="header">
                 <td colSpan={2}>
@@ -56,7 +48,7 @@ export class OgmAttributes {
                       <wa-button size="xs" appearance="plain" disabled={this.currentIndex === 0} onClick={() => this.currentIndex--}>
                         <wa-icon name="arrow-left" label="Previous feature" canvas="auto"></wa-icon>
                       </wa-button>
-                      {labelEl}
+                      {titleEl}
                       <div class="count">
                         ({this.currentIndex + 1}/{this.features.length})
                       </div>
@@ -65,7 +57,7 @@ export class OgmAttributes {
                       </wa-button>
                     </div>
                   ) : (
-                    labelEl
+                    titleEl
                   )}
                 </td>
               </tr>

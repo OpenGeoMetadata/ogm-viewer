@@ -40,7 +40,7 @@ wa-scroller {
   }
 }
 
-.label {
+.title {
   font-size: var(--wa-font-size-s);
   font-weight: var(--wa-font-weight-bold);
   overflow: hidden;
@@ -58,7 +58,7 @@ wa-scroller {
   }
 }
 
-wa-button + .label {
+wa-button + .title {
   max-width: 30ch;
   padding: 0;
 }
