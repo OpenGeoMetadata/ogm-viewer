@@ -1,6 +1,11 @@
 import { Component, Event, EventEmitter, h, Host, Prop, State, Watch } from '@stencil/core';
-import type OgmRecord from '../../lib/record';
 
+import '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
+import '@awesome.me/webawesome/dist/components/tab-panel/tab-panel.js';
+import '@awesome.me/webawesome/dist/components/tab/tab.js';
+
+import type OgmRecord from '../../lib/record';
+import { themePreference, waScope, webAwesomeStylesheet } from '../../lib/init';
 import { resourcesFor } from '../../lib/resources/factory';
 import { previewersForResources, type AnyPreviewer } from '../../lib/previewers/factory';
 
@@ -10,7 +15,7 @@ import { previewersForResources, type AnyPreviewer } from '../../lib/previewers/
   shadow: true,
 })
 export class OgmPreviews {
-  @Prop() theme: 'light' | 'dark';
+  @Prop() theme: 'light' | 'dark' = themePreference();
   @Prop() record: OgmRecord;
   @Prop() sidebarPadding: number;
   @State() previewers: AnyPreviewer[] = [];
@@ -58,7 +63,8 @@ export class OgmPreviews {
     if (!this.record || !this.previewers.length) return;
 
     return (
-      <Host class={this.theme && `wa-${this.theme}`}>
+      <Host class={waScope(this.theme)}>
+        <link rel="stylesheet" href={webAwesomeStylesheet()} />
         <wa-tab-group>
           {this.previewers.map((previewer, idx) => (
             <wa-tab key={idx} panel={previewer.previewId}>

@@ -2,8 +2,9 @@ import { Component, Element, Event, EventEmitter, h, Host, Listen, Method, Prop,
 import maplibregl from 'maplibre-gl';
 import { Protocol as PMTilesProtocol } from 'pmtiles';
 
-import { getElement } from '../../lib/elements';
+import { closestAcrossShadows, findElement, getElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
+import { themePreference, waScope, webAwesomeStylesheet } from '../../lib/init';
 import { dedupeFeatures } from '../../lib/features';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
 import { isLayerDrawn, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
@@ -31,7 +32,7 @@ const QUERY_WINDOW = 51;
 export class OgmMap {
   @Element() el: HTMLElement;
   @Prop() previewer: MapPreviewer;
-  @Prop() theme: 'light' | 'dark';
+  @Prop() theme: 'light' | 'dark' = themePreference();
   @Prop() padding: number = 0;
   @Event() mapIdle: EventEmitter<void>;
   @Event() mapLoading: EventEmitter<void>;
@@ -57,27 +58,27 @@ export class OgmMap {
   protected hoveredFeature: maplibregl.MapGeoJSONFeature | undefined = undefined;
   protected selectedFeature: maplibregl.MapGeoJSONFeature | undefined = undefined;
 
-  // Container element reference for fullscreen
-  protected containerEl: HTMLElement;
-
   // Set up the mapLibre map and event bindings on load
   componentDidLoad() {
-    this.mapTheme = new MapLibreTheme(this.el);
+    this.mapTheme = new MapLibreTheme(this.el, this.theme);
     this.map = new maplibregl.Map({
       container: getElement(this.el, '#map'),
-      attributionControl: false,
+      // The basemaps are CARTO's, over OpenStreetMap data; both require attribution. Compact so it
+      // is a single "i" in the corner until clicked, which is all an embedded map has room for.
+      attributionControl: { compact: true },
       cooperativeGestures: true,
       style: this.mapTheme.getBaseMapStyle(),
       center: [0, 0],
       zoom: 2,
       minZoom: 2,
     });
-    this.getContainer();
-    this.addControls();
+
+    // Bound before the controls go on: a control that can't be built shouldn't cost us the preview
     this.map.on('load', () => this.loadPreview());
     this.map.on('mousemove', this.handleHover.bind(this));
     this.map.on('click', this.handleClick.bind(this));
     this.map.on('error', this.handleMapError.bind(this));
+    this.addControls();
 
     // Style as a globe with atmosphere once style is loaded and set the flag
     this.map.on('style.load', () => {
@@ -97,13 +98,13 @@ export class OgmMap {
     if (this.map) this.map.remove();
   }
 
-  // Find the container element for the map (used for fullscreen control)
-  protected getContainer() {
-    const viewerEl = document.querySelector('ogm-viewer') as HTMLElement;
-    if (!viewerEl) throw new Error('Could not find ogm-viewer element');
-    const containerEl = getElement(viewerEl, '.container') as HTMLElement;
-    if (!containerEl) throw new Error('Could not find map container element');
-    this.containerEl = containerEl;
+  // What the fullscreen button expands. Under an <ogm-viewer> that's the whole viewer, so the
+  // menubar and sidebar come along with the map; on our own it is just us. Found by walking out
+  // through the shadow roots we sit in rather than by asking the document, which would pick the
+  // first viewer on the page whether or not it is the one we're inside.
+  protected getContainer(): HTMLElement {
+    const viewerEl = closestAcrossShadows(this.el, 'ogm-viewer');
+    return (viewerEl && findElement(viewerEl, '.container')) ?? this.el;
   }
 
   // Add controls to the map, ordered from top down
@@ -117,7 +118,7 @@ export class OgmMap {
     this.map.addControl(this.layersControl);
     this.map.addControl(
       new maplibregl.FullscreenControl({
-        container: this.containerEl,
+        container: this.getContainer(),
       }),
     );
     this.map.addControl(new maplibregl.GlobeControl());
@@ -180,6 +181,7 @@ export class OgmMap {
   @Watch('theme')
   onThemeChange() {
     if (!this.map) return;
+    this.mapTheme.theme = this.theme;
     // The popup reads from sources setStyle is about to drop, so it goes first
     this.destroyPopup();
     // The panel is still on screen over the window this opens, and a layer can't be styled inside it
@@ -442,7 +444,8 @@ export class OgmMap {
   // inside the shadow root.
   render() {
     return (
-      <Host>
+      <Host class={waScope(this.theme)}>
+        <link rel="stylesheet" href={webAwesomeStylesheet()} />
         <div id="map" class={`wa-${this.theme}`}></div>
         {this.layersPanelOpen && <ogm-layers theme={this.theme} layers={this.layerControls}></ogm-layers>}
       </Host>

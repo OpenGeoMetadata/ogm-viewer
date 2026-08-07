@@ -16,6 +16,9 @@ export { AnyPreviewer } from "./lib/previewers/factory";
 export namespace Components {
     interface OgmAlerts {
         "error"?: PreviewError;
+        /**
+          * @default themePreference()
+         */
         "theme": 'light' | 'dark';
     }
     interface OgmAttributes {
@@ -30,6 +33,9 @@ export namespace Components {
          */
         "padding": number;
         "previewer": ImagePreviewer;
+        /**
+          * @default themePreference()
+         */
         "theme": 'light' | 'dark';
     }
     interface OgmLayers {
@@ -46,6 +52,9 @@ export namespace Components {
          */
         "padding": number;
         "previewer": MapPreviewer;
+        /**
+          * @default themePreference()
+         */
         "theme": 'light' | 'dark';
     }
     interface OgmMenubar {
@@ -68,11 +77,17 @@ export namespace Components {
     interface OgmPreview {
         "previewer": AnyPreviewer;
         "sidebarPadding": number;
+        /**
+          * @default themePreference()
+         */
         "theme": 'light' | 'dark';
     }
     interface OgmPreviews {
         "record": OgmRecord;
         "sidebarPadding": number;
+        /**
+          * @default themePreference()
+         */
         "theme": 'light' | 'dark';
     }
     interface OgmSidebar {
@@ -91,7 +106,7 @@ export namespace Components {
         "loadRecord": (record: OgmRecord) => Promise<void>;
         "recordUrl": string;
         /**
-          * @default this.getThemePreference()
+          * @default themePreference()
          */
         "theme": 'light' | 'dark';
     }
@@ -277,6 +292,9 @@ declare global {
 declare namespace LocalJSX {
     interface OgmAlerts {
         "error"?: PreviewError;
+        /**
+          * @default themePreference()
+         */
         "theme"?: 'light' | 'dark';
     }
     interface OgmAttributes {
@@ -295,6 +313,9 @@ declare namespace LocalJSX {
          */
         "padding"?: number;
         "previewer"?: ImagePreviewer;
+        /**
+          * @default themePreference()
+         */
         "theme"?: 'light' | 'dark';
     }
     interface OgmLayers {
@@ -316,6 +337,9 @@ declare namespace LocalJSX {
          */
         "padding"?: number;
         "previewer"?: MapPreviewer;
+        /**
+          * @default themePreference()
+         */
         "theme"?: 'light' | 'dark';
     }
     interface OgmMenubar {
@@ -339,6 +363,9 @@ declare namespace LocalJSX {
     interface OgmPreview {
         "previewer"?: AnyPreviewer;
         "sidebarPadding"?: number;
+        /**
+          * @default themePreference()
+         */
         "theme"?: 'light' | 'dark';
     }
     interface OgmPreviews {
@@ -346,6 +373,9 @@ declare namespace LocalJSX {
         "onPreviewsLoading"?: (event: OgmPreviewsCustomEvent<void>) => void;
         "record"?: OgmRecord;
         "sidebarPadding"?: number;
+        /**
+          * @default themePreference()
+         */
         "theme"?: 'light' | 'dark';
     }
     interface OgmSidebar {
@@ -363,7 +393,7 @@ declare namespace LocalJSX {
         "hideTitle"?: boolean;
         "recordUrl"?: string;
         /**
-          * @default this.getThemePreference()
+          * @default themePreference()
          */
         "theme"?: 'light' | 'dark';
     }

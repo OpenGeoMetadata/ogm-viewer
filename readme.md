@@ -54,6 +54,57 @@ To programmatically control dark mode, you can use the `theme` attribute with a 
 <ogm-viewer record-url="https://example.com/record.json" theme="dark"></ogm-viewer>
 ```
 
+### Colors
+
+You can style the viewer's colors by setting CSS custom properties on its element.
+
+```css
+ogm-viewer {
+  --ogm-fill-color: #8f1414;
+  --ogm-stroke-color: #4a0a0a;
+}
+```
+
+Here are the supported properties and what they apply to:
+
+| Property                       | Applies to                                           |
+| ------------------------------ | ---------------------------------------------------- |
+| `--ogm-fill-color`             | Polygon and circle fill                              |
+| `--ogm-fill-highlight-color`   | Fill of a hovered feature                            |
+| `--ogm-fill-selected-color`    | Fill of the feature whose attributes are shown       |
+| `--ogm-fill-invalid-color`     | Fill of a feature marked unavailable                 |
+| `--ogm-stroke-color`           | Lines, and polygon and circle borders                |
+| `--ogm-stroke-highlight-color` | Stroke of a hovered feature                          |
+| `--ogm-stroke-selected-color`  | Stroke of the selected feature                       |
+| `--ogm-stroke-invalid-color`   | Stroke of a feature marked unavailable               |
+| `--ogm-text-color`             | Feature label text color                             |
+| `--ogm-text-halo-color`        | Feature label text outline color                     |
+| `--ogm-text-size`              | Feature label font size, in pixels                   |
+| `--ogm-font-family`            | Feature label font name (e.g. `"Noto Sans Regular"`) |
+| `--ogm-fill-opacity`           | Initial opacity of drawn data                        |
+| `--ogm-fill-highlight-opacity` | Opacity of a highlighted feature                     |
+| `--ogm-padding`                | Gap kept between the data and the map edge (pixels)  |
+
+By default, the viewer uses styles from [Web Awesome](https://webawesome.com/) that match the current mode (dark or light). Anything you override will be used in both modes.
+
+### Components
+
+If you're building your own viewer, you can adopt `<ogm-viewer>`'s components individually.
+
+The easiest way to render a single preview without the full viewer is to use the `<ogm-preview>` component with a `Previewer` and corresponding `Resource`. For example, to preview a GeoJSON resource:
+
+```javascript
+import 'ogm-viewer';
+import { GeoJsonPreviewer, GeoJsonResource } from 'ogm-viewer/lib';
+
+await customElements.whenDefined('ogm-preview');
+
+const resource = new GeoJsonResource('my-layer', 'https://example.com/data.json');
+document.querySelector('ogm-preview').previewer = new GeoJsonPreviewer(resource);
+```
+
+Note that `previewer` is a DOM property, not an attribute — await for the element to be defined and then set it in JavaScript.
+
 ## Development
 
 After cloning the repository, install dependencies:

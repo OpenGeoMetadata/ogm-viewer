@@ -1,6 +1,11 @@
 import { Component, Prop, State, Watch, Event, EventEmitter, h } from '@stencil/core';
 import { MapGeoJSONFeature } from 'maplibre-gl';
 import Autolinker from 'autolinker';
+
+import '@awesome.me/webawesome/dist/components/button/button.js';
+import '@awesome.me/webawesome/dist/components/icon/icon.js';
+import '@awesome.me/webawesome/dist/components/scroller/scroller.js';
+
 import { getFeatureTitle } from '../../lib/features';
 
 @Component({
