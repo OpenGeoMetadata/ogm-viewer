@@ -20,6 +20,10 @@ export const config: Config = {
     {
       type: 'dist-custom-elements',
       generateTypeDeclarations: true,
+      // Without this Stencil generates a bunch of helpers like index2.js in dist/ during tests
+      // and they don't get removed on build, which means they can inadvertently end up in
+      // the npm package. This ensures we don't accidentally ship them.
+      empty: true,
       customElementsExportBehavior: 'auto-define-custom-elements',
       // Bundle the Stencil runtime rather than leaving bare `@stencil/core/*` specifiers behind.
       // Without this a browser loading us from a script tag has nothing to resolve them against.
