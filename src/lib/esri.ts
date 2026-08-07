@@ -2,6 +2,7 @@ import { LngLatBounds, type LngLatBoundsLike } from 'maplibre-gl';
 
 import { fetchOrThrow, HttpError } from './errors';
 import { mercatorToLngLat } from './geometry';
+import { resolveRequest, type RequestTransform } from './request';
 
 // ArcGIS identifies Web Mercator by its own well-known ID as often as by the EPSG code, and older
 // services still use the pre-EPSG variants; all four describe the grid MapLibre draws in.
@@ -193,12 +194,13 @@ export const throwOnEsriError = <T>(body: T, url: string): T => {
 };
 
 // Fetch the JSON description of an ArcGIS resource, raising both HTTP and ArcGIS-level failures
-export const fetchEsriJson = async <T = EsriMetadata>(url: string, params: Record<string, string> = {}): Promise<T> => {
+export const fetchEsriJson = async <T = EsriMetadata>(url: string, params: Record<string, string> = {}, requestTransform?: RequestTransform): Promise<T> => {
   const requestUrl = new URL(url);
   Object.entries({ f: 'json', ...params }).forEach(([key, value]) => requestUrl.searchParams.set(key, value));
 
-  const response = await fetchOrThrow(requestUrl.toString());
-  return throwOnEsriError((await response.json()) as T, requestUrl.toString());
+  const { url: resolvedUrl, init } = resolveRequest(requestUrl.toString(), 'metadata', requestTransform);
+  const response = await fetchOrThrow(resolvedUrl, init);
+  return throwOnEsriError((await response.json()) as T, resolvedUrl);
 };
 
 // True if the service publishes the named capability, e.g. 'Query' on a MapServer that can be

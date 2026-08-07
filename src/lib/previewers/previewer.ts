@@ -1,4 +1,5 @@
 import type Resource from '../resources/resource';
+import type { RequestTransform } from '../request';
 
 // Which component draws a preview. A string rather than a class, so ogm-preview can route without
 // an instanceof: a class test only holds when both sides came from the same copy of the module.
@@ -14,6 +15,13 @@ export default abstract class Previewer {
 
   constructor(resource: Resource) {
     this.resource = resource;
+  }
+
+  // The resource's own request transform, if it has one. Exposed here so the component that
+  // draws this preview can apply it to requests the resource doesn't make itself - MapLibre's own
+  // tile fetches, once ogm-map attaches this previewer to a map.
+  get requestTransform(): RequestTransform | undefined {
+    return this.resource.requestTransform;
   }
 
   // Identifies the tab and the panel that show this preview. Every resource of one record carries

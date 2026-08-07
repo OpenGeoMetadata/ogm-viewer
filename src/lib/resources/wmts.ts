@@ -1,6 +1,7 @@
 import { LngLatBounds, type LngLatBoundsLike, type RasterSourceSpecification } from 'maplibre-gl';
 import RasterResource from './raster';
 import type { ResourceKind } from './resource';
+import { resolveRequest, type RequestTransform } from '../request';
 
 export type WmtsOptions = {
   layerIds: string[];
@@ -76,8 +77,8 @@ export default class WmtsResource extends RasterResource {
   // Memoized metadata via GetCapabilities request
   private metadata: Document;
 
-  constructor(id: string, url: string, options: WmtsOptions, bounds?: LngLatBoundsLike) {
-    super(id, url, bounds);
+  constructor(id: string, url: string, options: WmtsOptions, bounds?: LngLatBoundsLike, requestTransform?: RequestTransform) {
+    super(id, url, bounds, requestTransform);
     this.options = options;
 
     // Assume we're using one layer with the given ID if no layer IDs are provided
@@ -93,7 +94,8 @@ export default class WmtsResource extends RasterResource {
   // Fetch and memoize WMTS GetCapabilities XML document
   protected async getMetadata() {
     if (!this.metadata) {
-      const resp = await fetch(this.url);
+      const { url, init } = resolveRequest(this.url, 'metadata', this.requestTransform);
+      const resp = await fetch(url, init);
       const text = await resp.text();
       this.metadata = new DOMParser().parseFromString(text, 'application/xml');
     }

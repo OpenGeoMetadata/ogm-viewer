@@ -39,16 +39,20 @@ export default class EsriImageMapLayerResource extends EsriResource {
   async inspect(window: PixelWindow): Promise<GeoJSON.Feature[]> {
     const { x, y } = pixelWindowCenter(window);
 
-    const result = await fetchEsriJson<EsriPixelIdentifyResult>(`${this.serviceUrl}/identify`, {
-      geometry: JSON.stringify({ x, y, spatialReference: { wkid: 3857 } }),
-      geometryType: 'esriGeometryPoint',
+    const result = await fetchEsriJson<EsriPixelIdentifyResult>(
+      `${this.serviceUrl}/identify`,
+      {
+        geometry: JSON.stringify({ x, y, spatialReference: { wkid: 3857 } }),
+        geometryType: 'esriGeometryPoint',
 
-      // The geometry would just be the point we asked about, and listing every source image that
-      // went into the mosaic is a slow question to ask for a popup
-      returnGeometry: 'false',
-      returnCatalogItems: 'false',
-      f: 'json',
-    });
+        // The geometry would just be the point we asked about, and listing every source image that
+        // went into the mosaic is a slow question to ask for a popup
+        returnGeometry: 'false',
+        returnCatalogItems: 'false',
+        f: 'json',
+      },
+      this.requestTransform,
+    );
 
     const { value } = result;
     if (value === undefined || value === null || value === '' || value === NO_DATA) return [];

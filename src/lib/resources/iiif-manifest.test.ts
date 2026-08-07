@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
 
 import IIIFManifestResource from './iiif-manifest';
+import type { RequestTransform } from '../request';
 
 const MANIFEST_URL = 'http://example.com/manifest.json';
 
 // A source always points at a manifest URL; the manifest itself is fetched lazily
-const createSource = () => new IIIFManifestResource('test-id', MANIFEST_URL);
+const createSource = (requestTransform?: RequestTransform) => new IIIFManifestResource('test-id', MANIFEST_URL, undefined, requestTransform);
 
 // A minimal IIIF v2 manifest with a single image
 const v2Manifest = {
@@ -119,6 +120,15 @@ describe('IIIFManifestResource', () => {
     it('should throw if the manifest does not match the IIIF spec', async () => {
       vi.spyOn(global, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({ unexpected: 'structure' })));
       await expect(createSource().getIIIFImageUrls()).rejects.toThrow();
+    });
+
+    it('applies a requestTransform to the manifest fetch', async () => {
+      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify(v2Manifest)));
+      const transform: RequestTransform = () => ({ headers: { Authorization: 'Bearer token' }, credentials: 'include' });
+
+      await createSource(transform).getIIIFImageUrls();
+
+      expect(fetchSpy.mock.calls[0]).toEqual([MANIFEST_URL, { headers: { Authorization: 'Bearer token' }, credentials: 'include' }]);
     });
   });
 });

@@ -8,6 +8,7 @@ import type OgmRecord from '../../lib/record';
 import { themePreference, waScope, webAwesomeStylesheet } from '../../lib/init';
 import { resourcesFor } from '../../lib/resources/factory';
 import { previewersForResources, type AnyPreviewer } from '../../lib/previewers/factory';
+import type { RequestTransform } from '../../lib/request';
 
 @Component({
   tag: 'ogm-previews',
@@ -17,6 +18,8 @@ import { previewersForResources, type AnyPreviewer } from '../../lib/previewers/
 export class OgmPreviews {
   @Prop() theme: 'light' | 'dark' = themePreference();
   @Prop() record: OgmRecord;
+  // Passed to resourcesFor() when building this record's previews; see Resource.requestTransform.
+  @Prop() requestTransform?: RequestTransform;
   @Prop() sidebarPadding: number;
   @State() previewers: AnyPreviewer[] = [];
   @Event() previewsLoading: EventEmitter<void>;
@@ -49,7 +52,7 @@ export class OgmPreviews {
 
     this.previewsLoading.emit();
     try {
-      const previewers = await previewersForResources(resourcesFor(record));
+      const previewers = await previewersForResources(resourcesFor(record, this.requestTransform));
       // A newer record started building while this one was waiting; that one's answer is the keeper
       if (build === this.pending) this.previewers = previewers;
     } finally {

@@ -2,6 +2,7 @@ import { type LngLatBoundsLike } from 'maplibre-gl';
 import RasterResource from './raster';
 import type { ResourceKind } from './resource';
 import type { PixelWindow } from '../geometry';
+import { resolveRequest, type RequestTransform } from '../request';
 
 // Base params for WMS GetMap requests, which return raster tiles
 type WmsOptions = {
@@ -54,8 +55,8 @@ export default class WmsResource extends RasterResource {
   // Memoized metadata via GetCapabilities request
   private metadata: Document;
 
-  constructor(id: string, url: string, options: WmsOptions, bounds?: LngLatBoundsLike) {
-    super(id, url, bounds);
+  constructor(id: string, url: string, options: WmsOptions, bounds?: LngLatBoundsLike, requestTransform?: RequestTransform) {
+    super(id, url, bounds, requestTransform);
     this.options = { ...defaultWmsOptions, ...options };
 
     // Assume we're using one layer with the given ID if no layer IDs are provided
@@ -71,7 +72,8 @@ export default class WmsResource extends RasterResource {
   // Fetch and memoize WMS GetCapabilities XML document
   protected async getMetadata() {
     if (!this.metadata) {
-      const resp = await fetch(this.capabilitiesUrl);
+      const { url, init } = resolveRequest(this.capabilitiesUrl, 'metadata', this.requestTransform);
+      const resp = await fetch(url, init);
       const text = await resp.text();
       this.metadata = new DOMParser().parseFromString(text, 'application/xml');
     }
@@ -92,7 +94,8 @@ export default class WmsResource extends RasterResource {
   }
 
   async inspect(options: GetFeatureInfoOptions) {
-    return await fetch(await this.inspectUrl(options));
+    const { url, init } = resolveRequest(await this.inspectUrl(options), 'metadata', this.requestTransform);
+    return await fetch(url, init);
   }
 
   // The info format to ask GetFeatureInfo for. A server rejects the whole request over a format it

@@ -4,6 +4,7 @@ import type { LngLatBoundsLike } from 'maplibre-gl';
 import VectorResource from './vector';
 import type { ResourceKind } from './resource';
 import { fetchOrThrow } from '../errors';
+import { resolveRequest } from '../request';
 
 export default class GeoJsonResource extends VectorResource {
   readonly kind: ResourceKind = 'geojson';
@@ -14,7 +15,8 @@ export default class GeoJsonResource extends VectorResource {
   // Fetch and memoize data
   protected async getData() {
     if (!this.data) {
-      const resp = await fetchOrThrow(this.url);
+      const { url, init } = resolveRequest(this.url, 'metadata', this.requestTransform);
+      const resp = await fetchOrThrow(url, init);
       this.data = await resp.json();
     }
     return this.data;

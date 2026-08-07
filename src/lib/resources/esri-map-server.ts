@@ -18,7 +18,7 @@ export default abstract class EsriMapServerResource extends EsriResource {
 
   // Ask the service which features it drew at the middle of the window
   async inspect(window: PixelWindow): Promise<GeoJSON.Feature[]> {
-    const response = await fetchEsriJson<{ results?: EsriIdentifyResult[] }>(`${this.serviceUrl}/identify`, this.identifyParams(window));
+    const response = await fetchEsriJson<{ results?: EsriIdentifyResult[] }>(`${this.serviceUrl}/identify`, this.identifyParams(window), this.requestTransform);
     return esriIdentifyResultsToFeatures(response.results);
   }
 
