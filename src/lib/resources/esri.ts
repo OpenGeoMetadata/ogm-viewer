@@ -3,6 +3,7 @@ import type { LngLatBoundsLike } from 'maplibre-gl';
 import RasterResource from './raster';
 import { esriExtentToBounds, fetchEsriJson, splitEsriLayerUrl, type EsriMetadata } from '../esri';
 import type { PixelWindow } from '../geometry';
+import type { RequestTransform } from '../request';
 
 // ArcGIS draws an export image at whatever size we ask for, so this is just the size of the tiles
 // MapLibre stitches them into. 256 keeps each request cheap enough to redraw while panning.
@@ -32,8 +33,8 @@ export default abstract class EsriResource extends RasterResource {
   // Memoized service description, fetched from the REST endpoint
   private metadata: EsriMetadata;
 
-  constructor(id: string, url: string, bounds?: LngLatBoundsLike) {
-    super(id, url, bounds);
+  constructor(id: string, url: string, bounds?: LngLatBoundsLike, requestTransform?: RequestTransform) {
+    super(id, url, bounds, requestTransform);
     const { serviceUrl, layerId } = splitEsriLayerUrl(url);
     this.serviceUrl = serviceUrl;
     this.layerId = layerId;
@@ -76,7 +77,7 @@ export default abstract class EsriResource extends RasterResource {
 
   // Fetch and memoize the service description
   protected async getMetadata(): Promise<EsriMetadata> {
-    if (!this.metadata) this.metadata = await fetchEsriJson(this.serviceUrl);
+    if (!this.metadata) this.metadata = await fetchEsriJson(this.serviceUrl, {}, this.requestTransform);
     return this.metadata;
   }
 

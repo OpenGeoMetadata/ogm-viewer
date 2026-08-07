@@ -87,6 +87,30 @@ Here are the supported properties and what they apply to:
 
 By default, the viewer uses styles from [Web Awesome](https://webawesome.com/) that match the current mode (dark or light). Anything you override will be used in both modes.
 
+### Restricted content
+
+For previews of data that need authentication to access, you can set a custom `requestTransform` function to add headers or cookies to the request. It's a DOM property on `<ogm-viewer>` that you can set in JavaScript, like the `recordUrl` property:
+
+```javascript
+viewer.requestTransform = (url, resourceType) => {
+  // If we aren't requesting something from the restricted area, don't do anything
+  if (!url.startsWith('https://geo.my-domain.edu/restricted/')) return undefined;
+
+  // Otherwise, add an Authorization header with a bearer token
+  return { headers: { Authorization: `Bearer ${token}` } };
+};
+```
+
+If you're building a `Resource` by hand instead, pass the same kind of function as its last constructor argument (or to `resourcesFor`, if you're building several from a record):
+
+```javascript
+import { GeoJsonResource } from 'ogm-viewer/lib';
+
+const resource = new GeoJsonResource('my-layer', 'https://example.com/restricted/data.json', undefined, requestTransform);
+```
+
+The `requestTransform` will be applied to all requests made by the viewer for that resource, including metadata and tiles, as well as the requests for the MapLibre basemap.
+
 ### Components
 
 If you're building your own viewer, you can adopt `<ogm-viewer>`'s components individually.

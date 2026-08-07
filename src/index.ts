@@ -20,6 +20,11 @@ export type * from './components.d.ts';
 export { default as OgmRecord, OGM_FIELD_NAMES, type GeoBlacklightSchemaAardvark } from './lib/record';
 export { References, REFERENCE_URIS, type LabelledLinks, type ReferenceName, type ReferencesRecord, type ReferenceURI } from './lib/references';
 
+// Applied to every request a Resource makes on its own - and, once its previewer attaches to a
+// map, to MapLibre's own tile and style requests too. Pass one to a Resource's constructor, to
+// `resourcesFor`, or to <ogm-viewer>'s `requestTransform` property.
+export { resolveRequest, type RequestResourceType, type RequestTransform, type TransformedRequest } from './lib/request';
+
 // What a record's references point at. `resourcesFor` is the record-driven path; the classes are
 // there for when you already know what you have.
 export { resourcesFor } from './lib/resources/factory';

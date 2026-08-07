@@ -3,6 +3,7 @@ import { Component, Element, Host, Listen, Method, Prop, State, Watch, h } from 
 import OgmRecord from '../../lib/record';
 import { fetchOrThrow, recordError, type PreviewError } from '../../lib/errors';
 import { themePreference, waScope, webAwesomeStylesheet } from '../../lib/init';
+import { resolveRequest, type RequestTransform } from '../../lib/request';
 
 @Component({
   tag: 'ogm-viewer',
@@ -14,6 +15,10 @@ export class OgmViewer {
   @Prop() recordUrl: string;
   @Prop() theme: 'light' | 'dark' = themePreference();
   @Prop() hideTitle: boolean = false;
+  // Applied to the record fetch itself, and passed down to every resource built from it - see
+  // Resource.requestTransform. A DOM property, like previewer on <ogm-preview>: set it before or
+  // alongside recordUrl, since changing it alone doesn't refetch an already-loaded record.
+  @Prop() requestTransform?: RequestTransform;
   @State() record?: OgmRecord;
   @State() error?: PreviewError;
   @State() sidebarOpen: boolean = false;
@@ -77,7 +82,8 @@ export class OgmViewer {
   private async fetchRecord(recordUrl: string): Promise<OgmRecord | undefined> {
     this.error = undefined;
     try {
-      const response = await fetchOrThrow(recordUrl);
+      const { url, init } = resolveRequest(recordUrl, 'metadata', this.requestTransform);
+      const response = await fetchOrThrow(url, init);
       const data = await response.json();
       return new OgmRecord(data);
     } catch (error) {
@@ -100,7 +106,7 @@ export class OgmViewer {
             {this.error ? (
               <ogm-alerts theme={this.theme} error={this.error}></ogm-alerts>
             ) : (
-              <ogm-previews theme={this.theme} record={this.record} sidebar-padding={this.sidebarPadding}></ogm-previews>
+              <ogm-previews theme={this.theme} record={this.record} requestTransform={this.requestTransform} sidebar-padding={this.sidebarPadding}></ogm-previews>
             )}
           </div>
         </div>

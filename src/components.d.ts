@@ -9,10 +9,12 @@ import { PreviewError } from "./lib/errors";
 import { MapGeoJSONFeature } from "maplibre-gl";
 import { LayerControl } from "./lib/layers";
 import { AnyPreviewer } from "./lib/previewers/factory";
+import { RequestTransform } from "./lib/request";
 export { PreviewError } from "./lib/errors";
 export { MapGeoJSONFeature } from "maplibre-gl";
 export { LayerControl } from "./lib/layers";
 export { AnyPreviewer } from "./lib/previewers/factory";
+export { RequestTransform } from "./lib/request";
 export namespace Components {
     interface OgmAlerts {
         "error"?: PreviewError;
@@ -84,6 +86,7 @@ export namespace Components {
     }
     interface OgmPreviews {
         "record": OgmRecord;
+        "requestTransform"?: RequestTransform;
         "sidebarPadding": number;
         /**
           * @default themePreference()
@@ -105,6 +108,7 @@ export namespace Components {
         "hideTitle": boolean;
         "loadRecord": (record: OgmRecord) => Promise<void>;
         "recordUrl": string;
+        "requestTransform"?: RequestTransform;
         /**
           * @default themePreference()
          */
@@ -372,6 +376,7 @@ declare namespace LocalJSX {
         "onPreviewsLoaded"?: (event: OgmPreviewsCustomEvent<void>) => void;
         "onPreviewsLoading"?: (event: OgmPreviewsCustomEvent<void>) => void;
         "record"?: OgmRecord;
+        "requestTransform"?: RequestTransform;
         "sidebarPadding"?: number;
         /**
           * @default themePreference()
@@ -392,6 +397,7 @@ declare namespace LocalJSX {
          */
         "hideTitle"?: boolean;
         "recordUrl"?: string;
+        "requestTransform"?: RequestTransform;
         /**
           * @default themePreference()
          */

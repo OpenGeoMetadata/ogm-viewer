@@ -1,6 +1,7 @@
 /** @vitest-environment happy-dom */
-import { describe, it, expect } from '@stencil/vitest';
+import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
 import WmsResource from './wms';
+import type { RequestTransform } from '../request';
 
 // The GetMap and GetFeatureInfo URLs are built by protected methods, so expose them for testing.
 // A capabilities document is read in rather than fetched, so nothing here touches the network.
@@ -177,5 +178,29 @@ describe('WmsSource#getInfoFormat', () => {
     await source.url_for(options);
 
     expect(reads).toEqual(1);
+  });
+});
+
+describe('WmsSource#requestTransform', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('applies to the GetFeatureInfo request', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('{}'));
+    const transform: RequestTransform = () => ({ headers: { Authorization: 'Bearer token' } });
+    const source = new WmsResource('s7st30', ENDPOINT, { layerIds: [], infoFormat: 'application/json' }, undefined, transform);
+
+    await source.inspect(options);
+
+    expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining('GetFeatureInfo'), { headers: { Authorization: 'Bearer token' } });
+  });
+
+  it('applies to the GetCapabilities request the format negotiation makes', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(capabilities(GEOSERVER_FORMATS)));
+    const transform: RequestTransform = () => ({ headers: { Authorization: 'Bearer token' } });
+    const source = new WmsResource('s7st30', ENDPOINT, { layerIds: [] }, undefined, transform);
+
+    await source.inspect(options);
+
+    expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining('GetCapabilities'), { headers: { Authorization: 'Bearer token' } });
   });
 });

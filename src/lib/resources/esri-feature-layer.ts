@@ -4,6 +4,7 @@ import type { LngLatBoundsLike } from 'maplibre-gl';
 import GeoJsonResource from './geojson';
 import type { ResourceKind } from './resource';
 import { esriExtentToBounds, esriQueryFeaturesToGeoJSON, fetchEsriJson, type EsriMetadata, type EsriQueryFeature } from '../esri';
+import type { RequestTransform } from '../request';
 
 // How many features to ask for at once when the service doesn't say. ArcGIS caps this itself, and
 // reports its own cap, but a layer description can leave the number out.
@@ -35,8 +36,8 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
   // Memoized features, assembled from however many pages it took to read them
   private featureCollection: GeoJSON.FeatureCollection;
 
-  constructor(id: string, url: string, bounds?: LngLatBoundsLike) {
-    super(id, url, bounds);
+  constructor(id: string, url: string, bounds?: LngLatBoundsLike, requestTransform?: RequestTransform) {
+    super(id, url, bounds, requestTransform);
     this.layerUrl = url.replace(/\/+$/, '');
   }
 
@@ -97,7 +98,7 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
 
   // Fetch and memoize the layer description
   protected async getMetadata(): Promise<EsriMetadata> {
-    if (!this.metadata) this.metadata = await fetchEsriJson(this.layerUrl);
+    if (!this.metadata) this.metadata = await fetchEsriJson(this.layerUrl, {}, this.requestTransform);
     return this.metadata;
   }
 
@@ -105,18 +106,22 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
   private async getPage(offset: number, pageSize: number) {
     const geojson = await this.supportsGeoJson();
 
-    const response = await fetchEsriJson<EsriQueryResponse>(`${this.layerUrl}/query`, {
-      where: '1=1',
-      outFields: '*',
-      returnGeometry: 'true',
+    const response = await fetchEsriJson<EsriQueryResponse>(
+      `${this.layerUrl}/query`,
+      {
+        where: '1=1',
+        outFields: '*',
+        returnGeometry: 'true',
 
-      // MapLibre sources are always in degrees, so have the service reproject rather than doing it
-      // ourselves - it knows the layer's own coordinate system, whatever it happens to be
-      outSR: '4326',
-      resultOffset: String(offset),
-      resultRecordCount: String(pageSize),
-      f: geojson ? 'geojson' : 'json',
-    });
+        // MapLibre sources are always in degrees, so have the service reproject rather than doing it
+        // ourselves - it knows the layer's own coordinate system, whatever it happens to be
+        outSR: '4326',
+        resultOffset: String(offset),
+        resultRecordCount: String(pageSize),
+        f: geojson ? 'geojson' : 'json',
+      },
+      this.requestTransform,
+    );
 
     // The flag appears at the top level of an Esri JSON response and in either place in a GeoJSON
     // one, depending on the ArcGIS version

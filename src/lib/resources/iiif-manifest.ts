@@ -4,6 +4,7 @@ import iiif2 from '@iiif/presentation-2';
 import IIIFResource from './iiif';
 import type { ResourceKind } from './resource';
 import { fetchOrThrow } from '../errors';
+import { resolveRequest } from '../request';
 
 // A manifest containing multiple IIIF image URLs for preview
 export default class IIIFManifestResource extends IIIFResource {
@@ -30,7 +31,8 @@ export default class IIIFManifestResource extends IIIFResource {
   // Attempt to fetch and parse the IIIF manifest, if any
   protected async fetchManifest(): Promise<iiif2.Manifest | iiif3.Manifest | undefined> {
     if (this.manifest) return this.manifest;
-    const response = await fetchOrThrow(this.url);
+    const { url, init } = resolveRequest(this.url, 'metadata', this.requestTransform);
+    const response = await fetchOrThrow(url, init);
     const manifest = await response.json();
     this.manifest = manifest;
     return manifest;

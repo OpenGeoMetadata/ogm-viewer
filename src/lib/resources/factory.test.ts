@@ -108,4 +108,32 @@ describe('resourcesFor', () => {
       expect(await resource.getBounds()).toBeUndefined();
     });
   });
+
+  // Threaded to every resource kind the same way bounds is; each resource's own tests cover what
+  // it does with it, so one representative of each constructor shape is enough here.
+  describe('requestTransform', () => {
+    const transform = () => undefined;
+
+    it('hands a plain resource its transform', () => {
+      const reference = { 'http://geojson.org/geojson-spec.html': 'https://example.com/data.json' };
+      const [resource] = resourcesFor(buildRecord(reference), transform);
+
+      expect(resource.requestTransform).toBe(transform);
+    });
+
+    it('hands a WxS resource its transform', () => {
+      const reference = { 'http://www.opengis.net/def/serviceType/ogc/wms': 'https://example.com/geoserver/wms' };
+      const record = buildRecord(reference, { gbl_wxsIdentifier_s: 's7sq63' });
+      const [resource] = resourcesFor(record, transform);
+
+      expect(resource.requestTransform).toBe(transform);
+    });
+
+    it('leaves it undefined when the caller does not pass one', () => {
+      const reference = { 'http://geojson.org/geojson-spec.html': 'https://example.com/data.json' };
+      const [resource] = resourcesFor(buildRecord(reference));
+
+      expect(resource.requestTransform).toBeUndefined();
+    });
+  });
 });

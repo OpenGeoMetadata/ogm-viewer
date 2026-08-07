@@ -1,4 +1,5 @@
 import { fetchOrThrow } from '../errors';
+import { resolveRequest } from '../request';
 import MapResource from './map';
 import type { ResourceKind } from './resource';
 
@@ -29,7 +30,8 @@ export default class TileJsonResource extends MapResource {
   // Fetch and memoize metadata
   protected async getMetadata() {
     if (!this.metadata) {
-      const resp = await fetchOrThrow(this.url);
+      const { url, init } = resolveRequest(this.url, 'metadata', this.requestTransform);
+      const resp = await fetchOrThrow(url, init);
       this.metadata = await resp.json();
     }
     return this.metadata;

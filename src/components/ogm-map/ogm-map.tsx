@@ -1,6 +1,5 @@
 import { Component, Element, Event, EventEmitter, h, Host, Listen, Method, Prop, State, Watch } from '@stencil/core';
 import maplibregl from 'maplibre-gl';
-import { Protocol as PMTilesProtocol } from 'pmtiles';
 
 import { closestAcrossShadows, findElement, getElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
@@ -11,11 +10,8 @@ import { isLayerDrawn, toLayerControlItems as getLayerControls, type LayerContro
 import LayersControl from '../../lib/layers-control';
 import InspectableRasterPreviewer from '../../lib/previewers/inspectable-raster';
 import type MapPreviewer from '../../lib/previewers/map';
+import { ourResourceType, toMapLibreRequest } from '../../lib/request';
 import MapLibreTheme from '../../lib/themes/maplibre';
-
-// Register PMTiles protocol
-const protocol = new PMTilesProtocol();
-maplibregl.addProtocol('pmtiles', protocol.tile);
 
 // Size in CSS pixels of the window we ask a server about when inspecting. WMS and ArcGIS both
 // locate a click by mapping a pixel grid onto a bbox, which assumes the view is a flat, north-up
@@ -71,6 +67,11 @@ export class OgmMap {
       center: [0, 0],
       zoom: 2,
       minZoom: 2,
+      // Read fresh on every request rather than captured once, so it always reflects whichever
+      // previewer is currently attached - including across onPreviewerChange, with no watcher of
+      // our own needed. Applies to the basemap's own style/glyphs/sprites too, not just this
+      // preview's data; see RequestTransform for why a transform has to account for that itself.
+      transformRequest: (url, resourceType) => toMapLibreRequest(this.previewer?.requestTransform?.(url, ourResourceType(resourceType)), url),
     });
 
     // Bound before the controls go on: a control that can't be built shouldn't cost us the preview

@@ -1,9 +1,10 @@
 // Adapted from https://github.com/protomaps/PMTiles/blob/main/app/src/tileset.ts
 
-import { PMTiles, TileType, Header } from 'pmtiles';
+import { FetchSource, PMTiles, Protocol, TileType, Header } from 'pmtiles';
+import maplibregl, { type LngLatBoundsLike } from 'maplibre-gl';
 
 import Resource, { type ResourceKind } from './resource';
-import { type LngLatBoundsLike } from 'maplibre-gl';
+import type { RequestTransform } from '../request';
 
 // A single vector layer in a PMTiles tileset
 interface VectorLayer {
@@ -15,6 +16,11 @@ interface Metadata {
   type?: string;
   vector_layers: VectorLayer[];
 }
+
+// Shared by every PMTiles archive on the page - a MapLibre protocol handler is registered once,
+// globally, for the 'pmtiles://' scheme, however many resources or maps use it.
+const protocol = new Protocol();
+maplibregl.addProtocol('pmtiles', protocol.tile);
 
 // Vector or raster tileset stored in a PMTiles archive at a URL
 export default class PMTilesResource extends Resource {
@@ -28,9 +34,21 @@ export default class PMTilesResource extends Resource {
   private header: Header;
 
   // Store a reference so we can open the archive for metadata inspection
-  constructor(id: string, url: string, bounds?: LngLatBoundsLike) {
-    super(id, url, bounds);
-    this.archive = new PMTiles(url);
+  constructor(id: string, url: string, bounds?: LngLatBoundsLike, requestTransform?: RequestTransform) {
+    super(id, url, bounds, requestTransform);
+
+    const transformed = requestTransform?.(url, 'tile');
+    const headers = transformed?.headers ? new Headers(transformed.headers) : undefined;
+    // A transform that rewrote the URL is ignored here: the protocol handler above looks archives
+    // up by the exact URL getMapLibreSourceUrl() embeds in the pmtiles:// source, so this instance
+    // has to be keyed by this.url to ever be found once a map asks for tiles from it.
+    const source = headers || transformed?.credentials ? new FetchSource(url, headers, credentialsFor(transformed?.credentials)) : url;
+    this.archive = new PMTiles(source);
+
+    // Registering unconditionally, not just for authenticated archives, means the protocol
+    // handler reuses this instance for tile reads instead of lazily opening its own second,
+    // unauthenticated PMTiles - sharing one header/tile cache either way.
+    protocol.add(this.archive);
   }
 
   label() {
@@ -106,4 +124,10 @@ export default class PMTilesResource extends Resource {
     if (await this.isVector()) return 'vector' as const;
     return 'raster' as const;
   }
+}
+
+// Narrow a RequestTransform's credentials to what FetchSource accepts. 'omit' is the default -
+// don't send cookies - so there's nothing for FetchSource to do differently for it.
+function credentialsFor(credentials?: RequestCredentials): 'same-origin' | 'include' | undefined {
+  return credentials === 'omit' ? undefined : credentials;
 }
