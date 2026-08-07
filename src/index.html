@@ -49,6 +49,23 @@
         width: clamp(800px, 70vw, 1000px);
         margin: 1rem auto 0;
       }
+
+      /* A bare preview has no chrome to give it a size, so the embedding page picks one */
+      ogm-preview {
+        width: clamp(800px, 70vw, 1000px);
+        height: 500px;
+        margin: 1rem auto 0;
+        border: 1px solid #ccc;
+      }
+
+      /* The --ogm-* theming API. These inherit through the shadow boundary, which is the whole
+         point: nothing below has to know the embedding page exists. */
+      ogm-preview.branded {
+        --ogm-fill-color: #8f1414;
+        --ogm-stroke-color: #4a0a0a;
+        --ogm-fill-selected-color: #e98300;
+        --ogm-stroke-selected-color: #8f4700;
+      }
     </style>
 
     <script>

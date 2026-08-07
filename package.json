@@ -11,6 +11,10 @@
       "types": "./dist/components/ogm-viewer.d.ts",
       "import": "./dist/components/ogm-viewer.js"
     },
+    "./lib": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/components/index.js"
+    },
     "./components/*": "./dist/components/*",
     "./package.json": "./package.json"
   },
@@ -23,6 +27,7 @@
   ],
   "scripts": {
     "build": "stencil build",
+    "prepare": "stencil build",
     "start": "stencil build --dev --watch --serve",
     "test": "stencil-test",
     "test:unit": "stencil-test --project unit",

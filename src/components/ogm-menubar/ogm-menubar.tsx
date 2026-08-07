@@ -1,4 +1,10 @@
 import { Component, Prop, EventEmitter, h, Event } from '@stencil/core';
+
+import '@awesome.me/webawesome/dist/components/button/button.js';
+import '@awesome.me/webawesome/dist/components/icon/icon.js';
+import '@awesome.me/webawesome/dist/components/spinner/spinner.js';
+import '@awesome.me/webawesome/dist/components/tooltip/tooltip.js';
+
 import type OgmRecord from '../../lib/record';
 
 @Component({
@@ -15,7 +21,7 @@ export class OgmMenubar {
 
   render() {
     return (
-      <div class={`menubar ${this.theme && `wa-${this.theme}`}`}>
+      <div class={{ menubar: true, [`wa-${this.theme}`]: !!this.theme }}>
         <wa-button appearance="plain" class="menu-button" onclick={this.sidebarToggled.emit}>
           <wa-icon name="list" label="Open sidebar" canvas="auto"></wa-icon>
         </wa-button>

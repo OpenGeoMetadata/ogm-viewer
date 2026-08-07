@@ -1,14 +1,27 @@
+// Enough of ElementInternals for Web Awesome's form controls to upgrade. happy-dom implements none
+// of it (checked in 20.9), and <wa-button> reads validity out of it as it connects, so without this
+// every component that renders one throws before its own markup exists to assert on. Nothing here
+// is exercised by a test - it only has to not be undefined. Form behavior is Web Awesome's to test.
+if (!HTMLElement.prototype.attachInternals) {
+  HTMLElement.prototype.attachInternals = function attachInternals(this: HTMLElement) {
+    return {
+      form: null,
+      labels: [] as unknown as NodeList,
+      states: new Set<string>(),
+      validationMessage: '',
+      validity: { valid: true } as ValidityState,
+      willValidate: false,
+      checkValidity: () => true,
+      reportValidity: () => true,
+      setFormValue: () => {},
+      setValidity: () => {},
+    } as unknown as ElementInternals;
+  };
+}
+
 // Register the components under test as custom elements. The custom-elements build has no loader to
-// call: importing a component entry defines that component and everything it renders.
-//
-// Deliberately not ogm-viewer, which would define all eleven: it is the only component that imports
-// the Web Awesome element modules, and pulling those in would upgrade every wa-* element the other
-// components render. That would drag Web Awesome's own shadow DOM - lit marker comments and all -
-// into assertions that are about our markup, and break them on every Web Awesome release. Left
-// undefined, wa-* elements stay inert, which is what these tests were written against.
-//
-// Anything rendering ogm-viewer or ogm-sidebar needs a real browser rather than happy-dom, since
-// Web Awesome's form controls want ElementInternals as they upgrade.
+// call: importing a component entry defines that component and everything it renders - including
+// the wa-* elements the component imports for itself, which do get upgraded here.
 import './dist/components/ogm-alerts.js';
 import './dist/components/ogm-attributes.js';
 import './dist/components/ogm-layers.js';

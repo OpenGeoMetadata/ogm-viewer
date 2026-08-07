@@ -1,8 +1,12 @@
 import { Component, Element, h, Host, Watch, Prop, Event, EventEmitter } from '@stencil/core';
 import { Viewer } from 'openseadragon';
 
+import '@awesome.me/webawesome/dist/components/button/button.js';
+import '@awesome.me/webawesome/dist/components/icon/icon.js';
+
 import { getElement, findElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
+import { themePreference, waScope, webAwesomeStylesheet } from '../../lib/init';
 import type ImagePreviewer from '../../lib/previewers/image';
 
 @Component({
@@ -13,7 +17,7 @@ import type ImagePreviewer from '../../lib/previewers/image';
 export class OgmImage {
   @Element() el: HTMLElement;
   @Prop() previewer: ImagePreviewer;
-  @Prop() theme: 'light' | 'dark';
+  @Prop() theme: 'light' | 'dark' = themePreference();
   @Prop() padding: number = 0;
   @Event() imageLoaded: EventEmitter<void>;
   @Event() imageLoading: EventEmitter<void>;
@@ -104,7 +108,8 @@ export class OgmImage {
 
   render() {
     return (
-      <Host>
+      <Host class={waScope(this.theme)}>
+        <link rel="stylesheet" href={webAwesomeStylesheet()} />
         <div id="openseadragon">
           <div class="controls">
             <wa-button class="zoom-in" size="s" appearance="filled-outlined" pill>

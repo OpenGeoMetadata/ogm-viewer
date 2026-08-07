@@ -2,24 +2,7 @@ import { Component, Element, Host, Listen, Method, Prop, State, Watch, h } from 
 
 import OgmRecord from '../../lib/record';
 import { fetchOrThrow, recordError, type PreviewError } from '../../lib/errors';
-import { webAwesomeStylesheet } from '../../lib/init';
-
-// Import all required Web Awesome components
-import '@awesome.me/webawesome/dist/components/button/button.js';
-import '@awesome.me/webawesome/dist/components/callout/callout.js';
-import '@awesome.me/webawesome/dist/components/icon/icon.js';
-import '@awesome.me/webawesome/dist/components/scroller/scroller.js';
-import '@awesome.me/webawesome/dist/components/spinner/spinner.js';
-import '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
-import '@awesome.me/webawesome/dist/components/tab-panel/tab-panel.js';
-import '@awesome.me/webawesome/dist/components/tab/tab.js';
-import '@awesome.me/webawesome/dist/components/tooltip/tooltip.js';
-
-// Web Awesome activates its palette and semantic color variants on `:root` by default (with
-// `.wa-*` classes only needed to override the defaults). `:root` never matches inside a shadow
-// tree, so we opt into each default explicitly on our container to reproduce what a document-level
-// load would give us: the default palette plus the default hue for every color variant.
-const WA_SCOPE = 'wa-palette-default wa-brand-blue wa-neutral-gray wa-success-green wa-warning-yellow wa-danger-red';
+import { themePreference, waScope, webAwesomeStylesheet } from '../../lib/init';
 
 @Component({
   tag: 'ogm-viewer',
@@ -29,7 +12,7 @@ const WA_SCOPE = 'wa-palette-default wa-brand-blue wa-neutral-gray wa-success-gr
 export class OgmViewer {
   @Element() el: HTMLElement;
   @Prop() recordUrl: string;
-  @Prop() theme: 'light' | 'dark' = this.getThemePreference();
+  @Prop() theme: 'light' | 'dark' = themePreference();
   @Prop() hideTitle: boolean = false;
   @State() record?: OgmRecord;
   @State() error?: PreviewError;
@@ -42,11 +25,6 @@ export class OgmViewer {
   // Prior to rendering, fetch the record if a URL is provided
   async componentWillLoad() {
     if (this.recordUrl) return await this.updateRecord();
-  }
-
-  // Check the user's theme preference via CSS media query
-  private getThemePreference() {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
   // Shift the map/image over when the sidebar is toggled open
@@ -115,7 +93,7 @@ export class OgmViewer {
     return (
       <Host class={`wa-${this.theme}`}>
         <link rel="stylesheet" href={webAwesomeStylesheet()} />
-        <div class={`container ${WA_SCOPE} wa-${this.theme}`}>
+        <div class={`container ${waScope(this.theme)}`}>
           <ogm-menubar theme={this.theme} record={this.record} loading={this.loading} hideTitle={this.hideTitle}></ogm-menubar>
           <div class="main-container">
             <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen}></ogm-sidebar>

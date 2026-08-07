@@ -1,5 +1,10 @@
 import { Component, Element, h, Host, Prop } from '@stencil/core';
 
+import '@awesome.me/webawesome/dist/components/icon/icon.js';
+import '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
+import '@awesome.me/webawesome/dist/components/tab-panel/tab-panel.js';
+import '@awesome.me/webawesome/dist/components/tab/tab.js';
+
 import { getElement } from '../../lib/elements';
 import type OgmRecord from '../../lib/record';
 import type WaTabGroup from '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
