@@ -1,16 +1,8 @@
-import { setBasePath, getBasePath, registerIconLibrary } from '@awesome.me/webawesome';
-import { Component, Element, Host, Listen, Method, Prop, State, Watch, getAssetPath, h } from '@stencil/core';
+import { Component, Element, Host, Listen, Method, Prop, State, Watch, h } from '@stencil/core';
 
 import OgmRecord from '../../lib/record';
 import { fetchOrThrow, recordError, type PreviewError } from '../../lib/errors';
-
-// Only need to call this once, at the top level
-setBasePath(getAssetPath(''));
-
-// Serve icons from our self-hosted bootstrap-icons subset instead of the default Font Awesome library
-registerIconLibrary('default', {
-  resolver: name => getBasePath(`assets/icons/${name}.svg`),
-});
+import { webAwesomeStylesheet } from '../../lib/init';
 
 // Import all required Web Awesome components
 import '@awesome.me/webawesome/dist/components/button/button.js';
@@ -122,7 +114,7 @@ export class OgmViewer {
   render() {
     return (
       <Host class={`wa-${this.theme}`}>
-        <link rel="stylesheet" href={getBasePath('assets/webawesome/styles/themes/default.css')} />
+        <link rel="stylesheet" href={webAwesomeStylesheet()} />
         <div class={`container ${WA_SCOPE} wa-${this.theme}`}>
           <ogm-menubar theme={this.theme} record={this.record} loading={this.loading} hideTitle={this.hideTitle}></ogm-menubar>
           <div class="main-container">

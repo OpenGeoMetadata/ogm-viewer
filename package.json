@@ -2,30 +2,24 @@
   "name": "ogm-viewer",
   "version": "0.6.1",
   "description": "A web-based viewer for previewing OpenGeoMetadata records",
-  "main": "dist/index.cjs.js",
-  "module": "dist/index.js",
-  "types": "dist/types/index.d.ts",
-  "collection": "dist/collection/collection-manifest.json",
-  "collection:main": "dist/collection/index.js",
-  "unpkg": "dist/ogm-viewer/ogm-viewer.esm.js",
+  "module": "./dist/components/ogm-viewer.js",
+  "types": "./dist/components/ogm-viewer.d.ts",
+  "unpkg": "./dist/components/ogm-viewer.js",
+  "jsdelivr": "./dist/components/ogm-viewer.js",
   "exports": {
     ".": {
-      "import": "./dist/ogm-viewer/ogm-viewer.esm.js",
-      "require": "./dist/ogm-viewer/ogm-viewer.cjs.js"
+      "types": "./dist/components/ogm-viewer.d.ts",
+      "import": "./dist/components/ogm-viewer.js"
     },
-    "./loader": {
-      "import": "./loader/index.js",
-      "require": "./loader/index.cjs",
-      "types": "./loader/index.d.ts"
-    }
+    "./components/*": "./dist/components/*",
+    "./package.json": "./package.json"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/stenciljs/component-starter.git"
+    "url": "https://github.com/OpenGeoMetadata/ogm-viewer.git"
   },
   "files": [
-    "dist/",
-    "loader/"
+    "dist/"
   ],
   "scripts": {
     "build": "stencil build",

@@ -31,11 +31,17 @@ const renderPreviews = async (record?: OgmRecord) => {
   await stencilRender(<ogm-previews record={record}></ogm-previews>, container);
   const el = container.firstElementChild as HTMLElement & { componentOnReady?: () => Promise<unknown> };
   await el.componentOnReady?.();
+  await flush();
   consoleError.mockRestore();
   return el.shadowRoot as ShadowRoot;
 };
 
 // Let Stencil's RAF-based update cycle flush so the nested <ogm-preview> renders its own shadow DOM.
+//
+// Needed after componentOnReady() as well, not just for the nested render. The element is already
+// defined when the vdom creates it, so it upgrades on the spot and componentWillLoad runs before the
+// record prop is assigned - the first render has no previewers and draws nothing. Setting the prop
+// is what starts the real build, by way of @Watch, and that lands a tick later.
 const flush = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
 // Render previews and drill into the single <ogm-preview> to see which preview (map or image) it
@@ -48,6 +54,7 @@ const renderPreviewChild = async (record: OgmRecord) => {
   await stencilRender(<ogm-previews record={record}></ogm-previews>, container);
   const el = container.firstElementChild as HTMLElement & { componentOnReady?: () => Promise<unknown> };
   await el.componentOnReady?.();
+  await flush();
   const preview = (el.shadowRoot as ShadowRoot).querySelector('ogm-preview') as HTMLElement & { componentOnReady?: () => Promise<unknown> };
   await preview?.componentOnReady?.();
   await flush();
