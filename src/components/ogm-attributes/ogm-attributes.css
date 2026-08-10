@@ -37,12 +37,6 @@
   flex-shrink: 0;
 }
 
-/* One cap for both views, so swapping between them barely moves the popup */
-.content,
-wa-scroller {
-  max-height: 240px;
-}
-
 /* Only here to give the swap button something to be positioned against, so that it lands on the
    corner of the content and not of the popup */
 .body {
@@ -62,22 +56,47 @@ wa-scroller {
   right: 1.75em;
 }
 
-.content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Somewhere for the spinner to sit while a manifest is read for a thumbnail */
-  min-height: 4em;
-}
-
 wa-scroller {
+  max-height: 240px;
   overscroll-behavior: none;
 }
 
+/* The frame a sheet's picture is drawn in, held at the full size a picture is allowed whether or not
+   one has arrived yet. 400px is the width ogm-map.css caps .maplibregl-popup-content at and 240px the
+   height the properties are capped at above, so the two views are the same size and swapping between
+   them moves nothing. Reserving it matters most before the picture is there at all: it is a fetch or
+   two behind the popup and an <img> has no size until it has downloaded, so a frame that sized itself
+   to its contents opened 88px tall and jumped to 280px when the picture painted, with MapLibre
+   re-placing the popup under the reader on the way.
+
+   A definite width is what a frame with nothing in it yet needs and also what stops the popup being
+   able to shrink, so it is bounded by the viewport as well: an embedded map is normally a frame of
+   its own and 100vw is its width. A map deliberately made narrower than 400px inside a wider page is
+   the case this doesn't reach, and there the popup is clipped to the map as any wide popup would be. */
+.content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(400px, 100vw);
+  height: 240px;
+}
+
+/* Stands in for the picture at the size the picture will be given, rather than leaving the frame
+   looking like it failed to draw something. Laid over the <img> rather than shown instead of it,
+   since the <img> has to be in the document to start downloading at all. */
+.pending {
+  position: absolute;
+  inset: 0;
+}
+
+/* Fits inside the frame above rather than deciding how big it is. The height has to repeat .content's
+   240px rather than being 100% of it: the picture may be wrapped in a link, and a percentage height
+   inside a box that is only as tall as its own contents resolves to no limit at all. */
 .thumbnail {
   display: block;
   max-width: 100%;
-  max-height: 200px;
+  max-height: 240px;
   width: auto;
   height: auto;
   object-fit: contain;
