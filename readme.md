@@ -135,6 +135,14 @@ if (await resource.isGeoreferenced()) {
 }
 ```
 
+### Index maps
+
+An [OpenIndexMaps](https://openindexmaps.org) index map is a sheet-by-sheet finding aid, and its features carry the properties that spec defines rather than whatever columns a shapefile happened to have. Clicking a sheet shows them under their proper names, in reading order, with `websiteUrl`, `download` and `iiifUrl` rendered as links you can read instead of URLs. Properties the spec doesn't define are still shown, under their own keys — every index map has a few columns of its own.
+
+The popup also shows a picture of the sheet: `thumbUrl` if it has one, and otherwise the thumbnail from the manifest `iiifUrl` points at. Nothing beyond those two — an institution that can work a thumbnail out from an identifier knows something about its own URLs that the spec doesn't.
+
+A property only becomes a link once it parses as an absolute `http(s)` URL. Index maps tend to fill an empty column in rather than leave it blank — Stanford's Dalian index map writes `"0"` in every field of a sheet it doesn't hold — and a link to `0` goes nowhere anyone wants.
+
 ### Components
 
 If you're building your own viewer, you can adopt `<ogm-viewer>`'s components individually.
@@ -152,6 +160,14 @@ document.querySelector('ogm-preview').previewer = new GeoJsonPreviewer(resource)
 ```
 
 Note that `previewer` is a DOM property, not an attribute — await for the element to be defined and then set it in JavaScript.
+
+For more than one preview, `<ogm-previews>` renders the same tab strip `<ogm-viewer>` uses. Hand it a `record` and it works out what that record offers; hand it `previewers` and it shows exactly those, without reading a record at all:
+
+```javascript
+document.querySelector('ogm-previews').previewers = [new GeoJsonPreviewer(geoJsonResource), new OpenIndexMapPreviewer(indexMapResource)];
+```
+
+`record` and `previewers` are DOM properties too. Neither component brings any chrome of its own to give it a size, so the embedding page should set one.
 
 ## Development
 
@@ -197,19 +213,13 @@ For more information on testing, see the [Stencil documentation](https://stencil
 
 ### Releasing
 
-To publish a new version, update the version in `package.json`, run `npm install`, and commit your changes. Then create a release tag:
+Pushing a version tag publishes it. Update the version in `package.json`, run `npm install` so the lockfile agrees, and commit that on `main`. Then tag it:
 
 ```bash
 git tag vX.Y.Z # replace with your new version number
-git push --tags
+git push origin vX.Y.Z
 ```
 
-After tagging, build the project and publish it to npm:
+The `Release` workflow checks that the tag and `package.json` agree, lints, tests, publishes to npm, and drafts the GitHub release with generated notes. It authenticates with npm over OIDC rather than a stored token, so the package needs [trusted publishing](https://docs.npmjs.com/trusted-publishers) configured on npmjs.com, naming this repository and `.github/workflows/release.yml`.
 
-```bash
-npm run build
-npm login
-npm publish
-```
-
-You can create a new release on GitHub by going to the "Releases" section and clicking "Draft a new release". The "Generate release notes" option will automatically include the changes since the last tag.
+Note that this is a `0.x` package, so `^` won't cross a minor version. Consumers should pin exactly.

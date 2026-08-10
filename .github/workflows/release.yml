@@ -1,0 +1,53 @@
+name: Release
+
+# Publishing is what a version tag means. Tag from main once package.json's version matches, and
+# push the tag: `git tag v0.8.0 && git push origin v0.8.0`.
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      # npm reads this to mint its own short-lived credential, so there is no token to keep in a
+      # secret. Requires trusted publishing to be configured for the package on npmjs.com, naming
+      # this repository and this workflow file.
+      id-token: write
+      # Enough to cut the GitHub release below
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          registry-url: https://registry.npmjs.org
+      # The npm that ships with the pinned Node is older than trusted publishing
+      - name: Update npm
+        run: npm install -g npm@latest
+      - name: Install dependencies
+        run: npm ci
+      # The tag says which version this is, and package.json has to agree: npm publish would
+      # otherwise put out whatever main happens to say, under a tag claiming otherwise.
+      - name: Check the tag matches the version
+        run: |
+          tagged="${GITHUB_REF_NAME#v}"
+          packaged="$(node --print 'require("./package.json").version')"
+          if [ "$tagged" != "$packaged" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $packaged" >&2
+            exit 1
+          fi
+      - name: Run linting
+        run: npm run lint
+      - name: Run tests
+        run: npm test
+      # `npm ci` already ran the build by way of `prepare`, and `npm publish` runs it once more.
+      # Left to do so, rather than skipped: what gets published should be built from a clean tree.
+      - name: Publish to npm
+        run: npm publish --access public
+      - name: Create the GitHub release
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
