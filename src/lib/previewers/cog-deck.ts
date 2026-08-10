@@ -1,10 +1,11 @@
 import { MapboxOverlay as DeckOverlay } from '@deck.gl/mapbox';
 import { COGLayer } from '@developmentseed/deck.gl-geotiff';
-import { DecoderPool } from '@developmentseed/geotiff';
+import { DecoderPool, type GeoTIFF } from '@developmentseed/geotiff';
 import type { AddLayerObject, LngLatBoundsLike } from 'maplibre-gl';
 
 import MapPreviewer from './map';
 import type CogResource from '../resources/cog';
+import { openGeoTIFF } from '../geotiff';
 import { isLayerDrawn, type LayerState, type PreviewStyleLayer } from '../layers';
 import type { MapLibreStyle } from '../themes/maplibre';
 
@@ -42,6 +43,11 @@ export default class DeckCogPreviewer extends MapPreviewer {
   protected geotiffBoundsLoaded: Promise<LngLatBoundsLike | undefined> | undefined;
   private resolveGeotiffBounds: (bounds: LngLatBoundsLike | undefined) => void = () => {};
 
+  // The COG, opened by us rather than by deck.gl, so that the requests reading it carry whatever the
+  // resource's transform asks for. Held so that an opacity change rebuilds the layer around the same
+  // open file instead of reading its header again.
+  protected geotiff: GeoTIFF | undefined;
+
   attach(map: maplibregl.Map, style: MapLibreStyle): this {
     super.attach(map, style);
     this.deckOverlay = this.getDeckOverlay();
@@ -51,9 +57,8 @@ export default class DeckCogPreviewer extends MapPreviewer {
     return this;
   }
 
-  // Nothing for MapLibre to fetch or draw: deck.gl requests the COG's tiles itself. Which also means
-  // they don't pass through MapLibre's transformRequest, and @developmentseed/geotiff exposes no hook
-  // of its own, so a COG behind authentication is not yet reachable by this previewer.
+  // Nothing for MapLibre to fetch or draw: deck.gl reads the COG itself, through the source opened in
+  // preview() rather than through MapLibre's transformRequest.
   protected async createSources(): Promise<[]> {
     return [];
   }
@@ -75,14 +80,23 @@ export default class DeckCogPreviewer extends MapPreviewer {
     return `${this.resource.id}-cog`;
   }
 
+  // Opening the COG here rather than leaving deck.gl to do it is what lets a restricted one be drawn:
+  // deck.gl only reads a URL with a plain fetch. It also means a COG that refuses to be read fails the
+  // preview, so the alert names it, where before it only turned up in the console.
   async preview(): Promise<void> {
     await super.preview();
+    this.geotiff = await this.loadGeoTIFF();
     this.drawDeckLayer();
+  }
+
+  protected async loadGeoTIFF(): Promise<GeoTIFF> {
+    return await openGeoTIFF(this.resource.url, this.requestTransform);
   }
 
   async clearPreview() {
     await super.clearPreview();
     this.deckOverlay?.setProps({ layers: [] });
+    this.geotiff = undefined;
   }
 
   // MapLibre knows nothing about this layer, so the inherited version - which starts by looking it
@@ -96,16 +110,17 @@ export default class DeckCogPreviewer extends MapPreviewer {
   // how deck.gl takes changes; it matches the layer by id and updates the props in place, so the
   // tiles already decoded are kept rather than fetched again.
   protected drawDeckLayer() {
-    if (!this.deckOverlay || !this.drawnState) return;
-    this.deckOverlay.setProps({ layers: [this.createDeckLayer(this.drawnState)] });
+    if (!this.deckOverlay || !this.drawnState || !this.geotiff) return;
+    this.deckOverlay.setProps({ layers: [this.createDeckLayer(this.geotiff, this.drawnState)] });
   }
 
-  protected createDeckLayer(state: LayerState): COGLayer {
+  protected createDeckLayer(geotiff: GeoTIFF, state: LayerState): COGLayer {
     return new COGLayer({
       id: this.getLayerId(),
-      // The bare URL, not getMapLibreSourceUrl(): that prefixes the cog:// scheme the
-      // maplibre-cog-protocol path needs, which deck.gl's GeoTIFF loader cannot open.
-      geotiff: this.resource.url,
+      // The open COG, not a URL: handed one of those, deck.gl opens it with a plain fetch that no
+      // transform can reach. (And never getMapLibreSourceUrl(), which prefixes the cog:// scheme the
+      // maplibre-cog-protocol path needs and deck.gl's loader cannot read.)
+      geotiff,
       visible: isLayerDrawn(state),
       opacity: state.opacity,
       onGeoTIFFLoad: (_data, options) => {

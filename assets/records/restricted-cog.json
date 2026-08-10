@@ -1,0 +1,12 @@
+{
+  "id": "stanford-bb021mm7809",
+  "dct_title_s": "Finland 2G Mobile Coverage Explorer, 2014",
+  "dct_accessRights_s": "Restricted",
+  "dct_format_s": "GeoTIFF",
+  "gbl_resourceClass_sm": [
+    "Imagery"
+  ],
+  "dcat_bbox": "ENVELOPE(16.118056, 32.236667, 70.612500, 59.202222)",
+  "dct_references_s": "{\"https://github.com/cogeotiff/cog-spec\":\"https://stacks.stanford.edu/file/druid:bb021mm7809/MCE_FI2G_2014_cog.tif\"}",
+  "gbl_mdVersion_s": "Aardvark"
+}

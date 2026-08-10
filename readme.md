@@ -111,7 +111,9 @@ const resource = new GeoJsonResource('my-layer', 'https://example.com/restricted
 
 The `requestTransform` will be applied to all requests made by the viewer for that resource, including metadata and tiles, as well as the requests for the MapLibre basemap.
 
-There are two exceptions, both because the library drawing them fetches its own tiles and offers no way in: a Cloud Optimized GeoTIFF drawn by `DeckCogPreviewer`, and the IIIF image tiles behind a georeferenced map. For a restricted COG, build a `CogPreviewer` by hand instead — it can carry headers, though only for one COG per page.
+There is one exception: the IIIF image tiles behind a georeferenced map, which `@allmaps/render` fetches itself and offers no way into.
+
+Cloud Optimized GeoTIFFs are not an exception, but they get there by a different route. `DeckCogPreviewer` opens the COG itself — see `openGeoTIFF` — and hands deck.gl a file already open, because deck.gl given a URL would fetch it with a plain `fetch`. So a restricted COG works whether or not it is in Web Mercator. (`CogPreviewer`, the lighter path that draws a COG through MapLibre rather than deck.gl, can carry headers but only one set for the whole page, and only handles a COG already in Web Mercator.)
 
 ### Georeferenced maps
 
