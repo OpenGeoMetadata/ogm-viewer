@@ -135,14 +135,6 @@ if (await resource.isGeoreferenced()) {
 }
 ```
 
-### Index maps
-
-An [OpenIndexMaps](https://openindexmaps.org) index map is a sheet-by-sheet finding aid, and its features carry the properties that spec defines rather than whatever columns a shapefile happened to have. Clicking a sheet shows them under their proper names, in reading order, with `websiteUrl`, `download` and `iiifUrl` rendered as links you can read instead of URLs. Properties the spec doesn't define are still shown, under their own keys — every index map has a few columns of its own.
-
-The popup also shows a picture of the sheet: `thumbUrl` if it has one, and otherwise the thumbnail from the manifest `iiifUrl` points at. Nothing beyond those two — an institution that can work a thumbnail out from an identifier knows something about its own URLs that the spec doesn't.
-
-A property only becomes a link once it parses as an absolute `http(s)` URL. Index maps tend to fill an empty column in rather than leave it blank — Stanford's Dalian index map writes `"0"` in every field of a sheet it doesn't hold — and a link to `0` goes nowhere anyone wants.
-
 ### Components
 
 If you're building your own viewer, you can adopt `<ogm-viewer>`'s components individually.
@@ -161,13 +153,13 @@ document.querySelector('ogm-preview').previewer = new GeoJsonPreviewer(resource)
 
 Note that `previewer` is a DOM property, not an attribute — await for the element to be defined and then set it in JavaScript.
 
-For more than one preview, `<ogm-previews>` renders the same tab strip `<ogm-viewer>` uses. Hand it a `record` and it works out what that record offers; hand it `previewers` and it shows exactly those, without reading a record at all:
+For more than one preview, `<ogm-previews>` renders the same tab strip `<ogm-viewer>` uses. Hand it a `record` and it works out what that record offers; hand it `previewers` and it uses those instead:
 
 ```javascript
 document.querySelector('ogm-previews').previewers = [new GeoJsonPreviewer(geoJsonResource), new OpenIndexMapPreviewer(indexMapResource)];
 ```
 
-`record` and `previewers` are DOM properties too. Neither component brings any chrome of its own to give it a size, so the embedding page should set one.
+`record` and `previewers` are DOM properties too. Neither component has an intrinsic size, so the embedding page should set it via CSS.
 
 ## Development
 

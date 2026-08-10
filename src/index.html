@@ -50,9 +50,8 @@
         margin: 1rem auto 0;
       }
 
-      /* Neither of these has any chrome to give it a size, so the embedding page picks one */
-      ogm-preview,
-      ogm-previews {
+      /* A bare preview has no chrome to give it a size, so the embedding page picks one */
+      ogm-preview {
         display: block;
         width: clamp(800px, 70vw, 1000px);
         height: 500px;
@@ -228,24 +227,5 @@
       </div>
     </div>
     <ogm-viewer></ogm-viewer>
-
-    <h2>Built by hand</h2>
-    <p>
-      The same tab strip, fed previews built from <code>ogm-viewer/lib</code> instead of worked out from a record - for an application that has the data already. Both come from the
-      same build as the components, so they are the same objects <code>&lt;ogm-viewer&gt;</code> would have built for itself.
-    </p>
-    <ogm-previews id="handBuilt"></ogm-previews>
-
-    <script type="module">
-      import { GeoJsonResource, GeoJsonPreviewer, OpenIndexMapResource, OpenIndexMapPreviewer } from './build/index.esm.js';
-
-      // A DOM property, never an attribute: neither of these survives being written as one
-      document.getElementById('handBuilt').previewers = [
-        new GeoJsonPreviewer(new GeoJsonResource('neighborhoods', 'https://stacks.stanford.edu/file/druid:rv900sk6861/fullDownload.geojson')),
-        new OpenIndexMapPreviewer(
-          new OpenIndexMapResource('millionth-map', 'https://raw.githubusercontent.com/geoblacklight/geoblacklight/main/spec/fixtures/index_maps/index-map-v1-complex.geojson'),
-        ),
-      ];
-    </script>
   </body>
 </html>
