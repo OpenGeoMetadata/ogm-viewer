@@ -1,28 +1,71 @@
-/* A sheet's picture goes beside its properties rather than above them. This is drawn inside a MapLibre
-   popup, which has width to spare - ogm-map caps it at 400px, and the table shrinks to fit that - and
-   no height to spare at all: MapLibre puts a popup above or below the point it names, so anything
-   taller than half the map has nowhere to go. An embedded map is often only 400px tall to begin with.
-   Side by side, a popup with a picture is no taller than one without. */
+/* Drawn inside a MapLibre popup, which ogm-map caps at 400px wide and which has almost no height to
+   spare: MapLibre puts a popup above or below the point it names, so anything taller than the room on
+   one side of the click has nowhere to go, and an embedded map is often only 400px tall to begin with.
+   So the title and its controls take a row across the top, and below them exactly one of the sheet's
+   picture and its properties - swapped by a button rather than shown together. */
 :host {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
   gap: 0.5em;
+  padding: 0.2em 0.5em;
+  /* MapLibre draws its close button in the popup's top right corner, over the end of this row */
+  padding-right: 1.75em;
+  border-bottom: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+}
+
+/* Takes whatever room the controls leave and gives the excess back as an ellipsis. Without min-width a
+   flex item refuses to shrink below its own content, which is what let one long title push the paging
+   button out of the popup entirely. */
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: var(--wa-font-size-s);
+  font-weight: var(--wa-font-weight-bold);
+}
+
+.count,
+.header wa-button {
+  flex-shrink: 0;
+}
+
+/* One cap for both views, so swapping between them barely moves the popup */
+.content,
+wa-scroller {
+  max-height: 240px;
+}
+
+.content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Somewhere for the spinner to sit while a manifest is read for a thumbnail */
+  min-height: 4em;
 }
 
 wa-scroller {
-  max-height: 200px;
   overscroll-behavior: none;
-  /* Without this the table won't shrink below its content's width, and the popup clips it */
-  min-width: 0;
 }
 
 .thumbnail {
   display: block;
-  max-width: 140px;
-  max-height: 200px;
+  max-width: 100%;
+  max-height: 240px;
   width: auto;
   height: auto;
   object-fit: contain;
+}
+
+.thumbnail-link {
+  display: block;
 }
 
 .attribute-table {
@@ -45,46 +88,7 @@ wa-scroller {
     vertical-align: top;
   }
 
-  .header,
   .value {
     word-wrap: anywhere;
   }
-}
-
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1em;
-
-  .count {
-    flex-shrink: 0;
-  }
-}
-
-.title {
-  font-size: var(--wa-font-size-s);
-  font-weight: var(--wa-font-weight-bold);
-  overflow: hidden;
-  min-width: 0;
-  max-width: 40ch;
-  width: 100%;
-  padding: 0.2em 0.5em;
-  display: flex;
-  justify-content: center;
-
-  div {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
-
-wa-button + .title {
-  max-width: 30ch;
-  padding: 0;
-}
-
-.count {
-  flex-shrink: 0;
 }
