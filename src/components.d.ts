@@ -7,14 +7,16 @@
 import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
 import { PreviewError } from "./lib/errors";
 import { MapGeoJSONFeature } from "maplibre-gl";
+import { ResourceKind } from "./lib/resources/resource";
+import { RequestTransform } from "./lib/request";
 import { LayerControl } from "./lib/layers";
 import { AnyPreviewer } from "./lib/previewers/factory";
-import { RequestTransform } from "./lib/request";
 export { PreviewError } from "./lib/errors";
 export { MapGeoJSONFeature } from "maplibre-gl";
+export { ResourceKind } from "./lib/resources/resource";
+export { RequestTransform } from "./lib/request";
 export { LayerControl } from "./lib/layers";
 export { AnyPreviewer } from "./lib/previewers/factory";
-export { RequestTransform } from "./lib/request";
 export namespace Components {
     interface OgmAlerts {
         "error"?: PreviewError;
@@ -28,6 +30,8 @@ export namespace Components {
           * @default []
          */
         "features": MapGeoJSONFeature[];
+        "kind"?: ResourceKind;
+        "requestTransform"?: RequestTransform;
     }
     interface OgmImage {
         /**
@@ -85,7 +89,8 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmPreviews {
-        "record": OgmRecord;
+        "previewers"?: AnyPreviewer[];
+        "record"?: OgmRecord;
         "requestTransform"?: RequestTransform;
         "sidebarPadding": number;
         /**
@@ -306,7 +311,9 @@ declare namespace LocalJSX {
           * @default []
          */
         "features"?: MapGeoJSONFeature[];
+        "kind"?: ResourceKind;
         "onFeatureSelected"?: (event: OgmAttributesCustomEvent<MapGeoJSONFeature>) => void;
+        "requestTransform"?: RequestTransform;
     }
     interface OgmImage {
         "onImageLoaded"?: (event: OgmImageCustomEvent<void>) => void;
@@ -375,6 +382,7 @@ declare namespace LocalJSX {
     interface OgmPreviews {
         "onPreviewsLoaded"?: (event: OgmPreviewsCustomEvent<void>) => void;
         "onPreviewsLoading"?: (event: OgmPreviewsCustomEvent<void>) => void;
+        "previewers"?: AnyPreviewer[];
         "record"?: OgmRecord;
         "requestTransform"?: RequestTransform;
         "sidebarPadding"?: number;
@@ -406,6 +414,9 @@ declare namespace LocalJSX {
 
     interface OgmAlertsAttributes {
         "theme": 'light' | 'dark';
+    }
+    interface OgmAttributesAttributes {
+        "kind": ResourceKind;
     }
     interface OgmImageAttributes {
         "theme": 'light' | 'dark';
@@ -446,7 +457,7 @@ declare namespace LocalJSX {
 
     interface IntrinsicElements {
         "ogm-alerts": Omit<OgmAlerts, keyof OgmAlertsAttributes> & { [K in keyof OgmAlerts & keyof OgmAlertsAttributes]?: OgmAlerts[K] } & { [K in keyof OgmAlerts & keyof OgmAlertsAttributes as `attr:${K}`]?: OgmAlertsAttributes[K] } & { [K in keyof OgmAlerts & keyof OgmAlertsAttributes as `prop:${K}`]?: OgmAlerts[K] };
-        "ogm-attributes": OgmAttributes;
+        "ogm-attributes": Omit<OgmAttributes, keyof OgmAttributesAttributes> & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes]?: OgmAttributes[K] } & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes as `attr:${K}`]?: OgmAttributesAttributes[K] } & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes as `prop:${K}`]?: OgmAttributes[K] };
         "ogm-image": Omit<OgmImage, keyof OgmImageAttributes> & { [K in keyof OgmImage & keyof OgmImageAttributes]?: OgmImage[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `attr:${K}`]?: OgmImageAttributes[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `prop:${K}`]?: OgmImage[K] };
         "ogm-layers": Omit<OgmLayers, keyof OgmLayersAttributes> & { [K in keyof OgmLayers & keyof OgmLayersAttributes]?: OgmLayers[K] } & { [K in keyof OgmLayers & keyof OgmLayersAttributes as `attr:${K}`]?: OgmLayersAttributes[K] } & { [K in keyof OgmLayers & keyof OgmLayersAttributes as `prop:${K}`]?: OgmLayers[K] };
         "ogm-map": Omit<OgmMap, keyof OgmMapAttributes> & { [K in keyof OgmMap & keyof OgmMapAttributes]?: OgmMap[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `attr:${K}`]?: OgmMapAttributes[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `prop:${K}`]?: OgmMap[K] };

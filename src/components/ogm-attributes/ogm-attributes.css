@@ -1,6 +1,28 @@
+/* A sheet's picture goes beside its properties rather than above them. This is drawn inside a MapLibre
+   popup, which has width to spare - ogm-map caps it at 400px, and the table shrinks to fit that - and
+   no height to spare at all: MapLibre puts a popup above or below the point it names, so anything
+   taller than half the map has nowhere to go. An embedded map is often only 400px tall to begin with.
+   Side by side, a popup with a picture is no taller than one without. */
+:host {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
 wa-scroller {
   max-height: 200px;
   overscroll-behavior: none;
+  /* Without this the table won't shrink below its content's width, and the popup clips it */
+  min-width: 0;
+}
+
+.thumbnail {
+  display: block;
+  max-width: 140px;
+  max-height: 200px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
 }
 
 .attribute-table {

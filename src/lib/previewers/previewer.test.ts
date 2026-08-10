@@ -1,8 +1,19 @@
 import { describe, it, expect } from '@stencil/vitest';
 
 import GeoJsonPreviewer from './geojson';
+import OpenIndexMapPreviewer from './openindexmap';
 import GeoJsonResource from '../resources/geojson';
+import OpenIndexMapResource from '../resources/openindexmap';
 import type { RequestTransform } from '../request';
+
+describe('Previewer#kind', () => {
+  // An index map is GeoJSON drawn the same way, and the difference between them is the only thing
+  // that tells ogm-attributes it may describe the features by the OpenIndexMaps spec
+  it("is the resource's own kind, so a component can tell one preview's features from another's", () => {
+    expect(new GeoJsonPreviewer(new GeoJsonResource('id', 'https://example.com/data.json')).kind).toEqual('geojson');
+    expect(new OpenIndexMapPreviewer(new OpenIndexMapResource('id', 'https://example.com/index.geojson')).kind).toEqual('openindexmap');
+  });
+});
 
 describe('Previewer#requestTransform', () => {
   it("is undefined when the resource wasn't given one", () => {
