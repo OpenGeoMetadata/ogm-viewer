@@ -1,10 +1,13 @@
 import iiif3 from '@iiif/presentation-3';
 import iiif2 from '@iiif/presentation-2';
 
+import type { LngLatBoundsLike } from 'maplibre-gl';
+
 import IIIFResource from './iiif';
 import type { ResourceKind } from './resource';
 import { fetchOrThrow } from '../errors';
-import { resolveRequest } from '../request';
+import { resolveRequest, type RequestTransform } from '../request';
+import { fetchGeoreferenceAnnotation, findGeoreferenceAnnotation, type GeoreferenceAnnotation } from './georeference';
 
 // A manifest containing multiple IIIF image URLs for preview
 export default class IIIFManifestResource extends IIIFResource {
@@ -13,8 +16,71 @@ export default class IIIFManifestResource extends IIIFResource {
   // The parsed manifest contents
   protected manifest: iiif3.Manifest | iiif2.Manifest | undefined;
 
+  // A standalone georeference annotation the record pointed at, if any. Only consulted when the
+  // manifest doesn't carry one of its own; see getGeoreferenceAnnotation.
+  protected georeferenceUrl?: string;
+
+  // Memoized as the promise rather than its value, so that finding nothing is remembered too and
+  // two previewers asking at once share the one walk instead of racing two.
+  private georeferenceAnnotation?: Promise<GeoreferenceAnnotation | undefined>;
+
+  constructor(id: string, url: string, bounds?: LngLatBoundsLike, requestTransform?: RequestTransform, georeferenceUrl?: string) {
+    super(id, url, bounds, requestTransform);
+    this.georeferenceUrl = georeferenceUrl;
+  }
+
   label() {
     return 'IIIF Manifest';
+  }
+
+  // Whether this manifest can also be drawn on a map. Costs at least the manifest fetch, and often
+  // one more for an annotation page the manifest only links, so the answer is memoized.
+  async isGeoreferenced(): Promise<boolean> {
+    return (await this.getGeoreferenceAnnotation()) !== undefined;
+  }
+
+  // The georeference annotation to warp this scan with, from whichever source has one. The copy in
+  // the manifest wins: a record can name a standalone annotation *and* be served a manifest with
+  // one spliced in - which is what Stanford's purl does, generating manifests at request time - and
+  // in that case the manifest is the more current of the two.
+  async getGeoreferenceAnnotation(): Promise<GeoreferenceAnnotation | undefined> {
+    this.georeferenceAnnotation ??= this.resolveGeoreferenceAnnotation();
+    return await this.georeferenceAnnotation;
+  }
+
+  private async resolveGeoreferenceAnnotation(): Promise<GeoreferenceAnnotation | undefined> {
+    const embedded = await this.findEmbeddedGeoreferenceAnnotation();
+    if (embedded) return embedded;
+
+    if (!this.georeferenceUrl) return undefined;
+
+    // Unlike a manifest we couldn't read, a reference the record made explicitly and we couldn't
+    // follow is worth reporting - but not by failing, since the image preview still works
+    return await fetchGeoreferenceAnnotation(this.georeferenceUrl, this.requestTransform).catch(error => {
+      console.warn(`Could not read the georeference annotation at ${this.georeferenceUrl}:`, error);
+      return undefined;
+    });
+  }
+
+  // Look through the manifest itself. Only the first canvas: a paged object could carry an
+  // annotation per page, and one map per page is probably not what anyone wants - see
+  // https://github.com/sul-dlss/sul-embed/issues/3124 - so that is left alone deliberately.
+  private async findEmbeddedGeoreferenceAnnotation(): Promise<GeoreferenceAnnotation | undefined> {
+    const manifest = await this.fetchManifest().catch(() => undefined);
+
+    // A v2 manifest hangs annotations off `otherContent` instead, and no v2 georeferenced manifest
+    // has turned up to write that against
+    if (!manifest || this.getIIIFVersion(manifest) !== 3) return undefined;
+
+    const { annotations, items } = manifest as iiif3.Manifest & { annotations?: unknown[] };
+    const firstCanvas = items?.[0] as (iiif3.Canvas & { annotations?: unknown[] }) | undefined;
+
+    for (const page of [...(annotations ?? []), ...(firstCanvas?.annotations ?? [])]) {
+      const found = await findGeoreferenceAnnotation(page, this.requestTransform);
+      if (found) return found;
+    }
+
+    return undefined;
   }
 
   // List of IIIF image URLs extracted from the manifest

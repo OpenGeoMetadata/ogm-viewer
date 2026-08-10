@@ -84,7 +84,7 @@ export class OgmMap {
     // Style as a globe with atmosphere once style is loaded and set the flag
     this.map.on('style.load', () => {
       this.mapStyleLoaded = true;
-      this.map.setProjection({ type: 'globe' });
+      this.applyProjection();
       this.map.setSky(this.mapTheme.getSkyStyle());
     });
 
@@ -157,6 +157,10 @@ export class OgmMap {
     // Close popup if one is open
     this.destroyPopup();
 
+    // Applied here as well as on style.load, since which preview is attached is what decides it and
+    // that can change without the style document being rebuilt
+    this.applyProjection();
+
     try {
       // The style is only known now: it comes out of the theme, and the theme can change under a
       // preview that is already on screen
@@ -205,6 +209,14 @@ export class OgmMap {
     if (this.errorReported || !this.previewer) return;
     this.errorReported = true;
     this.previewError.emit(referenceError(error, this.previewer.label(), this.previewer.url));
+  }
+
+  // Draw the map the way the current preview needs it drawn. A globe unless the preview can't be
+  // shown on one; see MapPreviewer.projection. The user can still reach for the globe control after
+  // this, which for a deck.gl preview is their own choice to make.
+  protected applyProjection() {
+    if (!this.map) return;
+    this.map.setProjection({ type: this.previewer?.projection ?? 'globe' });
   }
 
   // Fit the map to the given bounds; resolve once the move finishes

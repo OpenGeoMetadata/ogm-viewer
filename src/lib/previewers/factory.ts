@@ -1,3 +1,4 @@
+import type IIIFManifestResource from '../resources/iiif-manifest';
 import type MapResource from '../resources/map';
 import type Resource from '../resources/resource';
 import type { ResourceKind } from '../resources/resource';
@@ -35,12 +36,52 @@ const holdsVectors = async (resource: Resource): Promise<boolean> =>
     return false;
   });
 
+// deck.gl and Allmaps are each large enough to be worth not making every record pay for: together
+// they are more than half again the size of everything else here, and only a COG or a georeferenced
+// scan needs either. So they load on demand, which the ESM-only output target (#133) made possible -
+// the CommonJS render that used to be built alongside it flattened dynamic imports back in.
+//
+// A chunk that won't load leaves the rest of the record previewable rather than failing it outright.
+const lazily = async <T>(load: () => Promise<{ default: new (resource: Resource) => T }>, resource: Resource, what: string): Promise<T | undefined> => {
+  try {
+    const { default: Previewer } = await load();
+    return new Previewer(resource);
+  } catch (error) {
+    console.warn(`Could not load the ${what} previewer for ${resource.url}:`, error);
+    return undefined;
+  }
+};
+
+// Whether a manifest also describes where on the earth its scan belongs. Costs the manifest fetch,
+// and usually one more for an annotation page the manifest only links; the resource memoizes both.
+// try/catch rather than .catch(): a resource built by an older copy of this library has no such
+// method at all, and that throws on the way in rather than rejecting.
+const isGeoreferenced = async (resource: Resource): Promise<boolean> => {
+  try {
+    return await (resource as IIIFManifestResource).isGeoreferenced();
+  } catch (error) {
+    console.warn(`Could not tell whether ${resource.url} is georeferenced:`, error);
+    return false;
+  }
+};
+
 // How each kind of resource is previewed. Keyed rather than tested in order, so adding a
 // ResourceKind is a compile error until it says how it should be drawn, and a subclass no longer
 // has to be listed ahead of its parent to be reachable at all.
 const BUILDERS: Record<ResourceKind, PreviewerBuilder> = {
   'iiif-image': resource => [new ImagePreviewer(resource)],
-  'iiif-manifest': resource => [new ImagePreviewer(resource)],
+
+  // A georeferenced scan is the case this whole list is plural for: the same manifest is both an
+  // image to page through and a layer to overlay on a map. The image comes first, because it is what
+  // the scan is - the map is a second reading of it.
+  'iiif-manifest': async resource => {
+    const previewers: AnyPreviewer[] = [new ImagePreviewer(resource)];
+    if (!(await isGeoreferenced(resource))) return previewers;
+
+    const georeference = await lazily(() => import('./georeference'), resource, 'georeferenced map');
+    return georeference ? [...previewers, georeference] : previewers;
+  },
+
   'geojson': resource => [new GeoJsonPreviewer(resource)],
   'openindexmap': resource => [new OpenIndexMapPreviewer(resource)],
   'esri-feature-layer': resource => [new EsriFeatureLayerPreviewer(resource)],
@@ -49,7 +90,16 @@ const BUILDERS: Record<ResourceKind, PreviewerBuilder> = {
   'esri-tiled-map-layer': resource => [new EsriTiledMapLayerPreviewer(resource)],
   'wms': resource => [new WmsPreviewer(resource)],
   'wmts': resource => [new WmtsPreviewer(resource)],
-  'cog': resource => [new CogPreviewer(resource)],
+  // deck.gl warps the COG as it draws it, so it can show one in any projection; the maplibre-cog-
+  // protocol path in CogPreviewer only handles a COG already in Web Mercator. It is still exported
+  // for the one thing it can do that this can't: carry an Authorization header. deck.gl fetches the
+  // GeoTIFF through @developmentseed/geotiff, which offers no hook to reach those requests, so a
+  // restricted COG needs CogPreviewer built by hand rather than this default.
+  'cog': async resource => {
+    const deck = await lazily(() => import('./cog-deck'), resource, 'COG');
+    return [deck ?? new CogPreviewer(resource)];
+  },
+
   'tms': resource => [new RasterPreviewer(resource)],
   'xyz': resource => [new RasterPreviewer(resource)],
 

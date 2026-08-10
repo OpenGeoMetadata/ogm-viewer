@@ -5,6 +5,8 @@ import type Resource from '../resources/resource';
 import type { ResourceKind } from '../resources/resource';
 
 import CogPreviewer from './cog';
+import DeckCogPreviewer from './cog-deck';
+import GeoreferencePreviewer from './georeference';
 import EsriDynamicMapLayerPreviewer from './esri-dynamic-map-layer';
 import EsriFeatureLayerPreviewer from './esri-feature-layer';
 import EsriImageMapLayerPreviewer from './esri-image-map-layer';
@@ -27,10 +29,10 @@ const resourceOfKind = (kind: string, extra: object = {}) => ({ kind, id: 'test-
 
 // Every kind that resolves without reading anything remote. Note the three that the old instanceof
 // ladder had to hand-order: an index map and an ArcGIS feature layer are both kinds of GeoJSON, so
-// listing either after 'geojson' would have drawn it as plain GeoJSON.
+// listing either after 'geojson' would have drawn it as plain GeoJSON. A manifest and a COG are not
+// here: one has to ask whether it's georeferenced, and the other loads deck.gl on demand.
 const SYNCHRONOUS: [ResourceKind, new (...args: never[]) => unknown][] = [
   ['iiif-image', ImagePreviewer],
-  ['iiif-manifest', ImagePreviewer],
   ['geojson', GeoJsonPreviewer],
   ['openindexmap', OpenIndexMapPreviewer],
   ['esri-feature-layer', EsriFeatureLayerPreviewer],
@@ -39,7 +41,6 @@ const SYNCHRONOUS: [ResourceKind, new (...args: never[]) => unknown][] = [
   ['esri-tiled-map-layer', EsriTiledMapLayerPreviewer],
   ['wms', WmsPreviewer],
   ['wmts', WmtsPreviewer],
-  ['cog', CogPreviewer],
   ['tms', RasterPreviewer],
   ['xyz', RasterPreviewer],
 ];
@@ -86,6 +87,67 @@ describe('previewersFor', () => {
     });
   });
 
+  // The case the whole list is plural for: one resource, two readings of it
+  describe('a manifest that may be georeferenced', () => {
+    const manifest = (isGeoreferenced: () => Promise<boolean>) => resourceOfKind('iiif-manifest', { isGeoreferenced });
+
+    it('previews a plain manifest as an image and nothing else', async () => {
+      const previewers = await previewersFor(manifest(async () => false));
+
+      expect(previewers).toHaveLength(1);
+      expect(previewers[0].constructor).toBe(ImagePreviewer);
+    });
+
+    it('offers a georeferenced manifest the image first and the map second', async () => {
+      const previewers = await previewersFor(manifest(async () => true));
+
+      // The image comes first because it is what the scan is; the map is a second reading of it,
+      // and this order is the tab order
+      expect(previewers.map(previewer => previewer.constructor)).toEqual([ImagePreviewer, GeoreferencePreviewer]);
+      expect(previewers.map(previewer => previewer.renderer)).toEqual(['image', 'map']);
+    });
+
+    // Two previews of one resource, so the ids have to be told apart by more than the resource
+    it('gives the two previews of one manifest different ids and different tab labels', async () => {
+      const previewers = await previewersFor(resourceOfKind('iiif-manifest', { isGeoreferenced: async () => true, label: () => 'IIIF Manifest' }));
+
+      expect(new Set(previewers.map(previewer => previewer.previewId)).size).toEqual(2);
+      expect(new Set(previewers.map(previewer => previewer.label())).size).toEqual(2);
+    });
+
+    it('still offers the image when it cannot tell whether the manifest is georeferenced', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const previewers = await previewersFor(
+        manifest(async () => {
+          throw new Error('offline');
+        }),
+      );
+
+      expect(previewers.map(previewer => previewer.constructor)).toEqual([ImagePreviewer]);
+      expect(warn).toHaveBeenCalled();
+    });
+
+    // A resource built by a copy of this library from before georeferencing existed has no such
+    // method to call, which throws on the way in rather than rejecting
+    it('still offers the image for a resource that cannot be asked at all', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      expect((await previewersFor(resourceOfKind('iiif-manifest'))).map(previewer => previewer.constructor)).toEqual([ImagePreviewer]);
+      expect(warn).toHaveBeenCalled();
+    });
+  });
+
+  // Loaded on demand rather than bundled, so this also proves the chunk resolves at all
+  it('previews a COG with deck.gl, which can warp one that is not already in Web Mercator', async () => {
+    const [previewer] = await previewersFor(resourceOfKind('cog'));
+
+    expect(previewer.constructor).toBe(DeckCogPreviewer);
+    // The protocol previewer is still the fallback, and still the only one that can carry an
+    // Authorization header, so it must remain reachable rather than being dropped
+    expect(CogPreviewer).toBeDefined();
+  });
+
   it('offers nothing for a resource it does not recognize, rather than failing the record', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -103,7 +165,8 @@ describe('previewersForResources', () => {
 
   // Each preview is one tab, so two that landed on the same id would collide in the tab group
   it('gives every preview of a record its own id', async () => {
-    const previewers = await previewersForResources([resourceOfKind('iiif-image'), resourceOfKind('iiif-manifest'), resourceOfKind('wms')]);
+    const manifest = resourceOfKind('iiif-manifest', { isGeoreferenced: async () => false });
+    const previewers = await previewersForResources([resourceOfKind('iiif-image'), manifest, resourceOfKind('wms')]);
     const ids = previewers.map(previewer => previewer.previewId);
 
     expect(new Set(ids).size).toEqual(ids.length);

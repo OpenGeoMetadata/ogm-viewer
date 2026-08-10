@@ -1,17 +1,31 @@
 import type { SourceSpecification, AddLayerObject } from 'maplibre-gl';
 
+import type Resource from '../resources/resource';
+
 import Previewer from './previewer';
-import MapResource from '../resources/map';
 import { isLayerDrawn, resolveLayerState, type LayerState, type Layer, type PreviewStyleLayer } from '../layers';
 import { type MapLibreStyle } from '../themes/maplibre';
 
 // MapLibre doesn't bundle the id with the source, but we need to
 type AddSourceObject = SourceSpecification & { id: string };
 
+// How the map itself is drawn. A globe unless a preview can't be shown on one.
+export type MapProjection = 'globe' | 'mercator';
+
 export default abstract class MapPreviewer extends Previewer {
   readonly renderer = 'map' as const;
 
-  declare protected resource: MapResource;
+  // The projection this preview needs. Globe reads better for anything worldwide, so it's the
+  // default and nearly everything keeps it - but deck.gl's tile layers have no bounding volume
+  // implemented for a globe view, and report an error for every frame they try to cull against one,
+  // so DeckCogPreviewer asks for a flat map rather than filling the console.
+  readonly projection: MapProjection = 'globe';
+
+  // Only what every preview on a map needs, which is somewhere to point: not MapResource, because
+  // not everything drawn on a map is a tile source. A georeferenced scan is a IIIF manifest with
+  // control points, with no tile URL or vector/raster distinction to offer. Subclasses that do want
+  // one narrow this to the resource they actually read.
+  declare protected resource: Resource;
 
   // Set by attach(), before anything is drawn. Not constructor arguments: the map is built by
   // ogm-map once its own element exists, long after a record's previews have been worked out, and
@@ -72,7 +86,18 @@ export default abstract class MapPreviewer extends Previewer {
 
     layers.forEach(layer => {
       this.layerIds.push(layer.id);
-      if (this.map.getLayer(layer.id)) return;
+      const existing = this.map.getLayer(layer.id);
+
+      // A style layer describes itself completely, so one already under this id is one we put there
+      // and adding it again would change nothing.
+      if (existing && layer.type !== 'custom') return;
+
+      // A custom layer is not a description but an object, holding its own WebGL and its own data,
+      // and MapLibre only hands it a context in onAdd. setStyle() keeps custom layers rather than
+      // clearing them with the rest of the document, so after a basemap swap there is a live one
+      // here already - and skipping for it would leave that one drawing while the one we just built
+      // never got a context at all. Replace it instead.
+      if (existing) this.map.removeLayer(layer.id);
       this.map.addLayer(layer);
     });
   }
@@ -108,21 +133,25 @@ export default abstract class MapPreviewer extends Previewer {
 
     this.previewLayers.forEach(layer => {
       const state = resolveLayerState(layer, states);
-
-      layer.styleLayers.forEach(styleLayer => {
-        // A layer the style no longer holds is one a rebuild hasn't finished replacing
-        if (!this.map.getLayer(styleLayer.id)) return;
-
-        // An opacity of zero has to hide the layer outright, not just make it invisible:
-        // queryRenderedFeatures skips layers set to `visibility: none` but still reports features
-        // from a layer drawn at zero opacity, which would let a user click what they can't see.
-        this.map.setLayoutProperty(styleLayer.id, 'visibility', isLayerDrawn(state) ? 'visible' : 'none');
-
-        // A highlight is drawn for us by the server we asked; dimming it would make the answer
-        // harder to read at exactly the moment the user asked for it
-        if (!styleLayer.internal) this.applyOpacity(styleLayer, state.opacity);
-      });
+      layer.styleLayers.forEach(styleLayer => this.applyStyleLayerState(styleLayer, state));
     });
+  }
+
+  // Push one style layer's state onto whatever draws it. Through the style document here, because
+  // that is where all but two of our previews live; a preview that paints itself - an Allmaps
+  // warped map, a deck.gl overlay - has no paint property to set and overrides this instead.
+  protected applyStyleLayerState(styleLayer: PreviewStyleLayer, state: LayerState) {
+    // A layer the style no longer holds is one a rebuild hasn't finished replacing
+    if (!this.map.getLayer(styleLayer.id)) return;
+
+    // An opacity of zero has to hide the layer outright, not just make it invisible:
+    // queryRenderedFeatures skips layers set to `visibility: none` but still reports features
+    // from a layer drawn at zero opacity, which would let a user click what they can't see.
+    this.map.setLayoutProperty(styleLayer.id, 'visibility', isLayerDrawn(state) ? 'visible' : 'none');
+
+    // A highlight is drawn for us by the server we asked; dimming it would make the answer
+    // harder to read at exactly the moment the user asked for it
+    if (!styleLayer.internal) this.applyOpacity(styleLayer, state.opacity);
   }
 
   // The style layers a rendered-feature query should consider. Always a subset of layerIds:

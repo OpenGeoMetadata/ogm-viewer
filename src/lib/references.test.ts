@@ -239,6 +239,38 @@ describe('References', () => {
     });
 
     // See https://github.com/OpenGeoMetadata/ogm-viewer/issues/80
-    it.todo('should be map previewable if there are IIIF georeference annotations in the manifest');
+    describe('IIIF georeference annotations', () => {
+      const GEOREF_URI = 'https://iiif.io/api/extension/georef/1/context.json';
+      const MANIFEST_URI = 'http://iiif.io/api/presentation#manifest';
+
+      it('reads the georeference annotation URL', () => {
+        const references = new References(JSON.stringify({ [GEOREF_URI]: 'http://example.com/annotation.json' }));
+        expect(references.georeferenceUrl).toBe('http://example.com/annotation.json');
+      });
+
+      it('should be map previewable with an annotation and a manifest to apply it to', () => {
+        const contents = { [MANIFEST_URI]: 'http://example.com/manifest.json', [GEOREF_URI]: 'http://example.com/annotation.json' };
+        const references = new References(JSON.stringify(contents));
+
+        expect(references.mapPreviewable).toBe(true);
+        expect(references.iiifOnly).toBe(false);
+      });
+
+      // Control points for an image held somewhere else draw nothing on their own
+      it('should not be map previewable with an annotation and nothing to apply it to', () => {
+        const references = new References(JSON.stringify({ [GEOREF_URI]: 'http://example.com/annotation.json' }));
+
+        expect(references.mapPreviewable).toBe(false);
+        expect(references.previewable).toBe(false);
+      });
+
+      // The other direction can't be answered from the references at all: a manifest that carries
+      // its own annotation and names no georef reference takes a fetch to discover, which is
+      // IIIFManifestResource#isGeoreferenced's job rather than this class's
+      it('cannot tell from the references alone that a manifest carries its own annotation', () => {
+        const references = new References(JSON.stringify({ [MANIFEST_URI]: 'http://example.com/manifest.json' }));
+        expect(references.mapPreviewable).toBe(false);
+      });
+    });
   });
 });
