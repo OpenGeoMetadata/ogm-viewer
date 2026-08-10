@@ -109,26 +109,22 @@ import { GeoJsonResource } from 'ogm-viewer/lib';
 const resource = new GeoJsonResource('my-layer', 'https://example.com/restricted/data.json', undefined, requestTransform);
 ```
 
-The `requestTransform` will be applied to all requests made by the viewer for that resource, including metadata and tiles, as well as the requests for the MapLibre basemap.
-
-There is one exception: the IIIF image tiles behind a georeferenced map, which `@allmaps/render` fetches itself and offers no way into.
-
-Cloud Optimized GeoTIFFs are not an exception, but they get there by a different route. `DeckCogPreviewer` opens the COG itself — see `openGeoTIFF` — and hands deck.gl a file already open, because deck.gl given a URL would fetch it with a plain `fetch`. So a restricted COG works whether or not it is in Web Mercator. (`CogPreviewer`, the lighter path that draws a COG through MapLibre rather than deck.gl, can carry headers but only one set for the whole page, and only handles a COG already in Web Mercator.)
+The `requestTransform` will be applied to all requests made by the viewer for that resource, including metadata and tiles, as well as the requests for the MapLibre basemap. The one exception to this is Georeferenced maps using the Allmaps plugin – there's currently no way to fetch these using authentication (see below for more).
 
 ### Georeferenced maps
 
-A scanned map with a [IIIF Georeference Annotation](https://iiif.io/api/extension/georef/) is previewable two ways: as an image to page through, and as a layer warped onto the earth. Both come from one `IIIFManifestResource`, so `<ogm-viewer>` shows them as two tabs, image first.
+A scanned map with a [IIIF Georeference Annotation](https://iiif.io/api/extension/georef/) is previewable two ways: as an image to page through, and as a layer warped onto the map. Both come from one `IIIFManifestResource`, so `<ogm-viewer>` shows them as two tabs, image first.
 
-Nothing needs configuring. The viewer finds the annotation itself, looking in this order:
+The viewer finds the annotation itself, looking in this order:
 
 1. Inside the manifest, following the annotation pages a canvas links until it finds one.
 2. Failing that, a `dct_references_s` key of `https://iiif.io/api/extension/georef/1/context.json` pointing at a standalone annotation.
 
-When a record has both, the copy in the manifest wins — a manifest generated at request time is the more current of the two. Only the first canvas is inspected, so a paged object with an annotation per page is left alone for now.
+When a record has both, the copy in the manifest wins. Only the first canvas is inspected, so a paged object with an annotation per page is left alone for now.
 
-The map tab is drawn flat, has no globe button, and can't be tilted. Allmaps paints the warped scan with its own WebGL rather than MapLibre's, and works out where to put it from the map's centre, its bearing, and a single units-per-pixel scale — a description of a flat, north-up map, and not of a sphere or a tilted one. On a globe the scan drifts as you zoom out: imperceptibly at the zoom you'd actually read a sheet at, and out by half again by zoom 3. Pitch is wrong the same way, by a quarter at 30° and more than double at 60°. Every other preview keeps the globe and the pitch.
+The map tab is drawn flat, has no globe button, and can't be tilted. These are constraints based on Allmaps' rendering engine, which is used to warp the image. There's also no way to hook into Allmaps' tile requests, so if the annotation points at a restricted image, it won't be able to fetch it. The viewer will still show the image tab, but the map tab will be blank.
 
-To build one by hand, the manifest resource takes the standalone annotation URL as its last argument, and works out the rest:
+To build a preview by hand, the manifest resource takes the standalone annotation URL as its last argument, and works out the rest:
 
 ```javascript
 import { GeoreferencePreviewer, IIIFManifestResource } from 'ogm-viewer/lib';
