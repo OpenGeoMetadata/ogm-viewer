@@ -5,7 +5,7 @@ import Autolinker from 'autolinker';
 import '@awesome.me/webawesome/dist/components/button/button.js';
 import '@awesome.me/webawesome/dist/components/icon/icon.js';
 import '@awesome.me/webawesome/dist/components/scroller/scroller.js';
-import '@awesome.me/webawesome/dist/components/spinner/spinner.js';
+import '@awesome.me/webawesome/dist/components/skeleton/skeleton.js';
 
 import { getFeatureTitle } from '../../lib/features';
 import { describeSheet, sheetHasImage, sheetThumbnail, sheetWebsite } from '../../lib/openindexmap';
@@ -33,6 +33,10 @@ export class OgmAttributes {
   // Whether the search for a picture has finished, so an index map sheet that turns out not to have
   // one falls through to its properties rather than sitting on an empty frame
   @State() private searched = false;
+  // Whether the picture has finished downloading. Knowing its URL is not the same as having it, and
+  // the download is the longer half of the wait for a sheet that carries a thumbUrl - so the
+  // placeholder stays up until the picture can actually be seen.
+  @State() private painted = false;
   // Set by the button in the header: the reader asked for the properties instead of the picture. Kept
   // across paging, so a reader comparing sheets doesn't have to ask again for every one of them, and
   // reset when a new click brings a new set of features.
@@ -68,6 +72,7 @@ export class OgmAttributes {
 
     this.wanted = feature;
     this.thumbnail = undefined;
+    this.painted = false;
     this.searched = !feature;
     if (!feature) return;
 
@@ -156,30 +161,35 @@ export class OgmAttributes {
   }
 
   // The sheet itself, which is what you want when deciding which sheet you're after. Linked to
-  // wherever its Web link goes, since that is the click a picture invites.
+  // wherever its Web link goes, since that is the click a picture invites. The frame it goes in is
+  // the same size before and after it arrives, so the popup doesn't grow out from under the reader
+  // while they're looking at it - see the .content rule.
   private renderImage(feature: MapGeoJSONFeature) {
-    if (!this.thumbnail) {
-      return (
-        <div class="content">
-          <wa-spinner></wa-spinner>
-        </div>
-      );
-    }
-
-    const image = <img class="thumbnail" src={this.thumbnail} alt="" />;
+    const image = <img class="thumbnail" src={this.thumbnail} alt="" onLoad={() => (this.painted = true)} onError={() => this.giveUpOnPicture()} />;
     const website = sheetWebsite(feature.properties);
 
     return (
       <div class="content">
-        {website ? (
-          <a class="thumbnail-link" href={website} target="_blank" rel="noreferrer" title="View this map">
-            {image}
-          </a>
-        ) : (
-          image
-        )}
+        {this.thumbnail &&
+          (website ? (
+            <a class="thumbnail-link" href={website} target="_blank" rel="noreferrer" title="View this map">
+              {image}
+            </a>
+          ) : (
+            image
+          ))}
+        {/* Over the picture rather than beside it, so the frame is one size throughout */}
+        {!this.painted && <wa-skeleton class="pending" effect="sheen"></wa-skeleton>}
       </div>
     );
+  }
+
+  // The sheet named a picture and the picture isn't there. Same end as a sheet that named none at
+  // all: showingImage falls through to the properties, and the swap button goes with the thumbnail.
+  private giveUpOnPicture() {
+    this.thumbnail = undefined;
+    this.painted = false;
+    this.searched = true;
   }
 
   private renderProperties(feature: MapGeoJSONFeature) {

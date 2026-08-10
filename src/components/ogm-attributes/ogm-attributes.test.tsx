@@ -319,8 +319,38 @@ describe('ogm-attributes', () => {
 
         const { root } = await renderSheet([sheet({ label: 'SHEET 3', iiifUrl: 'https://purl.stanford.edu/kh108fv7858/iiif/manifest' })]);
 
-        expect(shadow(root).querySelector('wa-spinner')).not.toBeNull();
+        expect(shadow(root).querySelector('wa-skeleton')).not.toBeNull();
         expect(shadow(root).querySelector('table')).toBeNull();
+      });
+
+      // Knowing where a picture is isn't having it, and for a sheet carrying its own thumbUrl the
+      // download is the whole wait - there is no manifest to read first. The frame is the picture's
+      // size throughout either way, so what's at stake is whether the reader watches a placeholder
+      // or an empty box.
+      it('keeps the placeholder up until the picture has downloaded, not just until it is named', async () => {
+        const { root, waitForChanges } = await renderSheet([SHEET]);
+
+        expect(image(root)).not.toBeNull();
+        expect(shadow(root).querySelector('wa-skeleton')).not.toBeNull();
+
+        image(root)?.dispatchEvent(new Event('load'));
+        await waitForChanges();
+
+        expect(shadow(root).querySelector('wa-skeleton')).toBeNull();
+        expect(image(root)).not.toBeNull();
+      });
+
+      // The same end as a sheet whose manifest named no picture, rather than a placeholder that
+      // shimmers forever over an image that is never going to arrive
+      it('falls through to the properties when the picture fails to download', async () => {
+        const { root, waitForChanges } = await renderSheet([SHEET]);
+
+        image(root)?.dispatchEvent(new Event('error'));
+        await waitForChanges();
+
+        expect(image(root)).toBeNull();
+        expect(swap(root)).toBeNull();
+        expect(keys(root)).toEqual(['Sheet', 'Title', 'Digital holdings', 'Call number', 'Web link', 'Download']);
       });
 
       it('paints the sheet a page away without waiting on its picture', async () => {
