@@ -55,6 +55,8 @@ export class OgmMap {
   protected map: maplibregl.Map;
   protected mapTheme: MapLibreTheme;
   protected popup: maplibregl.Popup | undefined = undefined;
+  // Watches the popup's contents for a change of size; see createPopup
+  protected popupResize: ResizeObserver | undefined = undefined;
   protected attributesEl: HTMLOgmAttributesElement;
   protected hoveredFeature: maplibregl.MapGeoJSONFeature | undefined = undefined;
   protected selectedFeature: maplibregl.MapGeoJSONFeature | undefined = undefined;
@@ -348,7 +350,11 @@ export class OgmMap {
     });
     if (features.length === 0) return;
 
-    // Create and populate the attributes popup and select the first feature if multiple
+    // Create and populate the attributes popup and select the first feature if multiple. What kind of
+    // preview these came from decides how they're described, and goes over first so the popup never
+    // paints a table of raw keys for something it could have named properly.
+    this.attributesEl.kind = this.previewer?.kind;
+    this.attributesEl.requestTransform = this.previewer?.requestTransform;
     this.attributesEl.features = features;
     this.createPopup(event.lngLat);
     this.selectFeature(features[0]);
@@ -437,11 +443,21 @@ export class OgmMap {
   protected createPopup(location: maplibregl.LngLatLike) {
     this.popup = new maplibregl.Popup({ maxWidth: 'none' }).setDOMContent(this.attributesEl).setLngLat(location).addTo(this.map);
 
+    // MapLibre works out which side of the click to put the popup on from how big it is at the time,
+    // and the contents don't stay that size: paging moves to a feature with more properties, and an
+    // index map sheet's thumbnail arrives a fetch after the table it sits above. Left alone the popup
+    // grows off the top of the map. Setting the same position again is what makes MapLibre measure and
+    // place it a second time.
+    this.popupResize = new ResizeObserver(() => this.popup?.setLngLat(this.popup.getLngLat()));
+    this.popupResize.observe(this.attributesEl);
+
     // Closing the popup - by the user's click on its X, or by our own remove() - is what ends an
     // inspection, and the only thing that hands the features back. Emptying the list is what blanks
     // the table, so paging must not do it: it only moves the highlight from one feature to the next.
     this.popup.on('close', () => {
       this.popup = undefined;
+      this.popupResize?.disconnect();
+      this.popupResize = undefined;
       this.clearFeatureSelection();
       this.attributesEl.features = [];
     });

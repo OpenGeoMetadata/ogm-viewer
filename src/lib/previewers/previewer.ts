@@ -1,4 +1,6 @@
 import type Resource from '../resources/resource';
+import type { ResourceKind } from '../resources/resource';
+
 import type { RequestTransform } from '../request';
 
 // Which component draws a preview. A string rather than a class, so ogm-preview can route without
@@ -24,12 +26,19 @@ export default abstract class Previewer {
     return this.resource.requestTransform;
   }
 
+  // What kind of data this preview draws. Exposed for a component that can describe some kinds
+  // better than the rest - ogm-attributes renders an index map's sheets by the OpenIndexMaps spec
+  // rather than as a table of raw keys. A string, for the same reason ResourceKind is one.
+  get kind(): ResourceKind {
+    return this.resource.kind;
+  }
+
   // Identifies the tab and the panel that show this preview. Every resource of one record carries
   // the record's own id, so it takes the kind to tell them apart, and the renderer to tell two
   // previews of one resource apart. Stable under minification, unlike constructor.name. Two
   // previews of one resource drawn by the same component must override this.
   get previewId(): string {
-    return `${this.resource.id}-${this.resource.kind}-${this.renderer}`;
+    return `${this.resource.id}-${this.kind}-${this.renderer}`;
   }
 
   // What the tab that selects this preview is called. A second preview of the same resource
