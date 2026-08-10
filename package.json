@@ -1,6 +1,6 @@
 {
   "name": "ogm-viewer",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "A web-based viewer for previewing OpenGeoMetadata records",
   "module": "./dist/components/ogm-viewer.js",
   "types": "./dist/components/ogm-viewer.d.ts",
