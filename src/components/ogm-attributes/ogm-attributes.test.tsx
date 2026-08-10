@@ -52,7 +52,7 @@ const count = (root: HTMLElement) => shadow(root).querySelector('.count')?.textC
 const title = (root: HTMLElement) => shadow(root).querySelector('.title')?.textContent;
 const keys = (root: HTMLElement) => Array.from(shadow(root).querySelectorAll('tbody .key')).map(td => td.textContent);
 const image = (root: HTMLElement) => shadow(root).querySelector('img.thumbnail');
-const swap = (root: HTMLElement) => shadow(root).querySelector<HTMLElement>('.header .swap');
+const swap = (root: HTMLElement) => shadow(root).querySelector<HTMLElement>('.swap');
 const swapIcon = (root: HTMLElement) => swap(root)?.querySelector('wa-icon')?.getAttribute('name');
 
 // The one link in the row named by the given key, if it has one
@@ -254,6 +254,20 @@ describe('ogm-attributes', () => {
 
         await showProperties(root, waitForChanges);
         expect(image(root)).not.toBeNull();
+      });
+
+      // On the corner of the thing it acts on rather than in the header, where it is easier to find
+      // and where it leaves the title the middle of the row. An icon alone doesn't say what it does.
+      it('floats over the content, and names what it will do on hover', async () => {
+        const { root, waitForChanges } = await renderSheet([SHEET]);
+
+        expect(shadow(root).querySelector('.header .swap')).toBeNull();
+        expect(shadow(root).querySelector('.body > .swap')).not.toBeNull();
+        expect(swap(root)?.title).toEqual('Show this sheet’s details');
+
+        await showProperties(root, waitForChanges);
+
+        expect(swap(root)?.title).toEqual('Show the picture of this sheet');
       });
 
       // A reader comparing sheets shouldn't have to ask for the properties again on every one of them
