@@ -156,6 +156,23 @@ describe('GeoreferencePreviewer', () => {
     expect(warn).toHaveBeenCalled();
   });
 
+  // Allmaps derives its own viewport from the map's centre, bearing and one units-per-pixel scale
+  // read off the unprojected viewport corners, which describes a flat map and not a sphere. Right to
+  // within a percent at the zooms a scan is read at, out by half again by zoom 3, where the warped
+  // map slides off the globe - so this preview asks for the flat map it is really drawn on.
+  it('asks for a flat map rather than the globe everything else is drawn on', async () => {
+    const { previewer } = await previewFor();
+
+    expect(previewer.projection).toEqual('mercator');
+  });
+
+  // That same viewport has no pitch, so a tilted map is the same mistake by another route
+  it('asks to be held flat, since Allmaps ignores pitch as well as the globe', async () => {
+    const { previewer } = await previewFor();
+
+    expect(previewer.maxPitch).toEqual(0);
+  });
+
   describe('applying layer state', () => {
     it('sends opacity to the layer rather than to a paint property', async () => {
       const { previewer, setOpacity } = await previewFor();

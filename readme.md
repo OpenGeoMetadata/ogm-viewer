@@ -124,6 +124,8 @@ Nothing needs configuring. The viewer finds the annotation itself, looking in th
 
 When a record has both, the copy in the manifest wins — a manifest generated at request time is the more current of the two. Only the first canvas is inspected, so a paged object with an annotation per page is left alone for now.
 
+The map tab is drawn flat, has no globe button, and can't be tilted. Allmaps paints the warped scan with its own WebGL rather than MapLibre's, and works out where to put it from the map's centre, its bearing, and a single units-per-pixel scale — a description of a flat, north-up map, and not of a sphere or a tilted one. On a globe the scan drifts as you zoom out: imperceptibly at the zoom you'd actually read a sheet at, and out by half again by zoom 3. Pitch is wrong the same way, by a quarter at 30° and more than double at 60°. Every other preview keeps the globe and the pitch.
+
 To build one by hand, the manifest resource takes the standalone annotation URL as its last argument, and works out the rest:
 
 ```javascript
