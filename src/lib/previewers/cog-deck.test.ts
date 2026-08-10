@@ -166,6 +166,14 @@ describe('DeckCogPreviewer', () => {
     expect(new CogPreviewer(new CogResource('id', COG_URL)).projection).toEqual('globe');
   });
 
+  // Only the globe is a problem here. Unlike Allmaps, deck.gl is handed the whole view state and draws
+  // a tilted map correctly, so asking for a pitch limit would take away something that works.
+  it('leaves the pitch alone, which it can be drawn under', () => {
+    const { previewer } = previewFor();
+
+    expect(previewer.maxPitch).toBeUndefined();
+  });
+
   describe('getBounds', () => {
     it("uses the record's bounding box without waiting on the GeoTIFF header", async () => {
       const declared: maplibregl.LngLatBoundsLike = [

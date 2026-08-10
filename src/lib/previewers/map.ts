@@ -15,11 +15,20 @@ export type MapProjection = 'globe' | 'mercator';
 export default abstract class MapPreviewer extends Previewer {
   readonly renderer = 'map' as const;
 
-  // The projection this preview needs. Globe reads better for anything worldwide, so it's the
-  // default and nearly everything keeps it - but deck.gl's tile layers have no bounding volume
-  // implemented for a globe view, and report an error for every frame they try to cull against one,
-  // so DeckCogPreviewer asks for a flat map rather than filling the console.
+  // The projection this preview needs. Globe reads better for anything worldwide, so it's the default
+  // and everything MapLibre draws itself keeps it. The two previews that paint with their own WebGL
+  // both ask for a flat map instead, for their own reasons: deck.gl's tile layers have no bounding
+  // volume implemented for a globe view and report an error every frame they try to cull against one,
+  // and Allmaps works its viewport out as though the map were flat. <ogm-map> hides the globe control
+  // for anything but 'globe', so a preview can't be put back into a projection it isn't drawn in.
   readonly projection: MapProjection = 'globe';
+
+  // How far this preview can be tilted, for the one that can't be tilted as far as MapLibre allows.
+  // Allmaps' viewport takes a bearing but no pitch, so a tilted map draws the warped scan at the wrong
+  // scale - out by a quarter at 30 degrees. deck.gl is handed the whole view state and needs nothing
+  // here. Left undefined otherwise, which is what MapLibre reads as its own default, so there is no
+  // limit of ours to keep in step with theirs.
+  readonly maxPitch?: number;
 
   // Only what every preview on a map needs, which is somewhere to point: not MapResource, because
   // not everything drawn on a map is a tile source. A georeferenced scan is a IIIF manifest with

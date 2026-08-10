@@ -15,6 +15,20 @@ import type { PreviewStyleLayer } from '../layers';
 export default class GeoreferencePreviewer extends MapPreviewer {
   declare protected resource: IIIFManifestResource;
 
+  // Allmaps ignores the projection matrix MapLibre hands a custom layer and works its own viewport
+  // out instead: the map's centre and bearing, and a single Web Mercator units-per-pixel scale taken
+  // from unprojecting the four viewport corners. That describes a flat, north-up map exactly and a
+  // sphere not at all. It goes unnoticed at the zooms a scan is read at, because MapLibre's globe has
+  // internally become mercator by then - measured against the true scale at the centre, the figure
+  // Allmaps derives is right to within 1% at zoom 8 and 5% at zoom 6 - but by zoom 3 it is out by
+  // half again, and the warped map slides off the globe. So this preview asks for the flat map it is
+  // actually drawn on, and <ogm-map> takes the globe control away with it.
+  readonly projection = 'mercator' as const;
+
+  // Tilting is the same mistake by another route, that viewport having no pitch either: out by a
+  // quarter at 30 degrees and more than double at 60. Nothing to fall back on, so it is held flat.
+  readonly maxPitch = 0;
+
   // The layer currently on the map. Kept because opacity and bounds are calls on this object, and
   // MapLibre's getLayer() hands back a wrapper of its own rather than what we added.
   protected layer: WarpedMapLayer | undefined;

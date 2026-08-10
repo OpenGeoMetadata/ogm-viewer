@@ -3,6 +3,7 @@ import maplibregl from 'maplibre-gl';
 
 import { closestAcrossShadows, findElement, getElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
+import GlobeControl from '../../lib/globe-control';
 import { themePreference, waScope, webAwesomeStylesheet } from '../../lib/init';
 import { dedupeFeatures } from '../../lib/features';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
@@ -39,6 +40,10 @@ export class OgmMap {
   @State() layersPanelOpen: boolean = false;
   protected layersControl: LayersControl;
   private layerState = new Map<string, LayerState>();
+
+  // Needs nothing to build, unlike the layers control, so it exists from the start and
+  // applyViewConstraints can reach for it without minding whether the map has its controls yet
+  protected globeControl = new GlobeControl();
 
   // Used to prevent trying to style layers before the map is ready
   private mapStyleLoaded: boolean = false;
@@ -84,7 +89,7 @@ export class OgmMap {
     // Style as a globe with atmosphere once style is loaded and set the flag
     this.map.on('style.load', () => {
       this.mapStyleLoaded = true;
-      this.applyProjection();
+      this.applyViewConstraints();
       this.map.setSky(this.mapTheme.getSkyStyle());
     });
 
@@ -122,7 +127,7 @@ export class OgmMap {
         container: this.getContainer(),
       }),
     );
-    this.map.addControl(new maplibregl.GlobeControl());
+    this.map.addControl(this.globeControl);
     this.map.addControl(
       new maplibregl.GeolocateControl({
         positionOptions: {
@@ -157,9 +162,9 @@ export class OgmMap {
     // Close popup if one is open
     this.destroyPopup();
 
-    // Applied here as well as on style.load, since which preview is attached is what decides it and
+    // Applied here as well as on style.load, since which preview is attached is what decides these and
     // that can change without the style document being rebuilt
-    this.applyProjection();
+    this.applyViewConstraints();
 
     try {
       // The style is only known now: it comes out of the theme, and the theme can change under a
@@ -211,12 +216,18 @@ export class OgmMap {
     this.previewError.emit(referenceError(error, this.previewer.label(), this.previewer.url));
   }
 
-  // Draw the map the way the current preview needs it drawn. A globe unless the preview can't be
-  // shown on one; see MapPreviewer.projection. The user can still reach for the globe control after
-  // this, which for a deck.gl preview is their own choice to make.
-  protected applyProjection() {
+  // Draw the map the way the current preview needs it drawn: on a globe unless the preview can't be
+  // shown on one, and tilted no further than it can be drawn tilted. See MapPreviewer.projection and
+  // maxPitch. The globe control goes with the projection, since a preview that needs a flat map would
+  // only be drawn wrong in whatever else that button could offer; the pitch needs no such handling,
+  // because setMaxPitch is what the drag gestures and the compass are already bounded by. Undefined is
+  // MapLibre's own default, so there's no limit of ours to keep in step with theirs.
+  protected applyViewConstraints() {
     if (!this.map) return;
-    this.map.setProjection({ type: this.previewer?.projection ?? 'globe' });
+    const projection = this.previewer?.projection ?? 'globe';
+    this.map.setProjection({ type: projection });
+    this.globeControl.setHidden(projection !== 'globe');
+    this.map.setMaxPitch(this.previewer?.maxPitch);
   }
 
   // Fit the map to the given bounds; resolve once the move finishes
