@@ -90,6 +90,12 @@ wa-scroller {
   inset: 0;
 }
 
+/* Web Awesome rounds a skeleton to a pill, which suits the word-sized ones it is usually made of and
+   reads as a lozenge at the size of a whole picture. This one stands in for a rectangle. */
+.pending::part(indicator) {
+  border-radius: 0;
+}
+
 /* Fits inside the frame above rather than deciding how big it is. The height has to repeat .content's
    240px rather than being 100% of it: the picture may be wrapped in a link, and a percentage height
    inside a box that is only as tall as its own contents resolves to no limit at all. */
