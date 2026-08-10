@@ -17,11 +17,16 @@ import type { RequestTransform } from '../../lib/request';
 })
 export class OgmPreviews {
   @Prop() theme: 'light' | 'dark' = themePreference();
-  @Prop() record: OgmRecord;
+  @Prop() record?: OgmRecord;
+  // Previews to show, for an application that builds its own rather than handing over a record - the
+  // tab strip is worth having either way. Takes the place of `record`, which is then not read at all.
+  // A DOM property, like `record`: neither survives being written as an attribute.
+  @Prop() previewers?: AnyPreviewer[];
   // Passed to resourcesFor() when building this record's previews; see Resource.requestTransform.
+  // Previewers handed over directly carry their own, by way of the resources they were built from.
   @Prop() requestTransform?: RequestTransform;
   @Prop() sidebarPadding: number;
-  @State() previewers: AnyPreviewer[] = [];
+  @State() private recordPreviewers: AnyPreviewer[] = [];
   @Event() previewsLoading: EventEmitter<void>;
   @Event() previewsLoaded: EventEmitter<void>;
 
@@ -29,6 +34,12 @@ export class OgmPreviews {
   // previews are still being worked out, and the answer that arrives last is not necessarily the
   // one still wanted.
   private pending = 0;
+
+  // Every preview to show, one per tab: the ones we were handed, or else the ones this record turned
+  // out to offer.
+  private get tabs(): AnyPreviewer[] {
+    return this.previewers ?? this.recordPreviewers;
+  }
 
   // @Watch only fires on changes, so the record we were rendered with is handled here. Returning
   // the promise makes Stencil hold the first render until the tabs are known, so the tab strip is
@@ -42,11 +53,12 @@ export class OgmPreviews {
     await this.buildPreviewers(record);
   }
 
-  // Every preview this record offers, one per tab
+  // Every preview this record offers, one per tab. Skipped entirely when previews were handed to us:
+  // there is nothing for a record to add, and the work would only be thrown away.
   private async buildPreviewers(record?: OgmRecord) {
     const build = ++this.pending;
-    if (!record) {
-      this.previewers = [];
+    if (!record || this.previewers) {
+      this.recordPreviewers = [];
       return;
     }
 
@@ -54,7 +66,7 @@ export class OgmPreviews {
     try {
       const previewers = await previewersForResources(resourcesFor(record, this.requestTransform));
       // A newer record started building while this one was waiting; that one's answer is the keeper
-      if (build === this.pending) this.previewers = previewers;
+      if (build === this.pending) this.recordPreviewers = previewers;
     } finally {
       // Always paired with the emit above, even when superseded: ogm-viewer counts these
       this.previewsLoaded.emit();
@@ -63,18 +75,19 @@ export class OgmPreviews {
 
   // Render as tabs for switching between previews
   render() {
-    if (!this.record || !this.previewers.length) return;
+    const tabs = this.tabs;
+    if (!tabs.length) return;
 
     return (
       <Host class={waScope(this.theme)}>
         <link rel="stylesheet" href={webAwesomeStylesheet()} />
         <wa-tab-group>
-          {this.previewers.map((previewer, idx) => (
+          {tabs.map((previewer, idx) => (
             <wa-tab key={idx} panel={previewer.previewId}>
               {previewer.label()}
             </wa-tab>
           ))}
-          {this.previewers.map((previewer, idx) => (
+          {tabs.map((previewer, idx) => (
             <wa-tab-panel key={idx} name={previewer.previewId} active={idx === 0}>
               <ogm-preview theme={this.theme} previewer={previewer} sidebar-padding={this.sidebarPadding}></ogm-preview>
             </wa-tab-panel>
