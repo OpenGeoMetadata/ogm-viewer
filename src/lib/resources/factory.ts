@@ -28,7 +28,10 @@ export function resourcesFor(record: OgmRecord, requestTransform?: RequestTransf
   const resources: Resource[] = [];
 
   if (references.iiifImageUrl) resources.push(new IIIFResource(id, references.iiifImageUrl, bounds, requestTransform));
-  if (references.iiifManifestUrl) resources.push(new IIIFManifestResource(id, references.iiifManifestUrl, bounds, requestTransform));
+  // A georeference annotation gets no resource of its own: on its own it draws nothing, being only
+  // a set of control points for an image held elsewhere. It goes to the manifest instead, which
+  // offers a second, map preview of itself when either source turns out to have one.
+  if (references.iiifManifestUrl) resources.push(new IIIFManifestResource(id, references.iiifManifestUrl, bounds, requestTransform, references.georeferenceUrl));
   if (references.pmtilesUrl) resources.push(new PMTilesResource(id, references.pmtilesUrl, bounds, requestTransform));
   if (references.tilejsonUrl) resources.push(new TileJsonResource(id, references.tilejsonUrl, bounds, requestTransform));
   if (references.indexMapUrl) resources.push(new OpenIndexMapResource(id, references.indexMapUrl, bounds, requestTransform));

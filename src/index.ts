@@ -35,6 +35,7 @@ export { default as VectorResource } from './lib/resources/vector';
 export { default as EsriResource, EXPORT_TILE_SIZE, type EsriRasterSourceSpec } from './lib/resources/esri';
 export { default as EsriMapServerResource } from './lib/resources/esri-map-server';
 export { default as IIIFResource } from './lib/resources/iiif';
+export { fetchGeoreferenceAnnotation, findGeoreferenceAnnotation, isGeoreferenceAnnotation, type GeoreferenceAnnotation } from './lib/resources/georeference';
 
 export { default as CogResource } from './lib/resources/cog';
 export { default as EsriDynamicMapLayerResource } from './lib/resources/esri-dynamic-map-layer';
@@ -61,7 +62,13 @@ export { default as InspectableRasterPreviewer } from './lib/previewers/inspecta
 export { default as EsriRasterPreviewer } from './lib/previewers/esri-raster';
 export { default as TiledVectorPreviewer } from './lib/previewers/tiled-vector';
 
+// The two previews the record-driven path loads on demand rather than bundling, because deck.gl and
+// Allmaps are large and most records need neither. Naming them here is a static import, so reach for
+// these when you are building a previewer by hand and know you want one - which is also the way to
+// get a COG with an Authorization header, since DeckCogPreviewer cannot carry one.
 export { default as CogPreviewer } from './lib/previewers/cog';
+export { default as DeckCogPreviewer } from './lib/previewers/cog-deck';
+export { default as GeoreferencePreviewer } from './lib/previewers/georeference';
 export { default as EsriDynamicMapLayerPreviewer } from './lib/previewers/esri-dynamic-map-layer';
 export { default as EsriFeatureLayerPreviewer } from './lib/previewers/esri-feature-layer';
 export { default as EsriImageMapLayerPreviewer } from './lib/previewers/esri-image-map-layer';

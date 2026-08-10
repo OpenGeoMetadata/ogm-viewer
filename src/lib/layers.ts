@@ -2,14 +2,13 @@ import type { LayerSpecification as MapLibreLayerSpecification } from 'maplibre-
 
 // A MapLibre style layer, one piece of a logical layer. Vector layers can have
 // multiple of these, e.g. to style fills, outlines, and labels separately.
-//
-// A preview drawn by something other than MapLibre - an Allmaps warped map, a deck.gl overlay -
-// goes on as a CustomLayerInterface, whose type is 'custom'. That isn't one of the types below, so
-// the union will have to widen for one, and such a layer paints itself rather than through
-// setPaintProperty, so its previewer overrides applyOpacity.
 export type PreviewStyleLayer = {
   id: string;
-  type: MapLibreLayerSpecification['type'];
+  // 'custom' is not one of MapLibre's style layer types: it's what a preview drawn by something
+  // else - an Allmaps warped map, a deck.gl overlay - reports. Such a layer paints itself with its
+  // own WebGL, so MapLibre has no paint property to set on it and rejects the ones a style layer
+  // would take. MapPreviewer.applyStyleLayerState is the seam those previewers override instead.
+  type: MapLibreLayerSpecification['type'] | 'custom';
   // "Internal" means it's a style layer that is created artificially, e.g. to
   // highlight a feature on the map, and thus shouldn't be listed in layer controls
   internal?: boolean;

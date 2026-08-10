@@ -111,6 +111,30 @@ const resource = new GeoJsonResource('my-layer', 'https://example.com/restricted
 
 The `requestTransform` will be applied to all requests made by the viewer for that resource, including metadata and tiles, as well as the requests for the MapLibre basemap.
 
+There are two exceptions, both because the library drawing them fetches its own tiles and offers no way in: a Cloud Optimized GeoTIFF drawn by `DeckCogPreviewer`, and the IIIF image tiles behind a georeferenced map. For a restricted COG, build a `CogPreviewer` by hand instead — it can carry headers, though only for one COG per page.
+
+### Georeferenced maps
+
+A scanned map with a [IIIF Georeference Annotation](https://iiif.io/api/extension/georef/) is previewable two ways: as an image to page through, and as a layer warped onto the earth. Both come from one `IIIFManifestResource`, so `<ogm-viewer>` shows them as two tabs, image first.
+
+Nothing needs configuring. The viewer finds the annotation itself, looking in this order:
+
+1. Inside the manifest, following the annotation pages a canvas links until it finds one.
+2. Failing that, a `dct_references_s` key of `https://iiif.io/api/extension/georef/1/context.json` pointing at a standalone annotation.
+
+When a record has both, the copy in the manifest wins — a manifest generated at request time is the more current of the two. Only the first canvas is inspected, so a paged object with an annotation per page is left alone for now.
+
+To build one by hand, the manifest resource takes the standalone annotation URL as its last argument, and works out the rest:
+
+```javascript
+import { GeoreferencePreviewer, IIIFManifestResource } from 'ogm-viewer/lib';
+
+const resource = new IIIFManifestResource('my-map', manifestUrl, undefined, undefined, annotationUrl);
+if (await resource.isGeoreferenced()) {
+  document.querySelector('ogm-preview').previewer = new GeoreferencePreviewer(resource);
+}
+```
+
 ### Components
 
 If you're building your own viewer, you can adopt `<ogm-viewer>`'s components individually.

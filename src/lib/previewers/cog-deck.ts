@@ -1,101 +1,148 @@
 import { MapboxOverlay as DeckOverlay } from '@deck.gl/mapbox';
 import { COGLayer } from '@developmentseed/deck.gl-geotiff';
 import { DecoderPool } from '@developmentseed/geotiff';
+import type { AddLayerObject, LngLatBoundsLike } from 'maplibre-gl';
 
-import Previewer from './previewer';
-import type MapResource from '../resources/map';
-import { type MapLibreStyle } from '../themes/maplibre';
+import MapPreviewer from './map';
+import type CogResource from '../resources/cog';
+import { isLayerDrawn, type LayerState, type PreviewStyleLayer } from '../layers';
+import type { MapLibreStyle } from '../themes/maplibre';
 
-// Deck.gl-based previewer for Cloud Optimized GeoTIFF (COG) sources
-// Can warp COGs on the fly; supports projections other than Web Mercator
-// NOTE: can't be built currently due to a bug; see:
-// https://github.com/OpenGeoMetadata/ogm-viewer/issues/100
-export default class DeckCogPreviewer extends Previewer {
-  readonly renderer = 'map' as const;
+// How long to wait for deck.gl to read the GeoTIFF's header when the record declared no bounding box
+// of its own. A COG that never answers must not leave the map spinning with nowhere to point.
+const HEADER_TIMEOUT = 10_000;
 
-  declare protected resource: MapResource;
+// Draws a Cloud Optimized GeoTIFF with deck.gl, which warps it on the fly - so unlike CogPreviewer
+// and the maplibre-cog-protocol it wraps, this one is not limited to COGs already in Web Mercator.
+//
+// Not a style layer: deck.gl draws through an overlay it adds to the map as a control, so there is
+// nothing for MapLibre to style and its own layer registry never learns the id. That is why both the
+// style layer type and applyStyleLayerState below are overridden - see MapPreviewer.
+export default class DeckCogPreviewer extends MapPreviewer {
+  declare protected resource: CogResource;
 
-  // Set by attach(), before anything is drawn; see MapPreviewer#attach
-  protected style: MapLibreStyle;
-  protected map: maplibregl.Map;
+  // deck.gl's TileLayer, which COGLayer draws through, has no getBoundingVolume for a globe view and
+  // logs an error every frame it tries to cull tiles against one. The COG still draws, but the
+  // console fills up, so this preview asks for the flat map it can actually be culled in.
+  readonly projection = 'mercator' as const;
 
-  // Store reference to the deck.gl overlay and the layer ID for cleanup
-  protected deckOverlay: DeckOverlay;
-  protected layerId: string | undefined = undefined;
+  // The overlay deck.gl draws into, shared with any other deck previewer on the same map
+  protected deckOverlay: DeckOverlay | undefined;
 
-  // Bounds so we don't recalculate them
-  protected bounds: maplibregl.LngLatBoundsLike | undefined;
+  // Built once and reused: recreating it on every opacity change would throw away the decoder
+  // workers along with it, and this layer is rebuilt on each of those.
+  protected decoderPool: DecoderPool | undefined;
 
-  // Current opacity state
-  protected opacity: number;
+  // What the user has asked for, held because deck.gl takes visibility and opacity as layer props,
+  // so changing either means handing it the layer again with the rest of the props unchanged.
+  // Distinct from MapPreviewer's own layerState memo, which is keyed by layer and private to it.
+  protected drawnState: LayerState | undefined;
 
-  // Bind to the map, and start out at the theme's opacity value
+  // Resolves with the COG's own extent once deck.gl has read its header
+  protected geotiffBoundsLoaded: Promise<LngLatBoundsLike | undefined> | undefined;
+  private resolveGeotiffBounds: (bounds: LngLatBoundsLike | undefined) => void = () => {};
+
   attach(map: maplibregl.Map, style: MapLibreStyle): this {
-    this.map = map;
-    this.style = style;
-    this.opacity = this.style.opacity;
+    super.attach(map, style);
     this.deckOverlay = this.getDeckOverlay();
+    this.decoderPool ??= this.createDecoderPool();
+    this.drawnState = { visible: true, opacity: style.opacity };
+    this.geotiffBoundsLoaded = new Promise(resolve => (this.resolveGeotiffBounds = resolve));
     return this;
   }
 
-  async preview(): Promise<void> {
-    if (!this.layerId) {
-      const layer = this.createLayer();
-      this.layerId = layer.id;
-      this.deckOverlay.setProps({ layers: [layer] });
-    }
+  // Nothing for MapLibre to fetch or draw: deck.gl requests the COG's tiles itself. Which also means
+  // they don't pass through MapLibre's transformRequest, and @developmentseed/geotiff exposes no hook
+  // of its own, so a COG behind authentication is not yet reachable by this previewer.
+  protected async createSources(): Promise<[]> {
+    return [];
   }
 
-  async clearPreview() {
-    if (this.layerId) {
-      this.deckOverlay.setProps({ layers: [] });
-      this.layerId = undefined;
-    }
+  // Registers the logical layer so the layers panel can offer it, but hands MapLibre no layer of its
+  // own - deck.gl's overlay is already on the map, and the layer goes to that instead.
+  protected async createLayers(): Promise<AddLayerObject[]> {
+    this.previewLayers.push({
+      id: this.getLayerId(),
+      title: this.resource.label(),
+      defaultOpacity: this.style.opacity,
+      styleLayers: [{ id: this.getLayerId(), type: 'custom' }],
+    });
+
+    return [];
   }
 
-  protected getSourceId(): string {
+  protected getLayerId(): string {
     return `${this.resource.id}-cog`;
   }
 
-  protected createLayer(): COGLayer {
+  async preview(): Promise<void> {
+    await super.preview();
+    this.drawDeckLayer();
+  }
+
+  async clearPreview() {
+    await super.clearPreview();
+    this.deckOverlay?.setProps({ layers: [] });
+  }
+
+  // MapLibre knows nothing about this layer, so the inherited version - which starts by looking it
+  // up in the style - would silently do nothing. deck.gl takes both as props instead.
+  protected applyStyleLayerState(_styleLayer: PreviewStyleLayer, state: LayerState) {
+    this.drawnState = state;
+    this.drawDeckLayer();
+  }
+
+  // Hand deck.gl the layer as it should now be drawn. Rebuilt rather than mutated because that is
+  // how deck.gl takes changes; it matches the layer by id and updates the props in place, so the
+  // tiles already decoded are kept rather than fetched again.
+  protected drawDeckLayer() {
+    if (!this.deckOverlay || !this.drawnState) return;
+    this.deckOverlay.setProps({ layers: [this.createDeckLayer(this.drawnState)] });
+  }
+
+  protected createDeckLayer(state: LayerState): COGLayer {
     return new COGLayer({
-      id: this.getSourceId(),
-      geotiff: this.resource.getMapLibreSourceUrl(),
+      id: this.getLayerId(),
+      // The bare URL, not getMapLibreSourceUrl(): that prefixes the cog:// scheme the
+      // maplibre-cog-protocol path needs, which deck.gl's GeoTIFF loader cannot open.
+      geotiff: this.resource.url,
+      visible: isLayerDrawn(state),
+      opacity: state.opacity,
       onGeoTIFFLoad: (_data, options) => {
         const { west, south, east, north } = options.geographicBounds;
-        this.bounds = [
+        this.resolveGeotiffBounds([
           [west, south],
           [east, north],
-        ];
+        ]);
       },
       parameters: { depthCompare: 'always', cullMode: 'back' },
-      // Disable the web worker decoder pool; this appears to cause errors because
-      // it can't find /worker.js?
-      // See: https://developmentseed.org/deck.gl-raster/api/geotiff/type-aliases/DecoderPoolOptions/
-      // See also: https://github.com/developmentseed/deck.gl-raster/issues/364
-      pool: new DecoderPool({
-        createWorker: undefined,
-      }),
+      pool: this.decoderPool,
     });
   }
 
-  // We get bounds for free from geoTIFF metadata
-  async getBounds() {
-    return this.bounds;
+  // Disable the web worker decoder pool; it appears to error because it can't find /worker.js.
+  // See: https://developmentseed.org/deck.gl-raster/api/geotiff/type-aliases/DecoderPoolOptions/
+  // See also: https://github.com/developmentseed/deck.gl-raster/issues/364
+  protected createDecoderPool(): DecoderPool {
+    return new DecoderPool({ createWorker: undefined });
   }
 
-  // Get the shared deck.gl overlay used to render this previewer
+  // The record's own bounding box when it has one, since that needs no waiting. Otherwise the COG's,
+  // which means waiting on deck.gl to read its header.
+  async getBounds(): Promise<LngLatBoundsLike | undefined> {
+    const declared = await super.getBounds();
+    if (declared) return declared;
+
+    const timeout = new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), HEADER_TIMEOUT));
+    return await Promise.race([this.geotiffBoundsLoaded ?? timeout, timeout]);
+  }
+
+  // The overlay every deck previewer on this map draws into. MapLibre offers no way to ask what
+  // controls it already has, so this reads the private list rather than adding a second overlay.
   protected getDeckOverlay(): DeckOverlay {
-    // No built-in way to query existing controls...
-    const overlay = this.map._controls.find(control => control instanceof DeckOverlay);
-    if (overlay) {
-      return overlay;
-    }
-    return this.createDeckOverlay();
-  }
+    const existing = this.map._controls.find(control => control instanceof DeckOverlay);
+    if (existing) return existing;
 
-  // Create a deck.gl overlay and add it to the map
-  protected createDeckOverlay(): DeckOverlay {
     const overlay = new DeckOverlay({ interleaved: true });
     this.map.addControl(overlay);
     return overlay;

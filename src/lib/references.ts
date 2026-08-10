@@ -7,6 +7,7 @@ export const REFERENCE_URIS = {
   'http://schema.org/url': 'Layer description',
   'http://iiif.io/api/image': 'IIIF image',
   'http://iiif.io/api/presentation#manifest': 'IIIF manifest',
+  'https://iiif.io/api/extension/georef/1/context.json': 'IIIF georeference annotation',
   'http://www.opengis.net/cat/csw/csdgm': 'FGDC metadata',
   'http://www.w3.org/1999/xhtml': 'HTML metadata',
   'http://www.isotc211.org/schemas/2005/gmd/': 'ISO 19139 metadata',
@@ -120,6 +121,13 @@ export class References {
     return this.references['http://iiif.io/api/presentation#manifest'];
   }
 
+  // A standalone IIIF Georeference Annotation, if the record points at one. A manifest can also
+  // carry its own annotation, and when both exist the manifest's is the canonical one - see
+  // IIIFManifestResource#getGeoreferenceAnnotation, which is what actually resolves the two.
+  get georeferenceUrl() {
+    return this.references['https://iiif.io/api/extension/georef/1/context.json'];
+  }
+
   // The ArcGIS DynamicMapLayer URL, if any
   get esriDynamicMapLayerUrl() {
     return this.references['urn:x-esri:serviceType:ArcGIS#DynamicMapLayer'];
@@ -206,7 +214,17 @@ export class References {
       this.esriFeatureLayerUrl,
       this.esriImageMapLayerUrl,
       this.esriTiledMapLayerUrl,
+      ...this.georeferenceReferences,
     ];
+  }
+
+  // A georeference annotation draws nothing on its own: it is a set of control points for an image
+  // held somewhere else, so it only makes a record map-previewable when there is also a IIIF
+  // reference for it to apply to. The other direction can't be answered here at all - a manifest
+  // that carries its own annotation and names no georef reference, which is what Stanford's
+  // runtime-generated manifests do, takes a fetch to discover, so IIIFManifestResource does it.
+  private get georeferenceReferences() {
+    return this.georeferenceUrl && this.iiifPreviewable ? [this.georeferenceUrl] : [];
   }
 
   // Get all IIIF references (image and manifest)
