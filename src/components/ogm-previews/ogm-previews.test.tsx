@@ -6,6 +6,11 @@ import { describe, it, expect, h, vi } from '@stencil/vitest';
 import { render as stencilRender } from '@stencil/core';
 
 import OgmRecord from '../../lib/record';
+import GeoJsonResource from '../../lib/resources/geojson';
+import OpenIndexMapResource from '../../lib/resources/openindexmap';
+import GeoJsonPreviewer from '../../lib/previewers/geojson';
+import OpenIndexMapPreviewer from '../../lib/previewers/openindexmap';
+import type { AnyPreviewer } from '../../lib/previewers/factory';
 
 // Build a minimal Aardvark record, optionally with a WMS reference that yields one previewable source
 const buildRecord = (previewable: boolean) =>
@@ -23,18 +28,26 @@ const buildRecord = (previewable: boolean) =>
       : {}),
   });
 
-const renderPreviews = async (record?: OgmRecord) => {
+const renderPreviews = async (record?: OgmRecord, previewers?: AnyPreviewer[]) => {
   const container = document.createElement('div');
   document.body.appendChild(container);
   // The mounted <ogm-map> logs a swallowed WebGL init error; keep test output clean
   const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-  await stencilRender(<ogm-previews record={record}></ogm-previews>, container);
+  await stencilRender(<ogm-previews record={record} previewers={previewers}></ogm-previews>, container);
   const el = container.firstElementChild as HTMLElement & { componentOnReady?: () => Promise<unknown> };
   await el.componentOnReady?.();
   await flush();
   consoleError.mockRestore();
   return el.shadowRoot as ShadowRoot;
 };
+
+// Previews built by hand rather than worked out from a record - and built in this test's own module
+// realm, not the one the components came from, which is exactly the position an application putting
+// this together itself is in. Nothing downstream may test a class, only the strings they agree on.
+const buildPreviewers = (): AnyPreviewer[] => [
+  new GeoJsonPreviewer(new GeoJsonResource('my-layer', 'https://example.com/data.json')),
+  new OpenIndexMapPreviewer(new OpenIndexMapResource('my-index', 'https://example.com/index.geojson')),
+];
 
 // Let Stencil's RAF-based update cycle flush so the nested <ogm-preview> renders its own shadow DOM.
 //
@@ -120,5 +133,33 @@ describe('ogm-previews', () => {
     expect(tabs.map(tab => tab.textContent?.trim())).toEqual(['IIIF Image', 'GeoJSON']);
     expect(tabs.map(tab => tab.getAttribute('panel'))).toEqual(panels.map(panel => panel.getAttribute('name')));
     expect(shadowRoot.querySelectorAll('ogm-preview')).toHaveLength(2);
+  });
+
+  // For an application that has the data already and doesn't want the record-driven path. The tab
+  // strip is worth having either way, and there is no record to work anything out from.
+  describe('previews handed over rather than worked out from a record', () => {
+    it('renders a tab and a panel for each, with no record at all', async () => {
+      const shadowRoot = await renderPreviews(undefined, buildPreviewers());
+
+      const tabs = Array.from(shadowRoot.querySelectorAll('wa-tab'));
+      const panels = Array.from(shadowRoot.querySelectorAll('wa-tab-panel'));
+
+      expect(tabs.map(tab => tab.textContent?.trim())).toEqual(['GeoJSON', 'Index Map']);
+      expect(tabs.map(tab => tab.getAttribute('panel'))).toEqual(panels.map(panel => panel.getAttribute('name')));
+      expect(shadowRoot.querySelectorAll('ogm-preview')).toHaveLength(2);
+    });
+
+    // They take the place of a record, rather than being added to whatever it offers
+    it('shows only these, even when a previewable record is there too', async () => {
+      const shadowRoot = await renderPreviews(buildRecord(true), buildPreviewers());
+
+      expect(Array.from(shadowRoot.querySelectorAll('wa-tab')).map(tab => tab.textContent?.trim())).toEqual(['GeoJSON', 'Index Map']);
+    });
+
+    it('renders nothing when handed an empty list', async () => {
+      const shadowRoot = await renderPreviews(undefined, []);
+
+      expect(shadowRoot.querySelector('wa-tab-group')).toBeNull();
+    });
   });
 });
