@@ -56,12 +56,25 @@ class FakeOverlay {
   }
 }
 
-// Substitutes the fake overlay for deck.gl's, leaving everything else the real previewer
+// Stands in for the open COG. Every read of it happens inside deck.gl, so the previewer only ever
+// hands it over - which is the whole of what these tests check about it.
+const FAKE_GEOTIFF = { crs: 'EPSG:4326' };
+
+// Substitutes the fake overlay for deck.gl's and the fake COG for a real read, leaving everything else
+// the real previewer
 class TestDeckCogPreviewer extends DeckCogPreviewer {
   overlay = new FakeOverlay();
+  opened: string[] = [];
+  refusal: Error | undefined;
 
   protected getDeckOverlay() {
     return this.overlay as never;
+  }
+
+  protected async loadGeoTIFF() {
+    if (this.refusal) throw this.refusal;
+    this.opened.push(this.resource.url);
+    return FAKE_GEOTIFF as never;
   }
 }
 
@@ -95,15 +108,36 @@ describe('DeckCogPreviewer', () => {
     expect(previewer.previewLayers[0].defaultOpacity).toEqual(0.8);
   });
 
-  // getMapLibreSourceUrl() prefixes the cog:// scheme that maplibre-cog-protocol registers, and
-  // deck.gl's GeoTIFF loader can't open a URL carrying it
-  it('hands deck.gl the bare URL rather than the cog:// one the protocol path needs', async () => {
+  // Handed a URL, deck.gl opens the COG with a plain fetch that no request transform can reach, which
+  // is what left a restricted COG undrawable by this previewer. It gets one already open instead.
+  it('hands deck.gl the open COG rather than a URL for it to fetch itself', async () => {
     const { previewer } = previewFor();
     await previewer.preview();
 
-    expect(previewer.overlay.lastLayers[0].props.geotiff).toEqual(COG_URL);
-    // The scheme the other COG previewer wants, which this one must not be handed
+    expect(previewer.overlay.lastLayers[0].props.geotiff).toBe(FAKE_GEOTIFF);
+    expect(previewer.opened).toEqual([COG_URL]);
+    // And never the cog:// scheme the other COG previewer wants, which deck.gl's loader cannot read
     expect(new CogResource('stanford-vq494qx9344', COG_URL).getMapLibreSourceUrl()).toEqual(`cog://${COG_URL}`);
+  });
+
+  // The header is read once. Rebuilding the layer for an opacity change must not read it again.
+  it('keeps the COG open across a layer rebuild', async () => {
+    const { previewer } = previewFor();
+    await previewer.preview();
+
+    previewer.applyLayerState(new Map([['stanford-vq494qx9344-cog', { visible: true, opacity: 0.25 }]]));
+
+    expect(previewer.opened).toEqual([COG_URL]);
+    expect(previewer.overlay.lastLayers[0].props.geotiff).toBe(FAKE_GEOTIFF);
+  });
+
+  // A COG that refuses to be read is a failed preview, so <ogm-preview> can say so - before this it
+  // was deck.gl's own problem and only turned up in the console
+  it('fails the preview when the COG cannot be read', async () => {
+    const { previewer } = previewFor();
+    previewer.refusal = new Error('Failed to HEAD scan.tif');
+
+    await expect(previewer.preview()).rejects.toThrow('Failed to HEAD scan.tif');
   });
 
   it('draws at the theme opacity to begin with', async () => {

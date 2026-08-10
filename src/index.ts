@@ -25,6 +25,10 @@ export { References, REFERENCE_URIS, type LabelledLinks, type ReferenceName, typ
 // `resourcesFor`, or to <ogm-viewer>'s `requestTransform` property.
 export { resolveRequest, type RequestResourceType, type RequestTransform, type TransformedRequest } from './lib/request';
 
+// How a COG is read, so that a restricted one reaches deck.gl with whatever the transform asks for.
+// Only needed if you are opening a COG yourself; DeckCogPreviewer does this for you.
+export { openGeoTIFF, TransformedGeoTIFFSource } from './lib/geotiff';
+
 // What a record's references point at. `resourcesFor` is the record-driven path; the classes are
 // there for when you already know what you have.
 export { resourcesFor } from './lib/resources/factory';
