@@ -212,6 +212,4 @@ git tag vX.Y.Z # replace with your new version number
 git push origin vX.Y.Z
 ```
 
-The `Release` workflow checks that the tag and `package.json` agree, lints, tests, publishes to npm, and drafts the GitHub release with generated notes. It authenticates with npm over OIDC rather than a stored token, so the package needs [trusted publishing](https://docs.npmjs.com/trusted-publishers) configured on npmjs.com, naming this repository and `.github/workflows/release.yml`.
-
-Note that this is a `0.x` package, so `^` won't cross a minor version. Consumers should pin exactly.
+The `Release` workflow checks that the tag and `package.json` agree, lints, tests, publishes to npm, and drafts the GitHub release with generated notes. It authenticates with npm over OIDC using [trusted publishing](https://docs.npmjs.com/trusted-publishers).

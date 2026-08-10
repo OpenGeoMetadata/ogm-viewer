@@ -35,14 +35,25 @@ const SHEET = sheet({
   download: 'https://collections.lib.uwm.edu/digital/download/collection/agdm/id/4878/size/full',
 });
 
+// A second sheet with a picture of its own, for paging between two of them
+const SHEET_WITH_PICTURE = sheet({
+  label: 'SB 25',
+  title: 'San Jose',
+  websiteUrl: 'https://collections.lib.uwm.edu/digital/collection/agdm/id/4950/',
+  thumbUrl: 'https://collections.lib.uwm.edu/digital/api/singleitem/image/agdm/4950/default.jpg',
+});
+
 const rows = (root: HTMLElement) =>
   Array.from((root.shadowRoot as ShadowRoot).querySelectorAll('tbody tr')).map(tr => Array.from(tr.querySelectorAll('td')).map(td => td.textContent));
 
 const shadow = (root: HTMLElement) => root.shadowRoot as ShadowRoot;
-const pagers = (root: HTMLElement) => Array.from(shadow(root).querySelectorAll<HTMLElement>('.pagination wa-button'));
+const pagers = (root: HTMLElement) => Array.from(shadow(root).querySelectorAll<HTMLElement>('.header .page'));
 const count = (root: HTMLElement) => shadow(root).querySelector('.count')?.textContent;
+const title = (root: HTMLElement) => shadow(root).querySelector('.title')?.textContent;
 const keys = (root: HTMLElement) => Array.from(shadow(root).querySelectorAll('tbody .key')).map(td => td.textContent);
 const image = (root: HTMLElement) => shadow(root).querySelector('img.thumbnail');
+const swap = (root: HTMLElement) => shadow(root).querySelector<HTMLElement>('.header .swap');
+const swapIcon = (root: HTMLElement) => swap(root)?.querySelector('wa-icon')?.getAttribute('name');
 
 // The one link in the row named by the given key, if it has one
 const cellLink = (root: HTMLElement, key: string) => {
@@ -147,12 +158,24 @@ describe('ogm-attributes', () => {
       const { root, waitForChanges } = await render(<ogm-attributes features={UNLABELED}></ogm-attributes>);
 
       expect(pagers(root)).toHaveLength(2);
-      expect(shadow(root).querySelector('.label')).toBeNull();
+      expect(title(root)).toEqual('');
 
       await page(root, waitForChanges, 'next');
 
       expect(count(root)).toEqual('(2/2)');
       expect(rows(root)).toEqual([['recId', 'am002176']]);
+    });
+
+    // The bug this row exists to avoid: while the title lived in the table's own header, a long one
+    // widened the table past the room it had and pushed the paging button out of the popup. A row
+    // above the content has the popup's whole width to shrink the title inside.
+    it('keeps the title and the paging out of the table they describe', async () => {
+      const { root } = await render(<ogm-attributes features={SHEETS}></ogm-attributes>);
+
+      expect(shadow(root).querySelector('.header')).not.toBeNull();
+      expect(shadow(root).querySelector('thead')).toBeNull();
+      expect(shadow(root).querySelector('table .header, table .title')).toBeNull();
+      expect(shadow(root).querySelector('wa-scroller .header')).toBeNull();
     });
   });
 
@@ -161,36 +184,139 @@ describe('ogm-attributes', () => {
   describe('describing an index map sheet', () => {
     afterEach(() => vi.restoreAllMocks());
 
-    const renderSheet = (features: MapGeoJSONFeature[]) => render(<ogm-attributes kind="openindexmap" features={features}></ogm-attributes>);
+    const renderSheet = async (features: MapGeoJSONFeature[]) => {
+      const rendered = await render(<ogm-attributes kind="openindexmap" features={features}></ogm-attributes>);
+      // The picture is settled before any of these look, so nothing is asserted against a half-decided view
+      await settle(rendered.waitForChanges);
+      return rendered;
+    };
 
-    it('names the properties the way the spec does rather than showing their keys', async () => {
-      const { root } = await renderSheet([SHEET]);
-
-      expect(keys(root)).toEqual(['Sheet', 'Title', 'Digital holdings', 'Call number', 'Web link', 'Download']);
-    });
-
-    it('gives the properties that are always a link something to read instead of a URL', async () => {
-      const { root } = await renderSheet([SHEET]);
-
-      expect(cellLink(root, 'Web link')).toEqual({ text: 'View this map', href: SHEET.properties.websiteUrl });
-      expect(cellLink(root, 'Download')).toEqual({ text: 'Download this map', href: SHEET.properties.download });
-    });
-
-    // digHold is a link here but the spec lets it be a plain note, so it goes through the same
-    // autolinking as any other value - which is why its text is the URL and the promoted ones' isn't
-    it('leaves a property that is only sometimes a link to the autolinker', async () => {
-      const { root } = await renderSheet([SHEET]);
-
-      expect(cellLink(root, 'Digital holdings')?.href).toEqual(SHEET.properties.digHold);
-      expect(cellLink(root, 'Digital holdings')?.text).not.toEqual('View this map');
-    });
-
-    it('shows a picture of the sheet, pointed where the sheet points', async () => {
-      const { root, waitForChanges } = await renderSheet([SHEET]);
+    // Reach the properties the way a reader does
+    const showProperties = async (root: HTMLElement, waitForChanges: () => Promise<void>) => {
+      swap(root)?.click();
       await waitForChanges();
+    };
 
-      expect(image(root)?.getAttribute('src')).toEqual(SHEET.properties.thumbUrl);
-      expect(shadow(root).querySelector('a.thumbnail-link')?.getAttribute('href')).toEqual(SHEET.properties.websiteUrl);
+    describe('the properties', () => {
+      it('names them the way the spec does rather than showing their keys', async () => {
+        const { root, waitForChanges } = await renderSheet([SHEET]);
+        await showProperties(root, waitForChanges);
+
+        expect(keys(root)).toEqual(['Sheet', 'Title', 'Digital holdings', 'Call number', 'Web link', 'Download']);
+      });
+
+      it('gives the ones that are always a link something to read instead of a URL', async () => {
+        const { root, waitForChanges } = await renderSheet([SHEET]);
+        await showProperties(root, waitForChanges);
+
+        expect(cellLink(root, 'Web link')).toEqual({ text: 'View this map', href: SHEET.properties.websiteUrl });
+        expect(cellLink(root, 'Download')).toEqual({ text: 'Download this map', href: SHEET.properties.download });
+      });
+
+      // digHold is a link here but the spec lets it be a plain note, so it goes through the same
+      // autolinking as any other value - which is why its text is the URL and the promoted ones' isn't
+      it('leaves one that is only sometimes a link to the autolinker', async () => {
+        const { root, waitForChanges } = await renderSheet([SHEET]);
+        await showProperties(root, waitForChanges);
+
+        expect(cellLink(root, 'Digital holdings')?.href).toEqual(SHEET.properties.digHold);
+        expect(cellLink(root, 'Digital holdings')?.text).not.toEqual('View this map');
+      });
+    });
+
+    // The picture is what you want when deciding which sheet you're after, so it's what a sheet opens
+    // on - the properties are a button away. Both share the popup rather than crowding into it.
+    describe('choosing between the picture and the properties', () => {
+      it('opens on the picture, pointed where the sheet points', async () => {
+        const { root } = await renderSheet([SHEET]);
+
+        expect(image(root)?.getAttribute('src')).toEqual(SHEET.properties.thumbUrl);
+        expect(shadow(root).querySelector('a.thumbnail-link')?.getAttribute('href')).toEqual(SHEET.properties.websiteUrl);
+        expect(shadow(root).querySelector('table')).toBeNull();
+      });
+
+      it('shows one or the other, never both', async () => {
+        const { root, waitForChanges } = await renderSheet([SHEET]);
+        expect(shadow(root).querySelector('table')).toBeNull();
+
+        await showProperties(root, waitForChanges);
+
+        expect(image(root)).toBeNull();
+        expect(shadow(root).querySelector('table')).not.toBeNull();
+      });
+
+      it('offers the way back, and the button says which way that is', async () => {
+        const { root, waitForChanges } = await renderSheet([SHEET]);
+        expect(swapIcon(root)).toEqual('card-list');
+
+        await showProperties(root, waitForChanges);
+        expect(swapIcon(root)).toEqual('image');
+
+        await showProperties(root, waitForChanges);
+        expect(image(root)).not.toBeNull();
+      });
+
+      // A reader comparing sheets shouldn't have to ask for the properties again on every one of them
+      it('keeps the choice when paging to the next sheet', async () => {
+        const { root, waitForChanges } = await renderSheet([SHEET, SHEET_WITH_PICTURE]);
+        await showProperties(root, waitForChanges);
+
+        await page(root, waitForChanges, 'next');
+        await settle(waitForChanges);
+
+        expect(keys(root)).toEqual(['Sheet', 'Title', 'Web link']);
+        expect(image(root)).toBeNull();
+      });
+
+      // A new click is a fresh question, so it starts where a sheet starts
+      it('goes back to the picture for a new set of features', async () => {
+        const { root, waitForChanges } = await renderSheet([SHEET]);
+        await showProperties(root, waitForChanges);
+
+        (root as unknown as { features: MapGeoJSONFeature[] }).features = [SHEET_WITH_PICTURE];
+        await settle(waitForChanges);
+
+        expect(image(root)?.getAttribute('src')).toEqual(SHEET_WITH_PICTURE.properties.thumbUrl);
+      });
+
+      it('shows the properties, and no swap, for a sheet with no picture at all', async () => {
+        const { root } = await renderSheet([sheet({ label: 'SB 25' })]);
+
+        expect(image(root)).toBeNull();
+        expect(swap(root)).toBeNull();
+        expect(keys(root)).toEqual(['Sheet']);
+      });
+
+      it('falls back to the properties when the picture it expected turns out not to exist', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        vi.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 403, statusText: 'Forbidden' } as unknown as Response);
+
+        const { root } = await renderSheet([sheet({ label: 'SHEET 3', iiifUrl: 'https://purl.stanford.edu/kh108fv7858/iiif/manifest' })]);
+
+        expect(image(root)).toBeNull();
+        expect(swap(root)).toBeNull();
+        expect(keys(root)).toEqual(['Sheet', 'IIIF manifest']);
+      });
+
+      // Rather than showing the properties and swapping them out from under the reader once the
+      // manifest answers. Whether there is a picture to wait for is known from the sheet itself.
+      it('waits on a picture it knows is coming rather than showing the properties first', async () => {
+        vi.spyOn(global, 'fetch').mockReturnValue(new Promise(() => {}) as Promise<Response>);
+
+        const { root } = await renderSheet([sheet({ label: 'SHEET 3', iiifUrl: 'https://purl.stanford.edu/kh108fv7858/iiif/manifest' })]);
+
+        expect(shadow(root).querySelector('wa-spinner')).not.toBeNull();
+        expect(shadow(root).querySelector('table')).toBeNull();
+      });
+
+      it('paints the sheet a page away without waiting on its picture', async () => {
+        const { root, waitForChanges } = await renderSheet([SHEET, SHEET_WITH_PICTURE]);
+
+        await page(root, waitForChanges, 'next');
+
+        expect(title(root)).toEqual('San Jose');
+        expect(count(root)).toEqual('(2/2)');
+      });
     });
 
     // Which is how Stanford's index maps carry a picture: an iiifUrl per sheet and no thumbUrl anywhere
@@ -199,43 +325,21 @@ describe('ogm-attributes', () => {
       const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 200, json: async () => ({ thumbnail: { '@id': thumbnail } }) } as unknown as Response);
       const iiifUrl = 'https://purl.stanford.edu/kh108fv7858/iiif/manifest';
 
-      const { root, waitForChanges } = await renderSheet([sheet({ label: 'SHEET 3', iiifUrl })]);
-      await settle(waitForChanges);
+      const { root } = await renderSheet([sheet({ label: 'SHEET 3', iiifUrl })]);
 
       expect(fetchSpy.mock.calls[0][0]).toEqual(iiifUrl);
       expect(image(root)?.getAttribute('src')).toEqual(thumbnail);
-    });
-
-    // The table is worth showing before the picture has arrived, so the first paint has one and not
-    // the other
-    it('shows the properties without waiting for the picture', async () => {
-      vi.spyOn(global, 'fetch').mockReturnValue(new Promise(() => {}) as Promise<Response>);
-
-      const { root } = await renderSheet([sheet({ label: 'SHEET 3', iiifUrl: 'https://purl.stanford.edu/kh108fv7858/iiif/manifest' })]);
-
-      expect(keys(root)).toEqual(['Sheet', 'IIIF manifest']);
-      expect(image(root)).toBeNull();
-    });
-
-    it('drops the picture when paged to a sheet that has none', async () => {
-      const { root, waitForChanges } = await renderSheet([SHEET, sheet({ label: 'SB 25' })]);
-      await waitForChanges();
-      expect(image(root)).not.toBeNull();
-
-      await page(root, waitForChanges, 'next');
-      await settle(waitForChanges);
-
-      expect(image(root)).toBeNull();
     });
 
     // The same sheet, from a plain GeoJSON layer or a GetFeatureInfo response: nothing tells us those
     // keys mean what the spec says they mean, and thumbUrl is just another column
     it('leaves a feature from anything else as a table of its own keys', async () => {
       const { root, waitForChanges } = await render(<ogm-attributes features={[SHEET]}></ogm-attributes>);
-      await waitForChanges();
+      await settle(waitForChanges);
 
       expect(keys(root)).toEqual(['label', 'title', 'instCallNo', 'digHold', 'websiteUrl', 'thumbUrl', 'download']);
       expect(image(root)).toBeNull();
+      expect(swap(root)).toBeNull();
     });
   });
 });

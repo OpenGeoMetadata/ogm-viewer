@@ -95,6 +95,12 @@ const isEmpty = (value: unknown): boolean => value === null || value === undefin
 // Where a click on the sheet's thumbnail goes: the same place its Web link row points.
 export const sheetWebsite = (properties: SheetProperties): string | undefined => httpUrl(properties?.websiteUrl);
 
+// Whether the sheet claims a picture at all, answered from its properties alone. sheetThumbnail may
+// have to read a manifest before it can hand one over, and the popup has to know which of the picture
+// and the properties to open on before that comes back - otherwise it opens on the properties and
+// swaps itself out from under the reader a moment later.
+export const sheetHasImage = (properties: SheetProperties): boolean => Boolean(httpUrl(properties?.thumbUrl) || httpUrl(properties?.iiifUrl));
+
 // Describe a sheet for display: the spec's properties first, named and in reading order, then
 // whatever else the index map carries, under its own keys - every index map has a few columns of its
 // own, and dropping them would hide the only copy of them anyone gets to see.

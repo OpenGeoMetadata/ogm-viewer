@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
 
-import { describeSheet, sheetThumbnail, sheetWebsite } from './openindexmap';
+import { describeSheet, sheetHasImage, sheetThumbnail, sheetWebsite } from './openindexmap';
 import type { RequestTransform } from './request';
 
 // One sheet of the American Geographical Society's Millionth Map, as GeoBlacklight's own fixture
@@ -136,6 +136,27 @@ describe('sheetWebsite', () => {
 
   it('is nowhere when the sheet only has a placeholder', () => {
     expect(sheetWebsite(UNHELD_SHEET)).toBeUndefined();
+  });
+});
+
+// Answered without asking anyone, so the popup knows which of the picture and the properties to open
+// on before a manifest read could have come back
+describe('sheetHasImage', () => {
+  it('is true for a sheet with a thumbnail of its own', () => {
+    expect(sheetHasImage(MILLIONTH_MAP)).toBe(true);
+  });
+
+  it('is true for a sheet with only a manifest to read one out of', () => {
+    expect(sheetHasImage({ label: 'SHEET 3', iiifUrl: 'https://purl.stanford.edu/kh108fv7858/iiif/manifest' })).toBe(true);
+  });
+
+  it('is false for a sheet with neither', () => {
+    expect(sheetHasImage({ label: 'SB 25' })).toBe(false);
+  });
+
+  // The same placeholders that must never become a link must never be waited on for a picture either
+  it('is false for a sheet whose placeholders were never URLs', () => {
+    expect(sheetHasImage(UNHELD_SHEET)).toBe(false);
   });
 });
 
