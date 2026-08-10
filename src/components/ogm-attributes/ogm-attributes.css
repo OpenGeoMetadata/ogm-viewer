@@ -1,8 +1,8 @@
 /* Drawn inside a MapLibre popup, which ogm-map caps at 400px wide and which has almost no height to
    spare: MapLibre puts a popup above or below the point it names, so anything taller than the room on
    one side of the click has nowhere to go, and an embedded map is often only 400px tall to begin with.
-   So the title and its controls take a row across the top, and below them exactly one of the sheet's
-   picture and its properties - swapped by a button rather than shown together. */
+   So the title and the paging take a row across the top, and below them exactly one of the sheet's
+   picture and its properties - swapped by a button over the corner of them rather than shown together. */
 :host {
   display: flex;
   flex-direction: column;
@@ -43,6 +43,25 @@ wa-scroller {
   max-height: 240px;
 }
 
+/* Only here to give the swap button something to be positioned against, so that it lands on the
+   corner of the content and not of the popup */
+.body {
+  position: relative;
+}
+
+.swap {
+  position: absolute;
+  top: 0.25em;
+  right: 0.25em;
+  z-index: 1;
+}
+
+/* A feature with nothing to call it and no stack to page through gets no header, which puts the top
+   of the content where MapLibre draws its own close button. Move over far enough to clear it. */
+.body:first-child .swap {
+  right: 1.75em;
+}
+
 .content {
   display: flex;
   align-items: center;
@@ -58,7 +77,7 @@ wa-scroller {
 .thumbnail {
   display: block;
   max-width: 100%;
-  max-height: 240px;
+  max-height: 200px;
   width: auto;
   height: auto;
   object-fit: contain;

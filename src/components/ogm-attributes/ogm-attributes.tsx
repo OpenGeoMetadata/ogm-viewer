@@ -100,19 +100,21 @@ export class OgmAttributes {
     return (
       <Host>
         {this.renderHeader(feature)}
-        {this.showingImage ? this.renderImage(feature) : this.renderProperties(feature)}
+        <div class="body">
+          {this.showingImage ? this.renderImage(feature) : this.renderProperties(feature)}
+          {this.renderSwap()}
+        </div>
       </Host>
     );
   }
 
-  // A row of its own across the top of the popup, holding everything that isn't the content: what the
-  // feature is called, where it sits in a stack of them, and which of its two views to show. It gets
-  // the popup's full width, which is what keeps a long title from squeezing the paging out of it.
+  // A row of its own across the top of the popup: what the feature is called and where it sits in a
+  // stack of them. It gets the popup's full width, which is what keeps a long title from squeezing
+  // the paging out of it.
   private renderHeader(feature: MapGeoJSONFeature) {
     const multiple = this.features.length > 1;
     const title = getFeatureTitle(feature);
-    const swappable = !!this.thumbnail;
-    if (!multiple && !title && !swappable) return;
+    if (!multiple && !title) return;
 
     return (
       <div class="header">
@@ -133,16 +135,23 @@ export class OgmAttributes {
             <wa-icon name="arrow-right" label="Next feature" canvas="auto"></wa-icon>
           </wa-button>
         )}
-        {swappable && (
-          <wa-button class="swap" size="xs" appearance="plain" onClick={() => (this.showProperties = !this.showProperties)}>
-            <wa-icon
-              name={this.showProperties ? 'image' : 'card-list'}
-              label={this.showProperties ? 'Show the picture of this sheet' : 'Show this sheet’s details'}
-              canvas="auto"
-            ></wa-icon>
-          </wa-button>
-        )}
       </div>
+    );
+  }
+
+  // Which of the sheet's two views to show, over the content rather than in the header: it is easier
+  // to find in the corner of the thing it acts on, and out of the header the title has the middle of
+  // the row to itself. Filled and outlined so it stays legible over whatever the picture happens to
+  // be, the same way <ogm-image>'s controls are. The title is the tooltip; the icon's label is the
+  // accessible name, which the button's own content takes precedence for.
+  private renderSwap() {
+    if (!this.thumbnail) return;
+    const describe = this.showProperties ? 'Show the picture of this sheet' : 'Show this sheet’s details';
+
+    return (
+      <wa-button class="swap" size="xs" appearance="filled-outlined" pill title={describe} onClick={() => (this.showProperties = !this.showProperties)}>
+        <wa-icon name={this.showProperties ? 'image' : 'card-list'} label={describe} canvas="auto"></wa-icon>
+      </wa-button>
     );
   }
 
