@@ -134,13 +134,6 @@ export class OgmMap {
       }),
     );
     this.map.addControl(this.globeControl);
-    this.map.addControl(
-      new maplibregl.GeolocateControl({
-        positionOptions: {
-          enableHighAccuracy: true,
-        },
-      }),
-    );
   }
 
   @Watch('previewer')
