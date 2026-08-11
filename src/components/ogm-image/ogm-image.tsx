@@ -8,6 +8,7 @@ import { getElement, findElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
 import { themePreference, waScope, webAwesomeStylesheet } from '../../lib/init';
 import type ImagePreviewer from '../../lib/previewers/image';
+import Theme from '../../lib/themes/theme';
 
 @Component({
   tag: 'ogm-image',
@@ -26,13 +27,20 @@ export class OgmImage {
   // OpenSeadragon viewer instance
   private viewer: Viewer;
 
+  // Where the gap left around a scan comes from, the same place a map's comes from
+  private imageTheme: Theme;
+
   // Guards against reporting more than one error per load attempt
   private errorReported: boolean = false;
 
   // Set up OpenSeadragon viewer on load
   async componentDidLoad() {
+    this.imageTheme = new Theme(this.el, this.theme);
     this.viewer = new Viewer({
       element: getElement(this.el, '#openseadragon'),
+      // Given to the viewer rather than set afterwards: OpenSeadragon works out where "home" is from
+      // the margins in place when an image opens, and setMargins() doesn't refit one already open.
+      viewportMargins: this.margins(),
       prefixUrl: 'https://cdnjs.cloudflare.com/ajax/libs/openseadragon/2.4.2/images/',
       visibilityRatio: 1,
       sequenceMode: true,
@@ -73,12 +81,22 @@ export class OgmImage {
 
   @Watch('padding')
   async onPaddingChange() {
+    if (!this.viewer) return;
+
     // Move the filmstrip if there is one
     const filmstrip = findElement(this.el, '.referencestrip');
     if (filmstrip) filmstrip.style.setProperty('margin-left', `${this.padding}px`);
 
     // Move the viewer viewport
-    return await this.viewer.viewport.setMargins({ left: this.padding });
+    return this.viewer.viewport.setMargins(this.margins());
+  }
+
+  // The room to leave around a scan: the theme's gap on every edge, and on the left whatever the
+  // sidebar is covering as well. All four edges every time, because OpenSeadragon replaces the whole
+  // set with what it's given rather than merging it, so a margin left out is a margin set to zero.
+  private margins() {
+    const padding = this.imageTheme.getPadding();
+    return { top: padding, bottom: padding, right: padding, left: padding + this.padding };
   }
 
   // Draw the current preview into the viewer. Reading a manifest is a fetch, so this is where a

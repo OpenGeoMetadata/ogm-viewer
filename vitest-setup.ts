@@ -24,6 +24,7 @@ if (!HTMLElement.prototype.attachInternals) {
 // the wa-* elements the component imports for itself, which do get upgraded here.
 import './dist/components/ogm-alerts.js';
 import './dist/components/ogm-attributes.js';
+import './dist/components/ogm-image.js';
 import './dist/components/ogm-layers.js';
 import './dist/components/ogm-map.js';
 import './dist/components/ogm-menubar.js';

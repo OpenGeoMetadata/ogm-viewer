@@ -4,7 +4,6 @@ import Theme from './theme';
 
 export type MapLibreStyle = {
   // Generic properties used for all data
-  padding: string;
   opacity: number;
   // CSS colors used for polygons & circles
   fillColor: string;
@@ -61,7 +60,6 @@ export default class MapLibreTheme extends Theme {
    */
   getStyle(): MapLibreStyle {
     return {
-      padding: this.readCssProperty('--ogm-padding') || this.readCssProperty('--wa-space-xl'),
       opacity: this.readCssNumber('--ogm-fill-opacity', 0.8),
       fillColor: this.themedColor('--ogm-fill-color', '--wa-color-blue-50', '--wa-color-blue-80'),
       fillHighlightColor: this.themedColor('--ogm-fill-highlight-color', '--wa-color-cyan-60', '--wa-color-cyan-80'),

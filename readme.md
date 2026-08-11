@@ -84,7 +84,7 @@ Here are the supported properties and what they apply to:
 | `--ogm-fill-opacity`           | Initial opacity of drawn data                        |
 | `--ogm-fill-highlight-opacity` | Opacity of a highlighted feature                     |
 | `--ogm-bounds-opacity`         | Initial opacity of a bounding box or index map       |
-| `--ogm-padding`                | Gap kept between the data and the map edge (pixels)  |
+| `--ogm-padding`                | Gap kept between the data and the view edge (pixels) |
 
 By default, the viewer uses styles from [Web Awesome](https://webawesome.com/) that match the current mode (dark or light). Anything you override will be used in both modes.
 
