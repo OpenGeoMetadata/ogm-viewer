@@ -20,6 +20,23 @@ const feature = {
 // Enough of a MapLibre map for a selection to be drawn on, and to be taken down afterwards
 const fakeMap = () => ({ setFeatureState: vi.fn(), remove: vi.fn() });
 
+// Enough of one to fit bounds on: it can work out a camera for them, it can be moved, and it reports
+// the move as having finished, which is what fitMapBounds waits for before resolving.
+const fittableMap = () => ({
+  cameraForBounds: vi.fn(() => ({ center: [0, 0], zoom: 4 })),
+  fitBounds: vi.fn(),
+  easeTo: vi.fn(),
+  once: vi.fn((_event: string, listener: () => void) => listener()),
+  remove: vi.fn(),
+});
+
+const bounds = [
+  [0, 0],
+  [1, 1],
+];
+
+const fitTo = (el: HTMLElement, mapBounds: number[][]) => (el as unknown as { fitMapBounds: (bounds: number[][]) => Promise<void> }).fitMapBounds(mapBounds);
+
 const containers: HTMLElement[] = [];
 let consoleError: ReturnType<typeof vi.spyOn>;
 
@@ -85,6 +102,30 @@ describe('ogm-map', () => {
     selectInOwnPopup(el);
 
     expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  // Left to itself MapLibre fits bounds to the very edges of the canvas, which puts a record's own
+  // edges - an index map's outermost sheets, a bounding box's corners - half off the map
+  it('keeps the theme’s gap between the bounds it fits and the edge of the map', async () => {
+    const { el } = await renderMap();
+    el.style.setProperty('--ogm-padding', '50');
+    Object.assign(el, { map: fittableMap() });
+
+    await fitTo(el, bounds);
+
+    expect((el as unknown as { map: ReturnType<typeof fittableMap> }).map.fitBounds).toHaveBeenCalledWith(bounds, { padding: 50 });
+  });
+
+  // What the sidebar covers is the map's own padding, which MapLibre already takes off the space it
+  // fits into. Asking for it here as well would fit the preview into a viewport that much narrower.
+  it('leaves the room the sidebar takes out of what it asks for', async () => {
+    const { el } = await renderMap();
+    el.style.setProperty('--ogm-padding', '50');
+    Object.assign(el, { map: fittableMap(), padding: 400 });
+
+    await fitTo(el, bounds);
+
+    expect((el as unknown as { map: ReturnType<typeof fittableMap> }).map.fitBounds).toHaveBeenCalledWith(bounds, { padding: 50 });
   });
 
   // The popup is built by hand rather than rendered, so it outlives the component's own markup

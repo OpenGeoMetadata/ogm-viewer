@@ -231,16 +231,21 @@ export class OgmMap {
 
   // Fit the map to the given bounds; resolve once the move finishes
   async fitMapBounds(bounds: maplibregl.LngLatBoundsLike) {
-    if (!this.map.cameraForBounds(bounds)) return;
+    // The theme's gap, on all four edges, so a record's own edges read as edges instead of running
+    // off the canvas. Only the theme's: what the sidebar covers is the map's own padding (see
+    // onPaddingChange), and MapLibre already takes that off the space it fits bounds into.
+    const padding = this.mapTheme.getPadding();
+    if (!this.map.cameraForBounds(bounds, { padding })) return;
     return new Promise<void>(resolve => {
       this.map.once('moveend', () => resolve());
-      this.map.fitBounds(bounds);
+      this.map.fitBounds(bounds, { padding });
     });
   }
 
   // When padding is changed, move the map over to make room for the sidebar
   @Watch('padding')
   async onPaddingChange() {
+    if (!this.map) return;
     return await this.easeMapTo({ padding: { left: this.padding } });
   }
 

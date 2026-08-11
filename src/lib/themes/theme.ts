@@ -1,5 +1,13 @@
-// Extracts style values from the DOM/CSS for use in previewers
-export default abstract class Theme {
+// How much room to leave around a preview when nothing names an amount, in CSS pixels. A number
+// rather than a Web Awesome token, unlike the colors: `--wa-space-xl` computes to `calc(1 * 2rem)`,
+// and what reads this wants a pixel count to hand a camera, not a length to resolve. 32 is what
+// that token comes out to at the default space scale.
+const defaultPadding = 32;
+
+// Extracts style values from the DOM/CSS for use in previewers. Usable on its own, for a renderer
+// that wants nothing beyond what every renderer reads: <ogm-image> only needs the padding, and
+// OpenSeadragon has no style document of its own for a subclass to describe.
+export default class Theme {
   protected element: Element;
 
   // Which way the component drawing this was told to render, if it was told. Mutable because a
@@ -12,8 +20,12 @@ export default abstract class Theme {
     this.theme = theme;
   }
 
-  // Returns style properties for this theme
-  abstract getStyle(): Record<string, any>;
+  // How much room to leave between what a preview draws and the edge of the view, in CSS pixels.
+  // Read by whatever points the view - a map fitting a record's bounds, an image viewer fitting a
+  // scan - so that a preview's own edges can be seen as edges rather than running off the view.
+  getPadding(): number {
+    return this.readCssNumber('--ogm-padding', defaultPadding);
+  }
 
   // Check if we're in dark mode. The component's own answer wins: `color-scheme` comes from the Web
   // Awesome stylesheet, which is linked into a shadow root and so may not have loaded by the time a
