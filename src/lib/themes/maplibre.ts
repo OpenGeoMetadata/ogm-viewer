@@ -23,6 +23,10 @@ export type MapLibreStyle = {
   textSize: number;
   // Opacity for highlighted polygons/circles
   fillHighlightOpacity: number;
+  // Initial opacity for a preview that says where a record is rather than showing its data: a
+  // bounding box, or an index map's sheet boundaries. Below `opacity`, because neither is what a
+  // reader came to look at, and both would otherwise cover the basemap they're being placed against.
+  boundsOpacity: number;
 };
 
 // URLs to MapLibre style documents for basemaps
@@ -72,6 +76,7 @@ export default class MapLibreTheme extends Theme {
       textFont: this.readCssProperty('--ogm-font-family') || defaultGlyphFont,
       textSize: this.readCssNumber('--ogm-text-size', 14),
       fillHighlightOpacity: this.readCssNumber('--ogm-fill-highlight-opacity', 0.8),
+      boundsOpacity: this.readCssNumber('--ogm-bounds-opacity', 0.5),
     };
   }
 

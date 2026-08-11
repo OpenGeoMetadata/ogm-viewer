@@ -59,6 +59,9 @@ const style = {
   textFont: 'Noto Sans Regular',
   textSize: 12,
   fillHighlightOpacity: 0.8,
+  // Distinct from opacity for the same reason the colors are distinct from each other: an index map
+  // drawn at the wrong one of the two has to show up as a mismatch
+  boundsOpacity: 0.5,
 } as MapLibreStyle;
 
 const GEOJSON_URL = 'https://example.com/index-map.json';
@@ -334,5 +337,57 @@ describe('OpenIndexMapPreviewer#preview', () => {
     const { map } = await previewIndexMap();
 
     expect([...map.layers.keys()]).toEqual(SUFFIXES.map(suffix => `princeton-fk4544658v-geojson-indexmap-${suffix}`));
+  });
+});
+
+const INDEX_ROW_ID = 'princeton-fk4544658v-geojson-indexmap';
+const indexLayerId = (suffix: string) => `${INDEX_ROW_ID}-${suffix}`;
+
+// An index map's polygons are sheet boundaries: where to find the scans rather than data anyone came
+// to read, and they tile the whole extent, so drawn at the strength of real geometry there is no
+// basemap left to place them against. It gets the theme's opacity for bounds instead, the same one a
+// bounding box gets.
+describe('OpenIndexMapPreviewer#opacity', () => {
+  it('starts fainter than a GeoJSON document of the same shape', async () => {
+    const { previewer } = await previewIndexMap();
+    const { previewer: geojson } = await previewGeoJson();
+
+    expect(previewer.previewLayers[0].defaultOpacity).toEqual(style.boundsOpacity);
+    expect(geojson.previewLayers[0].defaultOpacity).toEqual(style.opacity);
+    expect(style.boundsOpacity).toBeLessThan(style.opacity);
+  });
+
+  // Authored at that opacity, not merely defaulted to it. ogm-map applies the resolved layer state as
+  // soon as the preview is on the map, so a row authored at one opacity and defaulted to another is
+  // drawn at full strength and then immediately redrawn fainter.
+  it('authors every style layer at the opacity its slider starts from', async () => {
+    const { map } = await previewIndexMap();
+    const faded = ['case', SELECTED, 1, style.boundsOpacity];
+
+    expect(map.layers.get(indexLayerId('polygons')).paint['fill-opacity']).toEqual(faded);
+    expect(map.layers.get(indexLayerId('points')).paint['circle-opacity']).toEqual(faded);
+    expect(map.layers.get(indexLayerId('points')).paint['circle-stroke-opacity']).toEqual(style.boundsOpacity);
+    ['polygon-outlines', 'lines'].forEach(suffix => expect(map.layers.get(indexLayerId(suffix)).paint['line-opacity']).toEqual(style.boundsOpacity));
+    ['polygon-labels', 'line-labels', 'point-labels'].forEach(suffix => expect(map.layers.get(indexLayerId(suffix)).paint['text-opacity']).toEqual(style.boundsOpacity));
+  });
+
+  it('reproduces the authored paint exactly at its own default, so re-applying is a no-op', async () => {
+    const { map, previewer } = await previewIndexMap();
+    const authored = SUFFIXES.map(suffix => structuredClone(map.layers.get(indexLayerId(suffix)).paint));
+
+    previewer.applyLayerState(new Map([[INDEX_ROW_ID, { visible: true, opacity: style.boundsOpacity }]]));
+
+    SUFFIXES.forEach((suffix, index) => expect(map.layers.get(indexLayerId(suffix)).paint).toEqual(authored[index]));
+  });
+
+  // The lower start is where the row begins, not a ceiling on it: someone who wants to read the
+  // sheet boundaries closely can still bring them all the way up.
+  it('still takes any opacity the reader asks for', async () => {
+    const { map, previewer } = await previewIndexMap();
+
+    previewer.applyLayerState(new Map([[INDEX_ROW_ID, { visible: true, opacity: 1 }]]));
+
+    expect(map.layers.get(indexLayerId('polygons')).paint['fill-opacity']).toEqual(['case', SELECTED, 1, 1]);
+    expect(map.layers.get(indexLayerId('polygon-labels')).paint['text-opacity']).toEqual(1);
   });
 });

@@ -10,6 +10,11 @@ type AddGeoJsonSourceObject = GeoJSONSourceSpecification & { id: string };
 // How much of the layer's opacity the fill gets. The outline is what says where the record is; the
 // fill is there so a small extent is still findable on a busy basemap, and at full strength it would
 // read as data drawn over the map rather than a note about it.
+//
+// Deliberately not themed. This is the relationship between the two style layers that draw one
+// extent, not a value an embedding app has a reason to name: setting it to 1 would flatten the frame
+// back into data, which is the one thing this previewer exists to avoid. How faint the extent starts
+// out overall is a separate question, and that one is themed - see --ogm-bounds-opacity.
 const FILL_OPACITY = 0.2;
 
 /**
@@ -48,10 +53,13 @@ export default class LocationPreviewer extends MapPreviewer {
     // One row in the layer panel, not two: an outline and the wash inside it are how an extent is
     // drawn, not two things a reader chose to put on the map. Listed at all so it can be turned off
     // - it may be the only thing up, but it is also the only thing in the way of the basemap.
+    //
+    // Starts fainter than drawn data would. An extent is a statement about where to look, not
+    // something anyone came to read, so it has less claim on the basemap than geometry does.
     this.previewLayers.push({
       id: this.getSourceId(),
       title: this.resource.label(),
-      defaultOpacity: this.style.opacity,
+      defaultOpacity: this.style.boundsOpacity,
       styleLayers: layers.map(layer => ({ id: layer.id, type: layer.type }) as PreviewStyleLayer),
     });
 
@@ -73,7 +81,7 @@ export default class LocationPreviewer extends MapPreviewer {
       layout: { visibility: 'visible' as const },
       paint: {
         'fill-color': this.style.fillColor,
-        'fill-opacity': this.style.opacity * FILL_OPACITY,
+        'fill-opacity': this.style.boundsOpacity * FILL_OPACITY,
       },
     };
   }
@@ -87,7 +95,7 @@ export default class LocationPreviewer extends MapPreviewer {
       paint: {
         'line-color': this.style.strokeColor,
         'line-width': 2,
-        'line-opacity': this.style.opacity,
+        'line-opacity': this.style.boundsOpacity,
       },
     };
   }

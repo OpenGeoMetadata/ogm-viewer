@@ -67,11 +67,23 @@ describe('MapLibreTheme', () => {
     it('reads an override', () => {
       expect(themed('light', { '--ogm-text-size': '18' }).getStyle().textSize).toBe(18);
       expect(themed('light', { '--ogm-fill-opacity': '0.35' }).getStyle().opacity).toBe(0.35);
+      expect(themed('light', { '--ogm-bounds-opacity': '0.2' }).getStyle().boundsOpacity).toBe(0.2);
     });
 
     it('keeps the default when the property is unset or unparseable', () => {
       expect(themed('light').getStyle().textSize).toBe(14);
       expect(themed('light', { '--ogm-text-size': 'large' }).getStyle().textSize).toBe(14);
+    });
+
+    // A bounding box and an index map say where a record is; they aren't the thing a reader came to
+    // look at, so they start below whatever drawn data starts at. Asserted as a relationship rather
+    // than as two constants: the point is the ordering, and either default can be retuned.
+    it('starts bounds fainter than data by default, and separately from it', () => {
+      const { opacity, boundsOpacity } = themed('light').getStyle();
+
+      expect(boundsOpacity).toBeLessThan(opacity);
+      // Not derived from it either - raising one leaves the other where the theme put it
+      expect(themed('light', { '--ogm-fill-opacity': '1' }).getStyle().boundsOpacity).toBe(boundsOpacity);
     });
   });
 
