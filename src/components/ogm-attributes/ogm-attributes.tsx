@@ -6,6 +6,9 @@ import '@awesome.me/webawesome/dist/components/button/button.js';
 import '@awesome.me/webawesome/dist/components/icon/icon.js';
 import '@awesome.me/webawesome/dist/components/scroller/scroller.js';
 import '@awesome.me/webawesome/dist/components/skeleton/skeleton.js';
+import '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
+import '@awesome.me/webawesome/dist/components/tab-panel/tab-panel.js';
+import '@awesome.me/webawesome/dist/components/tab/tab.js';
 
 import { getFeatureTitle } from '../../lib/features';
 import { describeSheet, sheetHasImage, sheetThumbnail, sheetWebsite } from '../../lib/openindexmap';
@@ -13,6 +16,13 @@ import type { RequestTransform } from '../../lib/request';
 import type { ResourceKind } from '../../lib/resources/resource';
 
 const autolink = (text: string) => Autolinker.link(text, { hashtag: false, mention: false, phone: false });
+
+// The two views a sheet has, which are also the names of their tabs
+type SheetTab = 'image' | 'attributes';
+
+// What wa-tab-group announces a switch with. It is a plain Event carrying a detail rather than a
+// CustomEvent, so its shape has to be named here.
+type TabShowEvent = Event & { detail: { name: string } };
 
 @Component({
   tag: 'ogm-attributes',
@@ -37,10 +47,10 @@ export class OgmAttributes {
   // the download is the longer half of the wait for a sheet that carries a thumbUrl - so the
   // placeholder stays up until the picture can actually be seen.
   @State() private painted = false;
-  // Set by the button in the header: the reader asked for the properties instead of the picture. Kept
-  // across paging, so a reader comparing sheets doesn't have to ask again for every one of them, and
-  // reset when a new click brings a new set of features.
-  @State() private showProperties = false;
+  // Which of a sheet's two views the reader is looking at. Kept across paging, so a reader comparing
+  // sheets doesn't have to ask for the same one again on every one of them, and reset when a new
+  // click brings a new set of features.
+  @State() private tab: SheetTab = 'image';
 
   // Which feature's thumbnail is wanted. Paging is faster than fetching a manifest, so this both
   // keeps a late answer from painting over a newer one and keeps the same feature from being asked
@@ -55,7 +65,7 @@ export class OgmAttributes {
   @Watch('features')
   onFeaturesChange() {
     this.currentIndex = 0;
-    this.showProperties = false;
+    this.tab = 'image';
     this.loadThumbnail();
   }
 
@@ -90,10 +100,11 @@ export class OgmAttributes {
     return this.kind === 'openindexmap' && !!feature && sheetHasImage(feature.properties);
   }
 
-  // The picture is what's shown, unless the reader asked for the properties or the sheet turned out
-  // not to have one after all
-  private get showingImage(): boolean {
-    if (this.showProperties || !this.expectsImage) return false;
+  // Whether there is a picture to offer: one that has arrived, or one the sheet named that hasn't
+  // yet. Answered without waiting where it can be, so the tab strip is there from the first paint
+  // rather than arriving with the manifest and moving the popup under the reader.
+  private get hasPicture(): boolean {
+    if (!this.expectsImage) return false;
     return !this.searched || !!this.thumbnail;
   }
 
@@ -101,14 +112,12 @@ export class OgmAttributes {
     if (this.features.length === 0) return null;
 
     const feature = this.features[this.currentIndex];
+    const header = this.renderHeader(feature);
 
     return (
       <Host>
-        {this.renderHeader(feature)}
-        <div class="body">
-          {this.showingImage ? this.renderImage(feature) : this.renderProperties(feature)}
-          {this.renderSwap()}
-        </div>
+        {header}
+        {this.hasPicture ? this.renderTabs(feature, !header) : this.renderProperties(feature)}
       </Host>
     );
   }
@@ -144,19 +153,28 @@ export class OgmAttributes {
     );
   }
 
-  // Which of the sheet's two views to show, over the content rather than in the header: it is easier
-  // to find in the corner of the thing it acts on, and out of the header the title has the middle of
-  // the row to itself. Filled and outlined so it stays legible over whatever the picture happens to
-  // be, the same way <ogm-image>'s controls are. The title is the tooltip; the icon's label is the
-  // accessible name, which the button's own content takes precedence for.
-  private renderSwap() {
-    if (!this.thumbnail) return;
-    const describe = this.showProperties ? 'Show the picture of this sheet' : 'Show this sheet’s details';
-
+  // The sheet's picture and its properties, a tab each. There is only ever room in the popup for one
+  // of them, and a tab strip is how this viewer already says that - <ogm-previews> gives a record's
+  // previews the same treatment. Only drawn when there is a picture to offer: a strip of one tab
+  // over the properties is a label, not a choice.
+  //
+  // wa-tab-group tracks the showing tab itself and would happily be left to it, but then the choice
+  // would also survive a new click, which is a fresh question. Driving it from our own state instead
+  // keeps both that reset and the deliberate carrying-over across paging in one place.
+  private renderTabs(feature: MapGeoJSONFeature, topmost: boolean) {
     return (
-      <wa-button class="swap" size="xs" appearance="filled-outlined" pill title={describe} onClick={() => (this.showProperties = !this.showProperties)}>
-        <wa-icon name={this.showProperties ? 'image' : 'card-list'} label={describe} canvas="auto"></wa-icon>
-      </wa-button>
+      <wa-tab-group class={{ topmost }} active={this.tab} on-wa-tab-show={(event: TabShowEvent) => (this.tab = event.detail.name as SheetTab)}>
+        <wa-tab panel="image">Image</wa-tab>
+        <wa-tab panel="attributes">Attributes</wa-tab>
+        {/* Also set here, not just on the group: the group settles which panel is showing once it is
+            on screen, and until then this is what decides. */}
+        <wa-tab-panel name="image" active={this.tab === 'image'}>
+          {this.renderImage(feature)}
+        </wa-tab-panel>
+        <wa-tab-panel name="attributes" active={this.tab === 'attributes'}>
+          {this.renderProperties(feature)}
+        </wa-tab-panel>
+      </wa-tab-group>
     );
   }
 
@@ -185,7 +203,7 @@ export class OgmAttributes {
   }
 
   // The sheet named a picture and the picture isn't there. Same end as a sheet that named none at
-  // all: showingImage falls through to the properties, and the swap button goes with the thumbnail.
+  // all: hasPicture goes false, so the tab strip goes and the properties have the popup.
   private giveUpOnPicture() {
     this.thumbnail = undefined;
     this.painted = false;

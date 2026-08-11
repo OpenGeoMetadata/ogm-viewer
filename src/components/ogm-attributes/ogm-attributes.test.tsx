@@ -52,8 +52,14 @@ const count = (root: HTMLElement) => shadow(root).querySelector('.count')?.textC
 const title = (root: HTMLElement) => shadow(root).querySelector('.title')?.textContent;
 const keys = (root: HTMLElement) => Array.from(shadow(root).querySelectorAll('tbody .key')).map(td => td.textContent);
 const image = (root: HTMLElement) => shadow(root).querySelector('img.thumbnail');
-const swap = (root: HTMLElement) => shadow(root).querySelector<HTMLElement>('.swap');
-const swapIcon = (root: HTMLElement) => swap(root)?.querySelector('wa-icon')?.getAttribute('name');
+const tabs = (root: HTMLElement) => Array.from(shadow(root).querySelectorAll<HTMLElement>('wa-tab'));
+
+// Which view the popup is showing. Both panels are in the document at once - that is what a tab group
+// is - so what a reader can see is the one marked active, not the one that exists.
+const showing = (root: HTMLElement) =>
+  Array.from(shadow(root).querySelectorAll<HTMLElement & { active: boolean }>('wa-tab-panel'))
+    .filter(panel => panel.active)
+    .map(panel => panel.getAttribute('name'));
 
 // The one link in the row named by the given key, if it has one
 const cellLink = (root: HTMLElement, key: string) => {
@@ -67,6 +73,18 @@ const cellLink = (root: HTMLElement, key: string) => {
 const settle = async (waitForChanges: () => Promise<void>) => {
   await waitForChanges();
   await waitForChanges();
+};
+
+// Ask for one of the two views, as a reader's click on its tab would. It has to be the tab group's
+// own `active` rather than an actual click: happy-dom doesn't carry an event on a slotted child into
+// the shadow tree that slots it, and wa-tab-group listens for the click inside its own, so a click
+// lands nowhere (probed, not assumed). Everything downstream of that is real - wa-tab-group's
+// setActiveTab, the wa-tab-show it emits, and the state here that listens for it. The click itself is
+// Web Awesome's to get right, and is checked in a browser instead.
+const show = async (root: HTMLElement, view: 'image' | 'attributes', waitForChanges: () => Promise<void>) => {
+  const group = shadow(root).querySelector<HTMLElement & { active: string }>('wa-tab-group');
+  if (group) group.active = view;
+  await settle(waitForChanges);
 };
 
 const page = async (root: HTMLElement, waitForChanges: () => Promise<void>, direction: 'previous' | 'next') => {
@@ -191,11 +209,7 @@ describe('ogm-attributes', () => {
       return rendered;
     };
 
-    // Reach the properties the way a reader does
-    const showProperties = async (root: HTMLElement, waitForChanges: () => Promise<void>) => {
-      swap(root)?.click();
-      await waitForChanges();
-    };
+    const showProperties = (root: HTMLElement, waitForChanges: () => Promise<void>) => show(root, 'attributes', waitForChanges);
 
     describe('the properties', () => {
       it('names them the way the spec does rather than showing their keys', async () => {
@@ -225,49 +239,68 @@ describe('ogm-attributes', () => {
     });
 
     // The picture is what you want when deciding which sheet you're after, so it's what a sheet opens
-    // on - the properties are a button away. Both share the popup rather than crowding into it.
+    // on - the properties are a tab away. Both share the popup rather than crowding into it.
     describe('choosing between the picture and the properties', () => {
       it('opens on the picture, pointed where the sheet points', async () => {
         const { root } = await renderSheet([SHEET]);
 
+        expect(showing(root)).toEqual(['image']);
         expect(image(root)?.getAttribute('src')).toEqual(SHEET.properties.thumbUrl);
         expect(shadow(root).querySelector('a.thumbnail-link')?.getAttribute('href')).toEqual(SHEET.properties.websiteUrl);
-        expect(shadow(root).querySelector('table')).toBeNull();
       });
 
+      // Both panels are in the document from the start, which is what a tab group is for - it means
+      // coming back to the picture doesn't fetch it again. Only one of them is ever on screen.
       it('shows one or the other, never both', async () => {
         const { root, waitForChanges } = await renderSheet([SHEET]);
-        expect(shadow(root).querySelector('table')).toBeNull();
+        expect(showing(root)).toEqual(['image']);
 
         await showProperties(root, waitForChanges);
 
-        expect(image(root)).toBeNull();
+        expect(showing(root)).toEqual(['attributes']);
         expect(shadow(root).querySelector('table')).not.toBeNull();
       });
 
-      it('offers the way back, and the button says which way that is', async () => {
+      it('says what each of the two views is, and goes back to the picture when asked', async () => {
         const { root, waitForChanges } = await renderSheet([SHEET]);
-        expect(swapIcon(root)).toEqual('card-list');
+        expect(tabs(root).map(tab => tab.textContent)).toEqual(['Image', 'Attributes']);
 
         await showProperties(root, waitForChanges);
-        expect(swapIcon(root)).toEqual('image');
+        expect(showing(root)).toEqual(['attributes']);
 
-        await showProperties(root, waitForChanges);
-        expect(image(root)).not.toBeNull();
+        await show(root, 'image', waitForChanges);
+
+        expect(showing(root)).toEqual(['image']);
       });
 
-      // On the corner of the thing it acts on rather than in the header, where it is easier to find
-      // and where it leaves the title the middle of the row. An icon alone doesn't say what it does.
-      it('floats over the content, and names what it will do on hover', async () => {
-        const { root, waitForChanges } = await renderSheet([SHEET]);
+      // A strip of its own under the header, the same shape <ogm-previews> uses to switch between a
+      // record's previews - not a button over the corner of the picture, which reads as part of it
+      it('offers the two views as tabs, in a row of their own', async () => {
+        const { root } = await renderSheet([SHEET]);
 
-        expect(shadow(root).querySelector('.header .swap')).toBeNull();
-        expect(shadow(root).querySelector('.body > .swap')).not.toBeNull();
-        expect(swap(root)?.title).toEqual('Show this sheet’s details');
+        expect(shadow(root).querySelector('.header wa-tab-group')).toBeNull();
+        expect(shadow(root).querySelector('wa-tab-group')?.parentNode).toBe(shadow(root));
+        expect(tabs(root).map(tab => tab.getAttribute('panel'))).toEqual(['image', 'attributes']);
+      });
 
-        await showProperties(root, waitForChanges);
+      // With nothing to call it and no stack to page through there is no header, and the strip lands
+      // where MapLibre draws its own close button - measured over the last 20px of the second tab.
+      // The stylesheet is told which case this is because it can't tell: a :first-child test picks up
+      // the <style> element Stencil puts in the shadow root of a dev build.
+      it('keeps clear of the close button when it is the top of the popup', async () => {
+        const nameless = sheet({ recId: 'am002175', thumbUrl: SHEET.properties.thumbUrl });
 
-        expect(swap(root)?.title).toEqual('Show the picture of this sheet');
+        const { root } = await renderSheet([nameless]);
+
+        expect(shadow(root).querySelector('.header')).toBeNull();
+        expect(shadow(root).querySelector('wa-tab-group')?.classList.contains('topmost')).toBe(true);
+      });
+
+      it('takes the whole row when a header is already clearing the close button', async () => {
+        const { root } = await renderSheet([SHEET]);
+
+        expect(shadow(root).querySelector('.header')).not.toBeNull();
+        expect(shadow(root).querySelector('wa-tab-group')?.classList.contains('topmost')).toBe(false);
       });
 
       // A reader comparing sheets shouldn't have to ask for the properties again on every one of them
@@ -279,7 +312,7 @@ describe('ogm-attributes', () => {
         await settle(waitForChanges);
 
         expect(keys(root)).toEqual(['Sheet', 'Title', 'Web link']);
-        expect(image(root)).toBeNull();
+        expect(showing(root)).toEqual(['attributes']);
       });
 
       // A new click is a fresh question, so it starts where a sheet starts
@@ -290,14 +323,16 @@ describe('ogm-attributes', () => {
         (root as unknown as { features: MapGeoJSONFeature[] }).features = [SHEET_WITH_PICTURE];
         await settle(waitForChanges);
 
+        expect(showing(root)).toEqual(['image']);
         expect(image(root)?.getAttribute('src')).toEqual(SHEET_WITH_PICTURE.properties.thumbUrl);
       });
 
-      it('shows the properties, and no swap, for a sheet with no picture at all', async () => {
+      // A strip of one tab is a label, not a choice
+      it('shows the properties, and no tabs, for a sheet with no picture at all', async () => {
         const { root } = await renderSheet([sheet({ label: 'SB 25' })]);
 
         expect(image(root)).toBeNull();
-        expect(swap(root)).toBeNull();
+        expect(shadow(root).querySelector('wa-tab-group')).toBeNull();
         expect(keys(root)).toEqual(['Sheet']);
       });
 
@@ -308,7 +343,7 @@ describe('ogm-attributes', () => {
         const { root } = await renderSheet([sheet({ label: 'SHEET 3', iiifUrl: 'https://purl.stanford.edu/kh108fv7858/iiif/manifest' })]);
 
         expect(image(root)).toBeNull();
-        expect(swap(root)).toBeNull();
+        expect(shadow(root).querySelector('wa-tab-group')).toBeNull();
         expect(keys(root)).toEqual(['Sheet', 'IIIF manifest']);
       });
 
@@ -320,7 +355,7 @@ describe('ogm-attributes', () => {
         const { root } = await renderSheet([sheet({ label: 'SHEET 3', iiifUrl: 'https://purl.stanford.edu/kh108fv7858/iiif/manifest' })]);
 
         expect(shadow(root).querySelector('wa-skeleton')).not.toBeNull();
-        expect(shadow(root).querySelector('table')).toBeNull();
+        expect(showing(root)).toEqual(['image']);
       });
 
       // Knowing where a picture is isn't having it, and for a sheet carrying its own thumbUrl the
@@ -349,7 +384,7 @@ describe('ogm-attributes', () => {
         await waitForChanges();
 
         expect(image(root)).toBeNull();
-        expect(swap(root)).toBeNull();
+        expect(shadow(root).querySelector('wa-tab-group')).toBeNull();
         expect(keys(root)).toEqual(['Sheet', 'Title', 'Digital holdings', 'Call number', 'Web link', 'Download']);
       });
 
@@ -383,7 +418,7 @@ describe('ogm-attributes', () => {
 
       expect(keys(root)).toEqual(['label', 'title', 'instCallNo', 'digHold', 'websiteUrl', 'thumbUrl', 'download']);
       expect(image(root)).toBeNull();
-      expect(swap(root)).toBeNull();
+      expect(shadow(root).querySelector('wa-tab-group')).toBeNull();
     });
   });
 });
