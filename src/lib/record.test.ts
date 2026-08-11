@@ -166,6 +166,24 @@ describe('OgmRecord', () => {
       });
       expect(record.getBounds()).toEqual(new LngLatBounds([-20, -1], [-15, -5]));
     });
+
+    // A record whose extent crosses the date line writes its west edge east of its east edge. The
+    // camera is framed on these bounds, so read literally they would point it at the rest of the
+    // world - a map of the Bering Strait fitted to the Atlantic.
+    it('should carry the east edge past 180 for a bbox that crosses the antimeridian', () => {
+      const record = new OgmRecord({
+        id: '1',
+        dct_title_s: 'Test Record',
+        gbl_resourceClass_sm: ['Datasets'],
+        dct_accessRights_s: 'Public',
+        dcat_bbox: 'ENVELOPE(153.533333,-142.033333,71.416667,50.733333)',
+        gbl_mdVersion_s: 'Aardvark',
+      });
+
+      const bounds = record.getBounds()!;
+      expect(bounds.getWest()).toEqual(153.533333);
+      expect(bounds.getEast()).toBeCloseTo(217.966667, 6);
+    });
   });
 
   describe('restricted', () => {
@@ -255,6 +273,33 @@ describe('OgmRecord', () => {
             [-15, -5],
             [-20, -5],
             [-20, -1],
+          ],
+        ],
+      });
+    });
+
+    // Same crossing box, drawn rather than framed. This is the shape a reader is shown when nothing
+    // the record points at can go on a map, so getting it the wrong way round tells them the record
+    // covers everywhere it doesn't.
+    it('should return GeoJSON that crosses the antimeridian in one piece', () => {
+      const record = new OgmRecord({
+        id: '2',
+        dct_title_s: 'Test Record Crossing the Date Line',
+        gbl_resourceClass_sm: ['Datasets'],
+        dct_accessRights_s: 'Public',
+        dcat_bbox: 'ENVELOPE(170,-170,10,-10)',
+        gbl_mdVersion_s: 'Aardvark',
+      });
+
+      expect(record.getGeometry()).toEqual({
+        type: 'Polygon',
+        coordinates: [
+          [
+            [170, -10],
+            [190, -10],
+            [190, 10],
+            [170, 10],
+            [170, -10],
           ],
         ],
       });
