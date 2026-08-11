@@ -25,6 +25,7 @@ if (!HTMLElement.prototype.attachInternals) {
 import './dist/components/ogm-alerts.js';
 import './dist/components/ogm-attributes.js';
 import './dist/components/ogm-layers.js';
+import './dist/components/ogm-map.js';
 import './dist/components/ogm-menubar.js';
 import './dist/components/ogm-metadata.js';
 import './dist/components/ogm-preview.js';

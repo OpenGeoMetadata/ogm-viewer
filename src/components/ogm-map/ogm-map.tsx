@@ -99,8 +99,12 @@ export class OgmMap {
     this.attributesEl.features = [];
   }
 
-  // Clean up the map to prevent warnings/errors when removed from the DOM
+  // Clean up the map to prevent warnings/errors when removed from the DOM. The popup comes down
+  // first: MapLibre closes it for us on the way out, and closing it ends an inspection, which reaches
+  // back into the map to clear the highlight and hands the features back to whoever is listening. All
+  // of that wants a map that is still there, so it happens before the map goes rather than during it.
   disconnectedCallback() {
+    this.destroyPopup();
     if (this.map) this.map.remove();
   }
 
@@ -387,9 +391,14 @@ export class OgmMap {
     };
   }
 
-  // Listen to selection events from the popup and highlight the selected feature
-  @Listen('featureSelected', { target: 'body' })
+  // Listen to selection events from the popup and highlight the selected feature. Ours to hear
+  // because MapLibre builds the popup inside the map's own container, which is in our shadow root,
+  // so the event passes through us on its way out - and through no other map. Listened for on the
+  // document instead, as it once was, every <ogm-map> on the page would answer for every popup: a
+  // record change replaces them all at once, and the ones that had not built their maps yet threw.
+  @Listen('featureSelected')
   handleFeatureSelected(event: CustomEvent<maplibregl.MapGeoJSONFeature>) {
+    if (!this.map) return;
     this.selectFeature(event.detail);
   }
 
@@ -400,8 +409,7 @@ export class OgmMap {
       return;
     }
     if (!this.selectedFeature) return;
-    const { source, id, sourceLayer } = this.selectedFeature;
-    this.map.setFeatureState({ source, id, sourceLayer }, { selected: false });
+    this.setFeatureState(this.selectedFeature, { selected: false });
     this.selectedFeature = undefined;
   }
 
@@ -415,22 +423,29 @@ export class OgmMap {
     }
     this.clearFeatureSelection();
     this.selectedFeature = feature;
-    this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, { selected: true });
+    this.setFeatureState(feature, { selected: true });
   }
 
   // Set styling of a single feature to hovered state
   protected hoverFeature(feature: maplibregl.MapGeoJSONFeature) {
     this.clearHoveredFeature();
     this.hoveredFeature = feature;
-    this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, { hover: true });
+    this.setFeatureState(feature, { hover: true });
   }
 
   // Clear the hovered feature state
   protected clearHoveredFeature() {
-    if (this.hoveredFeature) {
-      this.map.setFeatureState({ source: this.hoveredFeature.source, id: this.hoveredFeature.id, sourceLayer: this.hoveredFeature.sourceLayer }, { hover: false });
-      this.hoveredFeature = undefined;
-    }
+    if (!this.hoveredFeature) return;
+    this.setFeatureState(this.hoveredFeature, { hover: false });
+    this.hoveredFeature = undefined;
+  }
+
+  // Restyle one of the preview's own features. Every path into here starts outside the map - a
+  // pointer event, a layer control, the popup - and the map is not there for all of that time: it
+  // is built in componentDidLoad and taken down in disconnectedCallback. Nothing to restyle then.
+  private setFeatureState(feature: maplibregl.MapGeoJSONFeature, state: { hover?: boolean; selected?: boolean }) {
+    if (!this.map) return;
+    this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, state);
   }
 
   // Create a new popup and set its content and location
