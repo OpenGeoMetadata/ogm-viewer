@@ -10,6 +10,7 @@ import EsriTiledMapLayerResource from './esri-tiled-map-layer';
 import GeoJsonResource from './geojson';
 import IIIFResource from './iiif';
 import IIIFManifestResource from './iiif-manifest';
+import LocationResource from './location';
 import OpenIndexMapResource from './openindexmap';
 import PMTilesResource from './pmtiles';
 import TileJsonResource from './tilejson';
@@ -47,6 +48,19 @@ export function resourcesFor(record: OgmRecord, requestTransform?: RequestTransf
   // A WxS endpoint is a catalogue; without an identifier we don't know which layer of it to ask for
   if (references.wmtsUrl && wxsIdentifier) resources.push(new WmtsResource(id, references.wmtsUrl, { layerIds: [wxsIdentifier] }, bounds, requestTransform));
   if (references.wmsUrl && wxsIdentifier) resources.push(new WmsResource(id, references.wmsUrl, { layerIds: [wxsIdentifier] }, bounds, requestTransform));
+
+  // Nothing here can be drawn, so say where the thing is instead. A reader who can't see the data
+  // still learns what part of the world it covers, which is most of what they came to a map for, and
+  // it beats an empty viewer. Its geometry rather than its bounding box: getGeometry() prefers
+  // locn_geometry, which may describe a coastline or an archipelago that an envelope would claim far
+  // more of the map than the record actually covers.
+  //
+  // Last, and only when nothing else was made: a record with a preview has no use for this, and one
+  // with neither a preview nor a geometry has nothing to offer either way.
+  if (resources.length === 0) {
+    const geometry = record.getGeometry();
+    if (geometry) resources.push(new LocationResource(id, geometry as GeoJSON.Geometry));
+  }
 
   return resources;
 }

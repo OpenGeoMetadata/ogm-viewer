@@ -13,6 +13,14 @@ export default abstract class Previewer {
   // The component that draws this preview
   abstract readonly renderer: PreviewRenderer;
 
+  // Whether a click on this preview has anything to answer with. True for all but the one preview
+  // that draws something other than the data - a record's extent, when the data itself can't be
+  // shown - where every layer is drawn and none of it carries a property worth reading. A flag on
+  // the preview rather than on its style layers because it describes the whole preview, and because
+  // PreviewStyleLayer's `internal` already means something narrower: not listed in the layer panel,
+  // and not dimmed by the opacity slider, neither of which is wanted here.
+  readonly inspectable: boolean = true;
+
   protected resource: Resource;
 
   constructor(resource: Resource) {

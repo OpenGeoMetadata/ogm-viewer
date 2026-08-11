@@ -13,6 +13,7 @@ import EsriImageMapLayerPreviewer from './esri-image-map-layer';
 import EsriTiledMapLayerPreviewer from './esri-tiled-map-layer';
 import GeoJsonPreviewer from './geojson';
 import ImagePreviewer from './image';
+import LocationPreviewer from './location';
 import OpenIndexMapPreviewer from './openindexmap';
 import PMTilesRasterPreviewer from './pmtiles-raster';
 import PMTilesVectorPreviewer from './pmtiles-vector';
@@ -34,6 +35,7 @@ const resourceOfKind = (kind: string, extra: object = {}) => ({ kind, id: 'test-
 const SYNCHRONOUS: [ResourceKind, new (...args: never[]) => unknown][] = [
   ['iiif-image', ImagePreviewer],
   ['geojson', GeoJsonPreviewer],
+  ['location', LocationPreviewer],
   ['openindexmap', OpenIndexMapPreviewer],
   ['esri-feature-layer', EsriFeatureLayerPreviewer],
   ['esri-dynamic-map-layer', EsriDynamicMapLayerPreviewer],

@@ -322,6 +322,13 @@ export class OgmMap {
 
   // Use the crosshair cursor if there's something to inspect
   protected handleHover(event: maplibregl.MapMouseEvent) {
+    // A preview with nothing to answer with never offers. Checked before the raster case below, which
+    // is a question about how to ask rather than whether to.
+    if (this.previewer && !this.previewer.inspectable) {
+      this.map.getCanvas().style.cursor = '';
+      return;
+    }
+
     // A server-drawn preview has no client-side features to test the cursor against, so offer to
     // inspect anywhere as long as the server will answer at all - and as long as any of it is still
     // drawn, since a hidden layer has nothing to be asked about
@@ -367,6 +374,10 @@ export class OgmMap {
   // Delegate to server for raster inspection, or query directly for vector
   protected async handleInspection(point: maplibregl.Point): Promise<maplibregl.MapGeoJSONFeature[]> {
     if (!this.previewer) return [];
+
+    // Drawn, but not about anything: a location has one shape and no properties behind it, so a
+    // query would return a feature and the popup would open on an empty table.
+    if (!this.previewer.inspectable) return [];
 
     if (this.previewer instanceof InspectableRasterPreviewer) {
       if (!this.previewer.canInspect || !this.previewer.anyLayerVisible) return [];
