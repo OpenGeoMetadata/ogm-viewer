@@ -43,6 +43,8 @@ class FakeMap {
   }
 }
 
+// boundsOpacity is deliberately not a round fraction of opacity: an assertion that happened to
+// hold for either value would say nothing about which one an extent is drawn at
 const style = {
   opacity: 0.8,
   fillColor: '#00f',
@@ -51,6 +53,7 @@ const style = {
   textFont: 'Noto Sans Regular',
   textSize: 12,
   fillHighlightOpacity: 0.8,
+  boundsOpacity: 0.5,
 } as MapLibreStyle;
 
 const ID = 'stanford-bb021mm7809';
@@ -79,9 +82,9 @@ const COASTLINE: GeoJSON.Geometry = {
   ],
 };
 
-const preview = async (location: GeoJSON.Geometry | [[number, number], [number, number]]) => {
+const preview = async (location: GeoJSON.Geometry | [[number, number], [number, number]], mapStyle: MapLibreStyle = style) => {
   const map = new FakeMap();
-  const previewer = new LocationPreviewer(new LocationResource(ID, location)).attach(map as unknown as maplibregl.Map, style);
+  const previewer = new LocationPreviewer(new LocationResource(ID, location)).attach(map as unknown as maplibregl.Map, mapStyle);
   await previewer.preview();
   return { map, previewer };
 };
@@ -142,10 +145,34 @@ describe('LocationPreviewer#preview', () => {
 
     expect([...map.layers.keys()]).toEqual([FILL, OUTLINE]);
     expect(map.layers.get(OUTLINE).paint['line-color']).toEqual(style.strokeColor);
-    expect(map.layers.get(OUTLINE).paint['line-opacity']).toEqual(style.opacity);
+    expect(map.layers.get(OUTLINE).paint['line-opacity']).toEqual(style.boundsOpacity);
     expect(map.layers.get(FILL).paint['fill-color']).toEqual(style.fillColor);
     // Held under the outline, so the extent reads as a note about the map and not as data on it
-    expect(map.layers.get(FILL).paint['fill-opacity']).toBeLessThan(style.opacity);
+    expect(map.layers.get(FILL).paint['fill-opacity']).toBeLessThan(style.boundsOpacity);
+  });
+
+  // An extent is a statement about where to look, not something a reader came for, so it starts
+  // fainter than data drawn from the record would - and fainter than the theme's own opacity, which
+  // is what every previewer of actual geometry starts at.
+  it('starts at the opacity for bounds rather than the one for data', async () => {
+    const { map, previewer } = await preview(BOUNDS);
+
+    expect(previewer.previewLayers[0].defaultOpacity).toEqual(style.boundsOpacity);
+    expect(style.boundsOpacity).toBeLessThan(style.opacity);
+    expect(map.layers.get(OUTLINE).paint['line-opacity']).toEqual(style.boundsOpacity);
+  });
+
+  // The slider's starting position and the paint the layers are authored with are the same number.
+  // If they drift apart, an extent is drawn at one strength and then immediately redrawn at another,
+  // since ogm-map applies the resolved layer state as soon as the preview is on the map.
+  it('authors its paint at the opacity its slider starts from', async () => {
+    const { map, previewer } = await preview(BOUNDS);
+    const authored = { fill: structuredClone(map.layers.get(FILL).paint), outline: structuredClone(map.layers.get(OUTLINE).paint) };
+
+    previewer.applyLayerState(new Map([[`${ID}-location`, { visible: true, opacity: previewer.previewLayers[0].defaultOpacity }]]));
+
+    expect(map.layers.get(FILL).paint).toEqual(authored.fill);
+    expect(map.layers.get(OUTLINE).paint).toEqual(authored.outline);
   });
 
   // One thing the reader can turn off, not two. The outline and the wash are how an extent is drawn.
@@ -163,6 +190,33 @@ describe('LocationPreviewer#preview', () => {
 
     expect(map.sources.size).toEqual(0);
     expect(map.layers.size).toEqual(0);
+  });
+});
+
+describe('LocationPreviewer opacity', () => {
+  // A reader dragging the slider down is asking to see more of the basemap, which is the fill's
+  // business and not the outline's, so the wash is held under the outline at every setting rather
+  // than only at the one it was authored with.
+  it('keeps the wash under the outline at whatever opacity is asked for', async () => {
+    const { map, previewer } = await preview(BOUNDS);
+    const fillAt = (opacity: number) => {
+      previewer.applyLayerState(new Map([[`${ID}-location`, { visible: true, opacity }]]));
+      return map.layers.get(FILL).paint['fill-opacity'];
+    };
+
+    expect(fillAt(0.6)).toBeLessThan(0.6);
+    // Scales with the row rather than being clamped somewhere: half the opacity, half the wash
+    expect(fillAt(0.3)).toBeCloseTo(fillAt(0.6) / 2);
+  });
+
+  // Why the fill's share of the opacity stays a private constant here instead of joining the theme.
+  // An app raising --ogm-bounds-opacity is asking for a bolder extent, not for the wash to come
+  // up to the strength of the outline and read as data someone drew over the map.
+  it('keeps the wash under the outline even where the theme asks for a full-strength extent', async () => {
+    const { map } = await preview(BOUNDS, { ...style, boundsOpacity: 1 } as MapLibreStyle);
+
+    expect(map.layers.get(OUTLINE).paint['line-opacity']).toEqual(1);
+    expect(map.layers.get(FILL).paint['fill-opacity']).toBeLessThan(1);
   });
 });
 
@@ -191,9 +245,9 @@ describe('LocationPreviewer inspection', () => {
     expect(previewer.visibleLayerIds).toEqual([FILL, OUTLINE]);
     expect(previewer.anyLayerVisible).toBe(true);
 
-    previewer.applyLayerState(new Map([[`${ID}-location`, { visible: true, opacity: 0.5 }]]));
-    expect(map.layers.get(OUTLINE).paint['line-opacity']).toEqual(0.5);
-    expect(map.layers.get(FILL).paint['fill-opacity']).toBeLessThan(0.5);
+    previewer.applyLayerState(new Map([[`${ID}-location`, { visible: true, opacity: 0.6 }]]));
+    expect(map.layers.get(OUTLINE).paint['line-opacity']).toEqual(0.6);
+    expect(map.layers.get(FILL).paint['fill-opacity']).toBeLessThan(0.6);
   });
 
   it('hides both layers together when switched off', async () => {

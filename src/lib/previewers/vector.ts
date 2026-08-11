@@ -22,6 +22,15 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     return this.resource.id;
   }
 
+  // Where this layer's opacity slider starts, and the opacity the style layers below are authored at.
+  // Both, because they have to agree: applyLayerState re-derives every paint value from the state it
+  // resolves, so a layer authored at one opacity and defaulted to another is drawn twice, briefly, at
+  // two different strengths. The theme's own opacity for anything a reader came to look at; an index
+  // map overrides this, being a statement about where the sheets are rather than data in its own right.
+  protected getDefaultOpacity(): number {
+    return this.style.opacity;
+  }
+
   protected async createLayers(): Promise<LayerSpecification[]> {
     const layerIds = await this.resource.getVectorLayers();
     return layerIds.flatMap(layerId => {
@@ -40,7 +49,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       this.previewLayers.push({
         id: `${this.getSourceId()}-${layerId}`,
         title: this.previewLayerTitle(layerId),
-        defaultOpacity: this.style.opacity,
+        defaultOpacity: this.getDefaultOpacity(),
         styleLayers: layers.map(layer => ({ id: layer.id, type: layer.type }) as PreviewStyleLayer),
       });
 
@@ -118,7 +127,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       },
       paint: {
         'fill-color': this.fillColorExpression(),
-        'fill-opacity': this.selectedOpacity(this.style.opacity),
+        'fill-opacity': this.selectedOpacity(this.getDefaultOpacity()),
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
     };
@@ -136,7 +145,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       paint: {
         'line-color': this.strokeColorExpression(),
         'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
-        'line-opacity': this.style.opacity,
+        'line-opacity': this.getDefaultOpacity(),
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
     };
@@ -154,7 +163,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       paint: {
         'line-color': this.strokeColorExpression(),
         'line-width': 4,
-        'line-opacity': this.style.opacity,
+        'line-opacity': this.getDefaultOpacity(),
       },
       filter: ['==', ['geometry-type'], 'LineString'] as const,
     };
@@ -174,8 +183,8 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'circle-stroke-color': this.strokeColorExpression(),
         'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 2, 12, 4] as const,
-        'circle-opacity': this.selectedOpacity(this.style.opacity),
-        'circle-stroke-opacity': this.style.opacity,
+        'circle-opacity': this.selectedOpacity(this.getDefaultOpacity()),
+        'circle-stroke-opacity': this.getDefaultOpacity(),
       },
       filter: ['==', ['geometry-type'], 'Point'] as const,
     };
@@ -197,7 +206,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-color': this.style.textColor,
         'text-halo-color': this.style.textHaloColor,
         'text-halo-width': 1,
-        'text-opacity': this.style.opacity,
+        'text-opacity': this.getDefaultOpacity(),
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
     };
@@ -220,7 +229,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-color': this.style.textColor,
         'text-halo-color': this.style.textHaloColor,
         'text-halo-width': 1,
-        'text-opacity': this.style.opacity,
+        'text-opacity': this.getDefaultOpacity(),
       },
       filter: ['==', ['geometry-type'], 'LineString'] as const,
     };
@@ -243,7 +252,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-color': this.style.textColor,
         'text-halo-color': this.style.textHaloColor,
         'text-halo-width': 1,
-        'text-opacity': this.style.opacity,
+        'text-opacity': this.getDefaultOpacity(),
       },
       filter: ['==', ['geometry-type'], 'Point'] as const,
     };
