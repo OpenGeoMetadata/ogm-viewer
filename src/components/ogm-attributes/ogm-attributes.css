@@ -132,7 +132,13 @@ wa-scroller {
   display: block;
 }
 
+/* Takes the width it is given rather than shrinking to its own contents. In a tab group that width is
+   the 400px pinned above, and a table that stopped 93px short of the popup's right edge read as a
+   drawing that had failed halfway. A sheet with no picture gets no tab group and no pinned width, and
+   there this changes nothing: a percentage resolves against a width that is already settled, so the
+   popup still shrinks to fit the table as it always did. */
 .attribute-table {
+  width: 100%;
   font-family: var(--wa-font-family-code);
   font-size: var(--wa-font-size-xs);
   line-height: var(--wa-line-height-condensed);
