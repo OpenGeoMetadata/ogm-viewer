@@ -14,6 +14,7 @@ export type ResourceKind =
   | 'geojson'
   | 'iiif-image'
   | 'iiif-manifest'
+  | 'location'
   | 'openindexmap'
   | 'pmtiles'
   | 'tilejson'

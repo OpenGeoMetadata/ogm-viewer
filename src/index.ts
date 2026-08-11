@@ -48,6 +48,9 @@ export { default as EsriImageMapLayerResource } from './lib/resources/esri-image
 export { default as EsriTiledMapLayerResource } from './lib/resources/esri-tiled-map-layer';
 export { default as GeoJsonResource } from './lib/resources/geojson';
 export { default as IIIFManifestResource } from './lib/resources/iiif-manifest';
+// Where a record is, when what it holds can't be drawn - the one resource built from a shape rather
+// than a URL. Reach for it directly to hold a place on the map while authentication is pending.
+export { default as LocationResource } from './lib/resources/location';
 export { default as OpenIndexMapResource } from './lib/resources/openindexmap';
 export { default as PMTilesResource } from './lib/resources/pmtiles';
 export { default as TileJsonResource } from './lib/resources/tilejson';
@@ -79,6 +82,7 @@ export { default as EsriImageMapLayerPreviewer } from './lib/previewers/esri-ima
 export { default as EsriTiledMapLayerPreviewer } from './lib/previewers/esri-tiled-map-layer';
 export { default as GeoJsonPreviewer, type AddGeoJsonSourceObject } from './lib/previewers/geojson';
 export { default as ImagePreviewer } from './lib/previewers/image';
+export { default as LocationPreviewer } from './lib/previewers/location';
 export { default as OpenIndexMapPreviewer } from './lib/previewers/openindexmap';
 export { default as PMTilesRasterPreviewer } from './lib/previewers/pmtiles-raster';
 export { default as PMTilesVectorPreviewer } from './lib/previewers/pmtiles-vector';

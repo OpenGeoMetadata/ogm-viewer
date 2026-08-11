@@ -14,6 +14,7 @@ import EsriTiledMapLayerResource from './esri-tiled-map-layer';
 import GeoJsonResource from './geojson';
 import IIIFResource from './iiif';
 import IIIFManifestResource from './iiif-manifest';
+import LocationResource from './location';
 import OpenIndexMapResource from './openindexmap';
 import PMTilesResource from './pmtiles';
 import TileJsonResource from './tilejson';
@@ -79,6 +80,48 @@ describe('resourcesFor', () => {
 
   it('offers nothing for a record with no previewable references', () => {
     expect(resourcesFor(buildRecord({ 'http://schema.org/downloadUrl': 'https://example.com/data.zip' }))).toEqual([]);
+  });
+
+  // Nothing here can be drawn, but where the record is can be, and that is most of what a reader
+  // came to a map for. Better than an empty viewer.
+  describe('a record with nothing previewable but somewhere to point', () => {
+    const unpreviewable = { 'http://schema.org/downloadUrl': 'https://example.com/data.zip' };
+
+    it('falls back to the location', async () => {
+      const record = buildRecord(unpreviewable, { dcat_bbox: 'ENVELOPE(-120.6,-120.0,38.5,38.0)' });
+      const [resource, ...rest] = resourcesFor(record);
+
+      expect(resource).toBeInstanceOf(LocationResource);
+      expect(resource.kind).toEqual('location');
+      expect(rest).toEqual([]);
+      expect(await resource.getBounds()).toEqual([
+        [-120.6, 38],
+        [-120, 38.5],
+      ]);
+    });
+
+    // An envelope around a coastline claims the sea as well. locn_geometry is the better answer
+    // wherever a record carries one, which is why the resource takes a shape and not a box.
+    it('prefers the record geometry to its bounding box', () => {
+      const record = buildRecord(unpreviewable, {
+        dcat_bbox: 'ENVELOPE(0,10,10,0)',
+        locn_geometry: 'POLYGON((0 0, 10 0, 10 1, 1 1, 1 10, 0 10, 0 0))',
+      });
+      const [resource] = resourcesFor(record) as [LocationResource];
+
+      expect((resource.getGeometry() as GeoJSON.Polygon).coordinates[0]).toHaveLength(7);
+    });
+
+    // Only when there is nothing else. A record whose data draws has no use for an outline of itself.
+    it('is not offered alongside a preview', () => {
+      const record = buildRecord({ 'http://geojson.org/geojson-spec.html': 'https://example.com/data.json' }, { dcat_bbox: 'ENVELOPE(0,10,10,0)' });
+
+      expect(resourcesFor(record).map(resource => resource.kind)).toEqual(['geojson']);
+    });
+
+    it('is not offered when the record says nothing about where it is', () => {
+      expect(resourcesFor(buildRecord(unpreviewable))).toEqual([]);
+    });
   });
 
   // A WxS endpoint is a catalogue, so without an identifier we don't know what to ask it for

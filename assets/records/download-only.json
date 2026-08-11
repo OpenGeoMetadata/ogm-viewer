@@ -1,0 +1,14 @@
+{
+  "id": "stanford-download-only",
+  "dct_title_s": "Nepal Administrative Boundaries, 2011 (Download Only)",
+  "dct_description_sm": [
+    "A record with nothing this viewer can draw: its only reference is a download. The map falls back to where the record says it is, so a reader still learns what part of the world it covers. Its locn_geometry is used in preference to its dcat_bbox - compare the shape drawn against the envelope in the metadata, which claims a good deal of India and Tibet as well."
+  ],
+  "dct_accessRights_s": "Public",
+  "dct_format_s": "Shapefile",
+  "gbl_resourceClass_sm": ["Datasets"],
+  "dcat_bbox": "ENVELOPE(80.05, 88.2, 30.45, 26.35)",
+  "locn_geometry": "POLYGON((80.05 28.8, 81.0 30.2, 82.5 30.05, 84.2 29.3, 85.8 28.3, 87.1 27.85, 88.2 27.9, 88.15 26.85, 86.7 26.45, 85.0 26.75, 83.3 27.35, 81.6 28.0, 80.05 28.8))",
+  "dct_references_s": "{\"http://schema.org/downloadUrl\":\"https://example.com/nepal-boundaries.zip\"}",
+  "gbl_mdVersion_s": "Aardvark"
+}

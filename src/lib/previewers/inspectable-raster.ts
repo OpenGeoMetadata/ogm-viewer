@@ -13,10 +13,13 @@ const NO_FEATURES: GeoJSON.FeatureCollection = { type: 'FeatureCollection', feat
 export default abstract class InspectableRasterPreviewer extends RasterPreviewer {
   // Whether the server will actually answer a question about a click. Some won't - a tile cache
   // holds only pictures - and we don't know which until we've asked, so this settles during preview.
-  private inspectable = false;
+  //
+  // A narrower question than Previewer.inspectable, which asks whether this kind of preview has
+  // anything to be asked about in the first place. These tiles always do; the service may not.
+  private serviceAnswers = false;
 
   get canInspect(): boolean {
-    return this.inspectable;
+    return this.serviceAnswers;
   }
 
   // Add the highlight source ahead of the layers that draw from it
@@ -28,7 +31,7 @@ export default abstract class InspectableRasterPreviewer extends RasterPreviewer
 
     // A service that won't say whether it can be inspected is treated as though it can't, rather
     // than failing a preview whose tiles drew perfectly well
-    this.inspectable = await this.checkInspectable().catch(error => {
+    this.serviceAnswers = await this.checkInspectable().catch(error => {
       console.warn(`Could not determine whether ${this.resource.url} can be inspected:`, error);
       return false;
     });

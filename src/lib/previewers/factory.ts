@@ -12,6 +12,7 @@ import EsriImageMapLayerPreviewer from './esri-image-map-layer';
 import EsriTiledMapLayerPreviewer from './esri-tiled-map-layer';
 import GeoJsonPreviewer from './geojson';
 import ImagePreviewer from './image';
+import LocationPreviewer from './location';
 import OpenIndexMapPreviewer from './openindexmap';
 import PMTilesRasterPreviewer from './pmtiles-raster';
 import PMTilesVectorPreviewer from './pmtiles-vector';
@@ -83,6 +84,9 @@ const BUILDERS: Record<ResourceKind, PreviewerBuilder> = {
   },
 
   'geojson': resource => [new GeoJsonPreviewer(resource)],
+  // Not built from a reference: this is the one resource a record makes out of its own metadata,
+  // when nothing it points at can be drawn. See resourcesFor.
+  'location': resource => [new LocationPreviewer(resource)],
   'openindexmap': resource => [new OpenIndexMapPreviewer(resource)],
   'esri-feature-layer': resource => [new EsriFeatureLayerPreviewer(resource)],
   'esri-dynamic-map-layer': resource => [new EsriDynamicMapLayerPreviewer(resource)],
