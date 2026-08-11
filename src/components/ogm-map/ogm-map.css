@@ -92,6 +92,22 @@ ogm-layers {
   border-bottom-color: var(--wa-color-surface-border);
 }
 
+/* Attribution, which both basemaps require. MapLibre draws it as a white pill with near-black text,
+   which lights up the corner of a dark map; on the same surface tokens as the popup above it follows
+   whichever mode the map is drawn in. It isn't inverted the way the button groups below are: this is
+   text on a panel rather than a baked-in glyph, and inversion would take the focus ring's blue with
+   it. */
+.maplibregl-ctrl.maplibregl-ctrl-attrib {
+  color: var(--wa-color-text-normal);
+  background-color: var(--wa-color-surface-default);
+}
+
+/* Subdued the way MapLibre subdues them; on hover its own `color: inherit` picks up the color above
+   and adds the underline. */
+.maplibregl-ctrl-attrib a {
+  color: var(--wa-color-text-quiet);
+}
+
 /* Dark mode map adjustments */
 .wa-dark {
   .tile-border {
@@ -109,5 +125,20 @@ ogm-layers {
 
   .maplibregl-ctrl button.maplibregl-ctrl-globe-enabled .maplibregl-ctrl-icon {
     filter: invert(1);
+  }
+
+  /* The compact attribution button's "i": MapLibre's own glyph with its ink at #fff rather than the
+     default black. A background image can't read a token, so it's replaced rather than themed - the
+     same reason the layers glyph at the top of this file has its ink baked in. MapLibre's
+     translucent white fill for the button goes as well, or it would wash out the pill underneath. */
+  .maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-button {
+    background-color: transparent;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='%23fff' fill-rule='evenodd' viewBox='0 0 20 20'%3E%3Cpath d='M4 10a6 6 0 1 0 12 0 6 6 0 1 0-12 0m5-3a1 1 0 1 0 2 0 1 1 0 1 0-2 0m0 3a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0'/%3E%3C/svg%3E");
+  }
+
+  /* Attribution showing. MapLibre tints the button black at 5% for this, which is invisible against
+     a dark pill; this is the same tint the layers button uses, turned around. */
+  .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
+    background-color: rgb(255 255 255 / 10%);
   }
 }
