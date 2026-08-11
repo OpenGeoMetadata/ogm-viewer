@@ -1,6 +1,7 @@
 import type OgmRecord from '../record';
 import type { RequestTransform } from '../request';
 import type Resource from './resource';
+import type { ResourceKind } from './resource';
 
 import CogResource from './cog';
 import EsriDynamicMapLayerResource from './esri-dynamic-map-layer';
@@ -18,6 +19,12 @@ import TmsResource from './tms';
 import WmsResource from './wms';
 import WmtsResource from './wmts';
 import XyzResource from './xyz';
+
+// The kinds whose preview might turn out not to be a map. A scan is drawn on one only when it also
+// says where on the earth it belongs, and that can't be settled here: a IIIF image never carries
+// georeferencing, and a manifest only carries it sometimes, discoverable only by fetching it.
+// Everything else below is a map by construction.
+const MAY_NOT_DRAW_A_MAP: ResourceKind[] = ['iiif-image', 'iiif-manifest'];
 
 /**
  * Every previewable resource a record's references point at, in the order they're offered to the
@@ -49,15 +56,17 @@ export function resourcesFor(record: OgmRecord, requestTransform?: RequestTransf
   if (references.wmtsUrl && wxsIdentifier) resources.push(new WmtsResource(id, references.wmtsUrl, { layerIds: [wxsIdentifier] }, bounds, requestTransform));
   if (references.wmsUrl && wxsIdentifier) resources.push(new WmsResource(id, references.wmsUrl, { layerIds: [wxsIdentifier] }, bounds, requestTransform));
 
-  // Nothing here can be drawn, so say where the thing is instead. A reader who can't see the data
-  // still learns what part of the world it covers, which is most of what they came to a map for, and
-  // it beats an empty viewer. Its geometry rather than its bounding box: getGeometry() prefers
+  // Where the record says it is, for when nothing above will put it on a map - either because none
+  // of it can be drawn at all, or because all of it is a scan with nothing to place it by. A reader
+  // who can't see the data on a map still learns what part of the world it covers, which is most of
+  // what they came to a map for. Its geometry rather than its bounding box: getGeometry() prefers
   // locn_geometry, which may describe a coastline or an archipelago that an envelope would claim far
   // more of the map than the record actually covers.
   //
-  // Last, and only when nothing else was made: a record with a preview has no use for this, and one
-  // with neither a preview nor a geometry has nothing to offer either way.
-  if (resources.length === 0) {
+  // Offered rather than decided, and last so that it is the last tab: whether a manifest is
+  // georeferenced is only known once it has been read, so previewersForResources settles it and drops
+  // this again if a map did turn up. A record with no geometry has nothing to offer either way.
+  if (resources.every(resource => MAY_NOT_DRAW_A_MAP.includes(resource.kind))) {
     const geometry = record.getGeometry();
     if (geometry) resources.push(new LocationResource(id, geometry as GeoJSON.Geometry));
   }

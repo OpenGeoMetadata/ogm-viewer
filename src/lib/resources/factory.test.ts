@@ -82,9 +82,9 @@ describe('resourcesFor', () => {
     expect(resourcesFor(buildRecord({ 'http://schema.org/downloadUrl': 'https://example.com/data.zip' }))).toEqual([]);
   });
 
-  // Nothing here can be drawn, but where the record is can be, and that is most of what a reader
-  // came to a map for. Better than an empty viewer.
-  describe('a record with nothing previewable but somewhere to point', () => {
+  // None of this can go on a map, but where the record is can, and that is most of what a reader came
+  // to a map for. Better than an empty viewer.
+  describe('a record with nothing to put on a map but somewhere to point', () => {
     const unpreviewable = { 'http://schema.org/downloadUrl': 'https://example.com/data.zip' };
 
     it('falls back to the location', async () => {
@@ -112,8 +112,21 @@ describe('resourcesFor', () => {
       expect((resource.getGeometry() as GeoJSON.Polygon).coordinates[0]).toHaveLength(7);
     });
 
-    // Only when there is nothing else. A record whose data draws has no use for an outline of itself.
-    it('is not offered alongside a preview', () => {
+    // A scan goes on a map only when it also says where on the earth it belongs. An image never does;
+    // a manifest sometimes does, and the only way to find out is to fetch it - so the location is
+    // offered here and previewersForResources takes it back if a map turns up. See ogm-viewer#81.
+    it.each([
+      ['http://iiif.io/api/image', 'iiif-image'],
+      ['http://iiif.io/api/presentation#manifest', 'iiif-manifest'],
+    ])('offers it alongside the %s reference, which may have nothing to place it by', (uri, kind) => {
+      const record = buildRecord({ [uri]: 'https://example.com/iiif' }, { dcat_bbox: 'ENVELOPE(0,10,10,0)' });
+
+      expect(resourcesFor(record).map(resource => resource.kind)).toEqual([kind, 'location']);
+    });
+
+    // Only when there is nothing else on the map. A record whose own data draws has no use for an
+    // outline of where that data is.
+    it('is not offered alongside a preview that is a map either way', () => {
       const record = buildRecord({ 'http://geojson.org/geojson-spec.html': 'https://example.com/data.json' }, { dcat_bbox: 'ENVELOPE(0,10,10,0)' });
 
       expect(resourcesFor(record).map(resource => resource.kind)).toEqual(['geojson']);
