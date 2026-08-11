@@ -7,17 +7,31 @@ export const ENVELOPE_REGEX = /^ENVELOPE\((?<west>[^,]+),(?<east>[^,]+),(?<north
 // EPSG:3857 spans this many meters from the origin on both axes
 const MERCATOR_EXTENT = 20037508.342789244;
 
+// Where a box's east edge is, counted onward from its west edge rather than from Greenwich. A box
+// that crosses the antimeridian is written with its east edge numerically west of its west edge -
+// Solr's ENVELOPE syntax and RFC 7946 section 5.2 both say so - and taken at face value that
+// describes the rest of the world instead: the 295 degrees a map of the Bering Strait doesn't cover.
+// Carrying the east edge past 180 rather than wrapping it back keeps the box in one piece, which is
+// what MapLibre needs both to draw an edge the short way round and to frame a camera on the half of
+// the world the record is actually on. It hands back a longitude outside -180..180, which MapLibre
+// reads everywhere it takes one; only a consumer that has to state a coordinate rather than use it
+// needs to wrap it, and none here does.
+const unwrapEast = (west: number, east: number) => (east < west ? east + 360 : east);
+
 // Convert LngLatBounds to GeoJSON Polygon
 export const boundsToGeoJSON = (bounds: LngLatBounds) => {
+  const [west, south, north] = [bounds.getWest(), bounds.getSouth(), bounds.getNorth()];
+  const east = unwrapEast(west, bounds.getEast());
+
   return {
     type: 'Polygon',
     coordinates: [
       [
-        [bounds.getWest(), bounds.getSouth()],
-        [bounds.getEast(), bounds.getSouth()],
-        [bounds.getEast(), bounds.getNorth()],
-        [bounds.getWest(), bounds.getNorth()],
-        [bounds.getWest(), bounds.getSouth()],
+        [west, south],
+        [east, south],
+        [east, north],
+        [west, north],
+        [west, south],
       ],
     ],
   };
@@ -31,7 +45,7 @@ export const bboxToBounds = (bbox: string) => {
 
   // Convert to numbers and create LngLatBounds
   const { west, east, north, south } = coords.groups!;
-  return new LngLatBounds([parseFloat(west), parseFloat(south)], [parseFloat(east), parseFloat(north)]);
+  return new LngLatBounds([parseFloat(west), parseFloat(south)], [unwrapEast(parseFloat(west), parseFloat(east)), parseFloat(north)]);
 };
 
 // Convert a geographic coordinate to EPSG:3857 (Web Mercator) meters

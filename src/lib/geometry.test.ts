@@ -29,6 +29,25 @@ describe('geomToGeoJSON', () => {
     });
   });
 
+  // The whole path a record's bounding box takes: WKT parsing fails on ENVELOPE, so it is read as a
+  // box and squared back off into a ring. Twenty degrees of the Pacific rather than the 340 of
+  // everywhere else.
+  it('should convert an ENVELOPE that crosses the antimeridian to GeoJSON', () => {
+    const geojson = geomToGeoJSON('ENVELOPE(170,-170,10,-10)');
+    expect(geojson).toEqual({
+      type: 'Polygon',
+      coordinates: [
+        [
+          [170, -10],
+          [190, -10],
+          [190, 10],
+          [170, 10],
+          [170, -10],
+        ],
+      ],
+    });
+  });
+
   it('should be undefined for invalid geometry', () => {
     const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const invalidGeom = 'INVALID(-122.6764 45.5165)';
@@ -44,6 +63,15 @@ describe('bboxToBounds', () => {
     const bbox = 'ENVELOPE(-10,-5,5,0)';
     const bounds = bboxToBounds(bbox);
     expect(bounds).toEqual(new LngLatBounds([-10, 0], [-5, 5]));
+  });
+
+  // A box that crosses the antimeridian names its west edge east of its east edge, which is how both
+  // Solr's ENVELOPE syntax and RFC 7946 section 5.2 say to write one. Carried onward past 180 so that
+  // the box stays in one piece: read as it is written, -170 would put the camera on the 340 degrees
+  // of the world the record doesn't cover.
+  it('should carry the east edge past 180 for a box that crosses the antimeridian', () => {
+    const bounds = bboxToBounds('ENVELOPE(170,-170,10,-10)');
+    expect(bounds).toEqual(new LngLatBounds([170, -10], [190, 10]));
   });
 
   it('should be undefined for invalid ENVELOPE strings', () => {
@@ -72,6 +100,26 @@ describe('boundsToGeoJSON', () => {
           [-5, 5],
           [-10, 5],
           [-10, 0],
+        ],
+      ],
+    });
+  });
+
+  // Each vertex is projected on its own, so a ring whose east edge reads as the smaller number is
+  // drawn the long way round: across the rest of the world rather than across the date line. Every
+  // corner a caller may hand us has already been carried past 180 by bboxToBounds, but one built
+  // from a box by hand has not, so the ring is squared off from the edges rather than the corners.
+  it('should draw a box that crosses the antimeridian the short way round', () => {
+    const geojson = boundsToGeoJSON(new LngLatBounds([170, -10], [-170, 10]));
+    expect(geojson).toEqual({
+      type: 'Polygon',
+      coordinates: [
+        [
+          [170, -10],
+          [190, -10],
+          [190, 10],
+          [170, 10],
+          [170, -10],
         ],
       ],
     });
