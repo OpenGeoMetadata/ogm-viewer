@@ -2,7 +2,7 @@
    spare: MapLibre puts a popup above or below the point it names, so anything taller than the room on
    one side of the click has nowhere to go, and an embedded map is often only 400px tall to begin with.
    So the title and the paging take a row across the top, and below them exactly one of the sheet's
-   picture and its properties - swapped by a button over the corner of them rather than shown together. */
+   picture and its properties - tabbed rather than shown together. */
 :host {
   display: flex;
   flex-direction: column;
@@ -37,23 +37,49 @@
   flex-shrink: 0;
 }
 
-/* Only here to give the swap button something to be positioned against, so that it lands on the
-   corner of the content and not of the popup */
-.body {
-  position: relative;
+/* Split the strip between the two of them, the way <ogm-previews> does for a record's previews. The
+   padding is ours: Web Awesome pads a tab 1em 1.5em, which spends a sixth of the popup's height on
+   two words. */
+wa-tab {
+  flex: 1 1 0;
+  text-align: center;
 }
 
-.swap {
-  position: absolute;
-  top: 0.25em;
-  right: 0.25em;
-  z-index: 1;
+wa-tab::part(base) {
+  justify-content: center;
+  padding: 0.4em 0.75em;
+  font-size: var(--wa-font-size-s);
 }
 
-/* A feature with nothing to call it and no stack to page through gets no header, which puts the top
-   of the content where MapLibre draws its own close button. Move over far enough to clear it. */
-.body:first-child .swap {
-  right: 1.75em;
+/* A panel is themed with 2rem of padding above and below it, which is a fifth of the popup spent on
+   nothing. The view fills its panel here, the same as it does in <ogm-previews>. */
+wa-tab-panel::part(base) {
+  padding: 0;
+}
+
+/* A sheet with nothing to call it and no stack to page through gets no header, which puts the tab
+   strip up where MapLibre draws its own close button - measured overlapping the last 20px of the
+   Attributes tab. Stop short of the corner and leave it to it.
+
+   The component says when this is the case rather than the stylesheet asking, because it can't: a
+   :first-child test is wrong in a dev build, where Stencil puts a <style> element in the shadow root
+   ahead of everything the component rendered. */
+wa-tab-group.topmost::part(nav) {
+  padding-inline-end: 1.75em;
+}
+
+/* Both views are as wide as the picture, rather than each shrinking to its own contents: the tab
+   strip is as wide as the popup, so a narrower properties table would take the tabs out from under
+   the reader who had just clicked one - measured at 402px on the picture and 309px on the properties
+   of the same sheet, which moves both tabs about 45px sideways.
+
+   400px is the width ogm-map.css caps .maplibregl-popup-content at, and it is bounded by the viewport
+   as well because an embedded map is normally a frame of its own and 100vw is its width. A map
+   deliberately made narrower than 400px inside a wider page is the case this doesn't reach, and there
+   the popup is clipped to the map as any wide popup would be. Only sheets with a picture get a tab
+   group at all, so a popup with nothing but properties in it still shrinks to fit as it always did. */
+wa-tab-group {
+  width: min(400px, 100vw);
 }
 
 wa-scroller {
@@ -62,23 +88,17 @@ wa-scroller {
 }
 
 /* The frame a sheet's picture is drawn in, held at the full size a picture is allowed whether or not
-   one has arrived yet. 400px is the width ogm-map.css caps .maplibregl-popup-content at and 240px the
-   height the properties are capped at above, so the two views are the same size and swapping between
-   them moves nothing. Reserving it matters most before the picture is there at all: it is a fetch or
-   two behind the popup and an <img> has no size until it has downloaded, so a frame that sized itself
-   to its contents opened 88px tall and jumped to 280px when the picture painted, with MapLibre
-   re-placing the popup under the reader on the way.
-
-   A definite width is what a frame with nothing in it yet needs and also what stops the popup being
-   able to shrink, so it is bounded by the viewport as well: an embedded map is normally a frame of
-   its own and 100vw is its width. A map deliberately made narrower than 400px inside a wider page is
-   the case this doesn't reach, and there the popup is clipped to the map as any wide popup would be. */
+   one has arrived yet: the width the tab group settles above, and 240px, which is what the properties
+   are capped at. Reserving it matters most before the picture is there at all - it is a fetch or two
+   behind the popup and an <img> has no size until it has downloaded, so a frame that sized itself to
+   its contents opened 88px tall and jumped to 280px when the picture painted, with MapLibre re-placing
+   the popup under the reader on the way. */
 .content {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: min(400px, 100vw);
+  width: 100%;
   height: 240px;
 }
 
