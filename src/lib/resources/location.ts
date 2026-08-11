@@ -11,10 +11,10 @@ const isGeometry = (location: GeoJSON.Geometry | LngLatBoundsLike): location is 
   typeof location === 'object' && location !== null && 'type' in location && 'coordinates' in location;
 
 /**
- * Where a record is, for when what it holds can't be drawn - it sits behind authentication, or
- * nothing here can read the format, or the preview was tried and failed. Knowing roughly what part
- * of the world a thing covers is worth a great deal on its own, and is most of what a reader wants
- * from a map they can't yet see.
+ * Where a record is, for when what it holds can't be drawn on a map - it sits behind authentication,
+ * or nothing here can read the format, or it is a scan with no georeferencing to place it by, or the
+ * preview was tried and failed. Knowing roughly what part of the world a thing covers is worth a
+ * great deal on its own, and is most of what a reader wants from a map they can't yet see.
  *
  * The one resource that fetches nothing: the shape is handed over at construction rather than read
  * from a URL, so this draws immediately and can't fail. A geometry is preferred over a bounding box

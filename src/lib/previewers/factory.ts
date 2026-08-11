@@ -85,7 +85,8 @@ const BUILDERS: Record<ResourceKind, PreviewerBuilder> = {
 
   'geojson': resource => [new GeoJsonPreviewer(resource)],
   // Not built from a reference: this is the one resource a record makes out of its own metadata,
-  // when nothing it points at can be drawn. See resourcesFor.
+  // when nothing it points at can be drawn on a map. Whether that's so is decided in
+  // previewersForResources, not here. See also resourcesFor.
   'location': resource => [new LocationPreviewer(resource)],
   'openindexmap': resource => [new OpenIndexMapPreviewer(resource)],
   'esri-feature-layer': resource => [new EsriFeatureLayerPreviewer(resource)],
@@ -130,12 +131,27 @@ export async function previewersFor(resource: Resource): Promise<AnyPreviewer[]>
   return await builder(resource);
 }
 
+// Whether a resource is the record's own account of where it is, rather than something the record
+// points at. The one resource whose preview depends on the others, so the one held back below.
+const isLocation = (resource: Resource) => resource.kind === 'location';
+
 /**
  * Every preview a list of resources offers, in the order they were given - which is the tab order.
  * Never rejects: this is awaited before the tabs are rendered, where a rejection would leave the
  * whole record without a preview rather than the one reference that failed.
+ *
+ * A location is the exception to that order, and goes last. It says where the record is, which is
+ * worth a tab only when nothing else drew a map - a scan with no georeferencing to place it, or a
+ * record with nothing previewable at all. Settled here rather than where the resources were built,
+ * because a manifest is a map only if it turns out to be georeferenced and finding that out means
+ * fetching it.
  */
 export async function previewersForResources(resources: Resource[]): Promise<AnyPreviewer[]> {
-  const previewers = await Promise.all(resources.map(resource => previewersFor(resource)));
-  return previewers.flat();
+  const previewers = (await Promise.all(resources.filter(resource => !isLocation(resource)).map(resource => previewersFor(resource)))).flat();
+
+  // Something already draws the data on a map, so an outline of where that data is adds nothing
+  if (previewers.some(previewer => previewer.renderer === 'map')) return previewers;
+
+  const locations = await Promise.all(resources.filter(isLocation).map(resource => previewersFor(resource)));
+  return [...previewers, ...locations.flat()];
 }

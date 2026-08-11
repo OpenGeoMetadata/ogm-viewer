@@ -178,4 +178,46 @@ describe('previewersForResources', () => {
   it('offers nothing for a record with no resources', async () => {
     expect(await previewersForResources([])).toEqual([]);
   });
+
+  // Where the record is, offered by resourcesFor whenever nothing it points at is certainly a map.
+  // Whether that held is only knowable here, once a manifest has been asked whether it's
+  // georeferenced - so this is where it's kept or dropped. See ogm-viewer#81.
+  describe('a location among the resources', () => {
+    const location = () => resourceOfKind('location');
+    const manifest = (isGeoreferenced: boolean) => resourceOfKind('iiif-manifest', { isGeoreferenced: async () => isGeoreferenced });
+
+    it('says where a scan is when it carries nothing to place it by', async () => {
+      const previewers = await previewersForResources([manifest(false), location()]);
+
+      expect(previewers.map(previewer => previewer.constructor)).toEqual([ImagePreviewer, LocationPreviewer]);
+      // The scan to page through, and a map saying where it is: the pair issue #81 asked for
+      expect(previewers.map(previewer => previewer.renderer)).toEqual(['image', 'map']);
+    });
+
+    it('drops it once the scan turns out to be placeable after all', async () => {
+      const previewers = await previewersForResources([manifest(true), location()]);
+
+      expect(previewers.map(previewer => previewer.constructor)).toEqual([ImagePreviewer, GeoreferencePreviewer]);
+    });
+
+    it('drops it when the record draws its own data on a map', async () => {
+      const previewers = await previewersForResources([resourceOfKind('wms'), location()]);
+
+      expect(previewers.map(previewer => previewer.constructor)).toEqual([WmsPreviewer]);
+    });
+
+    // A tab saying where a thing is belongs after the thing, whatever order the resources arrived in
+    it('comes last however it was listed', async () => {
+      const previewers = await previewersForResources([location(), resourceOfKind('iiif-image')]);
+
+      expect(previewers.map(previewer => previewer.constructor)).toEqual([ImagePreviewer, LocationPreviewer]);
+    });
+
+    // Held back, not filtered out: a record with nothing else still gets its one tab
+    it('is shown on its own when it is all there is', async () => {
+      const previewers = await previewersForResources([location()]);
+
+      expect(previewers.map(previewer => previewer.constructor)).toEqual([LocationPreviewer]);
+    });
+  });
 });
