@@ -128,7 +128,6 @@ export class OgmAttributes {
   private renderHeader(feature: MapGeoJSONFeature) {
     const multiple = this.features.length > 1;
     const title = getFeatureTitle(feature);
-    if (!multiple && !title) return;
 
     return (
       <div class="header">
@@ -137,7 +136,6 @@ export class OgmAttributes {
             <wa-icon name="arrow-left" label="Previous feature" canvas="auto"></wa-icon>
           </wa-button>
         )}
-        {/* Rendered even with nothing to say, so the controls stay at the ends of the row */}
         <div class="title">{title}</div>
         {multiple && (
           <div class="count">

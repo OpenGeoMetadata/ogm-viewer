@@ -176,7 +176,7 @@ describe('ogm-attributes', () => {
       const { root, waitForChanges } = await render(<ogm-attributes features={UNLABELED}></ogm-attributes>);
 
       expect(pagers(root)).toHaveLength(2);
-      expect(title(root)).toEqual('');
+      expect(title(root)).toEqual('Feature am002175');
 
       await page(root, waitForChanges, 'next');
 
@@ -283,19 +283,6 @@ describe('ogm-attributes', () => {
         expect(tabs(root).map(tab => tab.getAttribute('panel'))).toEqual(['image', 'attributes']);
       });
 
-      // With nothing to call it and no stack to page through there is no header, and the strip lands
-      // where MapLibre draws its own close button - measured over the last 20px of the second tab.
-      // The stylesheet is told which case this is because it can't tell: a :first-child test picks up
-      // the <style> element Stencil puts in the shadow root of a dev build.
-      it('keeps clear of the close button when it is the top of the popup', async () => {
-        const nameless = sheet({ recId: 'am002175', thumbUrl: SHEET.properties.thumbUrl });
-
-        const { root } = await renderSheet([nameless]);
-
-        expect(shadow(root).querySelector('.header')).toBeNull();
-        expect(shadow(root).querySelector('wa-tab-group')?.classList.contains('topmost')).toBe(true);
-      });
-
       it('takes the whole row when a header is already clearing the close button', async () => {
         const { root } = await renderSheet([SHEET]);
 
@@ -393,7 +380,7 @@ describe('ogm-attributes', () => {
 
         await page(root, waitForChanges, 'next');
 
-        expect(title(root)).toEqual('San Jose');
+        expect(title(root)).toEqual('SB 25');
         expect(count(root)).toEqual('(2/2)');
       });
     });
