@@ -73,7 +73,15 @@ export class OgmPreviews {
     }
   }
 
-  // Render as tabs for switching between previews
+  // Render as tabs for switching between previews.
+  //
+  // Keyed by which preview each element draws, not by where it sits. Position is the wrong identity
+  // twice over: a tab and its panel are siblings inside the group, so numbering both from zero gave
+  // it two children under every key and the diff went on to reuse a tab where a panel belonged. And
+  // wa-tab-group tracks which tab is active itself, in a property no render of ours writes, so a
+  // group left standing across a change of previews keeps pointing at whichever tab the user had
+  // picked - the third one of a record that now offers two. Keying the group by the whole set
+  // replaces it outright when the previews change, which is the only way to clear that.
   render() {
     const tabs = this.tabs;
     if (!tabs.length) return;
@@ -81,14 +89,14 @@ export class OgmPreviews {
     return (
       <Host class={waScope(this.theme)}>
         <link rel="stylesheet" href={webAwesomeStylesheet()} />
-        <wa-tab-group>
-          {tabs.map((previewer, idx) => (
-            <wa-tab key={idx} panel={previewer.previewId}>
+        <wa-tab-group key={tabs.map(previewer => previewer.previewId).join()}>
+          {tabs.map(previewer => (
+            <wa-tab key={`tab-${previewer.previewId}`} panel={previewer.previewId}>
               {previewer.label()}
             </wa-tab>
           ))}
           {tabs.map((previewer, idx) => (
-            <wa-tab-panel key={idx} name={previewer.previewId} active={idx === 0}>
+            <wa-tab-panel key={`panel-${previewer.previewId}`} name={previewer.previewId} active={idx === 0}>
               <ogm-preview theme={this.theme} previewer={previewer} sidebar-padding={this.sidebarPadding}></ogm-preview>
             </wa-tab-panel>
           ))}
