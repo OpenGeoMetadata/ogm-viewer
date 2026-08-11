@@ -28,18 +28,21 @@ const buildRecord = (previewable: boolean) =>
       : {}),
   });
 
-const renderPreviews = async (record?: OgmRecord, previewers?: AnyPreviewer[]) => {
+// The element itself, for a test that goes on to hand it a second record
+const mountPreviews = async (record?: OgmRecord, previewers?: AnyPreviewer[]) => {
   const container = document.createElement('div');
   document.body.appendChild(container);
   // The mounted <ogm-map> logs a swallowed WebGL init error; keep test output clean
   const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
   await stencilRender(<ogm-previews record={record} previewers={previewers}></ogm-previews>, container);
-  const el = container.firstElementChild as HTMLElement & { componentOnReady?: () => Promise<unknown> };
+  const el = container.firstElementChild as HTMLElement & { record?: OgmRecord; componentOnReady?: () => Promise<unknown> };
   await el.componentOnReady?.();
   await flush();
   consoleError.mockRestore();
-  return el.shadowRoot as ShadowRoot;
+  return el;
 };
+
+const renderPreviews = async (record?: OgmRecord, previewers?: AnyPreviewer[]) => (await mountPreviews(record, previewers)).shadowRoot as ShadowRoot;
 
 // Previews built by hand rather than worked out from a record - and built in this test's own module
 // realm, not the one the components came from, which is exactly the position an application putting
@@ -75,16 +78,34 @@ const renderPreviewChild = async (record: OgmRecord) => {
   return preview.shadowRoot as ShadowRoot;
 };
 
-// A minimal Aardvark record whose only reference is the given previewable one
-const buildRecordWith = (references: Record<string, string>) =>
+// A minimal Aardvark record whose only references are the given previewable ones
+const buildRecordWith = (references: Record<string, string>, id = 'test-record') =>
   new OgmRecord({
-    id: 'test-record',
+    id,
     dct_title_s: 'Test Record',
     gbl_resourceClass_sm: ['Datasets'],
     dct_accessRights_s: 'Public',
     gbl_mdVersion_s: 'Aardvark',
     dct_references_s: JSON.stringify(references),
   });
+
+// Which preview each tab claims to have chosen, and which one is actually on show
+const highlighted = (shadowRoot: ShadowRoot) =>
+  Array.from(shadowRoot.querySelectorAll('wa-tab'))
+    .filter(tab => tab.active)
+    .map(tab => tab.panel);
+const showing = (shadowRoot: ShadowRoot) =>
+  Array.from(shadowRoot.querySelectorAll('wa-tab-panel'))
+    .filter(panel => panel.active)
+    .map(panel => panel.name);
+
+// Stand in for the user picking a tab. wa-tab-group does this itself in a browser, through a click
+// handler that wants layout this DOM doesn't do, so the state such a click leaves behind is set by
+// hand here - that state is exactly what a later render has to clear.
+const openTab = (shadowRoot: ShadowRoot, index: number) => {
+  Array.from(shadowRoot.querySelectorAll('wa-tab')).forEach((tab, idx) => (tab.active = idx === index));
+  Array.from(shadowRoot.querySelectorAll('wa-tab-panel')).forEach((panel, idx) => (panel.active = idx === index));
+};
 
 describe('ogm-previews', () => {
   it('renders a tab for a record supplied at initial render', async () => {
@@ -133,6 +154,37 @@ describe('ogm-previews', () => {
     expect(tabs.map(tab => tab.textContent?.trim())).toEqual(['IIIF Image', 'GeoJSON']);
     expect(tabs.map(tab => tab.getAttribute('panel'))).toEqual(panels.map(panel => panel.getAttribute('name')));
     expect(shadowRoot.querySelectorAll('ogm-preview')).toHaveLength(2);
+  });
+
+  // A change of record is a change of previews, and the strip has to start over on the first of
+  // them. wa-tab-group tracks which tab is active itself, in a property no render of ours writes,
+  // so a strip left standing across the change went on pointing at the tab the user had picked -
+  // the second of a record that offers other previews there, or none at all.
+  it('starts the new record on its first preview, whichever tab was open on the last one', async () => {
+    const el = await mountPreviews(
+      buildRecordWith({
+        'http://iiif.io/api/image': 'https://example.com/iiif/info.json',
+        'https://openindexmaps.org': 'https://example.com/index.geojson',
+        'http://geojson.org/geojson-spec.html': 'https://example.com/data.json',
+        'https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames': 'https://example.com/{z}/{x}/{y}.png',
+      }),
+    );
+    const shadowRoot = el.shadowRoot as ShadowRoot;
+    openTab(shadowRoot, 1);
+
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const loaded = new Promise(resolve => el.addEventListener('previewsLoaded', resolve, { once: true }));
+    el.record = buildRecordWith(
+      { 'http://iiif.io/api/image': 'https://example.com/other/info.json', 'http://geojson.org/geojson-spec.html': 'https://example.com/other.json' },
+      'other-record',
+    );
+    await loaded;
+    await flush();
+    consoleError.mockRestore();
+
+    expect(showing(shadowRoot)).toEqual(['other-record-iiif-image-image']);
+    // Nothing left drawn as the chosen tab but for the preview actually on show
+    expect(highlighted(shadowRoot).filter(panel => !showing(shadowRoot).includes(panel))).toEqual([]);
   });
 
   // For an application that has the data already and doesn't want the record-driven path. The tab
