@@ -32,10 +32,10 @@ class FakeMap {
 
 const style = {
   opacity: 0.8,
-  fillColor: '#00f',
-  fillHighlightColor: '#0ff',
-  fillHighlightOpacity: 0.8,
-  fillSelectedColor: '#0f0',
+  dataColor: '#00f',
+  highlightColor: '#0ff',
+  highlightOpacity: 0.8,
+  selectedColor: '#0f0',
   strokeColor: '#000',
   strokeHighlightColor: '#0ff',
   strokeSelectedColor: '#0a0',

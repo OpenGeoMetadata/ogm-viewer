@@ -46,7 +46,7 @@ class FakeMap {
 }
 
 // The previewer only reads the colors used by the highlight
-const style = { opacity: 0.8, strokeSelectedColor: '#0a0', fillSelectedColor: '#0f0', fillHighlightOpacity: 0.8 } as MapLibreStyle;
+const style = { opacity: 0.8, strokeSelectedColor: '#0a0', selectedColor: '#0f0', highlightOpacity: 0.8 } as MapLibreStyle;
 
 const TRACT_GEOMETRY: GeoJSON.Geometry = {
   type: 'MultiPolygon',

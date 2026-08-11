@@ -116,8 +116,8 @@ export default abstract class InspectableRasterPreviewer extends RasterPreviewer
         visibility: 'visible',
       },
       paint: {
-        'circle-color': this.style.fillSelectedColor,
-        'circle-opacity': this.style.fillHighlightOpacity,
+        'circle-color': this.style.selectedColor,
+        'circle-opacity': this.style.highlightOpacity,
         'circle-stroke-color': this.style.strokeSelectedColor,
         'circle-stroke-width': 2,
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 2, 12, 4],

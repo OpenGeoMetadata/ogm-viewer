@@ -77,16 +77,16 @@ export default abstract class VectorPreviewer extends MapPreviewer {
   // Selection and hover are transient client-side state, set via feature-state; availability is
   // static per-feature data already on the GeoJSON, read straight off its properties. Selected/
   // hover still win so a user can inspect an unavailable feature without losing that feedback.
-  protected fillColorExpression(): ExpressionSpecification {
+  protected dataColorExpression(): ExpressionSpecification {
     return [
       'case',
       ['boolean', ['feature-state', 'selected'], false],
-      this.style.fillSelectedColor,
+      this.style.selectedColor,
       ['boolean', ['feature-state', 'hover'], false],
-      this.style.fillHighlightColor,
+      this.style.highlightColor,
       ['==', ['get', 'available'], false],
-      this.style.fillInvalidColor,
-      this.style.fillColor,
+      this.style.invalidColor,
+      this.style.dataColor,
     ];
   }
 
@@ -126,7 +126,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         visibility: 'visible' as const,
       },
       paint: {
-        'fill-color': this.fillColorExpression(),
+        'fill-color': this.dataColorExpression(),
         'fill-opacity': this.selectedOpacity(this.getDefaultOpacity()),
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
@@ -151,7 +151,9 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     };
   }
 
-  // Create a styled layer that will be used for line geometry
+  // Create a styled layer that will be used for line geometry. Drawn in the data color, not the
+  // stroke color: a LineString is the thing being shown, the same as a polygon's fill is, and it has
+  // no outline for the stroke color to be the outline of.
   protected createLineLayer(layerId: string): LineLayerSpecification {
     return {
       id: `${this.getSourceId()}-${layerId}-lines`,
@@ -161,7 +163,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         visibility: 'visible' as const,
       },
       paint: {
-        'line-color': this.strokeColorExpression(),
+        'line-color': this.dataColorExpression(),
         'line-width': 4,
         'line-opacity': this.getDefaultOpacity(),
       },
@@ -179,7 +181,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         visibility: 'visible' as const,
       },
       paint: {
-        'circle-color': this.fillColorExpression(),
+        'circle-color': this.dataColorExpression(),
         'circle-stroke-color': this.strokeColorExpression(),
         'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 2, 12, 4] as const,
