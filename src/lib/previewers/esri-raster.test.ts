@@ -41,7 +41,7 @@ class FakeMap {
 }
 
 // The previewer only reads the colors used by the highlight
-const style = { opacity: 0.8, strokeSelectedColor: '#0a0', fillSelectedColor: '#0f0', fillHighlightOpacity: 0.8 } as MapLibreStyle;
+const style = { opacity: 0.8, strokeSelectedColor: '#0a0', selectedColor: '#0f0', highlightOpacity: 0.8 } as MapLibreStyle;
 
 const SERVICE = 'https://example.org/arcgis/rest/services/Geology/Glacial_Boundaries/MapServer';
 const IMAGE_SERVICE = 'https://example.org/arcgis/rest/services/NAIP/USDA_CONUS_PRIME/ImageServer';

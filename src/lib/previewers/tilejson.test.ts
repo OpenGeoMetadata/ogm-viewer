@@ -44,7 +44,7 @@ class FakeMap {
 }
 
 // The previewers only read the colors and label styles, none of which these tests assert on
-const style = { opacity: 0.8, fillColor: '#00f', strokeColor: '#009', textColor: '#000', textFont: 'Noto Sans Regular', textSize: 12 } as MapLibreStyle;
+const style = { opacity: 0.8, dataColor: '#00f', strokeColor: '#009', textColor: '#000', textFont: 'Noto Sans Regular', textSize: 12 } as MapLibreStyle;
 
 const TILEJSON_URL = 'https://example.com/tilejson.json';
 const BALKANS_BOUNDS: [number, number, number, number] = [19.333333, 39.75, 29.333333, 43.083333];

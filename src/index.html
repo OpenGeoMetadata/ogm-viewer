@@ -60,12 +60,13 @@
       }
 
       /* The --ogm-* theming API. These inherit through the shadow boundary, which is the whole
-         point: nothing below has to know the embedding page exists. */
+         point: nothing below has to know the embedding page exists. Naming the data color is
+         enough - the outline comes from it, and follows the mode. --ogm-stroke-color is here to
+         exercise the escape hatch for a page that wants a particular one. */
       ogm-preview.branded {
-        --ogm-fill-color: #8f1414;
+        --ogm-data-color: #8f1414;
         --ogm-stroke-color: #4a0a0a;
-        --ogm-fill-selected-color: #e98300;
-        --ogm-stroke-selected-color: #8f4700;
+        --ogm-selected-color: #e98300;
       }
     </style>
 

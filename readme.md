@@ -60,8 +60,7 @@ You can style the viewer's colors by setting CSS custom properties on its elemen
 
 ```css
 ogm-viewer {
-  --ogm-fill-color: #8f1414;
-  --ogm-stroke-color: #4a0a0a;
+  --ogm-data-color: #8f1414;
 }
 ```
 
@@ -69,24 +68,31 @@ Here are the supported properties and what they apply to:
 
 | Property                       | Applies to                                           |
 | ------------------------------ | ---------------------------------------------------- |
-| `--ogm-fill-color`             | Polygon and circle fill                              |
-| `--ogm-fill-highlight-color`   | Fill of a hovered feature                            |
-| `--ogm-fill-selected-color`    | Fill of the feature whose attributes are shown       |
-| `--ogm-fill-invalid-color`     | Fill of a feature marked unavailable                 |
-| `--ogm-stroke-color`           | Lines, and polygon and circle borders                |
-| `--ogm-stroke-highlight-color` | Stroke of a hovered feature                          |
-| `--ogm-stroke-selected-color`  | Stroke of the selected feature                       |
-| `--ogm-stroke-invalid-color`   | Stroke of a feature marked unavailable               |
+| `--ogm-data-color`             | Polygon fill, line geometry, and circle fill         |
+| `--ogm-highlight-color`        | The same, for a hovered feature                      |
+| `--ogm-selected-color`         | The same, for the feature whose attributes are shown |
+| `--ogm-invalid-color`          | The same, for a feature marked unavailable           |
+| `--ogm-stroke-color`           | Polygon outlines and circle borders                  |
+| `--ogm-stroke-highlight-color` | Outline of a hovered feature                         |
+| `--ogm-stroke-selected-color`  | Outline of the selected feature                      |
+| `--ogm-stroke-invalid-color`   | Outline of a feature marked unavailable              |
 | `--ogm-text-color`             | Feature label text color                             |
 | `--ogm-text-halo-color`        | Feature label text outline color                     |
 | `--ogm-text-size`              | Feature label font size, in pixels                   |
 | `--ogm-font-family`            | Feature label font name (e.g. `"Noto Sans Regular"`) |
-| `--ogm-fill-opacity`           | Initial opacity of drawn data                        |
-| `--ogm-fill-highlight-opacity` | Opacity of a highlighted feature                     |
+| `--ogm-data-opacity`           | Initial opacity of drawn data                        |
+| `--ogm-highlight-opacity`      | Opacity of a highlighted feature                     |
 | `--ogm-bounds-opacity`         | Initial opacity of a bounding box or index map       |
 | `--ogm-padding`                | Gap kept between the data and the view edge (pixels) |
 
-By default, the viewer uses styles from [Web Awesome](https://webawesome.com/) that match the current mode (dark or light). Anything you override will be used in both modes.
+By default, the viewer uses styles from [Web Awesome](https://webawesome.com/) that match the current mode (dark or light).
+
+You usually only need the four `--ogm-*-color` properties, plus `--ogm-text-color`. The rest are derived:
+
+- Each outline comes from the color it outlines, moved away from the basemap: darker in light mode, lighter in dark mode. A color you name is used in both modes, but its outline follows the mode, so one declaration reads on either basemap.
+- The label halo comes from `--ogm-text-color`, as black or white — whichever contrasts more, the same choice CSS `contrast-color()` makes. It doesn't consult the mode, because the text color already did.
+
+`--ogm-stroke-*` and `--ogm-text-halo-color` are there if you want particular ones instead. Like the other colors, one you name is used in both modes.
 
 ### Restricted content
 

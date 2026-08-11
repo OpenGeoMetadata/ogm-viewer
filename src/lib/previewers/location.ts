@@ -80,7 +80,7 @@ export default class LocationPreviewer extends MapPreviewer {
       source: this.getSourceId(),
       layout: { visibility: 'visible' as const },
       paint: {
-        'fill-color': this.style.fillColor,
+        'fill-color': this.style.dataColor,
         'fill-opacity': this.style.boundsOpacity * FILL_OPACITY,
       },
     };

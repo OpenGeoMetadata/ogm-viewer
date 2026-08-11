@@ -47,10 +47,10 @@ class FakeMap {
 // Distinct values for every color so a wrong branch in a case expression shows up as a mismatch
 const style = {
   opacity: 0.8,
-  fillColor: '#00f',
-  fillHighlightColor: '#0ff',
-  fillSelectedColor: '#0f0',
-  fillInvalidColor: '#ff0',
+  dataColor: '#00f',
+  highlightColor: '#0ff',
+  selectedColor: '#0f0',
+  invalidColor: '#ff0',
   strokeColor: '#009',
   strokeHighlightColor: '#099',
   strokeSelectedColor: '#090',
@@ -58,7 +58,7 @@ const style = {
   textColor: '#000',
   textFont: 'Noto Sans Regular',
   textSize: 12,
-  fillHighlightOpacity: 0.8,
+  highlightOpacity: 0.8,
   // Distinct from opacity for the same reason the colors are distinct from each other: an index map
   // drawn at the wrong one of the two has to show up as a mismatch
   boundsOpacity: 0.5,
@@ -161,52 +161,34 @@ describe('GeoJsonPreviewer#previewLayers', () => {
 // straight off ['get', 'available'] - but it still has to rank below selected/hover, or hovering
 // an unavailable feature would give no visual feedback at all
 describe('GeoJsonPreviewer#colors', () => {
-  it('falls back to the invalid fill color for a feature marked unavailable, below selected and hover', async () => {
+  const dataColors = ['case', SELECTED, style.selectedColor, HOVER, style.highlightColor, UNAVAILABLE, style.invalidColor, style.dataColor];
+  const strokeColors = ['case', SELECTED, style.strokeSelectedColor, HOVER, style.strokeHighlightColor, UNAVAILABLE, style.strokeInvalidColor, style.strokeColor];
+
+  it('falls back to the invalid data color for a feature marked unavailable, below selected and hover', async () => {
     const { map } = await previewGeoJson();
 
-    expect(map.layers.get(layerId('polygons')).paint['fill-color']).toEqual([
-      'case',
-      SELECTED,
-      style.fillSelectedColor,
-      HOVER,
-      style.fillHighlightColor,
-      UNAVAILABLE,
-      style.fillInvalidColor,
-      style.fillColor,
-    ]);
+    expect(map.layers.get(layerId('polygons')).paint['fill-color']).toEqual(dataColors);
   });
 
-  it('does the same for stroke colors, on both polygon outlines and lines', async () => {
+  it('does the same for stroke colors, on polygon outlines', async () => {
     const { map } = await previewGeoJson();
-    const expected = ['case', SELECTED, style.strokeSelectedColor, HOVER, style.strokeHighlightColor, UNAVAILABLE, style.strokeInvalidColor, style.strokeColor];
 
-    expect(map.layers.get(layerId('polygon-outlines')).paint['line-color']).toEqual(expected);
-    expect(map.layers.get(layerId('lines')).paint['line-color']).toEqual(expected);
+    expect(map.layers.get(layerId('polygon-outlines')).paint['line-color']).toEqual(strokeColors);
+  });
+
+  // A LineString is the thing being shown, the way a polygon's fill is - not the edge of something
+  // else - so it takes the data color rather than the one reserved for outlines
+  it('draws line geometry in the data color, not the stroke color', async () => {
+    const { map } = await previewGeoJson();
+
+    expect(map.layers.get(layerId('lines')).paint['line-color']).toEqual(dataColors);
   });
 
   it('does the same for circle fill and stroke colors', async () => {
     const { map } = await previewGeoJson();
 
-    expect(map.layers.get(layerId('points')).paint['circle-color']).toEqual([
-      'case',
-      SELECTED,
-      style.fillSelectedColor,
-      HOVER,
-      style.fillHighlightColor,
-      UNAVAILABLE,
-      style.fillInvalidColor,
-      style.fillColor,
-    ]);
-    expect(map.layers.get(layerId('points')).paint['circle-stroke-color']).toEqual([
-      'case',
-      SELECTED,
-      style.strokeSelectedColor,
-      HOVER,
-      style.strokeHighlightColor,
-      UNAVAILABLE,
-      style.strokeInvalidColor,
-      style.strokeColor,
-    ]);
+    expect(map.layers.get(layerId('points')).paint['circle-color']).toEqual(dataColors);
+    expect(map.layers.get(layerId('points')).paint['circle-stroke-color']).toEqual(strokeColors);
   });
 });
 

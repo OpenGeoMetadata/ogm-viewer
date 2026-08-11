@@ -1,5 +1,6 @@
 import { describe, it, expect } from '@stencil/vitest';
 
+import { shiftLightness } from './color';
 import MapLibreTheme, { darkBasemapStyle, lightBasemapStyle } from './maplibre';
 
 // A theme reading from an element carrying the given custom properties.
@@ -21,23 +22,23 @@ describe('MapLibreTheme', () => {
       const light = themed('light', { '--wa-color-blue-80': 'rebeccapurple' });
       const dark = themed('dark', { '--wa-color-blue-50': 'papayawhip' });
 
-      expect(light.getStyle().fillColor).toBe('rebeccapurple');
-      expect(dark.getStyle().fillColor).toBe('papayawhip');
+      expect(light.getStyle().dataColor).toBe('rebeccapurple');
+      expect(dark.getStyle().dataColor).toBe('papayawhip');
     });
 
     it('prefers an --ogm-* override to the token it falls back to', () => {
-      const theme = themed('light', { '--ogm-fill-color': '#8f1414', '--wa-color-blue-80': 'rebeccapurple' });
+      const theme = themed('light', { '--ogm-data-color': '#8f1414', '--wa-color-blue-80': 'rebeccapurple' });
 
-      expect(theme.getStyle().fillColor).toBe('#8f1414');
+      expect(theme.getStyle().dataColor).toBe('#8f1414');
     });
 
     // An app that names a color has said it wants that color; picking a different one in dark mode
     // would be picking one it never asked for.
     it('honors a single override in both modes', () => {
-      const tokens = { '--ogm-stroke-color': '#4a0a0a', '--wa-color-blue-50': 'papayawhip', '--wa-color-blue-80': 'rebeccapurple' };
+      const tokens = { '--ogm-data-color': '#8f1414', '--wa-color-blue-50': 'papayawhip', '--wa-color-blue-80': 'rebeccapurple' };
 
-      expect(themed('light', tokens).getStyle().strokeColor).toBe('#4a0a0a');
-      expect(themed('dark', tokens).getStyle().strokeColor).toBe('#4a0a0a');
+      expect(themed('light', tokens).getStyle().dataColor).toBe('#8f1414');
+      expect(themed('dark', tokens).getStyle().dataColor).toBe('#8f1414');
     });
 
     // Web Awesome documents its palette tokens inline, and Safari leaks the comment into the
@@ -45,7 +46,73 @@ describe('MapLibreTheme', () => {
     it('strips a comment left in a token value', () => {
       const theme = themed('light', { '--wa-color-blue-80': '#0a3a1d /* oklch(30% 0.08 150) */' });
 
-      expect(theme.getStyle().fillColor).toBe('#0a3a1d');
+      expect(theme.getStyle().dataColor).toBe('#0a3a1d');
+    });
+  });
+
+  // The outline isn't a second decision an app has to make. Asserted as a relationship to the color
+  // it came from rather than against a hex, so the shift can be retuned without rewriting this.
+  describe('derived stroke colors', () => {
+    const tokens = { '--ogm-data-color': '#8f1414' };
+
+    it('outlines data with a darker version of it in light mode', () => {
+      const { dataColor, strokeColor } = themed('light', tokens).getStyle();
+
+      expect(strokeColor).toBe(shiftLightness(dataColor, -0.26));
+    });
+
+    // The direction is what flips between modes, so one named color reads on either basemap - which
+    // an app naming its own stroke could never get, since that override applies to both modes.
+    it('outlines it with a lighter version in dark mode', () => {
+      const { dataColor, strokeColor } = themed('dark', tokens).getStyle();
+
+      expect(strokeColor).toBe(shiftLightness(dataColor, 0.26));
+      expect(strokeColor).not.toBe(themed('light', tokens).getStyle().strokeColor);
+    });
+
+    it('derives each state from its own color rather than from the base one', () => {
+      const style = themed('light', { '--ogm-selected-color': '#e98300', '--ogm-invalid-color': '#b1040e' }).getStyle();
+
+      expect(style.strokeSelectedColor).toBe(shiftLightness('#e98300', -0.26));
+      expect(style.strokeInvalidColor).toBe(shiftLightness('#b1040e', -0.26));
+    });
+
+    it('steps aside for an app that names the outline itself', () => {
+      const named = { ...tokens, '--ogm-stroke-color': '#4a0a0a' };
+
+      expect(themed('light', named).getStyle().strokeColor).toBe('#4a0a0a');
+      expect(themed('dark', named).getStyle().strokeColor).toBe('#4a0a0a');
+    });
+  });
+
+  // A label's halo is derived like an outline is, but to the opposite end of the scale: it isn't a
+  // step away from the text, it's what holds the text apart from the basemap.
+  describe('derived text halo', () => {
+    it('takes the halo from the text color rather than from the mode', () => {
+      expect(themed('light', { '--ogm-text-color': '#101219' }).getStyle().textHaloColor).toBe('#ffffff');
+      // Light text in light mode still gets a dark halo - the text is what the halo answers to
+      expect(themed('light', { '--ogm-text-color': '#f1f2f3' }).getStyle().textHaloColor).toBe('#000000');
+    });
+
+    it('follows the mode by way of the token the text color falls back to', () => {
+      const tokens = { '--wa-color-gray-05': '#101219', '--wa-color-gray-95': '#f1f2f3' };
+
+      expect(themed('dark', tokens).getStyle().textHaloColor).toBe('#000000');
+      expect(themed('light', tokens).getStyle().textHaloColor).toBe('#ffffff');
+    });
+
+    it('steps aside for an app that names the halo itself', () => {
+      const named = { '--ogm-text-color': '#101219', '--ogm-text-halo-color': '#8f1414' };
+
+      expect(themed('light', named).getStyle().textHaloColor).toBe('#8f1414');
+    });
+
+    // Deriving from a color we can't read would hand back the text color itself and swallow the
+    // label, so this is the one case that still reaches for the token pair
+    it('falls back to the token when the text color cannot be read', () => {
+      const tokens = { '--ogm-text-color': 'oklch(0.5 0.1 20)', '--wa-color-gray-95': '#f1f2f3' };
+
+      expect(themed('light', tokens).getStyle().textHaloColor).toBe('#f1f2f3');
     });
   });
 
@@ -66,7 +133,7 @@ describe('MapLibreTheme', () => {
   describe('numbers', () => {
     it('reads an override', () => {
       expect(themed('light', { '--ogm-text-size': '18' }).getStyle().textSize).toBe(18);
-      expect(themed('light', { '--ogm-fill-opacity': '0.35' }).getStyle().opacity).toBe(0.35);
+      expect(themed('light', { '--ogm-data-opacity': '0.35' }).getStyle().opacity).toBe(0.35);
       expect(themed('light', { '--ogm-bounds-opacity': '0.2' }).getStyle().boundsOpacity).toBe(0.2);
     });
 
@@ -83,7 +150,7 @@ describe('MapLibreTheme', () => {
 
       expect(boundsOpacity).toBeLessThan(opacity);
       // Not derived from it either - raising one leaves the other where the theme put it
-      expect(themed('light', { '--ogm-fill-opacity': '1' }).getStyle().boundsOpacity).toBe(boundsOpacity);
+      expect(themed('light', { '--ogm-data-opacity': '1' }).getStyle().boundsOpacity).toBe(boundsOpacity);
     });
   });
 

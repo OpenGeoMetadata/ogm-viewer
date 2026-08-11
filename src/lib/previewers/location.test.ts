@@ -47,12 +47,12 @@ class FakeMap {
 // hold for either value would say nothing about which one an extent is drawn at
 const style = {
   opacity: 0.8,
-  fillColor: '#00f',
+  dataColor: '#00f',
   strokeColor: '#009',
   textColor: '#000',
   textFont: 'Noto Sans Regular',
   textSize: 12,
-  fillHighlightOpacity: 0.8,
+  highlightOpacity: 0.8,
   boundsOpacity: 0.5,
 } as MapLibreStyle;
 
@@ -146,7 +146,7 @@ describe('LocationPreviewer#preview', () => {
     expect([...map.layers.keys()]).toEqual([FILL, OUTLINE]);
     expect(map.layers.get(OUTLINE).paint['line-color']).toEqual(style.strokeColor);
     expect(map.layers.get(OUTLINE).paint['line-opacity']).toEqual(style.boundsOpacity);
-    expect(map.layers.get(FILL).paint['fill-color']).toEqual(style.fillColor);
+    expect(map.layers.get(FILL).paint['fill-color']).toEqual(style.dataColor);
     // Held under the outline, so the extent reads as a note about the map and not as data on it
     expect(map.layers.get(FILL).paint['fill-opacity']).toBeLessThan(style.boundsOpacity);
   });
