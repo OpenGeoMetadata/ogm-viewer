@@ -19,14 +19,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      # The pinned Node ships an npm new enough for trusted publishing, which wants 11.5.1. This used
+      # to install npm@latest over it, because the Node pinned at the time shipped 11.3.0 - and that
+      # is what broke the 0.8.0 release: npm@latest became 12, which asks for a newer Node than the
+      # pin, so the one step that existed to make publishing possible refused to run. Nothing to keep
+      # in step now. Whatever .node-version says brings its own npm.
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
           registry-url: https://registry.npmjs.org
-      # The npm that ships with the pinned Node is older than trusted publishing
-      - name: Update npm
-        run: npm install -g npm@latest
       - name: Install dependencies
         run: npm ci
       # The tag says which version this is, and package.json has to agree: npm publish would
