@@ -176,7 +176,7 @@ describe('ogm-attributes', () => {
       const { root, waitForChanges } = await render(<ogm-attributes features={UNLABELED}></ogm-attributes>);
 
       expect(pagers(root)).toHaveLength(2);
-      expect(title(root)).toEqual('Feature am002175');
+      expect(title(root)).toEqual('Feature');
 
       await page(root, waitForChanges, 'next');
 
