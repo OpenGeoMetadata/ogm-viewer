@@ -48,12 +48,18 @@ export default class DeckCogPreviewer extends MapPreviewer {
   // open file instead of reading its header again.
   protected geotiff: GeoTIFF | undefined;
 
+  // Whether any tile of this COG has been drawn, which is what tells a COG that can't be drawn at
+  // all from one tile of it that couldn't. Reset per attach, alongside everything else a fresh load
+  // attempt starts over. See reportTileError.
+  protected anyTileDrawn = false;
+
   attach(map: maplibregl.Map, style: MapLibreStyle): this {
     super.attach(map, style);
     this.deckOverlay = this.getDeckOverlay();
     this.decoderPool ??= this.createDecoderPool();
     this.drawnState = { visible: true, opacity: style.opacity };
     this.geotiffBoundsLoaded = new Promise(resolve => (this.resolveGeotiffBounds = resolve));
+    this.anyTileDrawn = false;
     return this;
   }
 
@@ -130,9 +136,33 @@ export default class DeckCogPreviewer extends MapPreviewer {
           [east, north],
         ]);
       },
+      onTileLoad: () => (this.anyTileDrawn = true),
+      onTileError: (error: unknown) => this.reportTileError(error),
       parameters: { depthCompare: 'always', cullMode: 'back' },
       pool: this.decoderPool,
     });
+  }
+
+  // A COG can only fail once its tiles start arriving, which is after preview() has resolved - so a
+  // file deck.gl refuses to draw used to leave the map empty with the reason only in the console.
+  // deck.gl reports each such tile here; overriding it also takes over from its own handler, which
+  // logs every one of them.
+  //
+  // Only the first failure of a COG that has drawn nothing is worth an alert. A COG can be sparse by
+  // design, and a tile that failed among tiles that didn't means a hole in a preview the user can
+  // see rather than a preview that isn't there - not worth replacing with an error. deck.gl drops a
+  // cancelled tile before calling back, so a pan that abandons its reads never arrives here at all,
+  // but a decoder that notices the abort itself can still throw one.
+  protected reportTileError(error: unknown) {
+    if ((error as { name?: unknown } | null)?.name === 'AbortError') return;
+
+    if (this.anyTileDrawn) {
+      console.warn(`Could not draw a tile of ${this.url}:`, error);
+      return;
+    }
+
+    console.error(`Error drawing ${this.url}:`, error);
+    this.onError?.(error);
   }
 
   // Disable the web worker decoder pool; it appears to error because it can't find /worker.js.

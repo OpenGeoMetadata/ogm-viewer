@@ -234,6 +234,71 @@ describe('DeckCogPreviewer', () => {
     });
   });
 
+  // deck.gl only finds out a COG can't be drawn once its tiles start arriving, which is after
+  // preview() has resolved - so before this the map stayed empty and the reason only reached the
+  // console. See https://github.com/OpenGeoMetadata/ogm-viewer/issues/158, where a band-separate COG
+  // failed every tile this way.
+  describe('a tile that fails', () => {
+    // One error per prop call, since deck.gl reports each failed tile separately
+    const failTile = (previewer: TestDeckCogPreviewer, error: unknown = new Error('Band-separate images not yet implemented.')) =>
+      previewer.overlay.lastLayers[0].props.onTileError(error);
+
+    const drawTile = (previewer: TestDeckCogPreviewer) => previewer.overlay.lastLayers[0].props.onTileLoad({});
+
+    it('fails the preview when nothing has been drawn', async () => {
+      const { previewer } = previewFor();
+      const reported: unknown[] = [];
+      previewer.onError = error => reported.push(error);
+      await previewer.preview();
+
+      failTile(previewer);
+
+      expect(reported).toEqual([new Error('Band-separate images not yet implemented.')]);
+    });
+
+    // A COG can be sparse by design, and a hole in a preview the user can see is not worth replacing
+    // that preview with an error
+    it('is left alone once some of the COG is on screen', async () => {
+      const { previewer } = previewFor();
+      const reported: unknown[] = [];
+      previewer.onError = error => reported.push(error);
+      await previewer.preview();
+
+      drawTile(previewer);
+      failTile(previewer);
+
+      expect(reported).toEqual([]);
+    });
+
+    // deck.gl drops a cancelled tile before calling back, but a decoder that notices the abort itself
+    // can still throw one - and a pan that abandons its reads is not a failed preview
+    it('ignores an aborted read', async () => {
+      const { previewer } = previewFor();
+      const reported: unknown[] = [];
+      previewer.onError = error => reported.push(error);
+      await previewer.preview();
+
+      failTile(previewer, new DOMException('The user aborted a request.', 'AbortError'));
+
+      expect(reported).toEqual([]);
+    });
+
+    // A fresh load attempt starts over: the tiles of the last one are gone from the overlay
+    it('fails again after the preview is drawn a second time', async () => {
+      const { map, previewer } = previewFor();
+      const reported: unknown[] = [];
+      previewer.onError = error => reported.push(error);
+      await previewer.preview();
+      drawTile(previewer);
+
+      previewer.attach(map as unknown as maplibregl.Map, style);
+      await previewer.preview();
+      failTile(previewer);
+
+      expect(reported).toHaveLength(1);
+    });
+  });
+
   it('takes its layer off the overlay when cleared', async () => {
     const { previewer } = previewFor();
     await previewer.preview();

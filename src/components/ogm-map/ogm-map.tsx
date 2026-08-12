@@ -165,6 +165,16 @@ export class OgmMap {
     // that can change without the style document being rebuilt
     this.applyViewConstraints();
 
+    // A preview that paints with its own WebGL - deck.gl's COG overlay - has no MapLibre source to
+    // report on, and only finds out it can't be drawn once its tiles start arriving, after preview()
+    // below has resolved. Give it the same alert a failed load gets. Bound to the previewer it came
+    // from rather than to whichever is current, so a tile of the record we just left can't report
+    // against the one that replaced it.
+    const previewer = this.previewer;
+    previewer.onError = error => {
+      if (this.previewer === previewer) this.reportError(error);
+    };
+
     try {
       // The style is only known now: it comes out of the theme, and the theme can change under a
       // preview that is already on screen

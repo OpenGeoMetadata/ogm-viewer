@@ -42,6 +42,14 @@ export default abstract class MapPreviewer extends Previewer {
   protected style: MapLibreStyle;
   protected map: maplibregl.Map;
 
+  // Where a failure that arrives after preview() has already resolved goes. Everything MapLibre
+  // draws itself reports one on the map, which ogm-map is already listening to; a preview that
+  // paints with its own WebGL has no such channel, so it is handed one. Set by whoever draws this
+  // preview, and only worth reporting for the failures that mean the preview isn't there - see
+  // DeckCogPreviewer, which has tiles arriving one at a time and most of a viewport's worth of
+  // failures to say nothing about.
+  onError?: (error: unknown) => void;
+
   // Stored state for added MapLibre sources and layers to allow for cleanup
   sourceIds: string[] = [];
   layerIds: string[] = [];
