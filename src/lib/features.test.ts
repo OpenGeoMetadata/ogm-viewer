@@ -1,7 +1,7 @@
 import { describe, it, expect } from '@stencil/vitest';
 import type { MapGeoJSONFeature } from 'maplibre-gl';
 
-import { dedupeFeatures } from './features';
+import { dedupeFeatures, getFeatureTitle } from './features';
 
 const SOURCE = 'ark-77981-gmgscj87k49-openindexmap';
 
@@ -77,5 +77,26 @@ describe('dedupeFeatures', () => {
     const three = entry({ id: null as unknown as undefined, properties: { TRACT: '000500' } });
 
     expect(dedupeFeatures([one, two, three])).toEqual([one, two, three]);
+  });
+});
+
+describe('getFeatureTitle', () => {
+  it('calls a feature what the data calls it', () => {
+    expect(getFeatureTitle(entry({ properties: { label: 'SF 20' } }))).toEqual('SF 20');
+  });
+
+  it('calls a feature the data does not name a feature', () => {
+    expect(getFeatureTitle(entry({ id: 12, properties: { TRACT: '000300' } }))).toEqual('Feature');
+  });
+
+  // The bug this row exists to avoid: an /identify response has no features until we ask for them, so
+  // we number the answer to have something to draw the selection from, and the first of them read as
+  // "Feature 0" every time - a number the reader has no way to recognize.
+  it('says nothing of an id nobody put there', () => {
+    expect(getFeatureTitle(entry({ id: 0, properties: { Pixel: '12' } }))).toEqual('Feature');
+  });
+
+  it('has something to call a feature that arrived with no properties at all', () => {
+    expect(getFeatureTitle(entry({ id: undefined, properties: undefined }))).toEqual('Feature');
   });
 });

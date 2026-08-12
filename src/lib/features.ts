@@ -26,12 +26,13 @@ export const dedupeFeatures = (features: readonly MapGeoJSONFeature[]): MapGeoJS
   });
 };
 
-// Derive a title for a feature. If there is an explicit label in the data
-// (e.g. from an OpenIndexMap, where it indicates the sheet name), we use that.
-// Otherwise we fall back to the (potentially auto-generated) feature id, which
-// is guaranteed to be present. Other attributes like "title" are used inconsistently
-// across different data sources, so we don't rely on them.
-export const getFeatureTitle = (feature: MapGeoJSONFeature): string | undefined => {
-  if (feature.properties?.label) return feature.properties.label;
-  return `Feature ${feature.id}`;
-};
+// Derive a title for a feature. An explicit label in the data (e.g. from an OpenIndexMap, where it
+// names the sheet) is what a reader would recognize, so that wins. Other attributes like "title" are
+// used inconsistently across data sources, so we don't rely on them.
+//
+// Failing a label there is nothing to call it, and the id is not a name: it's either one nobody put
+// there - MapLibre numbers a GeoJSON source's features by position, and a server-queried preview has
+// no features until we ask, so those are numbered too, which is why the first of them was always
+// "Feature 0" - or an opaque key like "cugir007741.1". The header already says which of a stack you
+// are looking at, so an unnamed feature is just a feature.
+export const getFeatureTitle = (feature: MapGeoJSONFeature): string => feature.properties?.label || 'Feature';
