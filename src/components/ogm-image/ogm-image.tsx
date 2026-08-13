@@ -35,9 +35,14 @@ export class OgmImage {
 
   // Set up OpenSeadragon viewer on load
   async componentDidLoad() {
-    this.imageTheme = new Theme(this.el, this.theme);
+    // #openseadragon rather than the host for the same reason <ogm-map> reads from its container: it
+    // is the element carrying the Web Awesome scope, and the host has no colors on it to read. What
+    // this one reads is only --ogm-padding, which comes from outside either way, but a Theme pointed
+    // at the host is the shape of the bug that left a standalone map drawing in empty colors.
+    const scope = getElement(this.el, '#openseadragon');
+    this.imageTheme = new Theme(scope, this.theme);
     this.viewer = new Viewer({
-      element: getElement(this.el, '#openseadragon'),
+      element: scope,
       // Given to the viewer rather than set afterwards: OpenSeadragon works out where "home" is from
       // the margins in place when an image opens, and setMargins() doesn't refit one already open.
       viewportMargins: this.margins(),
@@ -124,11 +129,14 @@ export class OgmImage {
     this.previewError.emit(referenceError(error, this.previewer.label(), this.previewer.url));
   }
 
+  // The scope goes on #openseadragon as well as on the Host: the palette is established by plain
+  // class selectors, which the stylesheet linked here can't match against its own shadow host. The
+  // controls below and the viewer's own background read from it.
   render() {
     return (
       <Host class={waScope(this.theme)}>
         <link rel="stylesheet" href={webAwesomeStylesheet()} />
-        <div id="openseadragon">
+        <div id="openseadragon" class={waScope(this.theme)}>
           <div class="controls">
             <wa-button class="zoom-in" size="s" appearance="filled-outlined" pill>
               <wa-icon name="zoom-in" label="Zoom In" canvas="auto"></wa-icon>

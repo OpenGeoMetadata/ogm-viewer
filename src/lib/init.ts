@@ -31,11 +31,50 @@ const WA_PALETTE = 'wa-palette-default wa-brand-blue wa-neutral-gray wa-success-
  * <ogm-viewer> above it: custom properties inherit through shadow boundaries, so the outermost one
  * in use is the one that has to establish them, and which component that is depends on the embed.
  *
+ * They belong on an element *inside* the shadow root - a container the component already wraps its
+ * content in - and not on the <Host> alone. Web Awesome declares its palette with plain class
+ * selectors, and a plain class selector in a shadow root's own stylesheet never matches the host of
+ * that root, so a scope class sitting there alone establishes nothing for the tree below it: every
+ * color reads as the empty string. Worth applying to the Host as well, though, because that class is
+ * matched by the *parent's* stylesheet one shadow root out - which is what gives a nested
+ * component's own :host rules their colors.
+ *
  * Applying them more than once down a single tree is harmless - the values are identical, and the
  * browser fetches the stylesheet once - which is why nobody tries to detect whether an ancestor got
  * there first. At first paint there is no reliable answer to that question anyway.
  */
 export const waScope = (theme?: 'light' | 'dark'): string => `${WA_PALETTE} wa-${theme ?? 'light'}`;
+
+// One of the palette's own colors, read to tell whether the palette has arrived. Any of them would
+// do; this is the blue a preview's data falls back to being drawn in.
+const WA_PALETTE_COLOR = '--wa-color-blue-50';
+
+/**
+ * Resolves once the scope established by waScope() has colors behind it, for a component that reads
+ * one in JavaScript rather than leaving it to CSS. A map is the case in point: it has to hand
+ * MapLibre a color, and MapLibre rejects a layer whose paint properties are the empty string
+ * outright rather than falling back to anything.
+ *
+ * There is a real wait here. The theme is two files deep - themes/default.css opens with @import
+ * rules, and the palette is in one of the imported files - so a link's `sheet` being set says only
+ * that the outer file parsed, which happens before either import resolves. The link's `load` event
+ * is the signal that waits for them.
+ *
+ * Ask for this in componentDidLoad, in the same task that rendered the link, and hold the promise
+ * until the colors are actually wanted. Asked for any later - from a handler the map or the page
+ * fired - a `load` event that has already been and gone is one that nobody can hear.
+ */
+export const webAwesomeReady = (link: Element, scope: Element): Promise<void> =>
+  new Promise(resolve => {
+    // Already readable: an ancestor scope established the palette before we rendered at all, or a
+    // stylesheet the browser had in hand loaded before we got here
+    if (window.getComputedStyle(scope).getPropertyValue(WA_PALETTE_COLOR)) return resolve();
+
+    // 'error' as much as 'load': a theme that can't be fetched leaves a preview drawn in whatever
+    // its fallbacks come out as, which is a good deal better than one that is never drawn at all.
+    link.addEventListener('load', () => resolve(), { once: true });
+    link.addEventListener('error', () => resolve(), { once: true });
+  });
 
 // Which theme to draw in when nobody said. Only consulted by a component used on its own;
 // <ogm-viewer> passes its own resolved theme down to everything it renders.
