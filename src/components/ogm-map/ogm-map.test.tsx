@@ -35,6 +35,43 @@ const bounds = [
   [1, 1],
 ];
 
+// Enough of one to draw a whole preview onto: it can be constrained to what the preview needs and
+// fitted to it. Refuses to be written to until its style document has loaded, the way every one of
+// MapLibre's own writers does - see Style#_checkLoaded.
+const loadingMap = () => {
+  const map = {
+    styleLoaded: false,
+    ...fittableMap(),
+    setProjection: vi.fn(() => {
+      if (!map.styleLoaded) throw new Error('Style is not done loading.');
+    }),
+    setMaxPitch: vi.fn(),
+  };
+  return map;
+};
+
+// Built by addControls, so a map that never got a WebGL context has none of it
+const fakeLayersControl = () => ({ setPressed: vi.fn() });
+
+// Enough of a previewer to be drawn: it takes the map and the colors it draws with, draws, and says
+// where it should be looked at. Flat and shallow, like the two previews that paint their own WebGL.
+const drawablePreviewer = () => ({
+  projection: 'mercator',
+  maxPitch: 30,
+  url: 'http://example.com/data.json',
+  sourceIds: [],
+  previewLayers: [],
+  label: () => 'GeoJSON',
+  attach: vi.fn(),
+  preview: vi.fn(async () => {}),
+  applyLayerState: vi.fn(),
+  clearPreview: vi.fn(async () => {}),
+  getBounds: vi.fn(async () => bounds),
+});
+
+// Stencil doesn't await a watcher, so let what the previewer's own started finish
+const settle = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+
 const fitTo = (el: HTMLElement, mapBounds: number[][]) => (el as unknown as { fitMapBounds: (bounds: number[][]) => Promise<void> }).fitMapBounds(mapBounds);
 
 // Set a property the theme reads, on the element it reads from - the scope inside the shadow root,
@@ -44,6 +81,15 @@ const fitTo = (el: HTMLElement, mapBounds: number[][]) => (el as unknown as { fi
 const setThemeProperty = (el: HTMLElement, property: string, value: string) => {
   const scope = (el.shadowRoot as ShadowRoot).querySelector('.container') as HTMLElement;
   scope.style.setProperty(property, value);
+};
+
+// What MapLibre's own handlers do between them once it has a style document: the map takes writes, the
+// component knows it does, and whatever preview is attached is drawn into it. There is no map here to
+// fire style.load or load on, so the two of them stand in for the pair.
+const styleLoads = async (el: HTMLElement, map: ReturnType<typeof loadingMap>) => {
+  map.styleLoaded = true;
+  Object.assign(el, { mapStyleLoaded: true });
+  await (el as unknown as { loadPreview: () => Promise<void> }).loadPreview();
 };
 
 const containers: HTMLElement[] = [];
@@ -149,6 +195,48 @@ describe('ogm-map', () => {
     await fitTo(el, bounds);
 
     expect((el as unknown as { map: ReturnType<typeof fittableMap> }).map.fitBounds).toHaveBeenCalledWith(bounds, { padding: 50 });
+  });
+
+  // Only a standalone <ogm-map> gets here: under <ogm-preview> the previewer arrives as an initial prop,
+  // so the watcher never fires in the window before the style has loaded. Writing to a style document
+  // that hasn't loaded throws, and the watcher that lands a preview is async - so what it threw escaped
+  // as an unhandled rejection instead of reaching reportError, and the preview never drew.
+  it('holds a preview handed to it before its style has loaded, then draws it', async () => {
+    const { el } = await renderMap();
+    const map = loadingMap();
+    const previewer = drawablePreviewer();
+    const reported = vi.fn();
+    el.addEventListener('previewError', reported);
+    Object.assign(el, { map, layersControl: fakeLayersControl() });
+
+    Object.assign(el, { previewer });
+    await settle();
+
+    // Nothing written to the style, nothing drawn into it, and nothing thrown on the way past
+    expect(map.setProjection).not.toHaveBeenCalled();
+    expect(previewer.preview).not.toHaveBeenCalled();
+    expect(reported).not.toHaveBeenCalled();
+    expect(consoleError).not.toHaveBeenCalled();
+
+    await styleLoads(el, map);
+
+    // The whole load ran this time, down to moving the map to what it drew
+    expect(previewer.preview).toHaveBeenCalled();
+    expect(map.fitBounds).toHaveBeenCalled();
+    expect(reported).not.toHaveBeenCalled();
+  });
+
+  // Waiting on the style is all that guard is about: a preview that can't be drawn on a globe still has
+  // to flatten the map it lands on, and tilt it no further than it can be drawn tilted
+  it('draws a preview that needs a flat map on one', async () => {
+    const { el } = await renderMap();
+    const map = loadingMap();
+    Object.assign(el, { map, layersControl: fakeLayersControl(), previewer: drawablePreviewer() });
+
+    await styleLoads(el, map);
+
+    expect(map.setProjection).toHaveBeenCalledWith({ type: 'mercator' });
+    expect(map.setMaxPitch).toHaveBeenCalledWith(30);
   });
 
   // The popup is built by hand rather than rendered, so it outlives the component's own markup

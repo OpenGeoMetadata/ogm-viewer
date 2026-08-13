@@ -155,6 +155,18 @@ export class OgmMap {
   async loadPreview() {
     if (!this.previewer || !this.map) return;
 
+    // Nothing can be written into a style document that hasn't loaded: setProjection below and the
+    // addSource every preview draws itself with both throw before it has. Nothing is lost by holding
+    // off, because whichever style is on its way draws the preview as it lands - the map's own load
+    // event for the first one, and the handler onThemeChange registers for every one after it.
+    //
+    // Reached only by a previewer handed to a live standalone <ogm-map>, which is the one way a preview
+    // can arrive mid-load: under <ogm-preview> it is an initial prop, so the watcher never fires in that
+    // window. And it has to be caught here rather than thrown and reported, because Stencil doesn't
+    // await a watcher - what that throws escapes as an unhandled rejection instead of reaching
+    // reportError, leaving nothing drawn and nothing said about it.
+    if (!this.mapStyleLoaded) return;
+
     // Fresh load attempt: allow one error to be reported again for this preview
     this.errorReported = false;
 
