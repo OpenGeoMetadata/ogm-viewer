@@ -4,7 +4,7 @@ import maplibregl from 'maplibre-gl';
 import { closestAcrossShadows, findElement, getElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
 import GlobeControl from '../../lib/globe-control';
-import { themePreference, waScope, webAwesomeStylesheet } from '../../lib/init';
+import { themePreference, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
 import { dedupeFeatures } from '../../lib/features';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
 import { isLayerDrawn, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
@@ -54,6 +54,8 @@ export class OgmMap {
   // MapLibre map instance and popup instance for feature info display
   protected map: maplibregl.Map;
   protected mapTheme: MapLibreTheme;
+  // Resolves once the theme's colors can be read; see webAwesomeReady and loadPreview
+  protected themeReady: Promise<void>;
   protected popup: maplibregl.Popup | undefined = undefined;
   // Watches the popup's contents for a change of size; see createPopup
   protected popupResize: ResizeObserver | undefined = undefined;
@@ -63,7 +65,14 @@ export class OgmMap {
 
   // Set up the mapLibre map and event bindings on load
   componentDidLoad() {
-    this.mapTheme = new MapLibreTheme(this.el, this.theme);
+    // The theme reads from the element carrying the Web Awesome scope, not from the host: see render
+    // for why the host has no colors on it to read. Everything MapLibre draws is inside this element,
+    // so an --ogm-* override set on the host or on the embedding page still reaches it by inheritance.
+    const scope = getElement(this.el, '.container');
+    this.mapTheme = new MapLibreTheme(scope, this.theme);
+    // Asked for here, in the same task that rendered the link, and awaited in loadPreview
+    this.themeReady = webAwesomeReady(getElement(this.el, 'link'), scope);
+
     this.map = new maplibregl.Map({
       container: getElement(this.el, '#map'),
       // The basemaps are CARTO's, over OpenStreetMap data; both require attribution. Compact so it
@@ -176,6 +185,13 @@ export class OgmMap {
     };
 
     try {
+      // Nothing below can be drawn until the colors it would be drawn in can be read, and the
+      // stylesheet they come from is linked into our own shadow root - on a first load it may still
+      // be arriving. Waiting on the MapLibre 'load' event that brought us here is not the same thing:
+      // that waits for a round trip to a tile server, which usually but not always takes longer, and
+      // the redraw after a theme change starts from 'style.load', which is earlier still.
+      await this.themeReady;
+
       // The style is only known now: it comes out of the theme, and the theme can change under a
       // preview that is already on screen
       this.previewer.attach(this.map, this.mapTheme.getStyle());
@@ -513,15 +529,19 @@ export class OgmMap {
   // opens it is one. MapLibre owns the children of #map, so anything Stencil renders in there is
   // fighting it for the same DOM - the reason ogm-attributes has to be built by hand.
   //
-  // The theme class stays on #map, not the Host: the dark-mode rules in ogm-map.css select MapLibre
-  // chrome as descendants of it, and a class on the host element isn't matched by `.wa-dark` from
-  // inside the shadow root.
+  // Everything is wrapped in .container because that is where the Web Awesome scope has to go: the
+  // classes waScope() applies are matched by the stylesheet linked above, and a plain class selector
+  // in a shadow root's stylesheet never matches the host of that root. On the Host alone they would
+  // establish nothing, which is what a bare <ogm-map> used to draw with - every color empty. The
+  // panel needs them as much as the map does, and it isn't inside #map, so the scope goes above both.
   render() {
     return (
       <Host class={waScope(this.theme)}>
         <link rel="stylesheet" href={webAwesomeStylesheet()} />
-        <div id="map" class={`wa-${this.theme}`}></div>
-        {this.layersPanelOpen && <ogm-layers theme={this.theme} layers={this.layerControls}></ogm-layers>}
+        <div class={`container ${waScope(this.theme)}`}>
+          <div id="map"></div>
+          {this.layersPanelOpen && <ogm-layers theme={this.theme} layers={this.layerControls}></ogm-layers>}
+        </div>
       </Host>
     );
   }

@@ -37,6 +37,15 @@ const bounds = [
 
 const fitTo = (el: HTMLElement, mapBounds: number[][]) => (el as unknown as { fitMapBounds: (bounds: number[][]) => Promise<void> }).fitMapBounds(mapBounds);
 
+// Set a property the theme reads, on the element it reads from - the scope inside the shadow root,
+// not the host. Same reason MapLibreTheme's own tests declare them on the element under test: happy-dom
+// resolves a custom property set on that element but doesn't inherit one down the tree, and reaching in
+// from the host - which is how an embedding page actually sets these - is inheritance doing its job.
+const setThemeProperty = (el: HTMLElement, property: string, value: string) => {
+  const scope = (el.shadowRoot as ShadowRoot).querySelector('.container') as HTMLElement;
+  scope.style.setProperty(property, value);
+};
+
 const containers: HTMLElement[] = [];
 let consoleError: ReturnType<typeof vi.spyOn>;
 
@@ -104,11 +113,25 @@ describe('ogm-map', () => {
     expect(consoleError).not.toHaveBeenCalled();
   });
 
+  // A map used on its own has to establish the Web Awesome palette for itself, and the classes that do
+  // it are matched by the stylesheet in its own shadow root - which can't match the host of that root.
+  // On the Host alone they establish nothing, and the theme reads every color as the empty string.
+  it('establishes the Web Awesome scope on an element inside its own shadow root', async () => {
+    const { el } = await renderMap();
+    const root = el.shadowRoot as ShadowRoot;
+
+    const scope = root.querySelector('.container') as HTMLElement;
+
+    expect(scope.classList.contains('wa-palette-default')).toBe(true);
+    // Everything drawn has to be under it, the layer panel as much as the map
+    expect(scope.querySelector('#map')).toBeTruthy();
+  });
+
   // Left to itself MapLibre fits bounds to the very edges of the canvas, which puts a record's own
   // edges - an index map's outermost sheets, a bounding box's corners - half off the map
   it('keeps the theme’s gap between the bounds it fits and the edge of the map', async () => {
     const { el } = await renderMap();
-    el.style.setProperty('--ogm-padding', '50');
+    setThemeProperty(el, '--ogm-padding', '50');
     Object.assign(el, { map: fittableMap() });
 
     await fitTo(el, bounds);
@@ -120,7 +143,7 @@ describe('ogm-map', () => {
   // fits into. Asking for it here as well would fit the preview into a viewport that much narrower.
   it('leaves the room the sidebar takes out of what it asks for', async () => {
     const { el } = await renderMap();
-    el.style.setProperty('--ogm-padding', '50');
+    setThemeProperty(el, '--ogm-padding', '50');
     Object.assign(el, { map: fittableMap(), padding: 400 });
 
     await fitTo(el, bounds);

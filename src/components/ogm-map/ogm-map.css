@@ -14,6 +14,13 @@
   --ogm-control-size: 29px;
 }
 
+/* Holds the map and the layer panel, and carries the Web Awesome scope for both; see ogm-map.tsx's
+   render. No positioning of its own - it fills the host exactly, so the panel below still resolves
+   its offsets against the same box either way. */
+.container {
+  height: 100%;
+}
+
 #map {
   width: 100%;
   height: 100%;

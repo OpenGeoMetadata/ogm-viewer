@@ -82,6 +82,10 @@ export class OgmPreviews {
   // group left standing across a change of previews keeps pointing at whichever tab the user had
   // picked - the third one of a record that now offers two. Keying the group by the whole set
   // replaces it outright when the previews change, which is the only way to clear that.
+  //
+  // The tab group carries the Web Awesome scope as well as the Host, since the stylesheet linked here
+  // establishes the palette with plain class selectors and those never match their own shadow host.
+  // Everything the group draws - the tabs, their panels - reads its colors from it.
   render() {
     const tabs = this.tabs;
     if (!tabs.length) return;
@@ -89,7 +93,7 @@ export class OgmPreviews {
     return (
       <Host class={waScope(this.theme)}>
         <link rel="stylesheet" href={webAwesomeStylesheet()} />
-        <wa-tab-group key={tabs.map(previewer => previewer.previewId).join()}>
+        <wa-tab-group class={waScope(this.theme)} key={tabs.map(previewer => previewer.previewId).join()}>
           {tabs.map(previewer => (
             <wa-tab key={`tab-${previewer.previewId}`} panel={previewer.previewId}>
               {previewer.label()}

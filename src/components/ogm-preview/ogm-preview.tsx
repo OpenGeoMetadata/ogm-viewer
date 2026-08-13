@@ -37,6 +37,11 @@ export class OgmPreview {
     return <ogm-map theme={this.theme} previewer={this.previewer} padding={this.sidebarPadding}></ogm-map>;
   }
 
+  // No scope on an element of our own, unlike the components below: nothing we draw reads a color -
+  // each of them draws its own contents and establishes its own scope for them. The link and the
+  // Host's classes still matter, though. The classes are what the parent's stylesheet matches when
+  // we're nested, and the link is what matches them on the children rendered here - which is how
+  // <ogm-alerts>'s :host gets the surface color it fills a failed preview with.
   render() {
     return (
       <Host class={waScope(this.theme)}>
