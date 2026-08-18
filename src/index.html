@@ -28,58 +28,157 @@
         max-width: 400px;
       }
 
-      .inputs {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 1rem;
-        margin: 1rem;
-        max-width: 1000px;
-      }
-
-      .record-selector,
+      .record-input,
       .props {
         display: flex;
         flex-wrap: wrap;
         gap: 0.5rem;
         justify-content: center;
         align-items: center;
+        margin-bottom: 1rem;
       }
 
       .record-selector select {
         min-width: 420px;
-        max-width: min(90vw, 700px);
+        max-width: min(90vw, 800px);
       }
 
-      ogm-viewer {
+      ogm-viewer,
+      ogm-overview {
         display: block;
-        width: clamp(800px, 70vw, 1000px);
         height: 500px;
-        flex-shrink: 0;
-        margin: 1rem auto 0;
+        flex: auto;
+        width: min(90vw, 800px);
+        flex: none;
         border: 1px solid #ccc;
       }
     </style>
 
-    <script>
+    <script type="module">
+      import { OgmRecord } from './build/index.esm.js';
+
+      function parseCsvRecords(csvText) {
+        const rows = [];
+        let currentRow = [];
+        let currentValue = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < csvText.length; i += 1) {
+          const char = csvText[i];
+
+          if (char === '"') {
+            if (inQuotes && csvText[i + 1] === '"') {
+              currentValue += '"';
+              i += 1;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            currentRow.push(currentValue);
+            currentValue = '';
+          } else if ((char === '\n' || char === '\r') && !inQuotes) {
+            currentRow.push(currentValue);
+            if (currentRow.some(value => value !== '')) {
+              rows.push(currentRow);
+            }
+            currentRow = [];
+            currentValue = '';
+            if (char === '\r' && csvText[i + 1] === '\n') {
+              i += 1;
+            }
+          } else {
+            currentValue += char;
+          }
+        }
+
+        if (currentValue.length || currentRow.length) {
+          currentRow.push(currentValue);
+          if (currentRow.some(value => value !== '')) {
+            rows.push(currentRow);
+          }
+        }
+
+        if (!rows.length) return [];
+
+        const [headerRow, ...dataRows] = rows;
+        const headers = headerRow.map(header => header.trim());
+
+        return dataRows.map(values => {
+          const record = {};
+          headers.forEach((header, index) => {
+            record[header] = (values[index] ?? '').trim();
+          });
+          return record;
+        });
+      }
+
+      async function populateRecordSelector(select) {
+        const recordsUrl = new URL('/build/assets/records.csv', window.location.href).href;
+        const response = await fetch(recordsUrl);
+        if (!response.ok) throw new Error(`Unable to load records CSV: ${response.status}`);
+
+        const csvText = await response.text();
+        const records = parseCsvRecords(csvText).filter(record => record.label && record.url);
+
+        select.innerHTML = '';
+
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = 'Select record(s)';
+        select.appendChild(emptyOption);
+
+        records.forEach(record => {
+          const option = document.createElement('option');
+          option.value = record.url;
+          option.textContent = record.label;
+          select.appendChild(option);
+        });
+      }
+
       // Set up controls
-      document.addEventListener('DOMContentLoaded', () => {
+      document.addEventListener('DOMContentLoaded', async () => {
         const recordSelector = document.getElementById('recordSelector');
         const viewer = document.querySelector('ogm-viewer');
+        const overview = document.querySelector('ogm-overview');
         const recordInput = document.getElementById('recordUrl');
         const loadRecordButton = document.getElementById('loadRecord');
+        const switchOverviewButton = document.getElementById('switch-overview');
+        const switchViewerButton = document.getElementById('switch-viewer');
+        const hideTitle = document.querySelector('.hideTitle')
 
-        recordSelector.addEventListener('change', () => {
-          const recordUrl = recordSelector.value;
-          if (recordUrl) viewer.recordUrl = recordUrl;
+        switchOverviewButton.addEventListener('click', () => {
+          overview.style.display = 'flex';
+          viewer.style.display = 'none';
+          switchOverviewButton.style.display = 'none';
+          switchViewerButton.style.display = 'inline-block';
+          hideTitle.style.display = 'none';
         });
 
-        loadRecordButton.addEventListener('click', () => {
-          const recordUrl = recordInput.value.trim();
-          if (recordUrl) {
-            viewer.recordUrl = recordUrl;
-            recordSelector.value = recordUrl;
-          }
+        switchViewerButton.addEventListener('click', () => {
+          overview.style.display = 'none';
+          viewer.style.display = 'block';
+          switchOverviewButton.style.display = 'inline-block';
+          switchViewerButton.style.display = 'none';
+          hideTitle.style.display = 'inline-block';
+        });
+
+        // Dynamically populate the selector
+        try {
+          await populateRecordSelector(recordSelector);
+        } catch (error) {
+          console.error(error);
+          recordSelector.innerHTML = '<option value="">Unable to load records</option>';
+        }
+
+        // Load record button
+        loadRecordButton.addEventListener('click', async () => {
+          const recordUrl = recordInput.value.trim() || recordSelector.value;
+          const recordContents = await fetch(recordUrl);
+          const recordJson = await recordContents.json();
+          const record = new OgmRecord(recordJson);
+
+          if (recordUrl) viewer.recordUrl = recordUrl;
+          if (record) overview.records = [record];
         });
 
         // Toggle theme button
@@ -87,6 +186,7 @@
         toggleThemeButton.addEventListener('click', () => {
           const theme = viewer.theme === 'light' ? 'dark' : 'light';
           viewer.theme = theme;
+          overview.theme = theme;
         });
 
         // Hide title checkbox
@@ -100,123 +200,23 @@
   <body>
     <h1>OpenGeoMetadata Viewer Preview</h1>
     <div class="inputs">
-      <div class="record-selector">
-        <label for="recordSelector">Select a record:</label>
-        <select id="recordSelector" aria-label="Select a record to view">
-          <option value="https://raw.githubusercontent.com/OpenGeoMetadata/edu.berkeley/02b742b5d7ea01aa77bad37a4429951164b34eab/metadata-aardvark/s7sq63/geoblacklight.json">
-            Calaveras Contours (Line, WMS)
-          </option>
-          <option value="https://raw.githubusercontent.com/OpenGeoMetadata/edu.berkeley/02b742b5d7ea01aa77bad37a4429951164b34eab/metadata-aardvark/s7st30/geoblacklight.json">
-            Calaveras Tracts (Polygon, WMS)
-          </option>
-          <option
-            value="https://raw.githubusercontent.com/geoblacklight/geoblacklight/b0f8e0f854949f297d83c11598b7fb0669b50c6e/spec/fixtures/solr_documents/cornell_html_metadata.json"
-          >
-            Air Stations (Points, WMS)
-          </option>
-          <option value="https://raw.githubusercontent.com/OpenGeoMetadata/edu.berkeley/02b742b5d7ea01aa77bad37a4429951164b34eab/metadata-aardvark/s7042k/geoblacklight.json">
-            Bangladesh Topo (Raster, WMS, Restricted)
-          </option>
-          <option value="https://raw.githubusercontent.com/geoblacklight/geoblacklight/refs/heads/main/spec/fixtures/solr_documents/public_cog_princeton.json">
-            Tibet (Scanned Map, COG)
-          </option>
-          <option
-            value="https://raw.githubusercontent.com/OpenGeoMetadata/edu.utexas/2540a551f4f8d32fb4599e3baa0625cb40a88b21/metadata-aardvark/utlmaps-5b6ad9fb-2635-4622-b539-4b59b6ac9322.json"
-          >
-            Sanborn (Scanned Map, COG)
-          </option>
-          <option
-            value="https://raw.githubusercontent.com/geoblacklight/geoblacklight/3ff40cc2da1f67d671625c78c581457772eb706b/spec/fixtures/solr_documents/public_pmtiles_princeton.json"
-          >
-            Louisiana Districts (PMTiles, Vector)
-          </option>
-          <option value="https://gist.githubusercontent.com/thatbudakguy/4cf4bbf98cb02f5198592a8aed2bad3f/raw/b0f2406b07c50d7537330791cd52443b151194e7/farmland.json">
-            Farmland (PMTiles, Vector)
-          </option>
-          <option value="https://gist.githubusercontent.com/thatbudakguy/b237fb412b71cc2b8352c4c5067f1f22/raw/4dae9352501d93e93b1a93f9cb2dae37bc8bec27/flower.json">
-            Flowers (PMTiles, Raster)
-          </option>
-          <option value="https://gist.githubusercontent.com/thatbudakguy/2be84fa59dbf5e5b85b237903f80d18b/raw/b6ff324e6bab2cfc65af1159939c6a1cbec490a5/tilejson">
-            Countries Demo (Vector TileJSON)
-          </option>
-          <option value="https://gist.githubusercontent.com/thatbudakguy/2be84fa59dbf5e5b85b237903f80d18b/raw/fb8f6e416af087a7a5c2a84094a0cfc421d8f41c/tilejson-raster">
-            Tibet (Raster TileJSON over COG)
-          </option>
-          <option value="https://gist.githubusercontent.com/thatbudakguy/d75a2a5916328be3f1597cab89fa79b4/raw/aad202cf8a31dca8c803191902d493b5edc50e7d/cog.json">
-            Stanford Farm (EPSG:4326 COG)
-          </option>
-          <option value="./build/assets/records/restricted-cog.json">Finland 2G Coverage (COG, Restricted)</option>
-          <option value="https://raw.githubusercontent.com/geoblacklight/geoblacklight/9f7dbb4c36dc0b8e88fb9be5282d7b1663858829/spec/fixtures/solr_documents/tms.json">
-            Ag Districts (TMS)
-          </option>
-          <option value="https://raw.githubusercontent.com/geoblacklight/geoblacklight/9f7dbb4c36dc0b8e88fb9be5282d7b1663858829/spec/fixtures/solr_documents/xyz.json">
-            Faults (XYZ Tiles)
-          </option>
-          <option value="https://raw.githubusercontent.com/geoblacklight/geoblacklight/refs/heads/main/spec/fixtures/solr_documents/wmts-multiple.json">
-            Wien Orthophoto (WMTS)
-          </option>
-          <option value="https://gist.githubusercontent.com/thatbudakguy/e04997a394ae14e0ddf1b3ed972d262a/raw/89a833fdae67872e00889f1a77e29a04fa44fdf9/night_lights.json">
-            Night Lights (WMTS)
-          </option>
-          <option value="./build/assets/records/esri-dynamic-map-layer.json">Glacial Boundaries (ESRI Dynamic Map Layer, ESRI WMS)</option>
-          <option value="./build/assets/records/esri-dynamic-map-layer-single.json">Glacial Boundaries (ESRI Dynamic Map Layer, Single Layer)</option>
-          <option value="./build/assets/records/esri-tiled-map-layer.json">Land Cover (ESRI Tiled Map Layer)</option>
-          <option value="./build/assets/records/esri-image-map-layer.json">NAIP Imagery (ESRI Image Map Layer)</option>
-          <option value="./build/assets/records/esri-feature-layer.json">Landscape Trees (ESRI Feature Layer, Points)</option>
-          <option
-            value="https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/b74664cbb36fb985fe2ebee8d0d6d9657f06ada1/metadata-aardvark/rv/900/sk/6861/geoblacklight.json"
-          >
-            Neighborhoods (Polygons, GeoJSON)
-          </option>
-          <option
-            value="https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/b74664cbb36fb985fe2ebee8d0d6d9657f06ada1/metadata-aardvark/qp/917/dm/2243/geoblacklight.json"
-          >
-            Temperature (Points, GeoJSON)
-          </option>
-          <option
-            value="https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/b74664cbb36fb985fe2ebee8d0d6d9657f06ada1/metadata-aardvark/zy/089/tj/2215/geoblacklight.json"
-          >
-            Peatland (Index Map, Polygons)
-          </option>
-          <option
-            value="https://raw.githubusercontent.com/geoblacklight/geoblacklight/be395f5d12a75c7f643baf550ace66efd387f602/spec/fixtures/solr_documents/index-map-v1-complex.json"
-          >
-            Millionth Map (Index Map, Overlapping Polygons)
-          </option>
-          <option
-            value="https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/3b796c5f3af45c136d25e076d5a3cfe8e401cac7/metadata-aardvark/zz/075/gp/2099/geoblacklight.json"
-          >
-            Dalian (Index Map, Polygons, Mixed Availability)
-          </option>
-          <option value="https://gist.githubusercontent.com/thatbudakguy/dcf881807aea33739a8cbb8fcefa42d0/raw/67b80876bdd17c21d654024bc77a1e4ece8a7fb6/hopkins.json">
-            Hopkins (Index Map, Points)
-          </option>
-          <option value="https://raw.githubusercontent.com/geoblacklight/geoblacklight/9f7dbb4c36dc0b8e88fb9be5282d7b1663858829/spec/fixtures/solr_documents/complex-geom.json">
-            Isles (IIIF v2 Manifest, Complex Geometry)
-          </option>
-          <option
-            value="https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/6fcf965ba970ecdb7f3bf4084e044acac368c359/metadata-aardvark/hj/948/rn/6493/geoblacklight.json"
-          >
-            Siberia (IIIF v3 Manifest, Multi-image)
-          </option>
-          <option value="https://raw.githubusercontent.com/geoblacklight/geoblacklight/refs/heads/main/spec/fixtures/solr_documents/public_iiif_princeton.json">
-            NY &amp; NJ (IIIF Image)
-          </option>
-          <option value="./build/assets/records/georeferenced-manifest.json">NW Europe (Georeferenced IIIF Manifest, Image + Map)</option>
-          <option value="./build/assets/records/download-only.json">Nepal (Nothing Previewable, Location Only)</option>
-        </select>
-      </div>
       <div class="record-input">
-        <label for="recordUrl">Enter an OpenGeoMetadata record URL:</label>
-        <input type="text" id="recordUrl" size="80" placeholder="https://example.com/record.json" />
-        <button id="loadRecord">Load Record</button>
+        <div class="record-selector">
+          <select id="recordSelector" aria-label="Select a record to view"></select>
+        </div>
+        <span>or</span>
+        <input type="text" id="recordUrl" size="80" placeholder="Enter an OpenGeoMetadata record URL" />
+        <button id="loadRecord">Load</button>
       </div>
       <div class="props">
         <button id="toggleTheme">Toggle Theme</button>
-        <label>Hide Title <input type="checkbox" id="hideTitle" /></label>
+        <button id="switch-overview">Switch to overview</button>
+        <button id="switch-viewer" style="display: none">Switch to viewer</button>
+        <label class="hideTitle">Hide Title <input type="checkbox" id="hideTitle" /></label>
       </div>
-      <a href="./overview.html">View overview</a>
     </div>
+
     <ogm-viewer></ogm-viewer>
+    <ogm-overview style="display:none;"></ogm-overview>
   </body>
 </html>
