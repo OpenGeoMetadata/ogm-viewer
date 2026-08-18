@@ -24,8 +24,13 @@
         margin: 1rem auto;
       }
 
-      #recordUrl {
-        max-width: 400px;
+      .inputs {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+        width: min(90vw, 800px);
+        margin-bottom: 1rem;
       }
 
       .record-input,
@@ -35,12 +40,11 @@
         gap: 0.5rem;
         justify-content: center;
         align-items: center;
-        margin-bottom: 1rem;
       }
 
-      .record-selector select {
-        min-width: 420px;
-        max-width: min(90vw, 800px);
+      #recordUrl,
+      select {
+        max-width: 300px;
       }
 
       ogm-viewer,
@@ -124,7 +128,7 @@
 
         const emptyOption = document.createElement('option');
         emptyOption.value = '';
-        emptyOption.textContent = 'Select record(s)';
+        emptyOption.textContent = 'Select a record to view';
         select.appendChild(emptyOption);
 
         records.forEach(record => {
@@ -144,7 +148,7 @@
         const loadRecordButton = document.getElementById('loadRecord');
         const switchOverviewButton = document.getElementById('switch-overview');
         const switchViewerButton = document.getElementById('switch-viewer');
-        const hideTitle = document.querySelector('.hideTitle')
+        const hideTitle = document.querySelector('.hideTitle');
 
         switchOverviewButton.addEventListener('click', () => {
           overview.style.display = 'flex';
@@ -181,6 +185,15 @@
           if (record) overview.records = [record];
         });
 
+        // Clear record button
+        const clearRecordButton = document.getElementById('clearRecord');
+        clearRecordButton.addEventListener('click', () => {
+          recordInput.value = '';
+          recordSelector.value = '';
+          viewer.loadRecord(null);
+          overview.records = [];
+        });
+
         // Toggle theme button
         const toggleThemeButton = document.getElementById('toggleTheme');
         toggleThemeButton.addEventListener('click', () => {
@@ -207,6 +220,7 @@
         <span>or</span>
         <input type="text" id="recordUrl" size="80" placeholder="Enter an OpenGeoMetadata record URL" />
         <button id="loadRecord">Load</button>
+        <button id="clearRecord">Clear</button>
       </div>
       <div class="props">
         <button id="toggleTheme">Toggle Theme</button>
@@ -217,6 +231,6 @@
     </div>
 
     <ogm-viewer></ogm-viewer>
-    <ogm-overview style="display:none;"></ogm-overview>
+    <ogm-overview style="display: none"></ogm-overview>
   </body>
 </html>
