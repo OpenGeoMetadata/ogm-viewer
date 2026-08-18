@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@stencil/vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from '@stencil/vitest';
 
 import DeckCogPreviewer from './cog-deck';
 import CogPreviewer from './cog';
@@ -239,6 +239,22 @@ describe('DeckCogPreviewer', () => {
   // console. See https://github.com/OpenGeoMetadata/ogm-viewer/issues/158, where a band-separate COG
   // failed every tile this way.
   describe('a tile that fails', () => {
+    // Every route out of a failed tile says so on the console first - warned about when the preview
+    // survives it, reported as an error when it doesn't. That's the point of the code under test,
+    // not something to read in the output of a passing run.
+    let consoleWarn: ReturnType<typeof vi.spyOn>;
+    let consoleError: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleWarn.mockRestore();
+      consoleError.mockRestore();
+    });
+
     // One error per prop call, since deck.gl reports each failed tile separately
     const failTile = (previewer: TestDeckCogPreviewer, error: unknown = new Error('Band-separate images not yet implemented.')) =>
       previewer.overlay.lastLayers[0].props.onTileError(error);
