@@ -127,8 +127,7 @@
       }
 
       async function populateRecordSelector(select) {
-        const recordsUrl = new URL('/build/assets/records.csv', window.location.href).href;
-        const response = await fetch(recordsUrl);
+        const response = await fetch('./build/assets/records.csv');
         if (!response.ok) throw new Error(`Unable to load records CSV: ${response.status}`);
 
         const csvText = await response.text();
