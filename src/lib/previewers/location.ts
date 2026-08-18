@@ -2,7 +2,8 @@ import type { FillLayerSpecification, GeoJSONSourceSpecification, LayerSpecifica
 
 import MapPreviewer from './map';
 import type { PreviewStyleLayer } from '../layers';
-import type LocationResource from '../resources/location';
+import LocationResource from '../resources/location';
+import type OgmRecord from '../record';
 
 // MapLibre doesn't bundle the id with the source, but we need to
 type AddGeoJsonSourceObject = GeoJSONSourceSpecification & { id: string };
@@ -100,3 +101,10 @@ export default class LocationPreviewer extends MapPreviewer {
     };
   }
 }
+
+// Generate a list of LocationPreviewers using the geometry of provided records
+export const locationsFor = (records: OgmRecord[]): (LocationPreviewer | undefined)[] =>
+  records.map(record => {
+    const geometry = record.getGeometry();
+    return geometry ? new LocationPreviewer(new LocationResource(record.id, geometry as GeoJSON.Geometry)) : undefined;
+  });

@@ -66,24 +66,25 @@ ogm-viewer {
 
 Here are the supported properties and what they apply to:
 
-| Property                       | Applies to                                           |
-| ------------------------------ | ---------------------------------------------------- |
-| `--ogm-data-color`             | Polygon fill, line geometry, and circle fill         |
-| `--ogm-highlight-color`        | The same, for a hovered feature                      |
-| `--ogm-selected-color`         | The same, for the feature whose attributes are shown |
-| `--ogm-invalid-color`          | The same, for a feature marked unavailable           |
-| `--ogm-stroke-color`           | Polygon outlines and circle borders                  |
-| `--ogm-stroke-highlight-color` | Outline of a hovered feature                         |
-| `--ogm-stroke-selected-color`  | Outline of the selected feature                      |
-| `--ogm-stroke-invalid-color`   | Outline of a feature marked unavailable              |
-| `--ogm-text-color`             | Feature label text color                             |
-| `--ogm-text-halo-color`        | Feature label text outline color                     |
-| `--ogm-text-size`              | Feature label font size, in pixels                   |
-| `--ogm-font-family`            | Feature label font name (e.g. `"Noto Sans Regular"`) |
-| `--ogm-data-opacity`           | Initial opacity of drawn data                        |
-| `--ogm-highlight-opacity`      | Opacity of a highlighted feature                     |
-| `--ogm-bounds-opacity`         | Initial opacity of a bounding box or index map       |
-| `--ogm-padding`                | Gap kept between the data and the view edge (pixels) |
+| Property                       | Applies to                                             |
+| ------------------------------ | ------------------------------------------------------ |
+| `--ogm-data-color`             | Polygon fill, line geometry, and circle fill           |
+| `--ogm-highlight-color`        | The same, for a hovered feature                        |
+| `--ogm-selected-color`         | The same, for the feature whose attributes are shown   |
+| `--ogm-invalid-color`          | The same, for a feature marked unavailable             |
+| `--ogm-stroke-color`           | Polygon outlines and circle borders                    |
+| `--ogm-stroke-highlight-color` | Outline of a hovered feature                           |
+| `--ogm-stroke-selected-color`  | Outline of the selected feature                        |
+| `--ogm-stroke-invalid-color`   | Outline of a feature marked unavailable                |
+| `--ogm-text-color`             | Feature label text color                               |
+| `--ogm-text-halo-color`        | Feature label text outline color                       |
+| `--ogm-text-size`              | Feature label font size, in pixels                     |
+| `--ogm-font-family`            | Feature label font name (e.g. `"Noto Sans Regular"`)   |
+| `--ogm-data-opacity`           | Initial opacity of drawn data                          |
+| `--ogm-highlight-opacity`      | Opacity of a highlighted feature                       |
+| `--ogm-bounds-opacity`         | Initial opacity of a bounding box or index map         |
+| `--ogm-padding`                | Gap kept between the data and the view edge (pixels)   |
+| `--ogm-overview-padding`       | Gap for "overview" maps (static, search results, etc.) |
 
 By default, the viewer uses styles from [Web Awesome](https://webawesome.com/) that match the current mode (dark or light).
 
@@ -167,6 +168,16 @@ document.querySelector('ogm-previews').previewers = [new GeoJsonPreviewer(geoJso
 ```
 
 `record` and `previewers` are DOM properties too. Neither component has an intrinsic size, so the embedding page should set it via CSS.
+
+For showing just the location (geometry or bounding box) of one or several records, you can use the `<ogm-overview>` component. It takes a list of `record`s and renders a simplified map.
+
+```js
+await customElements.whenDefined('ogm-overview');
+
+document.querySelector('ogm-overview').records = [record1, record2];
+```
+
+With just one record, the globe projection is used. When more than one is provided, the flat map projection is used instead so that everything can be kept in view.
 
 ## Development
 

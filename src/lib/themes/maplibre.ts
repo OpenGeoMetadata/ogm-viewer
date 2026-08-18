@@ -27,6 +27,8 @@ export type MapLibreStyle = {
   // bounding box, or an index map's sheet boundaries. Below `opacity`, because neither is what a
   // reader came to look at, and both would otherwise cover the basemap they're being placed against.
   boundsOpacity: number;
+  // Padding used for overviews, where we want to see more around the previewed data
+  overviewPadding: number;
 };
 
 // URLs to MapLibre style documents for basemaps
@@ -45,6 +47,9 @@ const defaultGlyphFont = 'Noto Sans Regular';
 // used to name a token apiece for - sit about this far apart, so a theme nobody has touched looks
 // the way it did, and one that names a color gets an outline that follows it into either mode.
 const strokeLightnessShift = 0.26;
+
+// Larger padding used for overviews (static map, search results)
+const defaultOverviewPadding = 64;
 
 // Style properties common to all MapLibre-based previewers
 export default class MapLibreTheme extends Theme {
@@ -90,20 +95,19 @@ export default class MapLibreTheme extends Theme {
       textFont: this.readCssProperty('--ogm-font-family') || defaultGlyphFont,
       textSize: this.readCssNumber('--ogm-text-size', 14),
       highlightOpacity: this.readCssNumber('--ogm-highlight-opacity', 0.8),
-      boundsOpacity: this.readCssNumber('--ogm-bounds-opacity', 0.5),
+      boundsOpacity: this.readCssNumber('--ogm-bounds-opacity', 0.6),
+      overviewPadding: this.getOverviewPadding(),
     };
+  }
+
+  // Padding used for the overviews
+  getOverviewPadding(): number {
+    return this.readCssNumber('--ogm-overview-padding', defaultOverviewPadding);
   }
 
   // Get the appropriate basemap style URL based on dark mode
   getBaseMapStyle(): string {
     return this.darkMode() ? darkBasemapStyle : lightBasemapStyle;
-  }
-
-  // An embedding app's override if it set one, otherwise our own token for the current mode. One
-  // override covers both modes: an app that names a color has said it wants that color, and
-  // second-guessing it in dark mode would be picking a color it never asked for.
-  themedColor(override: string, darkColor: string, lightColor: string): string {
-    return this.readCssProperty(override) || this.dualCssColors(darkColor, lightColor);
   }
 
   // The outline for a color, unless an app named one. Derived rather than themed, because the
@@ -120,11 +124,6 @@ export default class MapLibreTheme extends Theme {
   // halo derived from it would come out the same color as the text and swallow the label.
   haloColor(textColor: string): string {
     return this.readCssProperty('--ogm-text-halo-color') || contrastColor(textColor) || this.dualCssColors('--wa-color-gray-05', '--wa-color-gray-95');
-  }
-
-  // If dark mode, use the first CSS color, otherwise use the second CSS color
-  dualCssColors(darkColor: string, lightColor: string): string {
-    return this.darkMode() ? this.readCssProperty(darkColor) : this.readCssProperty(lightColor);
   }
 
   // Atmosphere style for globe

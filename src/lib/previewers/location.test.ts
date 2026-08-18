@@ -1,9 +1,10 @@
 import { describe, it, expect } from '@stencil/vitest';
 
-import LocationPreviewer from './location';
+import LocationPreviewer, { locationsFor } from './location';
 import GeoJsonPreviewer from './geojson';
 import LocationResource from '../resources/location';
 import GeoJsonResource from '../resources/geojson';
+import OgmRecord, { type GeoBlacklightSchemaAardvark } from '../record';
 import type { MapLibreStyle } from '../themes/maplibre';
 
 // Just enough of a MapLibre map to record what the previewer adds
@@ -257,5 +258,48 @@ describe('LocationPreviewer inspection', () => {
     expect(map.layers.get(FILL).layout.visibility).toEqual('none');
     expect(map.layers.get(OUTLINE).layout.visibility).toEqual('none');
     expect(previewer.visibleLayerIds).toEqual([]);
+  });
+});
+
+describe('locationsFor', () => {
+  const record = (fields: Partial<GeoBlacklightSchemaAardvark>) =>
+    new OgmRecord({
+      id: 'a-record',
+      dct_title_s: 'A record',
+      gbl_resourceClass_sm: ['Datasets'],
+      dct_accessRights_s: 'Public',
+      gbl_mdVersion_s: 'Aardvark',
+      ...fields,
+    } as GeoBlacklightSchemaAardvark);
+
+  it('says where each record it is given is', async () => {
+    const [location] = locationsFor([record({ dcat_bbox: 'ENVELOPE(29.57,35.0,4.23,-1.47)' })]);
+
+    expect(location).toBeInstanceOf(LocationPreviewer);
+    expect(await location!.getBounds()).toEqual([
+      [29.57, -1.47],
+      [35, 4.23],
+    ]);
+  });
+
+  // The same preference resourcesFor has, for the same reason: squaring an archipelago off to its
+  // envelope claims far more of the map than the record covers.
+  it('prefers a record’s own shape to its bounding box', async () => {
+    const [location] = locationsFor([record({ locn_geometry: 'POLYGON((0 0,10 0,10 1,1 1,1 10,0 10,0 0))', dcat_bbox: 'ENVELOPE(0,10,10,0)' })]);
+
+    expect((location as any).resource.getGeometry().coordinates[0]).toHaveLength(7);
+  });
+
+  // The place in the list is the number a reader sees beside the record, so a record with nothing
+  // to draw holds its place rather than shifting everything after it up one.
+  it('keeps the place of a record it has nowhere to put', () => {
+    const locations = locationsFor([record({ dcat_bbox: 'ENVELOPE(0,10,10,0)' }), record({}), record({ dcat_bbox: 'ENVELOPE(20,30,10,0)' })]);
+
+    expect(locations).toHaveLength(3);
+    expect(locations[1]).toBeUndefined();
+  });
+
+  it('has nothing to say about no records at all', () => {
+    expect(locationsFor([])).toEqual([]);
   });
 });

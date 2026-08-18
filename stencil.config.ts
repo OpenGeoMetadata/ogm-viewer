@@ -41,6 +41,9 @@ export const config: Config = {
       copy: [
         { src: '../assets', dest: 'build/assets' },
         { src: '../node_modules/@awesome.me/webawesome/dist/styles', dest: 'build/assets/webawesome/styles' },
+        // The only page Stencil emits by itself is src/index.html; every other page of the demo site
+        // has to be copied across, or it exists in src and nowhere the server can serve it from.
+        { src: 'overview.html' },
       ],
     },
   ],

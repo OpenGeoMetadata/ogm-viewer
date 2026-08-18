@@ -7,6 +7,7 @@ import GlobeControl from '../../lib/globe-control';
 import { themePreference, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
 import { dedupeFeatures } from '../../lib/features';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
+import { createMap, fitBounds, setBasemap } from '../../lib/maps';
 import { isLayerDrawn, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
 import LayersControl from '../../lib/layers-control';
 import InspectableRasterPreviewer from '../../lib/previewers/inspectable-raster';
@@ -73,16 +74,8 @@ export class OgmMap {
     // Asked for here, in the same task that rendered the link, and awaited in loadPreview
     this.themeReady = webAwesomeReady(getElement(this.el, 'link'), scope);
 
-    this.map = new maplibregl.Map({
-      container: getElement(this.el, '#map'),
-      // The basemaps are CARTO's, over OpenStreetMap data; both require attribution. Compact so it
-      // is a single "i" in the corner until clicked, which is all an embedded map has room for.
-      attributionControl: { compact: true },
+    this.map = createMap(getElement(this.el, '#map'), this.mapTheme, {
       cooperativeGestures: true,
-      style: this.mapTheme.getBaseMapStyle(),
-      center: [0, 0],
-      zoom: 2,
-      minZoom: 2,
       // Read fresh on every request rather than captured once, so it always reflects whichever
       // previewer is currently attached - including across onPreviewerChange, with no watcher of
       // our own needed. Applies to the basemap's own style/glyphs/sprites too, not just this
@@ -226,16 +219,16 @@ export class OgmMap {
 
   // When the theme changes, swap the basemap to match.
   @Watch('theme')
-  onThemeChange() {
+  async onThemeChange() {
     if (!this.map) return;
     this.mapTheme.theme = this.theme;
     // The popup reads from sources setStyle is about to drop, so it goes first
     this.destroyPopup();
     // The panel is still on screen over the window this opens, and a layer can't be styled inside it
     this.mapStyleLoaded = false;
-    this.map.setStyle(this.mapTheme.getBaseMapStyle());
+    await setBasemap(this.map, this.mapTheme);
     // The same preview, drawn again into the style document the swap just emptied
-    this.map.once('style.load', async () => await this.loadPreview());
+    await this.loadPreview();
   }
 
   // Surface MapLibre errors tied to the current preview, skipping the noise from basemap/glyph/
@@ -267,17 +260,11 @@ export class OgmMap {
     this.map.setMaxPitch(this.previewer?.maxPitch);
   }
 
-  // Fit the map to the given bounds; resolve once the move finishes
+  // Fit the map to the given bounds; resolve once the move finishes. What the sidebar covers is the
+  // map's own padding (see onPaddingChange), which MapLibre already takes off the space it fits
+  // bounds into, so only the theme's gap is left for fitMapBounds to add.
   async fitMapBounds(bounds: maplibregl.LngLatBoundsLike) {
-    // The theme's gap, on all four edges, so a record's own edges read as edges instead of running
-    // off the canvas. Only the theme's: what the sidebar covers is the map's own padding (see
-    // onPaddingChange), and MapLibre already takes that off the space it fits bounds into.
-    const padding = this.mapTheme.getPadding();
-    if (!this.map.cameraForBounds(bounds, { padding })) return;
-    return new Promise<void>(resolve => {
-      this.map.once('moveend', () => resolve());
-      this.map.fitBounds(bounds, { padding });
-    });
+    return await fitBounds(this.map, this.mapTheme, bounds);
   }
 
   // When padding is changed, move the map over to make room for the sidebar

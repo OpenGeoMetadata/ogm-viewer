@@ -80,6 +80,18 @@ export namespace Components {
         "record": OgmRecord;
         "theme": 'light' | 'dark';
     }
+    /**
+     * Display the location of one or several records (or previewers) by drawing
+     * their geometry or basic bounding boxes.
+     */
+    interface OgmOverview {
+        "previewers"?: LocationPreviewer[];
+        "records"?: OgmRecord[];
+        /**
+          * @default themePreference()
+         */
+        "theme": 'light' | 'dark';
+    }
     interface OgmPreview {
         "previewer": AnyPreviewer;
         "sidebarPadding": number;
@@ -248,6 +260,16 @@ declare global {
         prototype: HTMLOgmMetadataElement;
         new (): HTMLOgmMetadataElement;
     };
+    /**
+     * Display the location of one or several records (or previewers) by drawing
+     * their geometry or basic bounding boxes.
+     */
+    interface HTMLOgmOverviewElement extends Components.OgmOverview, HTMLStencilElement {
+    }
+    var HTMLOgmOverviewElement: {
+        prototype: HTMLOgmOverviewElement;
+        new (): HTMLOgmOverviewElement;
+    };
     interface HTMLOgmPreviewElement extends Components.OgmPreview, HTMLStencilElement {
     }
     var HTMLOgmPreviewElement: {
@@ -292,6 +314,7 @@ declare global {
         "ogm-map": HTMLOgmMapElement;
         "ogm-menubar": HTMLOgmMenubarElement;
         "ogm-metadata": HTMLOgmMetadataElement;
+        "ogm-overview": HTMLOgmOverviewElement;
         "ogm-preview": HTMLOgmPreviewElement;
         "ogm-previews": HTMLOgmPreviewsElement;
         "ogm-sidebar": HTMLOgmSidebarElement;
@@ -371,6 +394,18 @@ declare namespace LocalJSX {
         "record"?: OgmRecord;
         "theme"?: 'light' | 'dark';
     }
+    /**
+     * Display the location of one or several records (or previewers) by drawing
+     * their geometry or basic bounding boxes.
+     */
+    interface OgmOverview {
+        "previewers"?: LocationPreviewer[];
+        "records"?: OgmRecord[];
+        /**
+          * @default themePreference()
+         */
+        "theme"?: 'light' | 'dark';
+    }
     interface OgmPreview {
         "previewer"?: AnyPreviewer;
         "sidebarPadding"?: number;
@@ -437,6 +472,9 @@ declare namespace LocalJSX {
     interface OgmMetadataAttributes {
         "theme": 'light' | 'dark';
     }
+    interface OgmOverviewAttributes {
+        "theme": 'light' | 'dark';
+    }
     interface OgmPreviewAttributes {
         "theme": 'light' | 'dark';
         "sidebarPadding": number;
@@ -463,6 +501,7 @@ declare namespace LocalJSX {
         "ogm-map": Omit<OgmMap, keyof OgmMapAttributes> & { [K in keyof OgmMap & keyof OgmMapAttributes]?: OgmMap[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `attr:${K}`]?: OgmMapAttributes[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `prop:${K}`]?: OgmMap[K] };
         "ogm-menubar": Omit<OgmMenubar, keyof OgmMenubarAttributes> & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes]?: OgmMenubar[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `attr:${K}`]?: OgmMenubarAttributes[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `prop:${K}`]?: OgmMenubar[K] };
         "ogm-metadata": Omit<OgmMetadata, keyof OgmMetadataAttributes> & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes]?: OgmMetadata[K] } & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes as `attr:${K}`]?: OgmMetadataAttributes[K] } & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes as `prop:${K}`]?: OgmMetadata[K] };
+        "ogm-overview": Omit<OgmOverview, keyof OgmOverviewAttributes> & { [K in keyof OgmOverview & keyof OgmOverviewAttributes]?: OgmOverview[K] } & { [K in keyof OgmOverview & keyof OgmOverviewAttributes as `attr:${K}`]?: OgmOverviewAttributes[K] } & { [K in keyof OgmOverview & keyof OgmOverviewAttributes as `prop:${K}`]?: OgmOverview[K] };
         "ogm-preview": Omit<OgmPreview, keyof OgmPreviewAttributes> & { [K in keyof OgmPreview & keyof OgmPreviewAttributes]?: OgmPreview[K] } & { [K in keyof OgmPreview & keyof OgmPreviewAttributes as `attr:${K}`]?: OgmPreviewAttributes[K] } & { [K in keyof OgmPreview & keyof OgmPreviewAttributes as `prop:${K}`]?: OgmPreview[K] };
         "ogm-previews": Omit<OgmPreviews, keyof OgmPreviewsAttributes> & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes]?: OgmPreviews[K] } & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes as `attr:${K}`]?: OgmPreviewsAttributes[K] } & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes as `prop:${K}`]?: OgmPreviews[K] };
         "ogm-sidebar": Omit<OgmSidebar, keyof OgmSidebarAttributes> & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes]?: OgmSidebar[K] } & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes as `attr:${K}`]?: OgmSidebarAttributes[K] } & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes as `prop:${K}`]?: OgmSidebar[K] };
@@ -480,6 +519,11 @@ declare module "@stencil/core" {
             "ogm-map": LocalJSX.IntrinsicElements["ogm-map"] & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
             "ogm-menubar": LocalJSX.IntrinsicElements["ogm-menubar"] & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
             "ogm-metadata": LocalJSX.IntrinsicElements["ogm-metadata"] & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;
+            /**
+             * Display the location of one or several records (or previewers) by drawing
+             * their geometry or basic bounding boxes.
+             */
+            "ogm-overview": LocalJSX.IntrinsicElements["ogm-overview"] & JSXBase.HTMLAttributes<HTMLOgmOverviewElement>;
             "ogm-preview": LocalJSX.IntrinsicElements["ogm-preview"] & JSXBase.HTMLAttributes<HTMLOgmPreviewElement>;
             "ogm-previews": LocalJSX.IntrinsicElements["ogm-previews"] & JSXBase.HTMLAttributes<HTMLOgmPreviewsElement>;
             "ogm-sidebar": LocalJSX.IntrinsicElements["ogm-sidebar"] & JSXBase.HTMLAttributes<HTMLOgmSidebarElement>;

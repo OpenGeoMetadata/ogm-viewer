@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0" />
-    <title>OGM Viewer Preview</title>
+    <title>OGM Overview</title>
 
     <link rel="shortcut icon" href="./build/assets/favicon.ico" />
     <script type="module" src="./build/ogm-viewer.esm.js"></script>
@@ -24,10 +24,6 @@
         margin: 1rem auto;
       }
 
-      #recordUrl {
-        max-width: 400px;
-      }
-
       .inputs {
         display: flex;
         flex-direction: column;
@@ -37,72 +33,42 @@
         max-width: 1000px;
       }
 
-      .record-selector,
-      .props {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        justify-content: center;
-        align-items: center;
-      }
-
-      .record-selector select {
-        min-width: 420px;
-        max-width: min(90vw, 700px);
-      }
-
-      ogm-viewer {
+      ogm-overview {
         display: block;
-        width: clamp(800px, 70vw, 1000px);
+        aspect-ratio: 1;
+        width: 500px;
         height: 500px;
-        flex-shrink: 0;
-        margin: 1rem auto 0;
+        flex: none;
         border: 1px solid #ccc;
       }
+
+      .search {
+        max-width: 1000px;
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        align-items: flex-start;
+      }
+
+      .results {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .record-title {
+        padding: 0.5rem 0;
+        cursor: pointer;
+      }
     </style>
-
-    <script>
-      // Set up controls
-      document.addEventListener('DOMContentLoaded', () => {
-        const recordSelector = document.getElementById('recordSelector');
-        const viewer = document.querySelector('ogm-viewer');
-        const recordInput = document.getElementById('recordUrl');
-        const loadRecordButton = document.getElementById('loadRecord');
-
-        recordSelector.addEventListener('change', () => {
-          const recordUrl = recordSelector.value;
-          if (recordUrl) viewer.recordUrl = recordUrl;
-        });
-
-        loadRecordButton.addEventListener('click', () => {
-          const recordUrl = recordInput.value.trim();
-          if (recordUrl) {
-            viewer.recordUrl = recordUrl;
-            recordSelector.value = recordUrl;
-          }
-        });
-
-        // Toggle theme button
-        const toggleThemeButton = document.getElementById('toggleTheme');
-        toggleThemeButton.addEventListener('click', () => {
-          const theme = viewer.theme === 'light' ? 'dark' : 'light';
-          viewer.theme = theme;
-        });
-
-        // Hide title checkbox
-        const hideTitleCheckbox = document.getElementById('hideTitle');
-        hideTitleCheckbox.addEventListener('change', () => {
-          viewer.hideTitle = hideTitleCheckbox.checked;
-        });
-      });
-    </script>
   </head>
   <body>
-    <h1>OpenGeoMetadata Viewer Preview</h1>
+    <h1>OpenGeoMetadata overview</h1>
     <div class="inputs">
       <div class="record-selector">
-        <label for="recordSelector">Select a record:</label>
-        <select id="recordSelector" aria-label="Select a record to view">
+        <label for="recordSelector">Select records:</label>
+        <select id="recordSelector" aria-label="Select record to view" multiple>
           <option value="https://raw.githubusercontent.com/OpenGeoMetadata/edu.berkeley/02b742b5d7ea01aa77bad37a4429951164b34eab/metadata-aardvark/s7sq63/geoblacklight.json">
             Calaveras Contours (Line, WMS)
           </option>
@@ -205,18 +171,57 @@
           <option value="./build/assets/records/georeferenced-manifest.json">NW Europe (Georeferenced IIIF Manifest, Image + Map)</option>
           <option value="./build/assets/records/download-only.json">Nepal (Nothing Previewable, Location Only)</option>
         </select>
-      </div>
-      <div class="record-input">
-        <label for="recordUrl">Enter an OpenGeoMetadata record URL:</label>
-        <input type="text" id="recordUrl" size="80" placeholder="https://example.com/record.json" />
-        <button id="loadRecord">Load Record</button>
+        <button id="clear">Clear selection</button>
       </div>
       <div class="props">
         <button id="toggleTheme">Toggle Theme</button>
-        <label>Hide Title <input type="checkbox" id="hideTitle" /></label>
       </div>
-      <a href="./overview.html">View overview</a>
+      <a href="./index.html">Back to viewer</a>
     </div>
-    <ogm-viewer></ogm-viewer>
+
+    <div class="search">
+      <ogm-overview></ogm-overview>
+      <div class="results">
+        <h2>Records (try hovering)</h2>
+        <ol class="record-list"></ol>
+      </div>
+    </div>
+
+    <script type="module">
+      import { OgmRecord } from './build/index.esm.js';
+
+      // Set up controls
+      document.addEventListener('DOMContentLoaded', async () => {
+        await customElements.whenDefined('ogm-overview');
+        const overview = document.querySelector('ogm-overview');
+        const recordSelector = document.getElementById('recordSelector');
+        const clearButton = document.getElementById('clear');
+        const resultsArea = document.querySelector('.record-list');
+
+        // When new records are selected, add them to the overview
+        recordSelector.addEventListener('change', async () => {
+          const selectedValues = Array.from(recordSelector.selectedOptions)
+            .map(option => option.value)
+            .filter(value => value);
+          const fetchedRecords = await Promise.all(selectedValues.map(value => fetch(value).then(res => res.json())));
+          const parsedRecords = fetchedRecords.map(data => new OgmRecord(data));
+          overview.records = parsedRecords;
+          resultsArea.innerHTML = parsedRecords.map((rec, index) => `<li class="record-title">${rec.title}</li>`).join('');
+        });
+
+        // Toggle theme button
+        const toggleThemeButton = document.getElementById('toggleTheme');
+        toggleThemeButton.addEventListener('click', () => {
+          const theme = overview.theme === 'light' ? 'dark' : 'light';
+          overview.theme = theme;
+        });
+
+        // Clear selection button
+        clearButton.addEventListener('click', () => {
+          recordSelector.selectedIndex = -1;
+          overview.records = [];
+        });
+      });
+    </script>
   </body>
 </html>

@@ -1,6 +1,18 @@
 import { describe, it, expect, vi } from '@stencil/vitest';
 import { LngLatBounds } from 'maplibre-gl';
-import { bboxToBounds, boundsToGeoJSON, geomToGeoJSON, lngLatToMercator, mercatorBbox, mercatorGeomToLngLat, mercatorToLngLat, pixelWindowCenter } from './geometry';
+import {
+  bboxToBounds,
+  boundsToGeoJSON,
+  clampToHemisphere,
+  geomToGeoJSON,
+  lngLatToMercator,
+  mercatorBbox,
+  mercatorGeomToLngLat,
+  mercatorToLngLat,
+  pixelWindowCenter,
+  unionBounds,
+  WORLD,
+} from './geometry';
 
 describe('geomToGeoJSON', () => {
   it('should convert WKT to GeoJSON', () => {
@@ -250,5 +262,101 @@ describe('pixelWindowCenter', () => {
 
   it('should report the pixel size, which is the finest detail worth drawing back', () => {
     expect(pixelWindowCenter({ ...window, width: 255, height: 255 }).resolution).toEqual(2);
+  });
+});
+
+describe('unionBounds', () => {
+  const CALIFORNIA: [[number, number], [number, number]] = [
+    [-124.41, 32.53],
+    [-114.13, 42.01],
+  ];
+  const ICELAND: [[number, number], [number, number]] = [
+    [-24.55, 63.39],
+    [-13.49, 66.57],
+  ];
+
+  it('should take in everywhere it is given', () => {
+    expect(unionBounds([CALIFORNIA, ICELAND])!.toArray()).toEqual([
+      [-124.41, 32.53],
+      [-13.49, 66.57],
+    ]);
+  });
+
+  // extend() writes into the box it is called on, so a union that started from the first extent
+  // given would quietly grow whichever box its caller handed over first.
+  it('should leave the extents it was handed alone', () => {
+    const california = new LngLatBounds(CALIFORNIA);
+    unionBounds([california, ICELAND]);
+
+    expect(california.toArray()).toEqual(CALIFORNIA);
+  });
+
+  it('should have nowhere to point when no record says where it is', () => {
+    expect(unionBounds([])).toBeUndefined();
+    expect(unionBounds([undefined, undefined])).toBeUndefined();
+  });
+
+  it('should skip past the records it has nowhere to put', () => {
+    expect(unionBounds([undefined, CALIFORNIA, undefined])!.toArray()).toEqual(CALIFORNIA);
+  });
+
+  // A box over the Bering Strait arrives with its east edge carried past 180 - see unwrapEast - and
+  // has to keep it. Read as 170..-170 the union would span the 340 degrees of everywhere else.
+  it('should keep a box that crosses the antimeridian on its own side of the world', () => {
+    const aleutians = bboxToBounds('ENVELOPE(170.0,-170.0,54.0,50.0)')!;
+
+    expect(unionBounds([aleutians])!.getEast()).toEqual(190);
+  });
+});
+
+describe('clampToHemisphere', () => {
+  it('should leave a box that already faces one camera alone', () => {
+    const california = new LngLatBounds([
+      [-124.41, 32.53],
+      [-114.13, 42.01],
+    ]);
+
+    expect(clampToHemisphere(california).toArray()).toEqual(california.toArray());
+  });
+
+  // Half the world is what a globe shows, so a box that measures exactly that is already pointable
+  it('should count half the world as facing the camera', () => {
+    const halfTheWorld = new LngLatBounds([
+      [-90, -40],
+      [90, 60],
+    ]);
+
+    expect(clampToHemisphere(halfTheWorld).toArray()).toEqual(halfTheWorld.toArray());
+  });
+
+  // Past a hemisphere MapLibre's globe camera has nothing left to solve against - every corner it
+  // tests is behind the horizon - and hands back no camera at all. Held to the half of the world
+  // around the box's own middle, which is the most of it anyone can see at once.
+  it('should hold the camera to the half of the world it can actually see', () => {
+    const clamped = clampToHemisphere([
+      [-170, -40],
+      [130, 60],
+    ]);
+
+    expect(clamped.getEast() - clamped.getWest()).toEqual(180);
+    expect(clamped.getCenter().lng).toBeCloseTo(-20);
+  });
+
+  it('should leave the latitudes it was given alone, there being no wider angle to mistake', () => {
+    const clamped = clampToHemisphere([
+      [-170, -40],
+      [130, 60],
+    ]);
+
+    expect([clamped.getSouth(), clamped.getNorth()]).toEqual([-40, 60]);
+  });
+
+  // What a single record covering the whole world is pointed at: the half of it facing the camera,
+  // with the rest of the record drawn round the back.
+  it('should show a whole globe when asked for the whole world', () => {
+    const clamped = clampToHemisphere(WORLD);
+
+    expect(clamped.getEast() - clamped.getWest()).toEqual(180);
+    expect(clamped.getCenter().lng).toEqual(0);
   });
 });

@@ -1,0 +1,66 @@
+[
+  {
+    "id": "overview-nepal",
+    "dct_title_s": "Nepal (complex geometry, not its own envelope)",
+    "gbl_resourceClass_sm": ["Datasets"],
+    "dct_accessRights_s": "Public",
+    "gbl_mdVersion_s": "Aardvark",
+    "locn_geometry": "POLYGON((80.05 28.79, 84.1 30.42, 88.19 27.87, 87.0 26.35, 82.0 27.4, 80.05 28.79))",
+    "dcat_bbox": "ENVELOPE(80.05,88.19,30.42,26.35)"
+  },
+  {
+    "id": "overview-california",
+    "dct_title_s": "California",
+    "gbl_resourceClass_sm": ["Datasets"],
+    "dct_accessRights_s": "Public",
+    "gbl_mdVersion_s": "Aardvark",
+    "dcat_bbox": "ENVELOPE(-124.41,-114.13,42.01,32.53)"
+  },
+  {
+    "id": "overview-no-geometry",
+    "dct_title_s": "Somewhere unrecorded (no geometry)",
+    "gbl_resourceClass_sm": ["Websites"],
+    "dct_accessRights_s": "Public",
+    "gbl_mdVersion_s": "Aardvark"
+  },
+  {
+    "id": "overview-aleutians",
+    "dct_title_s": "The Aleutians (crosses the antimeridian)",
+    "gbl_resourceClass_sm": ["Maps"],
+    "dct_accessRights_s": "Public",
+    "gbl_mdVersion_s": "Aardvark",
+    "dcat_bbox": "ENVELOPE(170.0,-170.0,54.0,50.0)"
+  },
+  {
+    "id": "overview-madagascar",
+    "dct_title_s": "Madagascar",
+    "gbl_resourceClass_sm": ["Imagery"],
+    "dct_accessRights_s": "Public",
+    "gbl_mdVersion_s": "Aardvark",
+    "dcat_bbox": "ENVELOPE(43.19,50.48,-11.94,-25.61)"
+  },
+  {
+    "id": "overview-palo-alto",
+    "dct_title_s": "Palo Alto (small extent)",
+    "gbl_resourceClass_sm": ["Maps"],
+    "dct_accessRights_s": "Public",
+    "gbl_mdVersion_s": "Aardvark",
+    "dcat_bbox": "ENVELOPE(-122.19,-122.10,37.46,37.40)"
+  },
+  {
+    "id": "overview-iceland",
+    "dct_title_s": "Iceland",
+    "gbl_resourceClass_sm": ["Datasets"],
+    "dct_accessRights_s": "Public",
+    "gbl_mdVersion_s": "Aardvark",
+    "dcat_bbox": "ENVELOPE(-24.55,-13.49,66.57,63.39)"
+  },
+  {
+    "id": "overview-tasmania",
+    "dct_title_s": "Tasmania",
+    "gbl_resourceClass_sm": ["Datasets"],
+    "dct_accessRights_s": "Public",
+    "gbl_mdVersion_s": "Aardvark",
+    "dcat_bbox": "ENVELOPE(144.62,148.48,-39.57,-43.65)"
+  }
+]

@@ -135,11 +135,13 @@ describe('MapLibreTheme', () => {
       expect(themed('light', { '--ogm-text-size': '18' }).getStyle().textSize).toBe(18);
       expect(themed('light', { '--ogm-data-opacity': '0.35' }).getStyle().opacity).toBe(0.35);
       expect(themed('light', { '--ogm-bounds-opacity': '0.2' }).getStyle().boundsOpacity).toBe(0.2);
+      expect(themed('light', { '--ogm-overview-padding': '96' }).getStyle().overviewPadding).toBe(96);
     });
 
     it('keeps the default when the property is unset or unparseable', () => {
       expect(themed('light').getStyle().textSize).toBe(14);
       expect(themed('light', { '--ogm-text-size': 'large' }).getStyle().textSize).toBe(14);
+      expect(themed('light', { '--ogm-overview-padding': 'var(--wa-space-3xl)' }).getStyle().overviewPadding).toBe(64);
     });
 
     // A bounding box and an index map say where a record is; they aren't the thing a reader came to
@@ -151,6 +153,15 @@ describe('MapLibreTheme', () => {
       expect(boundsOpacity).toBeLessThan(opacity);
       // Not derived from it either - raising one leaves the other where the theme put it
       expect(themed('light', { '--ogm-data-opacity': '1' }).getStyle().boundsOpacity).toBe(boundsOpacity);
+    });
+
+    // An overview is a whole map read at once rather than a pane filled with one record, so what it
+    // frames starts further in than a preview does. A relationship rather than two constants: the
+    // point is that there's more room, and either default can be retuned.
+    it('leaves more room around an overview than around a preview', () => {
+      const theme = themed('light');
+
+      expect(theme.getStyle().overviewPadding).toBeGreaterThan(theme.getPadding());
     });
   });
 
