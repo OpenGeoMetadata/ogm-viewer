@@ -1,8 +1,9 @@
-import { Component, Element, h, Host, Prop, Watch } from '@stencil/core';
+import { Component, Element, Event, EventEmitter, h, Host, Prop, Watch } from '@stencil/core';
 import type maplibregl from 'maplibre-gl';
 
 import { getElement } from '../../lib/elements';
-import { clampToHemisphere, unionBounds, WORLD } from '../../lib/geometry';
+import GeosearchControl from '../../lib/geosearch-control';
+import { boundsToBbox, clampToHemisphere, unionBounds, WORLD } from '../../lib/geometry';
 import { themePreference, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
 import { createMap, fitBounds, setBasemap, whenSized } from '../../lib/maps';
 import LocationPreviewer, { locationsFor } from '../../lib/previewers/location';
@@ -29,8 +30,24 @@ export class OgmOverview {
   @Prop() records?: OgmRecord[];
   @Prop() previewers?: LocationPreviewer[];
 
+  // Whether to offer to search the area on screen, and which of the two ways to start out doing it:
+  // 'auto' searches every view the reader comes to rest in, 'manual' only the ones they ask about.
+  // Left unset there is no control and no event, which is what an overview that isn't a set of search
+  // results wants.
+  @Prop() geosearch?: 'auto' | 'manual';
+
+  // What that control says in each mode. Given rather than fixed because GeoBlacklight already
+  // translates both before handing them to the Leaflet control this one stands in for.
+  @Prop() searchHereText: string = 'Search here';
+  @Prop() searchOnMoveText: string = 'Search when I move the map';
+
+  // Where the reader has asked to search, as the west, south, east, north degrees a query states -
+  // see boundsToBbox. Nothing here answers it: what a new area means is the embedding page's to say.
+  @Event() boundsChange: EventEmitter<[number, number, number, number]>;
+
   private map: maplibregl.Map;
   private mapTheme: MapLibreTheme;
+  private geosearchControl?: GeosearchControl;
 
   // Used to prevent drawing into a style document that isn't there yet
   private mapStyleLoaded: boolean = false;
@@ -44,6 +61,14 @@ export class OgmOverview {
     // Held until that palette has actually arrived. Once, here, rather than before each draw: the
     // map is built after it, so nothing that gets drawn on the map can be early.
     await webAwesomeReady(getElement(this.el, 'link'), container);
+
+    // Taken back off the page while we waited for it. Checked here as well as below, because the wait
+    // below starts observing the container and only gives up once it has a box: a container that has
+    // been detached will never get one, so an overview that came and went before its palette arrived
+    // would leave an observer running behind it for good. Unlike <ogm-map>, which asks for the palette
+    // without waiting on it here, this is a later task than the one that rendered - so there is a real
+    // gap for the element to go missing in.
+    if (!this.el.isConnected) return;
 
     // And until there is a box to build the map into; see whenSized. An overview is as likely as a
     // preview to be mounted inside something hidden, and draw() answers for having no map yet.
@@ -62,6 +87,10 @@ export class OgmOverview {
     this.map.keyboard.disableRotation();
     this.map.touchZoomRotate.disableRotation();
 
+    // Before the style loads, because the control draws nothing into it and asks the map for nothing
+    // but its bounds - and those only once the reader has moved it
+    this.addGeosearch();
+
     // Everything below lives in the style document, so all of it is drawn again for each new one:
     // once at first load, and again after every theme swap. The projection goes with it - a style
     // carries its own and neither basemap names one - which is why draw() sets it rather than this
@@ -76,6 +105,45 @@ export class OgmOverview {
   // Clean up the map to prevent warnings/errors when removed from the DOM
   disconnectedCallback() {
     if (this.map) this.map.remove();
+  }
+
+  // Added and taken off rather than hidden the way <ogm-map>'s controls are: this is the only thing in
+  // its corner, so there is no stack for it to come back to the bottom of - and going means its
+  // bindings to the map go with it. A change of starting mode arrives the same way, as a fresh control.
+  @Watch('geosearch')
+  protected onGeosearchChange() {
+    if (!this.map) return;
+
+    if (this.geosearchControl) {
+      this.map.removeControl(this.geosearchControl);
+      this.geosearchControl = undefined;
+    }
+
+    this.addGeosearch();
+  }
+
+  // Retexted where it stands, so a change of wording doesn't put the control back into the mode it
+  // started in or interrupt a reader partway through using it
+  @Watch('searchHereText')
+  @Watch('searchOnMoveText')
+  protected onGeosearchLabelsChange() {
+    this.geosearchControl?.setLabels({ searchHere: this.searchHereText, searchOnMove: this.searchOnMoveText });
+  }
+
+  private addGeosearch() {
+    if (!this.map || !this.geosearch) return;
+
+    this.geosearchControl = new GeosearchControl(() => this.emitBounds(), { searchHere: this.searchHereText, searchOnMove: this.searchOnMoveText }, this.geosearch);
+
+    // Top left, which is empty: the attribution this map's only other control draws sits bottom right
+    this.map.addControl(this.geosearchControl, 'top-left');
+  }
+
+  // Read when the control asks rather than when the camera stopped, so what gets searched is where the
+  // map came to rest even if a wait started partway through getting there
+  private emitBounds() {
+    if (!this.map) return;
+    this.boundsChange.emit(boundsToBbox(this.map.getBounds()));
   }
 
   @Watch('records')

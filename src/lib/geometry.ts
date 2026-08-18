@@ -1,4 +1,4 @@
-import { LngLatBounds, MercatorCoordinate, type LngLatBoundsLike, type LngLatLike } from 'maplibre-gl';
+import { LngLat, LngLatBounds, MercatorCoordinate, type LngLatBoundsLike, type LngLatLike } from 'maplibre-gl';
 import { wktToGeoJSON } from '@terraformer/wkt';
 
 // Regular expression to match ENVELOPE syntax in bbox strings
@@ -71,6 +71,33 @@ export const bboxToBounds = (bbox: string) => {
   // Convert to numbers and create LngLatBounds
   const { west, east, north, south } = coords.groups!;
   return new LngLatBounds([parseFloat(west), parseFloat(south)], [unwrapEast(parseFloat(west), parseFloat(east)), parseFloat(north)]);
+};
+
+// A longitude already in range is handed back exactly as it came, rather than put through MapLibre's
+// own wrap. That one ends `w === min ? max : w`, so it answers 180 for an edge sitting on -180 - which
+// would flip the west edge of a world-wide box to the far side of the world - and it costs a float's
+// worth of drift on every edge that never needed moving: wrap(-124.41) is -124.40999999999997.
+const wrapLongitude = (lng: number) => (lng >= -180 && lng <= 180 ? lng : new LngLat(lng, 0).wrap().lng);
+
+// A box's edges as coordinates that can be stated, rather than as the pair MapLibre draws with.
+// A camera counts its bounds onward from wherever its center has drifted to - pan east from Greenwich
+// and getBounds() answers in the 500s - and carries its east edge past its west the way unwrapEast
+// does. Both are longitudes MapLibre reads and neither is one anybody else can use, so each edge is
+// brought back into range here, with the crossing left where Solr's ENVELOPE syntax and RFC 7946
+// section 5.2 both put it: the east edge numerically west of the west edge. bboxToBounds reads one
+// back, so the two are inverses. West, south, east, north, as MapLibre writes a bbox everywhere else.
+//
+// The latitudes come through untouched: LngLat throws on anything past a pole as it is built, so no
+// bounds MapLibre will hand over has one to bring back.
+export const boundsToBbox = (bounds: LngLatBounds): [number, number, number, number] => {
+  const [[west, south], [east, north]] = bounds.toArray();
+
+  // Every meridian on screen at once: world copies on a flat map, or a globe with a pole facing the
+  // camera. No pair of edges can say "all of it and then some", and wrapping these two would land
+  // them both on the same number and so say nothing at all, so the whole range is named outright.
+  if (east - west >= 360) return [-180, south, 180, north];
+
+  return [wrapLongitude(west), south, wrapLongitude(east), north];
 };
 
 // Convert a geographic coordinate to EPSG:3857 (Web Mercator) meters

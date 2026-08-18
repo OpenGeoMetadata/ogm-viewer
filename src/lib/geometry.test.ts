@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from '@stencil/vitest';
 import { LngLatBounds } from 'maplibre-gl';
 import {
   bboxToBounds,
+  boundsToBbox,
   boundsToGeoJSON,
   clampToHemisphere,
   geomToGeoJSON,
@@ -96,6 +97,46 @@ describe('bboxToBounds', () => {
     const incompleteBbox = 'ENVELOPE(-10,-5,5)';
     const bounds = bboxToBounds(incompleteBbox);
     expect(bounds).toBeUndefined();
+  });
+});
+
+describe('boundsToBbox', () => {
+  it('should convert LngLatBounds to a west, south, east, north array', () => {
+    expect(boundsToBbox(new LngLatBounds([-124.41, 32.53], [-114.13, 42.01]))).toEqual([-124.41, 32.53, -114.13, 42.01]);
+  });
+
+  // The inverse of bboxToBounds, so what one takes apart the other puts back
+  it('should undo what bboxToBounds did', () => {
+    expect(boundsToBbox(bboxToBounds('ENVELOPE(170,-170,10,-10)')!)).toEqual([170, -10, -170, 10]);
+  });
+
+  // What bboxToBounds hands over for a box across the antimeridian, and what a camera panned onto one
+  // reports: an east edge carried past 180. Named the way it has to be written rather than the way it
+  // was read - see the note above unwrapEast - so the 20 degrees of the Pacific is what gets searched
+  // rather than the 340 degrees of everywhere else.
+  it('should bring an east edge carried past 180 back into range', () => {
+    expect(boundsToBbox(new LngLatBounds([170, -10], [190, 10]))).toEqual([170, -10, -170, 10]);
+  });
+
+  // A camera's center is never wrapped, so panning east far enough leaves both edges out of range
+  it('should bring back both edges of a view panned clear of the range', () => {
+    expect(boundsToBbox(new LngLatBounds([530, -10], [560, 10]))).toEqual([170, -10, -160, 10]);
+  });
+
+  // Named outright rather than wrapped: MapLibre's wrap answers 180 for an edge on -180, which would
+  // leave the whole world reported as a line
+  it('should name the whole range for a view exactly as wide as the world', () => {
+    expect(boundsToBbox(new LngLatBounds([-180, -85], [180, 85]))).toEqual([-180, -85, 180, 85]);
+  });
+
+  // Several world copies at once, which a flat map at minZoom 0 can show
+  it('should name the whole range for a view wider than the world', () => {
+    expect(boundsToBbox(new LngLatBounds([-400, -60], [400, 60]))).toEqual([-180, -60, 180, 60]);
+  });
+
+  // A globe with a pole facing the camera reports exactly the pole, which is a latitude Solr takes
+  it('should leave a view that reaches a pole alone', () => {
+    expect(boundsToBbox(new LngLatBounds([-30, -90], [30, 90]))).toEqual([-30, -90, 30, 90]);
   });
 });
 

@@ -17,11 +17,64 @@
   background-color: var(--wa-color-surface-default);
 }
 
-/* Attribution, which both basemaps require, and the only control on this map. MapLibre draws it as
-   a white pill with near-black text, which lights up the corner of a dark map; on the same surface
-   tokens as everything else it follows whichever mode the map is drawn in. The same rules
-   <ogm-map> carries, minus the ones for the buttons this map doesn't have: the globe is turned by
-   hand rather than by a control, there are no layers to open, and no projection to switch to. */
+/* The geosearch control, when an embedder has asked for one. Drawn on the same surface tokens as the
+   attribution below rather than out of MapLibre's button chrome, because it carries a line of text
+   instead of a glyph: it deliberately isn't a .maplibregl-ctrl-group, which is both what supplies that
+   chrome and what <ogm-map> inverts wholesale in dark mode. Text under that inversion would take the
+   checkbox's accent and the focus ring with it - the reason ogm-map.css leaves the attribution out of
+   it too - so the tokens follow the mode by themselves here and there is no dark-mode rule below.
+   .maplibregl-ctrl on its own still gives the float and the 10px inset from the corner. */
+.maplibregl-ctrl-geosearch {
+  color: var(--wa-color-text-normal);
+  background-color: var(--wa-color-surface-default);
+  border: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+  border-radius: var(--wa-border-radius-m, 0.25rem);
+  box-shadow: var(--wa-shadow-m);
+  font-family: var(--wa-font-family-body);
+  font-size: var(--wa-font-size-s);
+  line-height: var(--wa-line-height-condensed);
+}
+
+/* One target for the box and the words together. `display` goes on these rather than on the container:
+   an author display beats the [hidden] the mode swap sets, and there are always two of these with one
+   of them hidden. */
+.maplibregl-ctrl-geosearch .on-move,
+.maplibregl-ctrl-geosearch .search-here {
+  display: flex;
+  align-items: center;
+  gap: var(--wa-space-xs);
+  padding: var(--wa-space-2xs) var(--wa-space-s);
+  cursor: pointer;
+  text-align: start;
+}
+
+.maplibregl-ctrl-geosearch [hidden] {
+  display: none;
+}
+
+/* The button reads as the same line of text the label does, rather than as native button chrome inside
+   a panel that is already one */
+.maplibregl-ctrl-geosearch .search-here {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+}
+
+/* The one place a native control's own accent shows through, so it follows the palette and not the
+   browser's blue. The same treatment ogm-layers gives its checkbox. */
+.maplibregl-ctrl-geosearch input {
+  accent-color: var(--wa-color-brand-fill-loud, currentColor);
+  flex: none;
+  margin: 0;
+}
+
+/* Attribution, which both basemaps require. MapLibre draws it as a white pill with near-black text,
+   which lights up the corner of a dark map; on the same surface tokens as everything else it follows
+   whichever mode the map is drawn in. The same rules <ogm-map> carries, minus the ones for the buttons
+   this map doesn't have: the globe is turned by hand rather than by a control, there are no layers to
+   open, and no projection to switch to. */
 .maplibregl-ctrl.maplibregl-ctrl-attrib {
   color: var(--wa-color-text-normal);
   background-color: var(--wa-color-surface-default);
