@@ -2,10 +2,11 @@ import { describe, it, expect, h, vi, beforeEach, afterEach } from '@stencil/vit
 import type { MapGeoJSONFeature } from 'maplibre-gl';
 
 // Render with Stencil's low-level render rather than @stencil/vitest's `render` wrapper, for the same
-// reason ogm-preview's tests do: the wrapper re-throws lifecycle errors, and componentDidLoad throws
-// here when MapLibre can't get a WebGL context. That failure is useful - it leaves the component
-// mounted and listening with no map of its own, which is the state a freshly mounted <ogm-map> is in
-// for real until componentDidLoad has run, and the state a selection used to crash it in.
+// reason ogm-preview's tests do: the wrapper re-throws whatever a lifecycle method leaves behind.
+// componentDidLoad never gets as far as a map here - happy-dom lays nothing out, so the container
+// never has the box whenSized waits for. That leaves the component mounted and listening with no map
+// of its own, which is the state a freshly mounted <ogm-map> is in for real until it has been shown,
+// and the state a selection used to crash it in. What needs one is handed a fake afterwards.
 import { render as stencilRender } from '@stencil/core';
 
 const feature = {
@@ -113,7 +114,7 @@ const renderMap = async () => {
   await stencilRender(<ogm-map></ogm-map>, container);
   const el = container.firstElementChild as HTMLElement & { componentOnReady?: () => Promise<unknown> };
   await el.componentOnReady?.();
-  // Anything componentDidLoad reported on the way up is the WebGL gap, not what's under test
+  // Nothing under test has run yet, so anything reported on the way up is noise from mounting
   consoleError.mockClear();
   return { container, el };
 };

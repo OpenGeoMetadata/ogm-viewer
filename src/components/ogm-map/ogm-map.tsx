@@ -7,7 +7,7 @@ import GlobeControl from '../../lib/globe-control';
 import { themePreference, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
 import { dedupeFeatures } from '../../lib/features';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
-import { createMap, fitBounds, setBasemap } from '../../lib/maps';
+import { createMap, fitBounds, setBasemap, whenSized } from '../../lib/maps';
 import { isLayerDrawn, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
 import LayersControl from '../../lib/layers-control';
 import InspectableRasterPreviewer from '../../lib/previewers/inspectable-raster';
@@ -65,7 +65,7 @@ export class OgmMap {
   protected selectedFeature: maplibregl.MapGeoJSONFeature | undefined = undefined;
 
   // Set up the mapLibre map and event bindings on load
-  componentDidLoad() {
+  async componentDidLoad() {
     // The theme reads from the element carrying the Web Awesome scope, not from the host: see render
     // for why the host has no colors on it to read. Everything MapLibre draws is inside this element,
     // so an --ogm-* override set on the host or on the embedding page still reaches it by inheritance.
@@ -74,7 +74,22 @@ export class OgmMap {
     // Asked for here, in the same task that rendered the link, and awaited in loadPreview
     this.themeReady = webAwesomeReady(getElement(this.el, 'link'), scope);
 
-    this.map = createMap(getElement(this.el, '#map'), this.mapTheme, {
+    // Keep attributes outside Stencil render pipeline so that MapLibre can
+    // use the HTML directly for the popup content. Before the wait below, since nothing about the
+    // popup needs a map to exist and a selection can arrive before one does.
+    this.attributesEl = document.createElement('ogm-attributes') as HTMLOgmAttributesElement;
+    this.attributesEl.features = [];
+
+    // A map is only ever built into a container with a box to build it in; see whenSized. Ours can be
+    // mounted inside one that has none - an inactive tab panel, a pane an embedding page has hidden -
+    // and every method below already answers for a component that has no map yet.
+    const container = getElement(this.el, '#map');
+    await whenSized(container);
+
+    // Taken back off the page while we waited, so there is nothing left to build a map in
+    if (!this.el.isConnected) return;
+
+    this.map = createMap(container, this.mapTheme, {
       cooperativeGestures: true,
       // Read fresh on every request rather than captured once, so it always reflects whichever
       // previewer is currently attached - including across onPreviewerChange, with no watcher of
@@ -96,11 +111,6 @@ export class OgmMap {
       this.applyViewConstraints();
       this.map.setSky(this.mapTheme.getSkyStyle());
     });
-
-    // Keep attributes outside Stencil render pipeline so that MapLibre can
-    // use the HTML directly for the popup content
-    this.attributesEl = document.createElement('ogm-attributes') as HTMLOgmAttributesElement;
-    this.attributesEl.features = [];
   }
 
   // Clean up the map to prevent warnings/errors when removed from the DOM. The popup comes down
