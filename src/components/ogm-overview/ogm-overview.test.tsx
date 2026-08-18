@@ -1,9 +1,10 @@
 import { describe, it, expect, h, vi, beforeEach, afterEach } from '@stencil/vitest';
 
 // Rendered with Stencil's low-level render rather than @stencil/vitest's `render` wrapper, for the
-// same reason ogm-map's tests are: the wrapper re-throws lifecycle errors, and componentDidLoad
-// throws here when MapLibre can't get a WebGL context. What's under test is what happens once a map
-// exists, so one is handed to the component afterwards.
+// same reason ogm-map's tests are: the wrapper re-throws whatever a lifecycle method leaves behind.
+// componentDidLoad never gets as far as a map here - happy-dom lays nothing out, so the container
+// never has the box whenSized waits for. What's under test is what happens once a map exists, so one
+// is handed to the component afterwards.
 import { render as stencilRender } from '@stencil/core';
 
 import { WORLD } from '../../lib/geometry';

@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from '@stencil/vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from '@stencil/vitest';
 
-import { fitBounds } from './maps';
+import { fitBounds, trackContainerSize, whenSized } from './maps';
 import type Theme from './themes/theme';
 
 const PADDING = 50;
@@ -66,5 +66,179 @@ describe('fitBounds', () => {
 
     await expect(fitBounds(map as unknown as maplibregl.Map, theme, BOUNDS)).resolves.toBeUndefined();
     expect(map.fitBounds).not.toHaveBeenCalled();
+  });
+});
+
+// Enough of a ResizeObserver to drive by hand: it keeps the callback it was built with, so a test can
+// deliver an observation whenever it wants one rather than waiting on a layout that never happens.
+class FakeResizeObserver {
+  static last: FakeResizeObserver | undefined;
+  observed: Element[] = [];
+  disconnected = false;
+
+  constructor(private callback: () => void) {
+    FakeResizeObserver.last = this;
+  }
+
+  observe(element: Element) {
+    this.observed.push(element);
+  }
+
+  unobserve() {}
+
+  disconnect() {
+    this.disconnected = true;
+  }
+
+  // What the browser would deliver; the first one is the size the map was built at
+  deliver(times = 1) {
+    for (let i = 0; i < times; i += 1) this.callback();
+  }
+}
+
+// Enough of a MapLibre map to be resized and then taken down, holding onto the one-shot listener so
+// a test can fire the 'remove' the real map fires on its way out.
+const resizableMap = () => {
+  const listeners: Record<string, () => void> = {};
+  return {
+    resize: vi.fn(),
+    redraw: vi.fn(),
+    once: vi.fn((event: string, listener: () => void) => {
+      listeners[event] = listener;
+    }),
+    fire: (event: string) => listeners[event]?.(),
+  };
+};
+
+// A container is only ever asked how big it is, and a hidden one answers zero
+const container = (clientWidth: number, clientHeight: number) => ({ clientWidth, clientHeight }) as HTMLElement;
+
+// Watch the given container, hand back the map and the observer now watching it, and deliver the
+// first observation - the one that reports the size the map was already built at.
+const track = (element: HTMLElement) => {
+  const map = resizableMap();
+  trackContainerSize(map as unknown as maplibregl.Map, element);
+  const observer = FakeResizeObserver.last!;
+  observer.deliver();
+  return { map, observer };
+};
+
+describe('trackContainerSize', () => {
+  beforeEach(() => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    FakeResizeObserver.last = undefined;
+  });
+
+  it('should watch the container it was given', () => {
+    const element = container(800, 400);
+    const { observer } = track(element);
+
+    expect(observer.observed).toEqual([element]);
+  });
+
+  // The map is already that size, and cutting in here would stop the camera opening the preview
+  it('should leave the first observation alone', () => {
+    const map = resizableMap();
+    trackContainerSize(map as unknown as maplibregl.Map, container(800, 400));
+    FakeResizeObserver.last!.deliver();
+
+    expect(map.resize).not.toHaveBeenCalled();
+  });
+
+  it('should resize and redraw when the container changes size', () => {
+    const { map, observer } = track(container(800, 400));
+    observer.deliver();
+
+    expect(map.resize).toHaveBeenCalledTimes(1);
+    expect(map.redraw).toHaveBeenCalledTimes(1);
+  });
+
+  // The one this exists for: MapLibre reads a container with no box as a 400x300 one and resizes the
+  // canvas to match, and deck.gl's overlay copies that size off the shared canvas and stamps it back
+  // once the map is shown again. A hidden map is not a small map, so there is nothing to resize to.
+  it('should leave a container with no box alone', () => {
+    const { map, observer } = track(container(0, 0));
+    observer.deliver();
+
+    expect(map.resize).not.toHaveBeenCalled();
+  });
+
+  it('should still resize once a hidden container has its box back', () => {
+    const element = container(0, 0);
+    const { map, observer } = track(element);
+    observer.deliver();
+
+    Object.assign(element, { clientWidth: 800, clientHeight: 400 });
+    observer.deliver();
+
+    expect(map.resize).toHaveBeenCalledTimes(1);
+  });
+
+  // A container on its way to a new size is observed every frame, and each resize reallocates the
+  // drawing buffer; the size it ends at still has to be the size it is left at.
+  it('should collapse a burst of observations, ending at the last one', () => {
+    const { map, observer } = track(container(800, 400));
+    observer.deliver(5);
+
+    expect(map.resize).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(50);
+    expect(map.resize).toHaveBeenCalledTimes(2);
+
+    // Nothing was asked for after that one, so it is the last
+    vi.advanceTimersByTime(500);
+    expect(map.resize).toHaveBeenCalledTimes(2);
+  });
+
+  it('should stop watching once the map is removed', () => {
+    const { map, observer } = track(container(800, 400));
+    map.fire('remove');
+
+    expect(observer.disconnected).toBe(true);
+  });
+});
+
+describe('whenSized', () => {
+  beforeEach(() => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    FakeResizeObserver.last = undefined;
+  });
+
+  it('should resolve straight away for an element that already has a box', async () => {
+    await expect(whenSized(container(800, 400))).resolves.toBeUndefined();
+    // Nothing to wait for, so nothing to watch either
+    expect(FakeResizeObserver.last).toBeUndefined();
+  });
+
+  // What a map mounted inside a `display: none` subtree waits on. MapLibre would read the container
+  // as a 400x300 one and build a canvas that size, which deck.gl's overlay then copies as it attaches.
+  it('should wait for an element with no box to be given one', async () => {
+    const element = container(0, 0);
+    let resolved = false;
+    const sized = whenSized(element).then(() => (resolved = true));
+
+    const observer = FakeResizeObserver.last!;
+    expect(observer.observed).toEqual([element]);
+
+    // Still nothing to measure: the observation a hidden element delivers is not the one to build on
+    observer.deliver();
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+
+    Object.assign(element, { clientWidth: 800, clientHeight: 400 });
+    observer.deliver();
+
+    await expect(sized).resolves.toBe(true);
+    expect(observer.disconnected).toBe(true);
   });
 });

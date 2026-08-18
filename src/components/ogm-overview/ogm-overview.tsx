@@ -4,7 +4,7 @@ import type maplibregl from 'maplibre-gl';
 import { getElement } from '../../lib/elements';
 import { clampToHemisphere, unionBounds, WORLD } from '../../lib/geometry';
 import { themePreference, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
-import { createMap, fitBounds, setBasemap } from '../../lib/maps';
+import { createMap, fitBounds, setBasemap, whenSized } from '../../lib/maps';
 import LocationPreviewer, { locationsFor } from '../../lib/previewers/location';
 import type OgmRecord from '../../lib/record';
 import MapLibreTheme from '../../lib/themes/maplibre';
@@ -44,6 +44,10 @@ export class OgmOverview {
     // Held until that palette has actually arrived. Once, here, rather than before each draw: the
     // map is built after it, so nothing that gets drawn on the map can be early.
     await webAwesomeReady(getElement(this.el, 'link'), container);
+
+    // And until there is a box to build the map into; see whenSized. An overview is as likely as a
+    // preview to be mounted inside something hidden, and draw() answers for having no map yet.
+    await whenSized(container);
 
     // Taken back off the page while we waited, so there is nothing left to build a map in
     if (!this.el.isConnected) return;
