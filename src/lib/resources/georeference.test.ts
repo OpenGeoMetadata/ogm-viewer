@@ -116,6 +116,7 @@ describe('findGeoreferenceAnnotation', () => {
   // A page that references itself, which a walk with no depth limit would follow until it ran out
   // of memory or requests
   it('stops rather than following a cycle forever', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     const selfReferential = { id: 'https://example.com/annotations/loop', type: 'AnnotationPage' };
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ type: 'AnnotationPage', items: [{ type: 'Annotation', body: selfReferential }] }));
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, h, vi } from '@stencil/vitest';
+import { describe, it, expect, h, vi, beforeEach, afterEach } from '@stencil/vitest';
 
 // Render with Stencil's low-level render directly rather than @stencil/vitest's `render` wrapper: the
 // wrapper re-throws lifecycle errors, and the <ogm-map>/<ogm-image> mounted inside a preview throw
@@ -15,14 +15,25 @@ import { referenceError } from '../../lib/errors';
 // Let Stencil's RAF-based update cycle flush after a state change (mirrors the vitest waitForChanges).
 const flush = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
+// Stencil routes what a lifecycle method throws to console.error rather than letting it reach the
+// page, and both viewers throw here: no WebGL for the map, and nothing serving the tile source the
+// image viewer is pointed at. Held for the whole file rather than around the render alone, because
+// OpenSeadragon reports a tile source it couldn't open a turn later - by then the test that mounted
+// it has finished, and the report lands on whichever one is running.
+let consoleError: ReturnType<typeof vi.spyOn>;
+
+beforeEach(() => {
+  consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+});
+
+afterEach(() => consoleError.mockRestore());
+
 const renderPreview = async (previewer: AnyPreviewer) => {
   const container = document.createElement('div');
   document.body.appendChild(container);
-  const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
   await stencilRender(<ogm-preview previewer={previewer}></ogm-preview>, container);
   const el = container.firstElementChild as HTMLElement & { componentOnReady?: () => Promise<unknown> };
   await el.componentOnReady?.();
-  consoleError.mockRestore();
   return el;
 };
 

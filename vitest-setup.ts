@@ -40,6 +40,38 @@ import './dist/components/ogm-previews.js';
 // Production builds drop the profiling code entirely, so this is a test-only gap.
 performance.mark('st:app:start');
 
+// Used to intercept requests for fixture data in tests
+const crossOrigin = (url: string | URL): boolean => {
+  try {
+    return new URL(String(url), window.location.href).origin !== window.location.origin;
+  } catch {
+    return false;
+  }
+};
+
+// Auto-reject cross-origin fetch requests to keep the test DOM off the network
+const realFetch = globalThis.fetch;
+globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+  const url = typeof input === 'string' || input instanceof URL ? input : input.url;
+  return crossOrigin(url) ? Promise.reject(new TypeError('Failed to fetch')) : realFetch(input, init);
+}) as typeof globalThis.fetch;
+
+// Same thing but for XMLHttpRequest; we check at open() and block at send()
+const blocked = new WeakMap<XMLHttpRequest, string>();
+const realOpen = XMLHttpRequest.prototype.open;
+XMLHttpRequest.prototype.open = function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
+  if (crossOrigin(url)) blocked.set(this, String(url));
+  else blocked.delete(this);
+  return realOpen.call(this, method, url, ...(rest as []));
+};
+
+const realSend = XMLHttpRequest.prototype.send;
+XMLHttpRequest.prototype.send = function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
+  const url = blocked.get(this);
+  if (url) throw new DOMException(`Blocked a request to "${url}": the test DOM has no server behind it.`, 'NetworkError');
+  return realSend.call(this, body);
+};
+
 export {};
 
 // Note: this reads the built output, so `npm run build` has to have run first.

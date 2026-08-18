@@ -124,6 +124,8 @@ describe('WmsSource#inspectUrl', () => {
 });
 
 describe('WmsSource#getInfoFormat', () => {
+  afterEach(() => vi.restoreAllMocks());
+
   const infoFormatFor = async (xml?: string) => {
     const source = new TestWmsSource('s7st30', ENDPOINT, { layerIds: [] });
     if (xml) source.withCapabilities(xml);
@@ -139,7 +141,11 @@ describe('WmsSource#getInfoFormat', () => {
   });
 
   it('asks for GeoJSON anyway when the capabilities cannot be read, rather than not asking', async () => {
+    // Reading them is what fails here, and the source says so on the way past
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
     expect(await infoFormatFor()).toEqual('application/json');
+    expect(warn).toHaveBeenCalled();
   });
 
   it('asks for GeoJSON anyway when a server publishes none of the spellings', async () => {
@@ -152,6 +158,7 @@ describe('WmsSource#getInfoFormat', () => {
   });
 
   it('gives up on the capabilities only once, rather than re-reading them on every click', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     const source = new TestWmsSource('s7st30', ENDPOINT, { layerIds: [] });
     let reads = 0;
     (source as any).getMetadata = async () => {
