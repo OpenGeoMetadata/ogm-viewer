@@ -50,6 +50,49 @@ describe('MapLibreTheme', () => {
     });
   });
 
+  // A component used on its own establishes the Web Awesome palette itself, and that can fail: the
+  // theme is linked into a shadow root, so it can 404 or be blocked, and nothing above a bare
+  // <ogm-map> has to have established a scope either. Every token computes to the empty string then -
+  // which is the state this file's own helper leaves them in - and MapLibre rejects a layer whose
+  // paint color is empty rather than drawing it in something. A preview used to be dropped whole.
+  describe('an unreadable palette', () => {
+    // Every color the style names, with nothing declared anywhere: no --ogm-* override to read, and no
+    // --wa-color-* behind it either
+    const colorsOf = (theme: 'light' | 'dark') =>
+      Object.entries(themed(theme).getStyle())
+        .filter(([name]) => name.endsWith('Color'))
+        .map(([name, color]) => [name, String(color)]);
+
+    it('leaves a color behind for every part of a preview', () => {
+      const colors = colorsOf('light');
+
+      // The data, its outline, and the labels, in each of their four states
+      expect(colors).toHaveLength(10);
+      // And every one of them something MapLibre will parse, rather than the empty string
+      expect(colors.filter(([, color]) => !/^#[0-9a-f]{6}$/i.test(color))).toEqual([]);
+    });
+
+    // The mode still decides, so a preview drawn without a palette is still drawn to be seen against
+    // the basemap it lands on
+    it('picks its own color for each mode', () => {
+      const dark = themed('dark').getStyle();
+      const light = themed('light').getStyle();
+
+      expect(dark.dataColor).not.toBe(light.dataColor);
+      // Derived as usual, from a text color that is now readable: dark halo under the near-white text
+      // a dark basemap gets, light halo under the near-black text a light one gets
+      expect(dark.textHaloColor).toBe('#000000');
+      expect(light.textHaloColor).toBe('#ffffff');
+    });
+
+    // The floor is under the token, not over it: a palette that loads is still what a preview is
+    // drawn from, and an app's own override still beats both
+    it('gives way to the palette and to an override', () => {
+      expect(themed('light', { '--wa-color-blue-80': 'rebeccapurple' }).getStyle().dataColor).toBe('rebeccapurple');
+      expect(themed('light', { '--ogm-data-color': '#8f1414' }).getStyle().dataColor).toBe('#8f1414');
+    });
+  });
+
   // The outline isn't a second decision an app has to make. Asserted as a relationship to the color
   // it came from rather than against a hex, so the shift can be retuned without rewriting this.
   describe('derived stroke colors', () => {

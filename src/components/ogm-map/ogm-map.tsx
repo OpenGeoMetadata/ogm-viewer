@@ -51,6 +51,10 @@ export class OgmMap {
   // Guards against reporting more than one error per load attempt
   private errorReported: boolean = false;
 
+  // The last thing MapLibre complained about on the map itself rather than about one of our sources,
+  // kept for the length of a load attempt; see reportDroppedLayers for what reads it and why.
+  private lastStyleError: maplibregl.ErrorEvent['error'] | undefined = undefined;
+
   // MapLibre map instance and popup instance for feature info display
   protected map: maplibregl.Map;
   protected mapTheme: MapLibreTheme;
@@ -167,8 +171,10 @@ export class OgmMap {
     // reportError, leaving nothing drawn and nothing said about it.
     if (!this.mapStyleLoaded) return;
 
-    // Fresh load attempt: allow one error to be reported again for this preview
+    // Fresh load attempt: allow one error to be reported again for this preview, and forget what the
+    // last one complained about
     this.errorReported = false;
+    this.lastStyleError = undefined;
 
     // Indicate loading state so we can show the spinner
     this.mapLoading.emit();
@@ -209,6 +215,11 @@ export class OgmMap {
       this.previewer.attach(this.map, this.mapTheme.getStyle());
       await this.previewer.preview();
 
+      // Drawing is not the same as drawn: MapLibre drops a layer it rejects without a word, and
+      // preview() resolves as though it landed. Reported here and then carried on from, because
+      // whatever did land is still worth showing the user and still worth pointing the map at.
+      this.reportDroppedLayers();
+
       // Set up the layer controls
       this.applyLayerState();
       this.setupLayerControls();
@@ -241,9 +252,35 @@ export class OgmMap {
   // Surface MapLibre errors tied to the current preview, skipping the noise from basemap/glyph/
   // sprite loads, and deduped to a single alert per load attempt.
   protected handleMapError(event: maplibregl.ErrorEvent & { sourceId?: string }) {
-    if (this.errorReported || !this.previewer) return;
+    if (!this.previewer) return;
+    // Everything else about the map: a style layer it refused, a glyph or sprite it couldn't fetch.
+    // Held onto rather than reported, since only reportDroppedLayers can tell which of those it was.
+    if (event.sourceId === undefined) this.lastStyleError = event.error;
+    if (this.errorReported) return;
     if (!this.previewer.sourceIds.includes(event.sourceId ?? '')) return;
     this.reportError(event.error);
+  }
+
+  // Say so when the style doesn't hold layers the preview just asked it for. MapLibre does fire an
+  // error for a layer it refuses, but on the map and with no sourceId, so handleMapError above reads
+  // it as basemap noise - and having a listener at all is what stops MapLibre logging it itself, so
+  // nothing reaches the console either. Left at that, a preview drawn in a color MapLibre can't parse
+  // is a bare basemap that nobody is told anything about, in the alerts or in the console.
+  //
+  // So the reason is logged here alongside the ids, when the one we're holding is about a layer we
+  // lost: MapLibre names the layer in the message it refused it with ("layers.<id>.paint.fill-color:
+  // Could not parse color from value ''"). One naming none of them is a different failure - a glyph
+  // that 404d - and saying it was why would send whoever reads it somewhere else entirely.
+  private reportDroppedLayers() {
+    const droppedLayerIds = this.previewer?.droppedLayerIds ?? [];
+    if (droppedLayerIds.length === 0) return;
+
+    const styleError = this.lastStyleError;
+    const reason = styleError && droppedLayerIds.some(layerId => styleError.message.includes(layerId)) ? styleError.message : 'no reason given';
+    console.error(`Layers refused by MapLibre while previewing ${this.previewer.url}:`, droppedLayerIds, reason);
+    this.reportError(
+      new Error("The map refused the layers this preview is drawn with, so it couldn't be shown. A style value it was given - most often a color - is one MapLibre can't use."),
+    );
   }
 
   // Emit a single preview error per load attempt

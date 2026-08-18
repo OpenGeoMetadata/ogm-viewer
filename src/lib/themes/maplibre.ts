@@ -46,6 +46,31 @@ const defaultGlyphFont = 'Noto Sans Regular';
 // the way it did, and one that names a color gets an outline that follows it into either mode.
 const strokeLightnessShift = 0.26;
 
+// What Web Awesome's default palette holds for each token this theme names. Read only when the
+// palette itself can't be read - a component used on its own whose copy of the theme failed to
+// fetch, or one nothing established a scope for - where every `--wa-color-*` comes out as the empty
+// string. MapLibre rejects a layer whose paint color is empty rather than falling back to anything,
+// so a preview styled from an unreadable palette isn't drawn faintly, it isn't drawn at all.
+//
+// A floor rather than a second theme: these are the colors those tokens hold, so a palette that
+// loads changes nothing, and one that doesn't still gets the map drawn.
+const paletteDefaults = {
+  '--wa-color-blue-50': '#0071ec',
+  '--wa-color-blue-80': '#9fceff',
+  '--wa-color-cyan-60': '#00a3c0',
+  '--wa-color-cyan-80': '#7fd6ec',
+  '--wa-color-green-50': '#00883c',
+  '--wa-color-green-80': '#93da98',
+  '--wa-color-red-50': '#dc3146',
+  '--wa-color-red-60': '#f3676c',
+  '--wa-color-gray-05': '#101219',
+  '--wa-color-gray-95': '#f1f2f3',
+} as const;
+
+// A palette token this theme is allowed to name. One without a color above isn't one, so naming a
+// token nothing can fall back to is a type error here rather than an empty color at runtime.
+type PaletteToken = keyof typeof paletteDefaults;
+
 // Style properties common to all MapLibre-based previewers
 export default class MapLibreTheme extends Theme {
   /**
@@ -102,7 +127,7 @@ export default class MapLibreTheme extends Theme {
   // An embedding app's override if it set one, otherwise our own token for the current mode. One
   // override covers both modes: an app that names a color has said it wants that color, and
   // second-guessing it in dark mode would be picking a color it never asked for.
-  themedColor(override: string, darkColor: string, lightColor: string): string {
+  themedColor(override: string, darkColor: PaletteToken, lightColor: PaletteToken): string {
     return this.readCssProperty(override) || this.dualCssColors(darkColor, lightColor);
   }
 
@@ -122,9 +147,11 @@ export default class MapLibreTheme extends Theme {
     return this.readCssProperty('--ogm-text-halo-color') || contrastColor(textColor) || this.dualCssColors('--wa-color-gray-05', '--wa-color-gray-95');
   }
 
-  // If dark mode, use the first CSS color, otherwise use the second CSS color
-  dualCssColors(darkColor: string, lightColor: string): string {
-    return this.darkMode() ? this.readCssProperty(darkColor) : this.readCssProperty(lightColor);
+  // If dark mode, use the first CSS color, otherwise use the second CSS color - and if the palette
+  // both come from can't be read at all, the color that token holds in it; see paletteDefaults.
+  dualCssColors(darkColor: PaletteToken, lightColor: PaletteToken): string {
+    const token = this.darkMode() ? darkColor : lightColor;
+    return this.readCssProperty(token) || paletteDefaults[token];
   }
 
   // Atmosphere style for globe

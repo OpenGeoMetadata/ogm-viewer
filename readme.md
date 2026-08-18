@@ -94,6 +94,8 @@ You usually only need the four `--ogm-*-color` properties, plus `--ogm-text-colo
 
 `--ogm-stroke-*` and `--ogm-text-halo-color` are there if you want particular ones instead. Like the other colors, one you name is used in both modes.
 
+Name these in a form MapLibre can parse: a named color, a hex, `rgb()`, or `hsl()`. It refuses a layer whose color it can't read, so a preview styled with anything else - an `oklch()`, a `color-mix()` - reports an error instead of being drawn.
+
 ### Restricted content
 
 For previews of data that need authentication to access, you can set a custom `requestTransform` function to add headers or cookies to the request. It's a DOM property on `<ogm-viewer>` that you can set in JavaScript, like the `recordUrl` property:

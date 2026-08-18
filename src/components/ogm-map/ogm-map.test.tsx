@@ -61,12 +61,27 @@ const drawablePreviewer = () => ({
   url: 'http://example.com/data.json',
   sourceIds: [],
   previewLayers: [],
+  droppedLayerIds: [],
   label: () => 'GeoJSON',
   attach: vi.fn(),
   preview: vi.fn(async () => {}),
   applyLayerState: vi.fn(),
   clearPreview: vi.fn(async () => {}),
   getBounds: vi.fn(async () => bounds),
+});
+
+// What MapLibre says about a paint property it can't read, in the shape it says it: the layer named in
+// the message, and the error raised on the map with no sourceId to tie it to what was being drawn.
+const PAINT_ERROR = "layers.a-preview-polygons.paint.fill-color[2]: Could not parse color from value ''";
+
+// A previewer whose layers the style refused, complaining as MapLibre complains on the way past:
+// inside the addLayer that preview() is doing, before it has resolved to say it drew anything.
+const refusedPreviewer = (el: HTMLElement, message: string) => ({
+  ...drawablePreviewer(),
+  droppedLayerIds: ['a-preview-polygons'],
+  preview: vi.fn(async () => {
+    (el as unknown as { handleMapError: (event: { error: Error }) => void }).handleMapError({ error: new Error(message) });
+  }),
 });
 
 // Stencil doesn't await a watcher, so let what the previewer's own started finish
@@ -237,6 +252,42 @@ describe('ogm-map', () => {
 
     expect(map.setProjection).toHaveBeenCalledWith({ type: 'mercator' });
     expect(map.setMaxPitch).toHaveBeenCalledWith(30);
+  });
+
+  // MapLibre drops a layer it rejects without throwing, and fires the error for it on the map with no
+  // sourceId - which handleMapError reads as basemap noise. A preview whose layers all went that way
+  // was a bare basemap with a spinner that stopped and nothing said about any of it.
+  it('reports the layers the style refused, and what it was refused for', async () => {
+    const { el } = await renderMap();
+    const map = loadingMap();
+    const reported = vi.fn();
+    el.addEventListener('previewError', reported);
+    Object.assign(el, { map, layersControl: fakeLayersControl() });
+
+    Object.assign(el, { previewer: refusedPreviewer(el, PAINT_ERROR) });
+    await styleLoads(el, map);
+
+    expect(reported).toHaveBeenCalledTimes(1);
+    expect(reported.mock.calls[0][0].detail.title).toBe("The GeoJSON preview couldn't be read");
+    // The ids and the reason both go to the console: neither is any use to a reader of the alert, and
+    // both are to whoever has to fix it. MapLibre logs none of this itself once we listen for errors.
+    expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('Layers refused by MapLibre'), ['a-preview-polygons'], PAINT_ERROR);
+    // And carried on from: whatever did land is still worth pointing the map at
+    expect(map.fitBounds).toHaveBeenCalled();
+  });
+
+  // The error we're holding is the last one MapLibre raised about the map rather than about a source,
+  // which is as easily a glyph it couldn't fetch as the layer it refused. Offering that as the reason
+  // would send whoever reads it after the wrong failure.
+  it('offers no reason when the one it has is about something else', async () => {
+    const { el } = await renderMap();
+    const map = loadingMap();
+    Object.assign(el, { map, layersControl: fakeLayersControl() });
+
+    Object.assign(el, { previewer: refusedPreviewer(el, 'Error: NetworkError: Failed to fetch glyph range 0-255') });
+    await styleLoads(el, map);
+
+    expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('Layers refused by MapLibre'), ['a-preview-polygons'], 'no reason given');
   });
 
   // The popup is built by hand rather than rendered, so it outlives the component's own markup

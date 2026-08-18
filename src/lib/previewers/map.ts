@@ -119,6 +119,20 @@ export default abstract class MapPreviewer extends Previewer {
     });
   }
 
+  // The style layers this preview asked for that the style document doesn't hold. MapLibre validates
+  // a layer as it is added and returns without adding one it rejects - a paint color it can't parse,
+  // a property the layer type doesn't define - rather than throwing, so preview() above resolves
+  // having recorded every id whether or not anything was drawn. Asking the style what it actually
+  // holds is the only way to tell the difference, and it is worth telling: a preview whose layers
+  // were all dropped looks exactly like a bare basemap.
+  //
+  // Empty for a preview that paints with its own WebGL instead of through the style document, since a
+  // deck.gl overlay goes on as a control and records no layer ids at all.
+  get droppedLayerIds(): string[] {
+    if (!this.attached) return [];
+    return this.layerIds.filter(layerId => !this.map.getLayer(layerId));
+  }
+
   // Remove preview layers and sources
   async clearPreview() {
     if (!this.attached) return;

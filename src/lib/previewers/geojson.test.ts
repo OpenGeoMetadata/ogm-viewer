@@ -373,3 +373,39 @@ describe('OpenIndexMapPreviewer#opacity', () => {
     expect(map.layers.get(indexLayerId('polygon-labels')).paint['text-opacity']).toEqual(1);
   });
 });
+
+// MapLibre validates a style layer as it is added and returns without adding one it rejects - a paint
+// color it can't parse, a property the layer type doesn't define - rather than throwing. So a preview
+// can hand over all seven of its layers, be told nothing, and have none of them drawn. What the style
+// document actually holds is the only witness to that.
+describe('GeoJsonPreviewer#droppedLayerIds', () => {
+  // A map that refuses the layers it is named, the way MapLibre refuses one that doesn't validate:
+  // nothing added, nothing thrown.
+  class RefusingMap extends FakeMap {
+    constructor(readonly refused: string[]) {
+      super();
+    }
+
+    addLayer(layer: any) {
+      if (this.refused.includes(layer.id)) return;
+      super.addLayer(layer);
+    }
+  }
+
+  it('names the layers the style refused, out of everything it was given', async () => {
+    const map = new RefusingMap([layerId('polygons'), layerId('point-labels')]);
+    const previewer = new GeoJsonPreviewer(new GeoJsonResource('princeton-fk4544658v', GEOJSON_URL)).attach(map as unknown as maplibregl.Map, style);
+
+    await previewer.preview();
+
+    // Still recorded as asked for, since clearPreview has to look for every one of them
+    expect(previewer.layerIds).toEqual(SUFFIXES.map(layerId));
+    expect(previewer.droppedLayerIds).toEqual([layerId('polygons'), layerId('point-labels')]);
+  });
+
+  it('is empty when the style holds everything it was given', async () => {
+    const { previewer } = await previewGeoJson();
+
+    expect(previewer.droppedLayerIds).toEqual([]);
+  });
+});
