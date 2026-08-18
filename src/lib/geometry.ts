@@ -1,4 +1,4 @@
-import { LngLatBounds, MercatorCoordinate, type LngLatLike } from 'maplibre-gl';
+import { LngLatBounds, MercatorCoordinate, type LngLatBoundsLike, type LngLatLike } from 'maplibre-gl';
 import { wktToGeoJSON } from '@terraformer/wkt';
 
 // Regular expression to match ENVELOPE syntax in bbox strings
@@ -36,6 +36,31 @@ export const boundsToGeoJSON = (bounds: LngLatBounds) => {
     ],
   };
 };
+
+// Everywhere the given extents cover, or nothing if none of them covered anywhere
+export const unionBounds = (extents: (LngLatBoundsLike | undefined)[]): LngLatBounds | undefined => {
+  const union = extents.reduce<LngLatBounds>((bounds, extent) => (extent ? bounds.extend(LngLatBounds.convert(extent)) : bounds), new LngLatBounds());
+  return union.isEmpty() ? undefined : union;
+};
+
+// How much of the world can face a camera at once
+const HEMISPHERE = 180;
+
+// The most of the world a globe camera can be pointed at
+export const clampToHemisphere = (extent: LngLatBoundsLike): LngLatBounds => {
+  const bounds = LngLatBounds.convert(extent);
+  const [west, east] = [bounds.getWest(), bounds.getEast()];
+  if (east - west <= HEMISPHERE) return bounds;
+  const middle = (west + east) / 2;
+  return new LngLatBounds([middle - HEMISPHERE / 2, bounds.getSouth()], [middle + HEMISPHERE / 2, bounds.getNorth()]);
+};
+
+// Where to look when nothing says where to look. Stops short of the poles because Mercator never
+// reaches them, and nothing this wide is drawn on anything but a flat map.
+export const WORLD: LngLatBoundsLike = [
+  [-180, -85],
+  [180, 85],
+];
 
 // Convert an ENVELOPE format string into LngLatBounds
 export const bboxToBounds = (bbox: string) => {

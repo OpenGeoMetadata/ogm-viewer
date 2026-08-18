@@ -29,6 +29,7 @@ import './dist/components/ogm-layers.js';
 import './dist/components/ogm-map.js';
 import './dist/components/ogm-menubar.js';
 import './dist/components/ogm-metadata.js';
+import './dist/components/ogm-overview.js';
 import './dist/components/ogm-preview.js';
 import './dist/components/ogm-previews.js';
 

@@ -82,7 +82,9 @@ export { default as EsriImageMapLayerPreviewer } from './lib/previewers/esri-ima
 export { default as EsriTiledMapLayerPreviewer } from './lib/previewers/esri-tiled-map-layer';
 export { default as GeoJsonPreviewer, type AddGeoJsonSourceObject } from './lib/previewers/geojson';
 export { default as ImagePreviewer } from './lib/previewers/image';
-export { default as LocationPreviewer } from './lib/previewers/location';
+// `locationsFor` is what <ogm-overview> turns records into: one extent apiece, keeping the place of
+// a record it can't put anywhere, since that place is the number a reader sees on the map.
+export { default as LocationPreviewer, locationsFor } from './lib/previewers/location';
 export { default as OpenIndexMapPreviewer } from './lib/previewers/openindexmap';
 export { default as PMTilesRasterPreviewer } from './lib/previewers/pmtiles-raster';
 export { default as PMTilesVectorPreviewer } from './lib/previewers/pmtiles-vector';
@@ -95,4 +97,9 @@ export { default as WmtsPreviewer } from './lib/previewers/wmts';
 export { default as Theme } from './lib/themes/theme';
 export { default as MapLibreTheme, darkBasemapStyle, lightBasemapStyle, type MapLibreStyle } from './lib/themes/maplibre';
 export { isLayerDrawn, resolveLayerState, type Layer, type LayerControl, type LayerState, type PreviewStyleLayer } from './lib/layers';
+
+// Where to point a camera to see a record, or a set of them, at once. `clampToHemisphere` is the
+// one that isn't obvious: a globe camera has no answer for a box wider than the half of the world
+// facing it, so what's pointed at one is held to the half around its own middle.
+export { unionBounds, clampToHemisphere, WORLD } from './lib/geometry';
 export { fetchOrThrow, recordError, referenceError, HttpError, PreviewError } from './lib/errors';
