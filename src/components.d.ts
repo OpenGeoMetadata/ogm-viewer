@@ -85,8 +85,17 @@ export namespace Components {
      * their geometry or basic bounding boxes.
      */
     interface OgmOverview {
+        "geosearch"?: 'auto' | 'manual';
         "previewers"?: LocationPreviewer[];
         "records"?: OgmRecord[];
+        /**
+          * @default 'Search here'
+         */
+        "searchHereText": string;
+        /**
+          * @default 'Search when I move the map'
+         */
+        "searchOnMoveText": string;
         /**
           * @default themePreference()
          */
@@ -151,6 +160,10 @@ export interface OgmMapCustomEvent<T> extends CustomEvent<T> {
 export interface OgmMenubarCustomEvent<T> extends CustomEvent<T> {
     detail: T;
     target: HTMLOgmMenubarElement;
+}
+export interface OgmOverviewCustomEvent<T> extends CustomEvent<T> {
+    detail: T;
+    target: HTMLOgmOverviewElement;
 }
 export interface OgmPreviewsCustomEvent<T> extends CustomEvent<T> {
     detail: T;
@@ -260,11 +273,22 @@ declare global {
         prototype: HTMLOgmMetadataElement;
         new (): HTMLOgmMetadataElement;
     };
+    interface HTMLOgmOverviewElementEventMap {
+        "boundsChange": [number, number, number, number];
+    }
     /**
      * Display the location of one or several records (or previewers) by drawing
      * their geometry or basic bounding boxes.
      */
     interface HTMLOgmOverviewElement extends Components.OgmOverview, HTMLStencilElement {
+        addEventListener<K extends keyof HTMLOgmOverviewElementEventMap>(type: K, listener: (this: HTMLOgmOverviewElement, ev: OgmOverviewCustomEvent<HTMLOgmOverviewElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLOgmOverviewElementEventMap>(type: K, listener: (this: HTMLOgmOverviewElement, ev: OgmOverviewCustomEvent<HTMLOgmOverviewElementEventMap[K]>) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
     }
     var HTMLOgmOverviewElement: {
         prototype: HTMLOgmOverviewElement;
@@ -399,8 +423,18 @@ declare namespace LocalJSX {
      * their geometry or basic bounding boxes.
      */
     interface OgmOverview {
+        "geosearch"?: 'auto' | 'manual';
+        "onBoundsChange"?: (event: OgmOverviewCustomEvent<[number, number, number, number]>) => void;
         "previewers"?: LocationPreviewer[];
         "records"?: OgmRecord[];
+        /**
+          * @default 'Search here'
+         */
+        "searchHereText"?: string;
+        /**
+          * @default 'Search when I move the map'
+         */
+        "searchOnMoveText"?: string;
         /**
           * @default themePreference()
          */
@@ -474,6 +508,9 @@ declare namespace LocalJSX {
     }
     interface OgmOverviewAttributes {
         "theme": 'light' | 'dark';
+        "geosearch": 'auto' | 'manual';
+        "searchHereText": string;
+        "searchOnMoveText": string;
     }
     interface OgmPreviewAttributes {
         "theme": 'light' | 'dark';

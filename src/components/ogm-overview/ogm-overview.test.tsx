@@ -6,6 +6,7 @@ import { describe, it, expect, h, vi, beforeEach, afterEach } from '@stencil/vit
 // never has the box whenSized waits for. What's under test is what happens once a map exists, so one
 // is handed to the component afterwards.
 import { render as stencilRender } from '@stencil/core';
+import { LngLatBounds } from 'maplibre-gl';
 
 import { WORLD } from '../../lib/geometry';
 import LocationPreviewer from '../../lib/previewers/location';
@@ -20,6 +21,33 @@ class FakeMap {
   fitBounds = vi.fn();
   setProjection = vi.fn();
   remove = vi.fn();
+  controls: { control: any; position?: string; element: HTMLElement }[] = [];
+  listeners: Record<string, ((event: unknown) => void)[]> = {};
+
+  // Real enough to build the control against: addControl is what hands it the map it binds to, so a
+  // stand-in that only recorded the call would leave the half being tested unrun.
+  addControl(control: any, position?: string) {
+    this.controls.push({ control, position, element: control.onAdd(this) });
+  }
+  removeControl(control: any) {
+    this.controls = this.controls.filter(added => added.control !== control);
+    control.onRemove(this);
+  }
+  on(event: string, listener: (event: unknown) => void) {
+    (this.listeners[event] ??= []).push(listener);
+  }
+  off(event: string, listener: (event: unknown) => void) {
+    this.listeners[event] = (this.listeners[event] ?? []).filter(bound => bound !== listener);
+  }
+  fire(event: string, data: unknown = {}) {
+    [...(this.listeners[event] ?? [])].forEach(listener => listener(data));
+  }
+
+  // A view the reader has panned three times east: MapLibre never wraps a camera's bounds, so both
+  // edges are out of range and boundsToBbox has something to bring back
+  getBounds() {
+    return new LngLatBounds([530, -10], [560, 10]);
+  }
 
   getSource(id: string) {
     return this.sources.get(id);
@@ -69,7 +97,17 @@ type Overview = HTMLElement & {
   mapStyleLoaded: boolean;
   draw: () => Promise<void>;
   onRecordsChange: () => Promise<void>;
+  geosearch?: 'auto' | 'manual';
+  searchHereText: string;
+  searchOnMoveText: string;
+  onGeosearchChange: () => void;
+  onGeosearchLabelsChange: () => void;
+  emitBounds: () => void;
+  componentDidLoad: () => Promise<void>;
 };
+
+// The reader's own hand on the camera; see GeosearchControl.handleCameraEnd
+const DROVE = { originalEvent: new MouseEvent('mouseup') };
 
 const containers: HTMLElement[] = [];
 let consoleError: ReturnType<typeof vi.spyOn>;
@@ -81,6 +119,7 @@ beforeEach(() => {
 afterEach(() => {
   containers.splice(0).forEach(container => container.remove());
   consoleError.mockRestore();
+  vi.useRealTimers();
 });
 
 // Mount the component, then hand it the map its own componentDidLoad couldn't build
@@ -205,5 +244,157 @@ describe('ogm-overview', () => {
 
     expect(el.className).toContain('wa-palette-default');
     expect((el.shadowRoot as ShadowRoot).querySelector('link[rel="stylesheet"]')).toBeTruthy();
+  });
+});
+
+describe('ogm-overview geosearch', () => {
+  // An overview of one record's location has nobody to report a search to
+  it('offers no search unless it was asked to', async () => {
+    const { el, map } = await renderOverview();
+    el.onGeosearchChange();
+
+    expect(map.controls).toEqual([]);
+  });
+
+  // Top left because the attribution, this map's only other control, is drawn bottom right
+  it('puts the control over the top left of the map', async () => {
+    const { el, map } = await renderOverview();
+    el.geosearch = 'auto';
+    el.onGeosearchChange();
+
+    expect(map.controls).toHaveLength(1);
+    expect(map.controls[0].position).toEqual('top-left');
+    expect(map.controls[0].element.className).toContain('maplibregl-ctrl-geosearch');
+  });
+
+  it('starts the control in the mode it was given', async () => {
+    const { el, map } = await renderOverview();
+    el.geosearch = 'manual';
+    el.onGeosearchChange();
+
+    const { element } = map.controls[0];
+    expect((element.querySelector('button') as HTMLButtonElement).hidden).toBe(false);
+    expect((element.querySelector('label') as HTMLLabelElement).hidden).toBe(true);
+  });
+
+  it('hands the control its wording, and passes on a change to it', async () => {
+    const { el, map } = await renderOverview();
+    el.geosearch = 'auto';
+    el.searchHereText = 'Cerca aquí';
+    el.searchOnMoveText = 'Cerca quan moc el mapa';
+    el.onGeosearchChange();
+
+    const { element } = map.controls[0];
+    expect(element.querySelector('label')?.textContent).toEqual('Cerca quan moc el mapa');
+
+    el.searchHereText = 'Search here';
+    el.onGeosearchLabelsChange();
+    expect(element.querySelector('button')?.textContent).toEqual('Search here');
+  });
+
+  // The whole path: the reader moves the map, the control waits for them to stop, and what comes out is
+  // the area a query can state - both edges brought back into range, east numerically west of west
+  // because the view straddles the antimeridian. See boundsToBbox.
+  it('reports where the reader asked to search, in west, south, east, north', async () => {
+    const { el, map } = await renderOverview();
+    el.geosearch = 'auto';
+    el.onGeosearchChange();
+
+    const areas: [number, number, number, number][] = [];
+    el.addEventListener('boundsChange', event => areas.push((event as CustomEvent<[number, number, number, number]>).detail));
+
+    vi.useFakeTimers();
+    map.fire('moveend', DROVE);
+    vi.advanceTimersByTime(800);
+
+    expect(areas).toEqual([[170, -10, -160, 10]]);
+  });
+
+  it('reports nothing for a camera it moved itself', async () => {
+    const { el, map } = await renderOverview();
+    el.geosearch = 'auto';
+    el.onGeosearchChange();
+
+    const areas: unknown[] = [];
+    el.addEventListener('boundsChange', event => areas.push((event as CustomEvent).detail));
+
+    vi.useFakeTimers();
+    map.fire('moveend', {});
+    vi.advanceTimersByTime(800);
+
+    expect(areas).toEqual([]);
+  });
+
+  it('takes the control back off, and its bindings with it, when the offer is withdrawn', async () => {
+    const { el, map } = await renderOverview();
+    el.geosearch = 'auto';
+    el.onGeosearchChange();
+
+    el.geosearch = undefined;
+    el.onGeosearchChange();
+
+    expect(map.controls).toEqual([]);
+    expect(map.listeners['moveend']).toEqual([]);
+  });
+});
+
+// componentDidLoad waits on the palette's stylesheet, which lands in a later task than the one that
+// rendered - so there is a window in which the overview can be taken off the page while it is still
+// waiting. Nothing may start observing the container after that: whenSized gives up only once the
+// container has a box, and a detached one never gets one, so the observer would outlive the component.
+describe('ogm-overview taken off the page while it waits', () => {
+  // Mounted without being handed a map, so componentDidLoad is left where it really parks
+  const mount = async () => {
+    const container = document.createElement('div');
+    containers.push(container);
+    document.body.appendChild(container);
+    await stencilRender(<ogm-overview></ogm-overview>, container);
+    const el = container.firstElementChild as Overview & { componentOnReady?: () => Promise<unknown> };
+    await el.componentOnReady?.();
+    consoleError.mockClear();
+    return { container, el, link: (el.shadowRoot as ShadowRoot).querySelector('link') as HTMLLinkElement };
+  };
+
+  // Counts what gets observed, since that is the thing that outlives the component
+  const countObservers = () => {
+    const real = globalThis.ResizeObserver;
+    const built: unknown[] = [];
+    globalThis.ResizeObserver = class {
+      constructor(callback: ResizeObserverCallback) {
+        built.push(callback);
+        return new real(callback);
+      }
+    } as unknown as typeof ResizeObserver;
+    return { built, restore: () => (globalThis.ResizeObserver = real) };
+  };
+
+  // Driven by hand rather than by whatever the environment does with the stylesheet, so which of the
+  // two arrives first is not left to chance
+  const paletteArrives = async (link: HTMLLinkElement, el: Overview) => {
+    void el.componentDidLoad();
+    link.dispatchEvent(new Event('load'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+  };
+
+  it('waits for a box of its own once its palette has arrived', async () => {
+    const { el, link } = await mount();
+
+    const observers = countObservers();
+    await paletteArrives(link, el);
+    observers.restore();
+
+    expect(observers.built.length).toBeGreaterThan(0);
+  });
+
+  it('observes nothing once it has been taken off the page', async () => {
+    const { container, el, link } = await mount();
+    container.remove();
+
+    const observers = countObservers();
+    await paletteArrives(link, el);
+    observers.restore();
+
+    expect(observers.built).toEqual([]);
+    expect(el.map).toBeUndefined();
   });
 });

@@ -169,6 +169,8 @@ document.querySelector('ogm-previews').previewers = [new GeoJsonPreviewer(geoJso
 
 `record` and `previewers` are DOM properties too. Neither component has an intrinsic size, so the embedding page should set it via CSS.
 
+#### Overviews and geosearch
+
 For showing just the location (geometry or bounding box) of one or several records, you can use the `<ogm-overview>` component. It takes a list of `record`s and renders a simplified map.
 
 ```js
@@ -178,6 +180,20 @@ document.querySelector('ogm-overview').records = [record1, record2];
 ```
 
 With just one record, the globe projection is used. When more than one is provided, the flat map projection is used instead so that everything can be kept in view.
+
+If you set the `geosearch` property on `<ogm-overview>`, the map can be used to search for geographic bounds. The value can be `'auto'` to start in automatic mode, where the map emits `boundsChange` events whenever it moves, or `'manual'` to start in manual mode, where the user must manually trigger the search. Leaving it undefined disables the control.
+
+```html
+<ogm-overview geosearch="auto"></ogm-overview>
+```
+
+To respond to changes in the geographic bounds, listen for the `boundsChange` event on the `<ogm-overview>` element:
+
+```javascript
+document.querySelector('ogm-overview').addEventListener('boundsChange', event => {
+  console.log('New bounds:', event.detail); // bounds will have format [minLng, minLat, maxLng, maxLat]
+});
+```
 
 ## Development
 
