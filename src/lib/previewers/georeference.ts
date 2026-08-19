@@ -5,6 +5,15 @@ import MapPreviewer from './map';
 import type IIIFManifestResource from '../resources/iiif-manifest';
 import type { PreviewStyleLayer } from '../layers';
 
+// Allmaps' own event for the first tile of one warped map arriving. @allmaps/maplibre refires every
+// event its renderer emits on the MapLibre map, tagged with the layer it came from, so this is how a
+// layer that paints itself can be heard from at all. Spelled out rather than imported from
+// @allmaps/render's WarpedMapEventType, which @allmaps/maplibre does not re-export.
+const FIRST_TILE_EVENT = 'firstmaptileloaded';
+
+// What @allmaps/maplibre puts on the events it refires: which of its layers the news is about.
+type WarpedMapLayerEvent = { layerId?: string };
+
 // Draws a georeferenced scan as a map layer, warping the IIIF image onto the control points a IIIF
 // Georeference Annotation gives it. The second preview a georeferenced manifest offers: the same
 // resource is also an image to page through, and each of those is its own tab.
@@ -28,6 +37,10 @@ export default class GeoreferencePreviewer extends MapPreviewer {
   // Tilting is the same mistake by another route, that viewport having no pitch either: out by a
   // quarter at 30 degrees and more than double at 60. Nothing to fall back on, so it is held flat.
   readonly maxPitch = 0;
+
+  // Allmaps tells us when the scan's first tile lands, which no MapLibre source would; see
+  // handleFirstTile
+  readonly reportsDrawing = true;
 
   // The layer currently on the map. Kept because opacity and bounds are calls on this object, and
   // MapLibre's getLayer() hands back a wrapper of its own rather than what we added.
@@ -81,9 +94,31 @@ export default class GeoreferencePreviewer extends MapPreviewer {
 
     errors.forEach(error => console.warn(`Could not read a georeferenced map in ${this.url}:`, error));
     if (errors.length === results.length) throw errors[0] ?? new Error('The georeference annotation described no maps that could be drawn.');
+
+    this.watchFirstTile();
   }
 
+  // Listen for the scan's first tile. Registered here rather than in attach() so that it is paired
+  // with clearPreview() below, and taken off first so a theme change - which draws the same preview
+  // again into a rebuilt style document, with no clearPreview between - leaves one listener, not two.
+  //
+  // On the map rather than on the layer, because the layer hands its renderer's events to the map;
+  // and filtered by layer, because every warped layer on this map reports through the same channel.
+  protected watchFirstTile() {
+    const events = this.map as maplibregl.Evented;
+    events.off(FIRST_TILE_EVENT, this.handleFirstTile);
+    events.on(FIRST_TILE_EVENT, this.handleFirstTile);
+  }
+
+  // A bound instance property rather than a method, so that off() above and in clearPreview() has
+  // the same function to remove that on() was given
+  private handleFirstTile = (event: WarpedMapLayerEvent) => {
+    if (event.layerId !== this.getLayerId()) return;
+    this.onDrawn?.();
+  };
+
   async clearPreview() {
+    if (this.attached) (this.map as maplibregl.Evented).off(FIRST_TILE_EVENT, this.handleFirstTile);
     await super.clearPreview();
     this.layer = undefined;
   }

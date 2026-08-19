@@ -27,6 +27,9 @@ export default class DeckCogPreviewer extends MapPreviewer {
   // console fills up, so this preview asks for the flat map it can actually be culled in.
   readonly projection = 'mercator' as const;
 
+  // deck.gl tells us when a tile is drawn, which nothing on the map would; see reportTileDrawn
+  readonly reportsDrawing = true;
+
   // The overlay deck.gl draws into, shared with any other deck previewer on the same map
   protected deckOverlay: DeckOverlay | undefined;
 
@@ -136,11 +139,19 @@ export default class DeckCogPreviewer extends MapPreviewer {
           [east, north],
         ]);
       },
-      onTileLoad: () => (this.anyTileDrawn = true),
+      onTileLoad: () => this.reportTileDrawn(),
       onTileError: (error: unknown) => this.reportTileError(error),
       parameters: { depthCompare: 'always', cullMode: 'back' },
       pool: this.decoderPool,
     });
+  }
+
+  // One tile drawn answers two questions at once: it tells a later failure that this COG is on the
+  // map after all, so the failure is a hole rather than an absence (see reportTileError), and it
+  // tells whoever is waiting on this preview that it need not keep waiting.
+  protected reportTileDrawn() {
+    this.anyTileDrawn = true;
+    this.onDrawn?.();
   }
 
   // A COG can only fail once its tiles start arriving, which is after preview() has resolved - so a

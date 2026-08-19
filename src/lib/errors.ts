@@ -71,6 +71,28 @@ class ReferenceReadError extends PreviewError {
   }
 }
 
+// Nothing the reference could be drawn from arrived before we stopped waiting. Says what we
+// observed rather than naming a cause, because the two failures that land here look identical from
+// the outside: a host that never answers at all, and a server that answers every tile with a 404 -
+// which MapLibre swallows on purpose, since a missing tile of an XYZ pyramid means "use the parent".
+class ReferenceTimeoutError extends PreviewError {
+  constructor(refType: string, url?: string) {
+    super('Data failed to load in time. The server may be unreachable or overloaded, or it may not hold the requested data.');
+    this.title = `The ${refType} preview timed out`;
+    this.url = url;
+  }
+}
+
+// Used to report that we stopped waiting for something, rather than that it failed. A carrier like
+// HttpError below: it says which kind of PreviewError to build without the code that raises it
+// having to know about them.
+export class TimeoutError extends Error {
+  constructor(what: string, ms: number) {
+    super(`Gave up waiting for ${what} after ${ms}ms`);
+    this.name = 'TimeoutError';
+  }
+}
+
 // Used to re-raise HTTP responses from fetch() with a non-OK status as PreviewErrors
 export class HttpError extends Error {
   readonly status: number;
@@ -139,6 +161,10 @@ export function recordError(error: unknown, url: string): PreviewError {
 export function referenceError(error: unknown, refType: string, url?: string): PreviewError {
   const status = statusOf(error);
   const message = messageOf(error);
+
+  // Nothing failed; we stopped waiting. Checked first, since this is the one case where we have no
+  // response to describe - not a status, and not a network failure the browser reported.
+  if (error instanceof TimeoutError) return new ReferenceTimeoutError(refType, url);
 
   // The request failed to reach the server at all, or was blocked by CORS.
   if (isNetworkError(error)) return new ReferenceNetworkError(refType, url);

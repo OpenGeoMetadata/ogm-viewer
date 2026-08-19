@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
 
-import { HttpError, PreviewError, fetchOrThrow, recordError, referenceError } from './errors';
+import { HttpError, PreviewError, TimeoutError, fetchOrThrow, recordError, referenceError } from './errors';
 
 describe('errors', () => {
   afterEach(() => vi.restoreAllMocks());
@@ -14,6 +14,16 @@ describe('errors', () => {
       expect(error.statusText).toBe('Not Found');
       expect(error.url).toBe('http://example.com/x');
       expect(error.message).toContain('404');
+    });
+  });
+
+  describe('TimeoutError', () => {
+    it('records what was waited for and how long, for the console rather than the alert', () => {
+      const error = new TimeoutError('a tile of http://example.com/wms', 20_000);
+      expect(error).toBeInstanceOf(Error);
+      expect(error.name).toBe('TimeoutError');
+      expect(error.message).toContain('http://example.com/wms');
+      expect(error.message).toContain('20000');
     });
   });
 
@@ -108,6 +118,21 @@ describe('errors', () => {
       expect(error.title).toBe("The Web Map Service (WMS) preview couldn't be reached");
       expect(error.message).toMatch(/CORS/);
       expect(error.message).not.toContain('HTTP 0');
+    });
+
+    it('classifies a TimeoutError as a timeout, not as a read error', () => {
+      const error = referenceError(new TimeoutError('a tile of http://example.com/wms', 20_000), 'Web Map Service (WMS)', 'http://example.com/wms');
+      expect(error.title).toBe('The Web Map Service (WMS) preview timed out');
+      expect(error.url).toBe('http://example.com/wms');
+    });
+
+    // A deadline expiring says nothing about how the server answered, so the alert must not read as
+    // though one had. The internal message names a tile and a duration; neither belongs on screen.
+    it('describes what a timeout means rather than repeating the internal message', () => {
+      const error = referenceError(new TimeoutError('a tile of http://example.com/wms', 20_000), 'WMS');
+      expect(error.message).not.toContain('20000');
+      expect(error.message).not.toMatch(/tile/i);
+      expect(error.message).toMatch(/in time/);
     });
   });
 });
