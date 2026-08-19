@@ -9,6 +9,13 @@ permissions:
   pages: write
   id-token: write
 
+# Only one deploy at a time, and let a newer push cancel an in-flight older one. Without this two
+# overlapping runs race, and a slower run started from an earlier commit can publish its build after
+# the newer one has already deployed - silently reverting the site to the older commit.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
