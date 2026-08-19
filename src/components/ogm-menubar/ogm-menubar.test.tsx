@@ -74,6 +74,14 @@ describe('ogm-menubar', () => {
       await setProps({ hideTitle: false });
       expect(shadowRoot.querySelector('.title')?.textContent?.trim()).toBe('Coho Salmon Watersheds: San Francisco Bay Area, California, 2011');
     });
+
+    it('still renders the loading spinner', async () => {
+      const { root } = await render(<ogm-menubar hideTitle={true} loading={true}></ogm-menubar>);
+      const shadowRoot = root.shadowRoot as ShadowRoot;
+
+      expect(shadowRoot.querySelector('.title')).toBeNull();
+      expect(shadowRoot.querySelector('.loading-spinner')).not.toBeNull();
+    });
   });
 
   describe('loading indicator', () => {
