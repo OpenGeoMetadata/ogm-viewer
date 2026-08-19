@@ -2,7 +2,7 @@ import { Component, Element, Event, EventEmitter, h, Host, Listen, Method, Prop,
 import maplibregl from 'maplibre-gl';
 
 import { closestAcrossShadows, findElement, getElement } from '../../lib/elements';
-import { referenceError, type PreviewError } from '../../lib/errors';
+import { referenceError, TimeoutError, type PreviewError } from '../../lib/errors';
 import GlobeControl from '../../lib/globe-control';
 import { themePreference, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
 import { dedupeFeatures } from '../../lib/features';
@@ -51,6 +51,18 @@ export class OgmMap {
 
   // Guards against reporting more than one error per load attempt
   private errorReported: boolean = false;
+
+  // The deadline the current load attempt is being held to, and whether it has been met. See
+  // startLoadDeadline.
+  private loadDeadline: ReturnType<typeof setTimeout> | undefined = undefined;
+  private previewDrawn: boolean = false;
+
+  // Resolves once the current attempt has an answer - the preview's first tile arrived, or the
+  // deadline gave up on it - which is what the spinner is held up by. Starts resolved, since there
+  // is nothing to wait for until a load is under way, and every path that ends an attempt resolves
+  // it: nothing here may leave the spinner turning forever. See startLoadDeadline.
+  private previewSettled: Promise<void> = Promise.resolve();
+  private settlePreview: () => void = () => {};
 
   // MapLibre map instance and popup instance for feature info display
   protected map: maplibregl.Map;
@@ -103,6 +115,7 @@ export class OgmMap {
     this.map.on('mousemove', this.handleHover.bind(this));
     this.map.on('click', this.handleClick.bind(this));
     this.map.on('error', this.handleMapError.bind(this));
+    this.map.on('sourcedata', this.handleSourceData.bind(this));
     this.addControls();
 
     // Style as a globe with atmosphere once style is loaded and set the flag
@@ -118,6 +131,7 @@ export class OgmMap {
   // back into the map to clear the highlight and hands the features back to whoever is listening. All
   // of that wants a map that is still there, so it happens before the map goes rather than during it.
   disconnectedCallback() {
+    this.clearLoadDeadline();
     this.destroyPopup();
     if (this.map) this.map.remove();
   }
@@ -170,8 +184,11 @@ export class OgmMap {
     // reportError, leaving nothing drawn and nothing said about it.
     if (!this.mapStyleLoaded) return;
 
-    // Fresh load attempt: allow one error to be reported again for this preview
+    // Fresh load attempt: allow one error to be reported again for this preview, and put the
+    // deadline the last one was held to back on the clock
     this.errorReported = false;
+    this.clearLoadDeadline();
+    this.previewDrawn = false;
 
     // Indicate loading state so we can show the spinner
     this.mapLoading.emit();
@@ -189,14 +206,19 @@ export class OgmMap {
     // that can change without the style document being rebuilt
     this.applyViewConstraints();
 
-    // A preview that paints with its own WebGL - deck.gl's COG overlay - has no MapLibre source to
-    // report on, and only finds out it can't be drawn once its tiles start arriving, after preview()
-    // below has resolved. Give it the same alert a failed load gets. Bound to the previewer it came
-    // from rather than to whichever is current, so a tile of the record we just left can't report
-    // against the one that replaced it.
+    // A preview that paints with its own WebGL - deck.gl's COG overlay, an Allmaps warped scan - has
+    // no MapLibre source to report on, and only finds out how it went once its tiles start arriving,
+    // after preview() below has resolved. So it reports both outcomes itself: a failure gets the same
+    // alert a failed load gets, and a tile drawn is what satisfies the deadline started further down,
+    // in place of the map's own tile events. Both bound to the previewer they came from rather than to
+    // whichever is current, so a tile of the record we just left can't answer for the one that
+    // replaced it.
     const previewer = this.previewer;
     previewer.onError = error => {
       if (this.previewer === previewer) this.reportError(error);
+    };
+    previewer.onDrawn = () => {
+      if (this.previewer === previewer) this.markPreviewDrawn();
     };
 
     try {
@@ -212,6 +234,14 @@ export class OgmMap {
       this.previewer.attach(this.map, this.mapTheme.getStyle());
       await this.previewer.preview();
 
+      // The map has been told what to draw, so this is where the wait for it to actually appear
+      // begins. Started before the bounds are fitted rather than after, because the tiles the
+      // default view asks for are already on their way by now. Held onto rather than read again
+      // below, so that a load starting under this one - a theme change mid-flight - can't leave this
+      // attempt waiting on that one's answer instead of its own.
+      this.startLoadDeadline();
+      const settled = this.previewSettled;
+
       // Set up the layer controls
       this.applyLayerState();
       this.setupLayerControls();
@@ -219,6 +249,11 @@ export class OgmMap {
       // Fit to the preview's bounds; the spinner stays up until the map finishes moving
       const bounds = await this.previewer.getBounds();
       if (bounds) await this.fitMapBounds(bounds);
+
+      // The camera has arrived, but the data it was pointed at may not have. Keep the spinner up
+      // until the preview's first tile lands or its deadline expires, so that a preview which never
+      // draws spins and then says so, rather than presenting itself as loaded and staying blank.
+      await settled;
     } catch (error) {
       console.error(`Error previewing ${this.previewer.url}:`, error);
       this.reportError(error);
@@ -249,10 +284,69 @@ export class OgmMap {
     this.reportError(event.error);
   }
 
+  // One tile of the current preview arriving is the only proof that the preview is really there, so
+  // it's what the deadline below waits for. MapLibre fires this with a tile on it from one place
+  // only - a tile that finished loading and wasn't aborted - so its presence is the whole test; the
+  // same event without one is describing the source rather than any of its contents.
+  protected handleSourceData(event: maplibregl.MapSourceDataEvent) {
+    if (!event.tile || !this.previewer?.sourceIds.includes(event.sourceId)) return;
+    this.markPreviewDrawn();
+  }
+
+  // Something of the current preview is on the map. Reached from the map's own tile events above for
+  // everything MapLibre draws, and from the onDrawn hook for the two previews that draw themselves.
+  private markPreviewDrawn() {
+    this.previewDrawn = true;
+    this.clearLoadDeadline();
+  }
+
+  // Hold this load attempt to a deadline, and call it a failure if nothing is drawn by then.
+  protected startLoadDeadline() {
+    this.clearLoadDeadline();
+    if (!this.previewer) return;
+    if (!this.previewer.sourceIds.length && !this.previewer.reportsDrawing) return;
+
+    // Already answered, before we even got here: MapLibre starts fetching the moment a source goes
+    // on, so a tile can land - or fail loudly enough to be reported - while preview() is still
+    // adding the rest of them. Arming anyway would hold the spinner for the full deadline over a
+    // preview that has either already drawn or already said what went wrong.
+    if (this.previewDrawn || this.errorReported) return;
+
+    this.previewSettled = new Promise<void>(resolve => (this.settlePreview = resolve));
+
+    // Held against the previewer this attempt was for, not whichever is current when it expires, so
+    // a preview the user has already moved on from can't accuse the one that replaced it
+    const previewer = this.previewer;
+    this.loadDeadline = setTimeout(() => {
+      this.loadDeadline = undefined;
+      if (!this.previewDrawn && this.previewer === previewer) {
+        this.reportError(new TimeoutError(`a tile of ${previewer.url}`, previewer.loadTimeout));
+      }
+      // Reached whether or not an alert went up: reportError only speaks once per attempt, and a
+      // preview that has since been replaced gets no alert at all, but this attempt is over either
+      // way and whatever is waiting on it has to be let go.
+      this.clearLoadDeadline();
+    }, previewer.loadTimeout);
+  }
+
+  // Ends the current attempt's wait, from any of the four things that can end it: its first tile
+  // arriving, its deadline expiring, an error being reported, or the attempt being abandoned for a
+  // new load or a teardown.
+  private clearLoadDeadline() {
+    if (this.loadDeadline !== undefined) {
+      clearTimeout(this.loadDeadline);
+      this.loadDeadline = undefined;
+    }
+    this.settlePreview();
+  }
+
   // Emit a single preview error per load attempt
   private reportError(error: unknown) {
     if (this.errorReported || !this.previewer) return;
     this.errorReported = true;
+    // Whatever the deadline was still waiting for, it has nothing left to add: the alert it would
+    // have raised is the one already going up
+    this.clearLoadDeadline();
     this.previewError.emit(referenceError(error, this.previewer.label(), this.previewer.url));
   }
 

@@ -299,6 +299,32 @@ describe('DeckCogPreviewer', () => {
       expect(reported).toEqual([]);
     });
 
+    // Nothing this preview draws passes through a MapLibre source, so a tile drawn is news only
+    // deck.gl has. See MapPreviewer.onDrawn.
+    it('says so when deck.gl draws a tile, which nothing on the map would report', async () => {
+      const { previewer } = previewFor();
+      let drawn = 0;
+      previewer.onDrawn = () => (drawn += 1);
+      await previewer.preview();
+
+      drawTile(previewer);
+
+      expect(previewer.reportsDrawing).toBe(true);
+      expect(drawn).toBe(1);
+    });
+
+    it('says nothing about a tile that failed', async () => {
+      const { previewer } = previewFor();
+      let drawn = 0;
+      previewer.onDrawn = () => (drawn += 1);
+      previewer.onError = () => {};
+      await previewer.preview();
+
+      failTile(previewer);
+
+      expect(drawn).toBe(0);
+    });
+
     // A fresh load attempt starts over: the tiles of the last one are gone from the overlay
     it('fails again after the preview is drawn a second time', async () => {
       const { map, previewer } = previewFor();

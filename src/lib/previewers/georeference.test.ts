@@ -7,11 +7,27 @@ import type { MapLibreStyle } from '../themes/maplibre';
 
 // Just enough of a MapLibre map to record what the previewer puts on it. Unlike the other previewer
 // fakes this one has to accept a layer with no source, since that is what a custom layer is - and it
-// refuses a paint property outright, which is what MapLibre does for one.
+// refuses a paint property outright, which is what MapLibre does for one. It also carries MapLibre's
+// event API, because that is where @allmaps/maplibre refires the events its renderer emits: the map,
+// not the layer, is how a layer that paints itself can be heard from.
 class FakeMap {
   sources = new Map<string, any>();
   layers = new Map<string, any>();
   layoutProperties: [string, string, unknown][] = [];
+  listeners = new Map<string, Set<(event: any) => void>>();
+
+  on(type: string, listener: (event: any) => void) {
+    (this.listeners.get(type) ?? this.listeners.set(type, new Set()).get(type)!).add(listener);
+    return this;
+  }
+  off(type: string, listener: (event: any) => void) {
+    this.listeners.get(type)?.delete(listener);
+    return this;
+  }
+  fire(type: string, event: unknown = {}) {
+    this.listeners.get(type)?.forEach(listener => listener(event));
+    return this;
+  }
 
   getSource(id: string) {
     return this.sources.get(id);
@@ -237,5 +253,66 @@ describe('GeoreferencePreviewer', () => {
 
     expect(map.layers.size).toEqual(0);
     expect(previewer.previewLayers).toEqual([]);
+  });
+
+  // Nothing this preview draws passes through a MapLibre source, so whoever is waiting to hear that
+  // it is really on the map can only hear it from here. See MapPreviewer.onDrawn.
+  describe('reporting its own drawing', () => {
+    const FIRST_TILE = 'firstmaptileloaded';
+
+    it('answers for its own drawing rather than being watched through the map', async () => {
+      const { previewer } = await previewFor();
+      expect(previewer.reportsDrawing).toBe(true);
+    });
+
+    it("says so when Allmaps reports the scan's first tile", async () => {
+      const { map, previewer } = await previewFor();
+      let drawn = 0;
+      previewer.onDrawn = () => (drawn += 1);
+      await previewer.preview();
+
+      map.fire(FIRST_TILE, { layerId: 'bb013fz9675-georeference' });
+
+      expect(drawn).toBe(1);
+    });
+
+    // Every warped layer on one map reports down the same channel, so the news has to be checked
+    // against the layer it is about
+    it('ignores a tile drawn by another warped layer on the same map', async () => {
+      const { map, previewer } = await previewFor();
+      let drawn = 0;
+      previewer.onDrawn = () => (drawn += 1);
+      await previewer.preview();
+
+      map.fire(FIRST_TILE, { layerId: 'some-other-scan-georeference' });
+
+      expect(drawn).toBe(0);
+    });
+
+    // A theme change draws the same preview again into a rebuilt style document with no clearPreview
+    // between, so the listener has to be replaced rather than added to
+    it('reports once per tile after being drawn a second time', async () => {
+      const { map, previewer } = await previewFor();
+      let drawn = 0;
+      previewer.onDrawn = () => (drawn += 1);
+      await previewer.preview();
+      await previewer.preview();
+
+      map.fire(FIRST_TILE, { layerId: 'bb013fz9675-georeference' });
+
+      expect(drawn).toBe(1);
+    });
+
+    it('stops listening once the preview is cleared', async () => {
+      const { map, previewer } = await previewFor();
+      let drawn = 0;
+      previewer.onDrawn = () => (drawn += 1);
+      await previewer.preview();
+      await previewer.clearPreview();
+
+      map.fire(FIRST_TILE, { layerId: 'bb013fz9675-georeference' });
+
+      expect(drawn).toBe(0);
+    });
   });
 });

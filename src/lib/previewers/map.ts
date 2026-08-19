@@ -23,6 +23,13 @@ export default abstract class MapPreviewer extends Previewer {
   // for anything but 'globe', so a preview can't be put back into a projection it isn't drawn in.
   readonly projection: MapProjection = 'globe';
 
+  // How long this preview has to put something on the map before whoever draws it calls the load a
+  // failure. Only a floor on patience, not a cap: the deadline is cleared by the first tile that
+  // arrives, so this is how long a preview has to show one sign of life, not how long it has to
+  // finish. A preview that is slow by nature can raise it. See <ogm-map>'s startLoadDeadline for why
+  // waiting on the browser instead isn't enough.
+  readonly loadTimeout: number = 20_000;
+
   // How far this preview can be tilted, for the one that can't be tilted as far as MapLibre allows.
   // Allmaps' viewport takes a bearing but no pitch, so a tilted map draws the warped scan at the wrong
   // scale - out by a quarter at 30 degrees. deck.gl is handed the whole view state and needs nothing
@@ -49,6 +56,18 @@ export default abstract class MapPreviewer extends Previewer {
   // DeckCogPreviewer, which has tiles arriving one at a time and most of a viewport's worth of
   // failures to say nothing about.
   onError?: (error: unknown) => void;
+
+  // Where a preview that draws itself says it has drawn something, and the counterpart to onError
+  // above: the same two previews that have no MapLibre source to fail on have none to succeed on
+  // either, so the news that they are really on the map has to come from them. Everything MapLibre
+  // draws is watched through the map's own tile events instead. Set by whoever draws this preview.
+  onDrawn?: () => void;
+
+  // Whether this preview answers for its own drawing through onDrawn. Read rather than assumed,
+  // because the alternative is worse in both directions: a preview held to a deadline it has no way
+  // to satisfy would be called broken while it draws, and one exempted by mistake goes back to
+  // failing silently. See <ogm-map>'s startLoadDeadline.
+  readonly reportsDrawing: boolean = false;
 
   // Stored state for added MapLibre sources and layers to allow for cleanup
   sourceIds: string[] = [];
