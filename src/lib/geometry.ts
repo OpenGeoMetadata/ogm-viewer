@@ -73,6 +73,41 @@ export const bboxToBounds = (bbox: string) => {
   return new LngLatBounds([parseFloat(west), parseFloat(south)], [unwrapEast(parseFloat(west), parseFloat(east)), parseFloat(north)]);
 };
 
+/**
+ * A camera stated in whichever form one can be given in: the west, south, east, north list
+ * boundsToBbox hands back, an ENVELOPE string as `dcat_bbox` holds one, or anything else MapLibre
+ * reads as bounds. Nothing at all for a string that says something else, or for numbers that don't
+ * describe a box - a camera that can't be pointed is worth reporting rather than guessing at.
+ *
+ * The east edge is carried past the west the way unwrapEast does, which makes this the inverse of
+ * boundsToBbox: a box that crosses the antimeridian is read back as the strait it covers rather than
+ * as the rest of the world, so an area a reader asked to search can be handed straight back.
+ */
+export const readBounds = (bounds: LngLatBoundsLike | string): LngLatBounds | undefined => {
+  const read = typeof bounds === 'string' ? (bboxToBounds(bounds) ?? boundsFromList(bounds)) : convertBounds(bounds);
+  if (!read) return undefined;
+
+  const west = read.getWest();
+  return new LngLatBounds([west, read.getSouth()], [unwrapEast(west, read.getEast()), read.getNorth()]);
+};
+
+// The four numbers of a bbox written out, in the west, south, east, north order MapLibre uses for
+// one everywhere else, separated by commas or spaces - the two ways a bbox is written down.
+const boundsFromList = (bbox: string): LngLatBounds | undefined => {
+  const edges = bbox.split(/[\s,]+/).filter(edge => edge !== '');
+  if (edges.length !== 4 || !edges.every(edge => Number.isFinite(Number(edge)))) return undefined;
+  return convertBounds(edges.map(Number) as [number, number, number, number]);
+};
+
+// MapLibre throws on a box it can't read - a latitude past a pole, say - rather than saying so
+const convertBounds = (bounds: LngLatBoundsLike): LngLatBounds | undefined => {
+  try {
+    return LngLatBounds.convert(bounds);
+  } catch {
+    return undefined;
+  }
+};
+
 // A longitude already in range is handed back exactly as it came, rather than put through MapLibre's
 // own wrap. That one ends `w === min ? max : w`, so it answers 180 for an edge sitting on -180 - which
 // would flip the west edge of a world-wide box to the far side of the world - and it costs a float's

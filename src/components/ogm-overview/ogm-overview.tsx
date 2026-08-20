@@ -3,7 +3,7 @@ import type maplibregl from 'maplibre-gl';
 
 import { getElement } from '../../lib/elements';
 import GeosearchControl from '../../lib/geosearch-control';
-import { boundsToBbox, clampToHemisphere, unionBounds, WORLD } from '../../lib/geometry';
+import { boundsToBbox, clampToHemisphere, readBounds, unionBounds, WORLD } from '../../lib/geometry';
 import { themePreference, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
 import { createMap, fitBounds, setBasemap, whenSized } from '../../lib/maps';
 import LocationPreviewer, { locationsFor } from '../../lib/previewers/location';
@@ -29,17 +29,12 @@ export class OgmOverview {
   @Prop() theme: 'light' | 'dark' = themePreference();
   @Prop() records?: OgmRecord[];
   @Prop() previewers?: LocationPreviewer[];
-
-  // Whether to offer to search the area on screen, and which of the two ways to start out doing it:
-  // 'auto' searches every view the reader comes to rest in, 'manual' only the ones they ask about.
-  // Left unset there is no control and no event, which is what an overview that isn't a set of search
-  // results wants.
   @Prop() geosearch?: 'auto' | 'manual';
-
-  // What that control says in each mode. Given rather than fixed because GeoBlacklight already
-  // translates both before handing them to the Leaflet control this one stands in for.
   @Prop() searchHereText: string = 'Search here';
   @Prop() searchOnMoveText: string = 'Search when I move the map';
+
+  // Where to point the camera, provided externally
+  @Prop() bounds?: maplibregl.LngLatBoundsLike | string;
 
   // Where the reader has asked to search, as the west, south, east, north degrees a query states -
   // see boundsToBbox. Nothing here answers it: what a new area means is the embedding page's to say.
@@ -153,6 +148,13 @@ export class OgmOverview {
     await this.draw();
   }
 
+  // A camera moved after the map opened. Nothing is redrawn: what is on the map stays where it is,
+  // and only the view of it changes - including back to the whole of it, if the camera is withdrawn.
+  @Watch('bounds')
+  protected async onBoundsChange() {
+    await this.frame();
+  }
+
   // When the theme changes, swap the basemap to match, then draw the same records into the style
   // document the swap just emptied.
   @Watch('theme')
@@ -165,7 +167,7 @@ export class OgmOverview {
     // to do here but let it. Kept as an await so a caller can wait for the swap to finish.
   }
 
-  // Put every record's extent on the map, number them, and zoom to fit.
+  // Put every record's extent on the map, number them, and point the map at them.
   private async draw() {
     if (!this.map || !this.mapStyleLoaded) return;
 
@@ -174,27 +176,51 @@ export class OgmOverview {
     const style = this.mapTheme.getStyle();
     this.drawn = this.previewers ?? locationsFor(this.records ?? []);
 
-    // In the order given, so the boxes are painted in the same order they're numbered. Nothing here
+  // In the order given, so the boxes are painted in the same order they're numbered. Nothing hereread
     // reaches the network - a LocationResource is built from a shape rather than a URL - so
     // drawing them one after another costs nothing.
     for (const previewer of this.drawn) await previewer?.attach(this.map, style).preview();
 
-    // Last, so every number sits over every box
+    await this.frame();
+  }
+
+  // Point the map at what should be in view: the camera an embedder stated, or the whole of what is
+  // drawn. Last, so every number sits over every box.
+  private async frame() {
+    if (!this.map || !this.mapStyleLoaded) return;
+
+    const stated = this.bounds === undefined ? undefined : readBounds(this.bounds);
+    if (this.bounds !== undefined && !stated) console.warn('Could not read bounds:', this.bounds);
+
     const extents = await Promise.all(this.drawn.map(previewer => previewer?.getBounds()));
 
-    // A globe when there is one place to look at, and a flat map when there are several
+    // A globe when there is one place to look at, and a flat map when there are several - or whenever
+    // the camera was stated, since a globe can't be pointed at every box one might name: see
+    // clampToHemisphere, which would answer a stated camera with half of what it asked for.
     const placed = extents.filter(extent => extent !== undefined);
-    const globe = placed.length === 1;
+    const globe = !stated && placed.length === 1;
     this.map.setProjection({ type: globe ? 'globe' : 'mercator' });
 
-    // Zoom to the superset of all bounds (or the whole world if none).
+    // Zoom to the superset of all bounds (or the whole world if none), unless a camera says otherwise.
     // For a globe, clamp to a hemisphere so that the camera can properly frame it.
-    //
-    // The theme's overview gap rather than the one a preview gets: this is a whole map read at once
-    // rather than a pane filled with one record, and a box drawn against its edge reads as running
-    // off it - on a globe, that edge is where the sphere turns away.
-    const target = unionBounds(extents) ?? WORLD;
-    await fitBounds(this.map, this.mapTheme, globe ? clampToHemisphere(target) : target, { maxZoom: MAX_ZOOM, padding: style.overviewPadding });
+    const target = stated ?? unionBounds(extents) ?? WORLD;
+    await fitBounds(this.map, this.mapTheme, globe ? clampToHemisphere(target) : target, this.camera(stated));
+  }
+
+  // What the camera is allowed to do with what it was pointed at.
+  //
+  // A stated one is framed as given, because an embedder naming an area has already said what they
+  // want on screen: no gap, so the area named is the area seen and handing back what boundsChange
+  // reported is a camera that doesn't move, and no zoom limit, so a reader who searched a single
+  // street doesn't come back to a view of the city.
+  //
+  // Records get both. The theme's overview gap rather than the one a preview gets, since this is a
+  // whole map read at once rather than a pane filled with one record, and a box drawn against its
+  // edge reads as running off it - on a globe, that edge is where the sphere turns away. And no closer
+  // than city scale, because there may be nothing named on the basemap to place a box any closer by.
+  private camera(stated?: maplibregl.LngLatBounds): maplibregl.FitBoundsOptions {
+    if (stated) return { padding: 0 };
+    return { maxZoom: MAX_ZOOM, padding: this.mapTheme.getOverviewPadding() };
   }
 
   // Take the last set of records back off the map
