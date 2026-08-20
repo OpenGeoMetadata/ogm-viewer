@@ -21,10 +21,12 @@ const feature = {
 // Enough of a MapLibre map for a selection to be drawn on, and to be taken down afterwards
 const fakeMap = () => ({ setFeatureState: vi.fn(), remove: vi.fn() });
 
-// Enough of one to fit bounds on: it can work out a camera for them, it can be moved, and it reports
-// the move as having finished, which is what fitMapBounds waits for before resolving.
+// Enough of one to fit bounds on: it can work out a camera for them, it can say how big its canvas is
+// - which is what decides how much of a gap it can spare - it can be moved, and it reports the move
+// as having finished, which is what fitMapBounds waits for before resolving.
 const fittableMap = () => ({
   cameraForBounds: vi.fn(() => ({ center: [0, 0], zoom: 4 })),
+  getCanvas: () => ({ clientWidth: 800, clientHeight: 600 }),
   fitBounds: vi.fn(),
   easeTo: vi.fn(),
   once: vi.fn((_event: string, listener: () => void) => listener()),

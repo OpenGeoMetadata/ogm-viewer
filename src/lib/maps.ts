@@ -1,5 +1,6 @@
 import maplibregl from 'maplibre-gl';
 
+import { clampToHemisphere } from './geometry';
 import type Theme from './themes/theme';
 import type MapLibreTheme from './themes/maplibre';
 
@@ -19,8 +20,11 @@ const RESIZE_PERIOD = 50;
 export const createMap = (container: HTMLElement, theme: MapLibreTheme, extras: MapExtras = {}): maplibregl.Map => {
   const map = new maplibregl.Map({
     container,
-    // The basemaps are CARTO's, over OpenStreetMap data; both require attribution. Compact so it
-    // is a single "i" in the corner until clicked, which is all an embedded map has room for.
+    // The basemaps are CARTO's, over OpenStreetMap data; both require attribution. Compact so that
+    // the panel can be put away, which is all an embedded map has room for - though MapLibre still
+    // opens it once there is something to credit, and only closes it when the reader drags the map.
+    // A caller that can't spare the corner at all hands over `attributionControl: false` and adds
+    // our own instead; see AttributionControl.
     attributionControl: { compact: true },
     style: theme.getBaseMapStyle(),
     center: [0, 0],
@@ -142,12 +146,30 @@ export const setBasemap = async (map: maplibregl.Map, theme: MapLibreTheme): Pro
  * camera including the ones a reader drives.
  */
 export const fitBounds = async (map: maplibregl.Map, theme: Theme, bounds: maplibregl.LngLatBoundsLike, extras: maplibregl.FitBoundsOptions = {}): Promise<void> => {
-  const options = { padding: theme.getPadding(), ...extras };
+  const options: maplibregl.FitBoundsOptions = { padding: theme.getPadding(), ...extras };
+  options.padding = fittablePadding(map, options.padding);
   if (!cameraForBounds(map, bounds, options)) return;
   return new Promise<void>(resolve => {
     map.once('moveend', () => resolve());
     map.fitBounds(bounds, options);
   });
+};
+
+// The gap asked for, held to what the canvas can actually spare.
+//
+// MapLibre has no camera for bounds it can't fit the padding inside - the width left over goes
+// negative and cameraForBounds hands back nothing - and the guard below reads that as "leave the
+// camera alone". So a pane shorter than twice the gap keeps whatever view it opened on, with what it
+// was pointed at somewhere off screen, and nothing anywhere says so. An overview's gap is 64, which
+// makes that any pane under 128 pixels: a locator beside a record's metadata, a map in a list.
+// The gap is the thing that should give way there, not the framing.
+//
+// Only a plain number is held down. `padding` can also name the four edges one at a time, and nothing
+// here does that - what a sidebar covers is set on the map rather than asked of one camera.
+const fittablePadding = (map: maplibregl.Map, padding: maplibregl.FitBoundsOptions['padding']): maplibregl.FitBoundsOptions['padding'] => {
+  if (typeof padding !== 'number') return padding;
+  const canvas = map.getCanvas();
+  return Math.min(padding, Math.floor(Math.min(canvas.clientWidth, canvas.clientHeight) / 4));
 };
 
 // Whether there is a camera that would frame these bounds at all - there isn't, if the padding
@@ -161,3 +183,78 @@ const cameraForBounds = (map: maplibregl.Map, bounds: maplibregl.LngLatBoundsLik
     return undefined;
   }
 };
+
+/**
+ * What a map that says where records are is allowed to do.
+ *
+ * Both of them take exactly this - a locator's one record and an overview's several - so a reader can
+ * pan and zoom and nothing else. These maps are read at a glance, and one that has been turned or
+ * tilted can't be compared with the next one, so neither is offered. Cooperative gestures because a
+ * small map inside a page must not eat the page's scroll, which is also why both of them carry zoom
+ * buttons: a wheel needs the command key once this is on. And below createMap's own floor of 2,
+ * because one record can cover the world, and an extent that wide framed with a gap around it inside
+ * a container this small wants a camera further out than a map of data ever does.
+ */
+export const LOCATION_MAP: MapExtras = {
+  cooperativeGestures: true,
+  dragRotate: false,
+  touchPitch: false,
+  minZoom: 0,
+};
+
+// MapLibre's two remaining ways to turn a map, neither of which LOCATION_MAP covers because neither
+// is an option a map option can name: `dragRotate: false` takes the ctrl-drag bearing and the
+// right-drag pitch with it and leaves the keyboard's shift+arrows and the two-finger pinch-rotate
+// alone. With these there is no gesture, key or control left that can produce a bearing or a pitch -
+// which is also why the navigation control below has no compass, since there would be nothing for it
+// to reset. setMaxPitch(0) would be a knob with nothing behind it; that one is <ogm-map>'s, where a
+// previewer names the limit.
+export const disableRotation = (map: maplibregl.Map) => {
+  map.keyboard.disableRotation();
+  map.touchZoomRotate.disableRotation();
+};
+
+/**
+ * Zoom buttons and the projection toggle, ordered from the top down.
+ *
+ * MapLibre's own globe control rather than ours: GlobeControl here exists to take itself off the map
+ * for a preview that can only be drawn flat, and a location can be drawn on anything.
+ *
+ * The globe button waits for a style document; the zoom buttons don't need one. Its click reaches
+ * Style.setProjection, which opens by checking that a style has loaded and throws when one hasn't -
+ * and on a map this small the window between building it and CARTO's style landing is easy to click
+ * in. Waiting also means the button reads the projection we set rather than the one a styleless map
+ * reports, so it opens showing the state it is actually in.
+ */
+export const addLocationControls = (map: maplibregl.Map) => {
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
+  map.once('style.load', () => map.addControl(new maplibregl.GlobeControl()));
+};
+
+// How close either of these maps opens, whatever it was pointed at. Past city scale a basemap may
+// have nothing named left to place a shape against, and a shape that can't be placed is a location
+// nobody can read. It is also the only thing between a record whose location is a single point and a
+// camera at street level: a point is a box with no width, so the fit has nothing to divide by and
+// settles for whatever ceiling it was given - which, unasked, is the map's own maxZoom of 22.
+export const LOCATION_MAX_ZOOM = 12;
+
+/**
+ * Point the camera at an area, holding it to what the projection the map is in can face.
+ *
+ * A globe camera has no answer for a box wider than the half of the world facing it: the solve takes
+ * the flat answer and shrinks the globe until the box fits in front of it, and past 180 degrees no
+ * size does, so MapLibre warns and hands back nothing and the camera stays where it was. Half of a
+ * wide area is worth more than none of it, and the projection button is right there for a reader who
+ * wants the whole of it. A flat map has no such limit and gets what it was given.
+ *
+ * The theme's overview gap either way, rather than the one a preview gets: these are whole maps read
+ * at once rather than a pane filled with one record, and a shape drawn against the edge reads as
+ * running off it - on a globe, that edge is where the sphere turns away.
+ */
+export const frameLocation = async (
+  map: maplibregl.Map,
+  theme: MapLibreTheme,
+  target: maplibregl.LngLatBoundsLike,
+  globe: boolean,
+  extras: maplibregl.FitBoundsOptions = {},
+): Promise<void> => fitBounds(map, theme, globe ? clampToHemisphere(target) : target, { padding: theme.getOverviewPadding(), ...extras });
