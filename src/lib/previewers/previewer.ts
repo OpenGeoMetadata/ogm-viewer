@@ -41,6 +41,14 @@ export default abstract class Previewer {
     return this.resource.kind;
   }
 
+  // What this preview draws, named the way whoever built it named it. For a caller that has to line
+  // previews up against the things they were built from: <ogm-overview> matching a highlight named by
+  // id against the previewers an embedding page handed it. `previewId` below can't answer that - it
+  // carries the kind and the renderer as well, so a page holding a record's id has nothing to compare.
+  get resourceId(): string {
+    return this.resource.id;
+  }
+
   // Identifies the tab and the panel that show this preview. Every resource of one record carries
   // the record's own id, so it takes the kind to tell them apart, and the renderer to tell two
   // previews of one resource apart. Stable under minification, unlike constructor.name. Two

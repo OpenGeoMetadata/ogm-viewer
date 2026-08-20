@@ -15,6 +15,18 @@ describe('Previewer#kind', () => {
   });
 });
 
+describe('Previewer#resourceId', () => {
+  // What <ogm-overview> matches a highlight named by id against, when it was handed previewers rather
+  // than records. previewId can't answer it: it carries the kind and the renderer as well, so a page
+  // holding a record's id has nothing to compare against.
+  it('names the resource this preview draws, and nothing else about the preview', () => {
+    const previewer = new GeoJsonPreviewer(new GeoJsonResource('a-record', 'https://example.com/data.json'));
+
+    expect(previewer.resourceId).toEqual('a-record');
+    expect(previewer.previewId).toEqual('a-record-geojson-map');
+  });
+});
+
 describe('Previewer#requestTransform', () => {
   it("is undefined when the resource wasn't given one", () => {
     const previewer = new GeoJsonPreviewer(new GeoJsonResource('id', 'https://example.com/data.json'));

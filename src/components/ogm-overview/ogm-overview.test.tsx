@@ -70,6 +70,10 @@ class FakeMap {
   cameraForBounds() {
     return { center: [0, 0], zoom: 4 };
   }
+  // How much of a gap the camera can spare comes off the canvas; see fittablePadding
+  getCanvas() {
+    return { clientWidth: 800, clientHeight: 600 };
+  }
   once(_event: string, listener: () => void) {
     listener();
   }

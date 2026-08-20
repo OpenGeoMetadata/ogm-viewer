@@ -16,7 +16,7 @@ type AddGeoJsonSourceObject = GeoJSONSourceSpecification & { id: string };
 // extent, not a value an embedding app has a reason to name: setting it to 1 would flatten the frame
 // back into data, which is the one thing this previewer exists to avoid. How faint the extent starts
 // out overall is a separate question, and that one is themed - see --ogm-bounds-opacity.
-const FILL_OPACITY = 0.2;
+export const FILL_OPACITY = 0.2;
 
 /**
  * A record's extent, drawn as a frame rather than as data. What goes on the map when the data itself
@@ -102,9 +102,12 @@ export default class LocationPreviewer extends MapPreviewer {
   }
 }
 
+// Where one record is, or nothing for a record that doesn't say. Not every record has a location,
+// and one that doesn't isn't broken - there is just nothing of it to draw.
+export const locationFor = (record: OgmRecord): LocationPreviewer | undefined => {
+  const geometry = record.getGeometry();
+  return geometry ? new LocationPreviewer(new LocationResource(record.id, geometry as GeoJSON.Geometry)) : undefined;
+};
+
 // Generate a list of LocationPreviewers using the geometry of provided records
-export const locationsFor = (records: OgmRecord[]): (LocationPreviewer | undefined)[] =>
-  records.map(record => {
-    const geometry = record.getGeometry();
-    return geometry ? new LocationPreviewer(new LocationResource(record.id, geometry as GeoJSON.Geometry)) : undefined;
-  });
+export const locationsFor = (records: OgmRecord[]): (LocationPreviewer | undefined)[] => records.map(locationFor);

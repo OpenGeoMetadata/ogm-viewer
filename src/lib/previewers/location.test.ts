@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@stencil/vitest';
 
-import LocationPreviewer, { locationsFor } from './location';
+import LocationPreviewer, { locationFor, locationsFor } from './location';
 import GeoJsonPreviewer from './geojson';
 import LocationResource from '../resources/location';
 import GeoJsonResource from '../resources/geojson';
@@ -258,6 +258,34 @@ describe('LocationPreviewer inspection', () => {
     expect(map.layers.get(FILL).layout.visibility).toEqual('none');
     expect(map.layers.get(OUTLINE).layout.visibility).toEqual('none');
     expect(previewer.visibleLayerIds).toEqual([]);
+  });
+});
+
+describe('locationFor', () => {
+  const record = (fields: Partial<GeoBlacklightSchemaAardvark>) =>
+    new OgmRecord({
+      id: 'a-record',
+      dct_title_s: 'A record',
+      gbl_resourceClass_sm: ['Datasets'],
+      dct_accessRights_s: 'Public',
+      gbl_mdVersion_s: 'Aardvark',
+      ...fields,
+    } as GeoBlacklightSchemaAardvark);
+
+  it('says where one record is', async () => {
+    const location = locationFor(record({ dcat_bbox: 'ENVELOPE(29.57,35.0,4.23,-1.47)' }));
+
+    expect(location).toBeInstanceOf(LocationPreviewer);
+    expect(await location!.getBounds()).toEqual([
+      [29.57, -1.47],
+      [35, 4.23],
+    ]);
+  });
+
+  // Which is not a failure. A record can be ordinary metadata with nothing to place it by, and the
+  // one component that draws a single location answers for having nothing to draw.
+  it('has nothing to say about a record that does not say where it is', () => {
+    expect(locationFor(record({}))).toBeUndefined();
   });
 });
 
