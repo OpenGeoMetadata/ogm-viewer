@@ -11,6 +11,7 @@ import {
   mercatorGeomToLngLat,
   mercatorToLngLat,
   pixelWindowCenter,
+  readBounds,
   unionBounds,
   WORLD,
 } from './geometry';
@@ -137,6 +138,63 @@ describe('boundsToBbox', () => {
   // A globe with a pole facing the camera reports exactly the pole, which is a latitude Solr takes
   it('should leave a view that reaches a pole alone', () => {
     expect(boundsToBbox(new LngLatBounds([-30, -90], [30, 90]))).toEqual([-30, -90, 30, 90]);
+  });
+});
+
+describe('readBounds', () => {
+  // The four numbers in the order every other bbox here is written in
+  it('should read a west, south, east, north list', () => {
+    expect(readBounds([-124.41, 32.53, -114.13, 42.01])?.toArray()).toEqual([
+      [-124.41, 32.53],
+      [-114.13, 42.01],
+    ]);
+  });
+
+  it('should read a list written out as a string, however it is separated', () => {
+    expect(readBounds('-124.41 32.53 -114.13 42.01')?.toArray()).toEqual(readBounds('-124.41,32.53,-114.13,42.01')?.toArray());
+    expect(readBounds('-124.41 32.53 -114.13 42.01')?.getWest()).toEqual(-124.41);
+  });
+
+  // The form dcat_bbox is written in, so a record's own box can be handed over as it stands
+  it('should read an ENVELOPE string', () => {
+    expect(readBounds('ENVELOPE(-124.41,-114.13,42.01,32.53)')?.toArray()).toEqual([
+      [-124.41, 32.53],
+      [-114.13, 42.01],
+    ]);
+  });
+
+  it('should read anything else MapLibre reads as bounds', () => {
+    const bounds = new LngLatBounds([-10, 0], [-5, 5]);
+    expect(readBounds(bounds)?.toArray()).toEqual(bounds.toArray());
+    expect(
+      readBounds([
+        [-10, 0],
+        [-5, 5],
+      ])?.toArray(),
+    ).toEqual(bounds.toArray());
+  });
+
+  // The inverse of boundsToBbox, which is what lets an area a reader asked to search be handed back
+  // to hold the map there. The east edge is carried past 180 again on the way in, so the camera frames
+  // the 30 degrees of the Pacific the view covered rather than the 330 degrees of everywhere else.
+  it('should undo what boundsToBbox did to a view across the antimeridian', () => {
+    const view = new LngLatBounds([530, -10], [560, 10]);
+    const read = readBounds(boundsToBbox(view))!;
+
+    expect([read.getWest(), read.getSouth(), read.getEast(), read.getNorth()]).toEqual([170, -10, 200, 10]);
+    expect(read.getEast() - read.getWest()).toEqual(view.getEast() - view.getWest());
+  });
+
+  it('should read nothing from a string that says something else', () => {
+    expect(readBounds('POINT(-122.17 37.43)')).toBeUndefined();
+    expect(readBounds('-124.41 32.53 -114.13')).toBeUndefined();
+    expect(readBounds('west south east north')).toBeUndefined();
+    expect(readBounds('')).toBeUndefined();
+  });
+
+  // MapLibre throws on these rather than saying so, and a camera nobody can point is worth reporting
+  it('should read nothing from a box that reaches past a pole', () => {
+    expect(readBounds([-30, -100, 30, 100])).toBeUndefined();
   });
 });
 

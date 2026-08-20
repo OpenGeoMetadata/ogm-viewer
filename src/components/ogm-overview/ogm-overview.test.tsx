@@ -8,7 +8,7 @@ import { describe, it, expect, h, vi, beforeEach, afterEach } from '@stencil/vit
 import { render as stencilRender } from '@stencil/core';
 import { LngLatBounds } from 'maplibre-gl';
 
-import { WORLD } from '../../lib/geometry';
+import { boundsToBbox, WORLD } from '../../lib/geometry';
 import LocationPreviewer from '../../lib/previewers/location';
 import OgmRecord, { type GeoBlacklightSchemaAardvark } from '../../lib/record';
 import LocationResource from '../../lib/resources/location';
@@ -96,7 +96,10 @@ type Overview = HTMLElement & {
   mapTheme: MapLibreTheme;
   mapStyleLoaded: boolean;
   draw: () => Promise<void>;
+  frame: () => Promise<void>;
   onRecordsChange: () => Promise<void>;
+  bounds?: number[] | string;
+  onBoundsChange: () => Promise<void>;
   geosearch?: 'auto' | 'manual';
   searchHereText: string;
   searchOnMoveText: string;
@@ -237,6 +240,101 @@ describe('ogm-overview', () => {
     const [, options] = map.fitBounds.mock.calls[0];
     expect(options.padding).toEqual(el.mapTheme.getStyle().overviewPadding);
     expect(options.padding).toBeGreaterThan(el.mapTheme.getPadding());
+  });
+
+  it('points the camera where it was told, rather than at what it drew', async () => {
+    const { el, map } = await renderOverview();
+    el.records = [record('one', { dcat_bbox: ICELAND })];
+    await el.draw();
+
+    el.bounds = CALIFORNIA;
+    await el.onBoundsChange();
+
+    expect(boundsToBbox(map.fitBounds.mock.calls.at(-1)![0])).toEqual([-124.41, 32.53, -114.13, 42.01]);
+
+    // Only the view of it changed; what was on the map is still on it, and still where it was
+    expect(boxLayers(map)).toEqual(['one-location-fill', 'one-location-outline']);
+  });
+
+  // An embedder naming an area has already said what they want on screen, so neither the gap nor the
+  // zoom limit an overview of records gets is applied to it
+  it('frames a stated camera exactly', async () => {
+    const { el, map } = await renderOverview();
+    el.bounds = CALIFORNIA;
+    await el.draw();
+
+    expect(map.fitBounds.mock.calls.at(-1)![1]).toEqual({ padding: 0 });
+  });
+
+  // The round trip: the area a reader asked to search, handed back, is a camera that doesn't move
+  it('holds the map where it was when the area it reported is handed back', async () => {
+    const { el, map } = await renderOverview();
+    const view = map.getBounds();
+
+    el.bounds = boundsToBbox(view);
+    await el.draw();
+
+    const [bounds] = map.fitBounds.mock.calls.at(-1)!;
+    expect(bounds.getEast() - bounds.getWest()).toEqual(view.getEast() - view.getWest());
+    expect([bounds.getSouth(), bounds.getNorth()]).toEqual([view.getSouth(), view.getNorth()]);
+  });
+
+  // A globe can't be pointed at every box one might name, so a stated camera is always a flat one
+  it('draws a single record on a flat map when the camera was stated', async () => {
+    const { el, map } = await renderOverview();
+    el.records = [record('one', { dcat_bbox: CALIFORNIA })];
+    el.bounds = ICELAND;
+    await el.draw();
+
+    expect(map.setProjection).toHaveBeenCalledWith({ type: 'mercator' });
+  });
+
+  it('returns to a stated camera when what is drawn changes', async () => {
+    const { el, map } = await renderOverview();
+    el.bounds = CALIFORNIA;
+    el.records = [record('one', { dcat_bbox: ICELAND })];
+    await el.draw();
+
+    el.records = [record('two', { dcat_bbox: THE_WORLD })];
+    await el.onRecordsChange();
+
+    expect(boundsToBbox(map.fitBounds.mock.calls.at(-1)![0])).toEqual([-124.41, 32.53, -114.13, 42.01]);
+  });
+
+  it('goes back to framing what it drew when the camera is withdrawn', async () => {
+    const { el, map } = await renderOverview();
+    el.records = [record('one', { dcat_bbox: ICELAND })];
+    el.bounds = CALIFORNIA;
+    await el.draw();
+
+    el.bounds = undefined;
+    await el.onBoundsChange();
+
+    const [bounds, options] = map.fitBounds.mock.calls.at(-1)!;
+    expect(boundsToBbox(bounds)).toEqual([-24.55, 63.39, -13.49, 66.57]);
+    expect(options.maxZoom).toEqual(12);
+  });
+
+  // Which is how a page rendered by a server says where its map opens, without any JavaScript
+  it('takes a camera from an attribute', async () => {
+    const { el, map } = await renderOverview();
+    el.setAttribute('bounds', CALIFORNIA);
+
+    expect(el.bounds).toEqual(CALIFORNIA);
+    await el.frame();
+    expect(boundsToBbox(map.fitBounds.mock.calls.at(-1)![0])).toEqual([-124.41, 32.53, -114.13, 42.01]);
+  });
+
+  it('frames what it drew, and says so, when it cannot read the camera it was given', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { el, map } = await renderOverview();
+    el.records = [record('one', { dcat_bbox: ICELAND })];
+    el.bounds = 'somewhere nice';
+    await el.draw();
+
+    expect(consoleWarn).toHaveBeenCalledWith('Could not read bounds:', 'somewhere nice');
+    expect(boundsToBbox(map.fitBounds.mock.calls.at(-1)![0])).toEqual([-24.55, 63.39, -13.49, 66.57]);
+    consoleWarn.mockRestore();
   });
 
   it('carries the Web Awesome scope, being usable on its own', async () => {
