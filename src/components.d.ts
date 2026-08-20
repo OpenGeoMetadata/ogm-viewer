@@ -51,6 +51,21 @@ export namespace Components {
         "layers": LayerControl[];
         "theme": 'light' | 'dark';
     }
+    /**
+     * Where one record is, on a map of its own: the geometry the record carries, or the box around it if
+     * that is all the record has. The map GeoBlacklight draws with Leaflet beside a record's metadata.
+     * One record, or one location built by hand, and nothing else. Several of them at once is a different
+     * question with different answers - which of them is which, and what a reader is meant to compare -
+     * and <ogm-overview> is where those are answered.
+     */
+    interface OgmLocator {
+        "previewer"?: LocationPreviewer;
+        "record"?: OgmRecord;
+        /**
+          * @default themePreference()
+         */
+        "theme": 'light' | 'dark';
+    }
     interface OgmMap {
         "easeMapTo": (options: maplibregl.EaseToOptions) => Promise<maplibregl.Map>;
         /**
@@ -232,6 +247,19 @@ declare global {
         prototype: HTMLOgmLayersElement;
         new (): HTMLOgmLayersElement;
     };
+    /**
+     * Where one record is, on a map of its own: the geometry the record carries, or the box around it if
+     * that is all the record has. The map GeoBlacklight draws with Leaflet beside a record's metadata.
+     * One record, or one location built by hand, and nothing else. Several of them at once is a different
+     * question with different answers - which of them is which, and what a reader is meant to compare -
+     * and <ogm-overview> is where those are answered.
+     */
+    interface HTMLOgmLocatorElement extends Components.OgmLocator, HTMLStencilElement {
+    }
+    var HTMLOgmLocatorElement: {
+        prototype: HTMLOgmLocatorElement;
+        new (): HTMLOgmLocatorElement;
+    };
     interface HTMLOgmMapElementEventMap {
         "mapIdle": void;
         "mapLoading": void;
@@ -336,6 +364,7 @@ declare global {
         "ogm-attributes": HTMLOgmAttributesElement;
         "ogm-image": HTMLOgmImageElement;
         "ogm-layers": HTMLOgmLayersElement;
+        "ogm-locator": HTMLOgmLocatorElement;
         "ogm-map": HTMLOgmMapElement;
         "ogm-menubar": HTMLOgmMenubarElement;
         "ogm-metadata": HTMLOgmMetadataElement;
@@ -385,6 +414,21 @@ declare namespace LocalJSX {
         "onAllLayersVisibilityChange"?: (event: OgmLayersCustomEvent<boolean>) => void;
         "onLayerOpacityChange"?: (event: OgmLayersCustomEvent<{ id: string; opacity: number }>) => void;
         "onLayerVisibilityChange"?: (event: OgmLayersCustomEvent<{ id: string; visible: boolean }>) => void;
+        "theme"?: 'light' | 'dark';
+    }
+    /**
+     * Where one record is, on a map of its own: the geometry the record carries, or the box around it if
+     * that is all the record has. The map GeoBlacklight draws with Leaflet beside a record's metadata.
+     * One record, or one location built by hand, and nothing else. Several of them at once is a different
+     * question with different answers - which of them is which, and what a reader is meant to compare -
+     * and <ogm-overview> is where those are answered.
+     */
+    interface OgmLocator {
+        "previewer"?: LocationPreviewer;
+        "record"?: OgmRecord;
+        /**
+          * @default themePreference()
+         */
         "theme"?: 'light' | 'dark';
     }
     interface OgmMap {
@@ -496,6 +540,9 @@ declare namespace LocalJSX {
     interface OgmLayersAttributes {
         "theme": 'light' | 'dark';
     }
+    interface OgmLocatorAttributes {
+        "theme": 'light' | 'dark';
+    }
     interface OgmMapAttributes {
         "theme": 'light' | 'dark';
         "padding": number;
@@ -538,6 +585,7 @@ declare namespace LocalJSX {
         "ogm-attributes": Omit<OgmAttributes, keyof OgmAttributesAttributes> & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes]?: OgmAttributes[K] } & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes as `attr:${K}`]?: OgmAttributesAttributes[K] } & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes as `prop:${K}`]?: OgmAttributes[K] };
         "ogm-image": Omit<OgmImage, keyof OgmImageAttributes> & { [K in keyof OgmImage & keyof OgmImageAttributes]?: OgmImage[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `attr:${K}`]?: OgmImageAttributes[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `prop:${K}`]?: OgmImage[K] };
         "ogm-layers": Omit<OgmLayers, keyof OgmLayersAttributes> & { [K in keyof OgmLayers & keyof OgmLayersAttributes]?: OgmLayers[K] } & { [K in keyof OgmLayers & keyof OgmLayersAttributes as `attr:${K}`]?: OgmLayersAttributes[K] } & { [K in keyof OgmLayers & keyof OgmLayersAttributes as `prop:${K}`]?: OgmLayers[K] };
+        "ogm-locator": Omit<OgmLocator, keyof OgmLocatorAttributes> & { [K in keyof OgmLocator & keyof OgmLocatorAttributes]?: OgmLocator[K] } & { [K in keyof OgmLocator & keyof OgmLocatorAttributes as `attr:${K}`]?: OgmLocatorAttributes[K] } & { [K in keyof OgmLocator & keyof OgmLocatorAttributes as `prop:${K}`]?: OgmLocator[K] };
         "ogm-map": Omit<OgmMap, keyof OgmMapAttributes> & { [K in keyof OgmMap & keyof OgmMapAttributes]?: OgmMap[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `attr:${K}`]?: OgmMapAttributes[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `prop:${K}`]?: OgmMap[K] };
         "ogm-menubar": Omit<OgmMenubar, keyof OgmMenubarAttributes> & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes]?: OgmMenubar[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `attr:${K}`]?: OgmMenubarAttributes[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `prop:${K}`]?: OgmMenubar[K] };
         "ogm-metadata": Omit<OgmMetadata, keyof OgmMetadataAttributes> & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes]?: OgmMetadata[K] } & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes as `attr:${K}`]?: OgmMetadataAttributes[K] } & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes as `prop:${K}`]?: OgmMetadata[K] };
@@ -556,6 +604,14 @@ declare module "@stencil/core" {
             "ogm-attributes": LocalJSX.IntrinsicElements["ogm-attributes"] & JSXBase.HTMLAttributes<HTMLOgmAttributesElement>;
             "ogm-image": LocalJSX.IntrinsicElements["ogm-image"] & JSXBase.HTMLAttributes<HTMLOgmImageElement>;
             "ogm-layers": LocalJSX.IntrinsicElements["ogm-layers"] & JSXBase.HTMLAttributes<HTMLOgmLayersElement>;
+            /**
+             * Where one record is, on a map of its own: the geometry the record carries, or the box around it if
+             * that is all the record has. The map GeoBlacklight draws with Leaflet beside a record's metadata.
+             * One record, or one location built by hand, and nothing else. Several of them at once is a different
+             * question with different answers - which of them is which, and what a reader is meant to compare -
+             * and <ogm-overview> is where those are answered.
+             */
+            "ogm-locator": LocalJSX.IntrinsicElements["ogm-locator"] & JSXBase.HTMLAttributes<HTMLOgmLocatorElement>;
             "ogm-map": LocalJSX.IntrinsicElements["ogm-map"] & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
             "ogm-menubar": LocalJSX.IntrinsicElements["ogm-menubar"] & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
             "ogm-metadata": LocalJSX.IntrinsicElements["ogm-metadata"] & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;
