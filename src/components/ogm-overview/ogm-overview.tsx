@@ -176,7 +176,7 @@ export class OgmOverview {
     const style = this.mapTheme.getStyle();
     this.drawn = this.previewers ?? locationsFor(this.records ?? []);
 
-  // In the order given, so the boxes are painted in the same order they're numbered. Nothing hereread
+    // In the order given, so the boxes are painted in the same order they're numbered. Nothing here
     // reaches the network - a LocationResource is built from a shape rather than a URL - so
     // drawing them one after another costs nothing.
     for (const previewer of this.drawn) await previewer?.attach(this.map, style).preview();

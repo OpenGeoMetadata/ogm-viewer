@@ -85,9 +85,6 @@ export namespace Components {
      * their geometry or basic bounding boxes.
      */
     interface OgmOverview {
-        /**
-          * Where to point the camera, rather than at whatever is drawn.  Given as the west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an attribute, so a page rendered by a server can say where its map opens without any JavaScript at all.  Framed exactly, without the gap or the zoom limit an overview of records gets: the area named is the area on screen, so handing back what `boundsChange` reported leaves the map where the reader already had it. And it goes on holding - whenever what is drawn changes, the map returns here rather than re-framing itself around the new set. Leave it unset for a map that should look at whatever it has been given, which is what an overview usually wants.
-         */
         "bounds"?: maplibregl.LngLatBoundsLike | string;
         "geosearch"?: 'auto' | 'manual';
         "previewers"?: LocationPreviewer[];
@@ -427,9 +424,6 @@ declare namespace LocalJSX {
      * their geometry or basic bounding boxes.
      */
     interface OgmOverview {
-        /**
-          * Where to point the camera, rather than at whatever is drawn.  Given as the west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an attribute, so a page rendered by a server can say where its map opens without any JavaScript at all.  Framed exactly, without the gap or the zoom limit an overview of records gets: the area named is the area on screen, so handing back what `boundsChange` reported leaves the map where the reader already had it. And it goes on holding - whenever what is drawn changes, the map returns here rather than re-framing itself around the new set. Leave it unset for a map that should look at whatever it has been given, which is what an overview usually wants.
-         */
         "bounds"?: maplibregl.LngLatBoundsLike | string;
         "geosearch"?: 'auto' | 'manual';
         "onBoundsChange"?: (event: OgmOverviewCustomEvent<[number, number, number, number]>) => void;
