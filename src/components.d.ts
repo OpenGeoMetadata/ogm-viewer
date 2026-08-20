@@ -96,22 +96,33 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     /**
-     * Display the location of one or several records (or previewers) by drawing
-     * their geometry or basic bounding boxes.
+     * Where several records are: one numbered marker apiece, and optionally a way to search the map for
+     * more of them.
+     * Nothing of a record is drawn but its number. A page of boxes says less than a page of numbers a
+     * reader can find again in the list beside the map, and the only two boxes worth drawing are the ones
+     * that answer a question: which area is being searched, and where the one result something outside has
+     * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
      */
     interface OgmOverview {
+        /**
+          * The area a search is currently filtered to, drawn as a box and framed by the camera. Given as the west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an attribute, so a page rendered by a server can say what its map is filtered to without any JavaScript at all.  It goes on holding: whenever what is drawn changes, the camera returns here rather than re-framing itself around the new set of results. Leave it unset for a map that should look at whatever it has been given.
+         */
         "bounds"?: maplibregl.LngLatBoundsLike | string;
-        "geosearch"?: 'auto' | 'manual';
+        /**
+          * Whether a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through `boundsChange`; nothing here answers it, because what a new area means is the embedding page's to say. The help text is a prop because GeoBlacklight runs the strings for the control this replaces through Rails I18n.
+          * @default false
+         */
+        "geosearch": boolean;
+        /**
+          * Which result to bring forward, as either its place in the list counted from one or the id of the record - or of the resource a previewer draws - that it came from. An attribute hands over a string for either, since an attribute is always one.  The marker changes color and comes to the front, and the result's own extent is drawn around it. The camera doesn't move: something on the page has said which result matters, not where to look.
+         */
+        "highlighted"?: number | string;
         "previewers"?: LocationPreviewer[];
         "records"?: OgmRecord[];
         /**
-          * @default 'Search here'
+          * @default 'Shift + drag to search an area'
          */
-        "searchHereText": string;
-        /**
-          * @default 'Search when I move the map'
-         */
-        "searchOnMoveText": string;
+        "searchHelpText": string;
         /**
           * @default themePreference()
          */
@@ -306,8 +317,12 @@ declare global {
         "boundsChange": [number, number, number, number];
     }
     /**
-     * Display the location of one or several records (or previewers) by drawing
-     * their geometry or basic bounding boxes.
+     * Where several records are: one numbered marker apiece, and optionally a way to search the map for
+     * more of them.
+     * Nothing of a record is drawn but its number. A page of boxes says less than a page of numbers a
+     * reader can find again in the list beside the map, and the only two boxes worth drawing are the ones
+     * that answer a question: which area is being searched, and where the one result something outside has
+     * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
      */
     interface HTMLOgmOverviewElement extends Components.OgmOverview, HTMLStencilElement {
         addEventListener<K extends keyof HTMLOgmOverviewElementEventMap>(type: K, listener: (this: HTMLOgmOverviewElement, ev: OgmOverviewCustomEvent<HTMLOgmOverviewElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
@@ -464,23 +479,34 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     /**
-     * Display the location of one or several records (or previewers) by drawing
-     * their geometry or basic bounding boxes.
+     * Where several records are: one numbered marker apiece, and optionally a way to search the map for
+     * more of them.
+     * Nothing of a record is drawn but its number. A page of boxes says less than a page of numbers a
+     * reader can find again in the list beside the map, and the only two boxes worth drawing are the ones
+     * that answer a question: which area is being searched, and where the one result something outside has
+     * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
      */
     interface OgmOverview {
+        /**
+          * The area a search is currently filtered to, drawn as a box and framed by the camera. Given as the west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an attribute, so a page rendered by a server can say what its map is filtered to without any JavaScript at all.  It goes on holding: whenever what is drawn changes, the camera returns here rather than re-framing itself around the new set of results. Leave it unset for a map that should look at whatever it has been given.
+         */
         "bounds"?: maplibregl.LngLatBoundsLike | string;
-        "geosearch"?: 'auto' | 'manual';
+        /**
+          * Whether a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through `boundsChange`; nothing here answers it, because what a new area means is the embedding page's to say. The help text is a prop because GeoBlacklight runs the strings for the control this replaces through Rails I18n.
+          * @default false
+         */
+        "geosearch"?: boolean;
+        /**
+          * Which result to bring forward, as either its place in the list counted from one or the id of the record - or of the resource a previewer draws - that it came from. An attribute hands over a string for either, since an attribute is always one.  The marker changes color and comes to the front, and the result's own extent is drawn around it. The camera doesn't move: something on the page has said which result matters, not where to look.
+         */
+        "highlighted"?: number | string;
         "onBoundsChange"?: (event: OgmOverviewCustomEvent<[number, number, number, number]>) => void;
         "previewers"?: LocationPreviewer[];
         "records"?: OgmRecord[];
         /**
-          * @default 'Search here'
+          * @default 'Shift + drag to search an area'
          */
-        "searchHereText"?: string;
-        /**
-          * @default 'Search when I move the map'
-         */
-        "searchOnMoveText"?: string;
+        "searchHelpText"?: string;
         /**
           * @default themePreference()
          */
@@ -557,9 +583,9 @@ declare namespace LocalJSX {
     }
     interface OgmOverviewAttributes {
         "theme": 'light' | 'dark';
-        "geosearch": 'auto' | 'manual';
-        "searchHereText": string;
-        "searchOnMoveText": string;
+        "highlighted": string;
+        "geosearch": boolean;
+        "searchHelpText": string;
         "bounds": maplibregl.LngLatBoundsLike | string;
     }
     interface OgmPreviewAttributes {
@@ -616,8 +642,12 @@ declare module "@stencil/core" {
             "ogm-menubar": LocalJSX.IntrinsicElements["ogm-menubar"] & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
             "ogm-metadata": LocalJSX.IntrinsicElements["ogm-metadata"] & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;
             /**
-             * Display the location of one or several records (or previewers) by drawing
-             * their geometry or basic bounding boxes.
+             * Where several records are: one numbered marker apiece, and optionally a way to search the map for
+             * more of them.
+             * Nothing of a record is drawn but its number. A page of boxes says less than a page of numbers a
+             * reader can find again in the list beside the map, and the only two boxes worth drawing are the ones
+             * that answer a question: which area is being searched, and where the one result something outside has
+             * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
              */
             "ogm-overview": LocalJSX.IntrinsicElements["ogm-overview"] & JSXBase.HTMLAttributes<HTMLOgmOverviewElement>;
             "ogm-preview": LocalJSX.IntrinsicElements["ogm-preview"] & JSXBase.HTMLAttributes<HTMLOgmPreviewElement>;

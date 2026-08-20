@@ -3,21 +3,30 @@ import type maplibregl from 'maplibre-gl';
 
 import { getElement } from '../../lib/elements';
 import GeosearchControl from '../../lib/geosearch-control';
-import { boundsToBbox, clampToHemisphere, readBounds, unionBounds, WORLD } from '../../lib/geometry';
+import { boundsToBbox, readBounds, unionBounds, WORLD } from '../../lib/geometry';
 import { themePreference, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
-import { createMap, fitBounds, setBasemap, whenSized } from '../../lib/maps';
+import { addLocationControls, createMap, disableRotation, frameLocation, LOCATION_MAP, LOCATION_MAX_ZOOM, setBasemap, whenSized } from '../../lib/maps';
 import LocationPreviewer, { locationsFor } from '../../lib/previewers/location';
+import type { MapProjection } from '../../lib/previewers/map';
 import type OgmRecord from '../../lib/record';
+import { drawResults } from '../../lib/results';
 import MapLibreTheme from '../../lib/themes/maplibre';
 
-// We need to ensure that there are identifiable features around to read so
-// that the location of the data is clear; no point zooming in any further than
-// this because the map may be missing names for cities, towns, etc.
-const MAX_ZOOM = 12;
+// How far a shift-drag has to go before it counts as asking about an area, in pixels. MapLibre's own
+// line between a click and a drag, and the point at which it starts drawing the rectangle: under it
+// the reader saw no box at all, and a search they got no sight of is one they didn't ask for. MapLibre
+// reports the gesture anyway - only an exactly stationary mouseup is called off - so the floor is ours
+// to hold.
+const MIN_SEARCH_DRAG = 3;
 
 /**
- * Display the location of one or several records (or previewers) by drawing
- * their geometry or basic bounding boxes.
+ * Where several records are: one numbered marker apiece, and optionally a way to search the map for
+ * more of them.
+ *
+ * Nothing of a record is drawn but its number. A page of boxes says less than a page of numbers a
+ * reader can find again in the list beside the map, and the only two boxes worth drawing are the ones
+ * that answer a question: which area is being searched, and where the one result something outside has
+ * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
  */
 @Component({
   tag: 'ogm-overview',
@@ -29,11 +38,37 @@ export class OgmOverview {
   @Prop() theme: 'light' | 'dark' = themePreference();
   @Prop() records?: OgmRecord[];
   @Prop() previewers?: LocationPreviewer[];
-  @Prop() geosearch?: 'auto' | 'manual';
-  @Prop() searchHereText: string = 'Search here';
-  @Prop() searchOnMoveText: string = 'Search when I move the map';
 
-  // Where to point the camera, provided externally
+  /**
+   * Which result to bring forward, as either its place in the list counted from one or the id of the
+   * record - or of the resource a previewer draws - that it came from. An attribute hands over a
+   * string for either, since an attribute is always one.
+   *
+   * The marker changes color and comes to the front, and the result's own extent is drawn around it.
+   * The camera doesn't move: something on the page has said which result matters, not where to look.
+   */
+  @Prop() highlighted?: number | string;
+
+  /**
+   * Whether a reader can search the map by holding shift and dragging a box over it. The area they
+   * drew is reported through `boundsChange`; nothing here answers it, because what a new area means
+   * is the embedding page's to say. The help text is a prop because GeoBlacklight runs the strings
+   * for the control this replaces through Rails I18n.
+   */
+  @Prop() geosearch: boolean = false;
+  @Prop() searchHelpText: string = 'Shift + drag to search an area';
+
+  /**
+   * The area a search is currently filtered to, drawn as a box and framed by the camera. Given as the
+   * west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form
+   * `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an
+   * attribute, so a page rendered by a server can say what its map is filtered to without any
+   * JavaScript at all.
+   *
+   * It goes on holding: whenever what is drawn changes, the camera returns here rather than
+   * re-framing itself around the new set of results. Leave it unset for a map that should look at
+   * whatever it has been given.
+   */
   @Prop() bounds?: maplibregl.LngLatBoundsLike | string;
 
   // Where the reader has asked to search, as the west, south, east, north degrees a query states -
@@ -47,8 +82,20 @@ export class OgmOverview {
   // Used to prevent drawing into a style document that isn't there yet
   private mapStyleLoaded: boolean = false;
 
-  // Things currently drawn to the map
-  private drawn: (LocationPreviewer | undefined)[] = [];
+  // Which projection the map is in, as the reader last left it. Held rather than read off the map,
+  // because the map forgets: a style document carries its own projection and neither basemap names
+  // one, so every theme swap arrives flat and would take a globe the reader had chosen with it.
+  private projection: MapProjection = 'globe';
+
+  // Where every result is and what each of them is called, in the order they were given - including
+  // the ones nobody could place, which keep their position in both. See highlightedPosition.
+  private extents: (maplibregl.LngLatBoundsLike | undefined)[] = [];
+  private ids: string[] = [];
+
+  // The area a search is filtered to, as this map can read it. Held rather than read where it is
+  // used: it is wanted twice on every draw, once for the box and once for the camera, and reading it
+  // twice would report an unreadable one twice as well.
+  private searchFilter?: maplibregl.LngLatBounds;
 
   async componentDidLoad() {
     const container = getElement(this.el, '#map');
@@ -74,27 +121,29 @@ export class OgmOverview {
 
     this.mapTheme = new MapLibreTheme(container, this.theme);
     this.map = createMap(container, this.mapTheme, {
-      cooperativeGestures: true,
-      dragRotate: false,
-      touchPitch: false,
-      minZoom: 0,
+      ...LOCATION_MAP,
+      // Always handed over, even with geosearch switched off: MapLibre reads this once as the handler
+      // is built and offers no way to hand it one later, so the offer has to be made now and taken
+      // back by disabling the handler - see applyGeosearch. Making it at all is also what stops a
+      // shift-drag flying the camera to whatever it enclosed. A search shouldn't move the map, and the
+      // area worth reporting is the box the reader drew rather than the wider view a fit to it settles
+      // on: their box never has the canvas' own shape, so the camera always covers more than they
+      // asked about.
+      boxZoom: { boxZoomEnd: (_map, start, end) => this.search(start, end) },
     });
-    this.map.keyboard.disableRotation();
-    this.map.touchZoomRotate.disableRotation();
+    disableRotation(this.map);
 
-    // Before the style loads, because the control draws nothing into it and asks the map for nothing
-    // but its bounds - and those only once the reader has moved it
-    this.addGeosearch();
+    // Before the style loads, because none of these writes anything into it
+    this.addControls();
 
-    // Everything below lives in the style document, so all of it is drawn again for each new one:
-    // once at first load, and again after every theme swap. The projection goes with it - a style
-    // carries its own and neither basemap names one - which is why draw() sets it rather than this
-    // does. Either way it can't be set any earlier: setProjection throws before a style has loaded.
-    this.map.on('style.load', async () => {
-      this.mapStyleLoaded = true;
-      this.map.setSky(this.mapTheme.getSkyStyle());
-      await this.draw();
-    });
+    // A reader reaching for the globe button, which is worth a fresh camera: what a globe can be
+    // pointed at is not what a flat map can - see frameLocation - so flattening one is how a reader
+    // sees the whole of a set of results too wide to fit on a sphere.
+    this.map.on('projectiontransition', this.handleProjectionTransition);
+
+    // Everything below lives in the style document, so all of it is done again for each new one: once
+    // at first load, and again after every theme swap.
+    this.map.on('style.load', () => this.handleStyleLoad());
   }
 
   // Clean up the map to prevent warnings/errors when removed from the DOM
@@ -102,60 +151,139 @@ export class OgmOverview {
     if (this.map) this.map.remove();
   }
 
+  // Zoom buttons and the projection toggle, plus the search hint if one was asked for
+  private addControls() {
+    addLocationControls(this.map);
+    this.applyGeosearch();
+  }
+
+  // A new style document, which arrives empty: at first load, and again after every theme swap.
+  //
+  // The projection is set here rather than by the camera. A style carries its own and neither basemap
+  // names one, so each document opens flat until this says otherwise; setting it per camera instead
+  // would stamp over the reader's press every time the results changed. It can't happen any earlier
+  // either - setProjection throws before a style has loaded - and it happens before the flag goes up,
+  // so that neither MapLibre's reset nor this correction of it is mistaken for the reader reaching for
+  // the button. The load below is what draws and frames.
+  private async handleStyleLoad() {
+    this.map.setSky(this.mapTheme.getSkyStyle());
+    this.map.setProjection({ type: this.projection });
+    this.mapStyleLoaded = true;
+    await this.load();
+  }
+
+  // The reader reaching for the globe button.
+  //
+  // Held to a style document that is already up, because a style loading is itself two of these: it
+  // ends by setting whatever projection it names, which is mercator for both basemaps, and then
+  // handleStyleLoad above puts the reader's choice back. Neither is a choice, and taking the first for
+  // one would flatten a globe on every theme swap.
+  private handleProjectionTransition = async (event: maplibregl.MapProjectionEvent) => {
+    if (!this.mapStyleLoaded) return;
+
+    // Anything that isn't flat is a globe as far as the camera is concerned. MapLibre has two names
+    // for one: 'globe' is the projection that draws as a sphere until it is zoomed in past the point
+    // where a sphere and a flat map are the same picture, and 'vertical-perspective' is the one that
+    // stays a sphere throughout.
+    this.projection = event.newProjection === 'mercator' ? 'mercator' : 'globe';
+    await this.frame();
+  };
+
   // Added and taken off rather than hidden the way <ogm-map>'s controls are: this is the only thing in
   // its corner, so there is no stack for it to come back to the bottom of - and going means its
-  // bindings to the map go with it. A change of starting mode arrives the same way, as a fresh control.
+  // bindings to the map go with it. The gesture is switched on and off rather than rebuilt, because
+  // MapLibre reads the callback behind it once, as the handler is built.
   @Watch('geosearch')
   protected onGeosearchChange() {
+    this.applyGeosearch();
+  }
+
+  // Retexted where it stands, so a change of wording doesn't interrupt a reader partway through a box
+  @Watch('searchHelpText')
+  protected onSearchHelpTextChange() {
+    this.geosearchControl?.setText(this.searchHelpText);
+  }
+
+  private applyGeosearch() {
     if (!this.map) return;
+
+    if (this.geosearch) {
+      this.map.boxZoom.enable();
+    } else {
+      // Reset before disabling, or a gesture caught halfway leaves its rectangle and the crosshair
+      // cursor behind: a disabled handler stops being offered the mouseup that would have cleared
+      // them, and nothing short of the window losing focus does it instead.
+      if (this.map.boxZoom.isActive()) this.map.boxZoom.reset();
+      this.map.boxZoom.disable();
+    }
 
     if (this.geosearchControl) {
       this.map.removeControl(this.geosearchControl);
       this.geosearchControl = undefined;
     }
+    if (!this.geosearch) return;
 
-    this.addGeosearch();
-  }
+    this.geosearchControl = new GeosearchControl(this.searchHelpText);
 
-  // Retexted where it stands, so a change of wording doesn't put the control back into the mode it
-  // started in or interrupt a reader partway through using it
-  @Watch('searchHereText')
-  @Watch('searchOnMoveText')
-  protected onGeosearchLabelsChange() {
-    this.geosearchControl?.setLabels({ searchHere: this.searchHereText, searchOnMove: this.searchOnMoveText });
-  }
-
-  private addGeosearch() {
-    if (!this.map || !this.geosearch) return;
-
-    this.geosearchControl = new GeosearchControl(() => this.emitBounds(), { searchHere: this.searchHereText, searchOnMove: this.searchOnMoveText }, this.geosearch);
-
-    // Top left, which is empty: the attribution this map's only other control draws sits bottom right
+    // Top left, which is empty: the zoom and globe buttons are top right, and the attribution both
+    // basemaps require is bottom right
     this.map.addControl(this.geosearchControl, 'top-left');
   }
 
-  // Read when the control asks rather than when the camera stopped, so what gets searched is where the
-  // map came to rest even if a wait started partway through getting there
-  private emitBounds() {
-    if (!this.map) return;
-    this.boundsChange.emit(boundsToBbox(this.map.getBounds()));
+  /**
+   * What the reader drew, as an area a query can state.
+   *
+   * The two corners arrive as pixels on the canvas, so which is west is decided on screen rather than
+   * by longitude. With rotation disabled the left edge is always the west one, and it has to be read
+   * that way round: a box dragged across the antimeridian unprojects to 175 and -175, and taking the
+   * smaller of those for west would describe the other 350 degrees. Screen y grows downward, so the
+   * top of the box is its north edge.
+   *
+   * On a globe those two corners aren't the corners of a rectangle at all - the top edge of a screen
+   * box isn't a line of latitude - but they are what the reader enclosed, and they are the same two
+   * points MapLibre's own box zoom would have fitted.
+   */
+  private search(start: maplibregl.Point, end: maplibregl.Point) {
+    if (start.dist(end) < MIN_SEARCH_DRAG) return;
+
+    const northWest = this.map.unproject([Math.min(start.x, end.x), Math.min(start.y, end.y)]);
+    const southEast = this.map.unproject([Math.max(start.x, end.x), Math.max(start.y, end.y)]);
+
+    // Through our own reader rather than straight into a LngLatBounds: it carries an east edge past
+    // its west the way a box crossing the antimeridian is written, and it answers with nothing for a
+    // pair MapLibre would throw on - a latitude past a pole, which a flat map's unproject can hand
+    // back. boundsToBbox then brings both edges into range, so what comes out can be stated in a query.
+    const area = readBounds([northWest.lng, southEast.lat, southEast.lng, northWest.lat]);
+    if (!area) return console.warn('Could not read the area searched:', northWest, southEast);
+
+    this.boundsChange.emit(boundsToBbox(area));
   }
 
   @Watch('records')
   @Watch('previewers')
   protected async onRecordsChange() {
-    await this.clear();
-    await this.draw();
+    await this.load();
   }
 
-  // A camera moved after the map opened. Nothing is redrawn: what is on the map stays where it is,
-  // and only the view of it changes - including back to the whole of it, if the camera is withdrawn.
+  // The area being searched has changed. The box that says where it is has to go on again, but
+  // nothing about the results has moved, so nobody is asked for their extent a second time.
   @Watch('bounds')
   protected async onBoundsChange() {
+    this.readSearchFilter();
+    this.draw();
     await this.frame();
   }
 
-  // When the theme changes, swap the basemap to match, then draw the same records into the style
+  // A highlight arriving from outside. Only the marker and the box around its extent change, and the
+  // camera is left exactly where it is: something on the page has said which result matters, not
+  // where to look, and flying the map at a row the reader happened to hover is not what they asked
+  // for.
+  @Watch('highlighted')
+  protected onHighlightedChange() {
+    this.draw();
+  }
+
+  // When the theme changes, swap the basemap to match, then draw the same results into the style
   // document the swap just emptied.
   @Watch('theme')
   protected async onThemeChange() {
@@ -167,70 +295,105 @@ export class OgmOverview {
     // to do here but let it. Kept as an await so a caller can wait for the swap to finish.
   }
 
-  // Put every record's extent on the map, number them, and point the map at them.
-  private async draw() {
-    if (!this.map || !this.mapStyleLoaded) return;
-
-    // Only known now: the colors come out of the theme, and the theme can change under records
-    // that are already on screen.
-    const style = this.mapTheme.getStyle();
-    this.drawn = this.previewers ?? locationsFor(this.records ?? []);
-
-    // In the order given, so the boxes are painted in the same order they're numbered. Nothing here
-    // reaches the network - a LocationResource is built from a shape rather than a URL - so
-    // drawing them one after another costs nothing.
-    for (const previewer of this.drawn) await previewer?.attach(this.map, style).preview();
-
+  // Everything, in the order it has to happen: what area is being searched, where the results are,
+  // what goes on the map, and then where the camera looks.
+  private async load() {
+    this.readSearchFilter();
+    await this.measure();
+    this.draw();
     await this.frame();
   }
 
-  // Point the map at what should be in view: the camera an embedder stated, or the whole of what is
-  // drawn. Last, so every number sits over every box.
+  // The area a search is filtered to, if this map can read what it was given. Read once per load
+  // rather than at each of the two places that want it, so an unreadable one is reported once.
+  private readSearchFilter() {
+    this.searchFilter = this.bounds === undefined ? undefined : readBounds(this.bounds);
+    if (this.bounds !== undefined && !this.searchFilter) console.warn('Could not read bounds:', this.bounds);
+  }
+
+  // Where every result is, and what each of them is called.
+  //
+  // Both are counted over, which is why both are kept: the extents are what get a number and a place
+  // on the map, and the ids are what a highlight names when it names one by id rather than by place. A
+  // record nobody could place holds its position in each, so the two stay in step with the list a
+  // reader is reading beside the map.
+  private async measure() {
+    const previewers = this.previewers ?? locationsFor(this.records ?? []);
+    this.ids = this.previewers ? this.previewers.map(previewer => previewer.resourceId) : (this.records ?? []).map(record => record.id);
+
+    // Asked of the previewers rather than read off the records, so an extent handed over and one
+    // worked out here arrive by the same route - and so a geometry is squared off to its envelope in
+    // one place. Nothing here reaches the network, since a LocationResource is built from a shape
+    // rather than a URL, so all of them at once costs nothing.
+    this.extents = await Promise.all(previewers.map(previewer => previewer?.getBounds()));
+  }
+
+  // Put the results on the map: their numbers, the highlighted one's own extent, and the area being
+  // searched. See drawResults, which is where the order all of that goes on in lives.
+  private draw() {
+    if (!this.map || !this.mapStyleLoaded) return;
+
+    // Only known now: the colors come out of the theme, and the theme can change under results that
+    // are already on screen.
+    drawResults(this.map, this.mapTheme.getStyle(), {
+      extents: this.extents,
+      highlighted: this.highlightedPosition(),
+      searchBounds: this.searchFilter,
+    });
+  }
+
+  // Point the camera at what should be in view: the area a search is filtered to, or the whole of
+  // what is drawn.
   private async frame() {
     if (!this.map || !this.mapStyleLoaded) return;
 
-    const stated = this.bounds === undefined ? undefined : readBounds(this.bounds);
-    if (this.bounds !== undefined && !stated) console.warn('Could not read bounds:', this.bounds);
-
-    const extents = await Promise.all(this.drawn.map(previewer => previewer?.getBounds()));
-
-    // A globe when there is one place to look at, and a flat map when there are several - or whenever
-    // the camera was stated, since a globe can't be pointed at every box one might name: see
-    // clampToHemisphere, which would answer a stated camera with half of what it asked for.
-    const placed = extents.filter(extent => extent !== undefined);
-    const globe = !stated && placed.length === 1;
-    this.map.setProjection({ type: globe ? 'globe' : 'mercator' });
-
-    // Zoom to the superset of all bounds (or the whole world if none), unless a camera says otherwise.
-    // For a globe, clamp to a hemisphere so that the camera can properly frame it.
-    const target = stated ?? unionBounds(extents) ?? WORLD;
-    await fitBounds(this.map, this.mapTheme, globe ? clampToHemisphere(target) : target, this.camera(stated));
+    // Everywhere the results cover, or the whole world if none of them said where they are
+    const target = this.searchFilter ?? unionBounds(this.extents) ?? WORLD;
+    await frameLocation(this.map, this.mapTheme, target, this.projection === 'globe', this.camera());
   }
 
-  // What the camera is allowed to do with what it was pointed at.
+  // What the camera is allowed to do with what it was pointed at. The gap comes from frameLocation,
+  // which both of these maps share; this is the part that differs.
   //
-  // A stated one is framed as given, because an embedder naming an area has already said what they
-  // want on screen: no gap, so the area named is the area seen and handing back what boundsChange
-  // reported is a camera that doesn't move, and no zoom limit, so a reader who searched a single
-  // street doesn't come back to a view of the city.
-  //
-  // Records get both. The theme's overview gap rather than the one a preview gets, since this is a
-  // whole map read at once rather than a pane filled with one record, and a box drawn against its
-  // edge reads as running off it - on a globe, that edge is where the sphere turns away. And no closer
-  // than city scale, because there may be nothing named on the basemap to place a box any closer by.
-  private camera(stated?: maplibregl.LngLatBounds): maplibregl.FitBoundsOptions {
-    if (stated) return { padding: 0 };
-    return { maxZoom: MAX_ZOOM, padding: this.mapTheme.getOverviewPadding() };
+  // A zoom limit only for what was drawn, because there may be nothing named on the basemap to place
+  // a page of results any closer by. An area a search is filtered to gets none: a reader who searched
+  // a single street shouldn't come back to a view of the city.
+  private camera(): maplibregl.FitBoundsOptions {
+    return this.searchFilter ? {} : { maxZoom: LOCATION_MAX_ZOOM };
   }
 
-  // Take the last set of records back off the map
-  private async clear() {
-    await Promise.all(this.drawn.map(previewer => previewer?.clearPreview()));
-    this.drawn = [];
+  /**
+   * Which result the highlight names, counted from one.
+   *
+   * A number is a place in the list, and a string is an id - unless it is a place written down, which
+   * is what an attribute hands over for either, since an attribute is always a string. An id is tried
+   * first, because an id we hold is a match and a place is only a count: a page whose records are
+   * named "1", "2", "3" means the record rather than the row.
+   *
+   * Counted over every result, including the ones nobody could place. The number is the row a reader
+   * sees beside the map, so closing the gap a record with no bounding box leaves would point every
+   * result after it at the wrong row - and a highlight that lands on one of those gaps draws nothing,
+   * which is the truth. Nothing at all for a value naming neither an id nor a row, which is a map with
+   * no highlight rather than one with the wrong highlight.
+   */
+  private highlightedPosition(): number | undefined {
+    if (this.highlighted === undefined) return undefined;
+    if (typeof this.highlighted === 'number') return this.position(this.highlighted);
+
+    const named = this.ids.indexOf(this.highlighted);
+    if (named >= 0) return named + 1;
+
+    return this.position(Number(this.highlighted));
+  }
+
+  // A place in the list, if it is one at all. Bounded by what we hold, because a place past the end
+  // names no result: Number('') is 0 and Number('somewhere') is NaN, and neither is a row.
+  private position(place: number): number | undefined {
+    return Number.isInteger(place) && place >= 1 && place <= this.extents.length ? place : undefined;
   }
 
   // Web Awesome is linked even though nothing here renders a wa-* element: MapLibreTheme reads
-  // --wa-color-* tokens for the boxes and the numbers, and this component is meant to be used on
+  // --wa-color-* tokens for the numbers and the boxes, and this component is meant to be used on
   // its own, so it is the one that has to establish them.
   render() {
     return (
