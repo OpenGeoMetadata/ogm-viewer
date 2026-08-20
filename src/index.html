@@ -57,6 +57,28 @@
         font-size: 0.85rem;
       }
 
+      .results {
+        list-style: none;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem 0.75rem;
+        margin: 0.5rem 0 0;
+        padding: 0;
+        width: min(90vw, 800px);
+        font-size: 0.85rem;
+      }
+
+      .results button {
+        appearance: none;
+        background: none;
+        border: 0;
+        padding: 0;
+        font: inherit;
+        color: #06c;
+        cursor: pointer;
+        text-align: start;
+      }
+
       ogm-viewer,
       ogm-overview,
       ogm-locator {
@@ -162,6 +184,8 @@
         const switchLocatorButton = document.getElementById('switch-locator');
         const hideTitle = document.querySelector('.hideTitle');
         const geosearch = document.querySelector('.geosearch');
+        const loadAllButton = document.getElementById('loadAll');
+        const results = document.getElementById('results');
 
         // Which of the three is on screen, and which of the controls belong to it
         const show = which => {
@@ -173,6 +197,8 @@
           switchLocatorButton.style.display = which === 'locator' ? 'none' : 'inline-block';
           hideTitle.style.display = which === 'viewer' ? 'inline-block' : 'none';
           geosearch.style.display = which === 'overview' ? 'inline-flex' : 'none';
+          loadAllButton.style.display = which === 'overview' ? 'inline-block' : 'none';
+          results.style.display = which === 'overview' ? 'flex' : 'none';
         };
 
         switchViewerButton.addEventListener('click', () => show('viewer'));
@@ -197,6 +223,7 @@
           if (recordUrl) viewer.recordUrl = recordUrl;
           if (record) overview.records = [record];
           if (record) locator.record = record;
+          if (record) renderResults([record]);
         });
 
         // Clear record button
@@ -207,6 +234,7 @@
           viewer.loadRecord(null);
           overview.records = [];
           locator.record = undefined;
+          renderResults([]);
         });
 
         // Toggle theme button
@@ -227,14 +255,48 @@
         // Geosearch and bounds display
         const geosearchSelect = document.getElementById('geosearch');
         const boundsOut = document.getElementById('boundsOut');
+        const clearFilterButton = document.getElementById('clearFilter');
+
+        const setFilter = bounds => {
+          overview.bounds = bounds;
+          boundsOut.textContent = bounds ? bounds.map(degrees => degrees.toFixed(3)).join(' ') : '';
+        };
+
         geosearchSelect.addEventListener('change', () => {
-          const active = geosearchSelect.checked;
-          if (!active) boundsOut.textContent = '';
-          overview.geosearch = active ? 'auto' : undefined;
+          overview.geosearch = geosearchSelect.checked;
+          if (!geosearchSelect.checked) setFilter(undefined);
         });
 
-        overview.addEventListener('boundsChange', event => {
-          boundsOut.textContent = event.detail.map(degrees => degrees.toFixed(3)).join(' ');
+        // Straight back as the active filter, which is the round trip an embedding app makes - and
+        // the only way to see the area being searched drawn on the map
+        overview.addEventListener('boundsChange', event => setFilter(event.detail));
+
+        clearFilterButton.addEventListener('click', () => setFilter(undefined));
+
+        // A row per result, the way a page would render them beside the map. Hovering one drives
+        // `highlighted` by id, which is the half of it an attribute can't reach.
+        const renderResults = records => {
+          results.innerHTML = '';
+          records.forEach((record, index) => {
+            const item = document.createElement('li');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = `${index + 1}. ${record.title ?? record.id}`;
+            button.addEventListener('mouseenter', () => (overview.highlighted = record.id));
+            button.addEventListener('focus', () => (overview.highlighted = record.id));
+            button.addEventListener('mouseleave', () => (overview.highlighted = undefined));
+            button.addEventListener('blur', () => (overview.highlighted = undefined));
+            item.appendChild(button);
+            results.appendChild(item);
+          });
+        };
+
+        // Every record in the selector at once, so there is something to number
+        loadAllButton.addEventListener('click', async () => {
+          const urls = [...recordSelector.options].map(option => option.value).filter(Boolean);
+          const records = await Promise.all(urls.map(async url => new OgmRecord(await (await fetch(url)).json())));
+          overview.records = records;
+          renderResults(records);
         });
       });
     </script>
@@ -257,12 +319,16 @@
         <button id="switch-locator">Switch to locator</button>
         <button id="switch-viewer" style="display: none">Switch to viewer</button>
         <label class="hideTitle">Hide Title <input type="checkbox" id="hideTitle" /></label>
+        <button id="loadAll" style="display: none">Load all records</button>
         <span class="geosearch" style="display: none">
           <label>Geosearch <input type="checkbox" id="geosearch" /></label>
           <code id="boundsOut"></code>
+          <button id="clearFilter">Clear filter</button>
         </span>
       </div>
     </div>
+
+    <ol class="results" id="results" style="display: none"></ol>
 
     <ogm-viewer></ogm-viewer>
     <ogm-overview style="display: none"></ogm-overview>

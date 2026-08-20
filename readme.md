@@ -198,7 +198,7 @@ ogm-locator {
 
 #### Overviews and geosearch
 
-For showing just the location (geometry or bounding box) of one or several records, you can use the `<ogm-overview>` component. It takes a list of `record`s and renders a simplified map.
+For showing where several records are — the map beside a page of search results — use `<ogm-overview>`. Hand it a list of `records` and it draws a numbered marker for each one, in the order you gave them.
 
 ```js
 await customElements.whenDefined('ogm-overview');
@@ -206,21 +206,46 @@ await customElements.whenDefined('ogm-overview');
 document.querySelector('ogm-overview').records = [record1, record2];
 ```
 
-With just one record, the globe projection is used. When more than one is provided, the flat map projection is used instead so that everything can be kept in view.
+Nothing of a record is drawn but its number, at the middle of its extent. A record with no geometry still takes up its number, so the numbers keep matching the rows in the list beside the map. Hand it `previewers` instead — a list of `LocationPreviewer`s — and those are numbered instead of the records.
 
-If you set the `geosearch` property on `<ogm-overview>`, the map can be used to search for geographic bounds. The value can be `'auto'` to start in automatic mode, where the map emits `boundsChange` events whenever it moves, or `'manual'` to start in manual mode, where the user must manually trigger the search. Leaving it undefined disables the control.
+The map opens as a globe, with a button beside the zoom buttons to flatten it. It can be panned and zoomed but not turned or tilted.
 
-```html
-<ogm-overview geosearch="auto"></ogm-overview>
+To bring one result forward, set `highlighted` to either its place in the list counted from one, or the id of the record it came from (or, for the `previewers` path, the id of the resource a previewer draws). Its marker changes color and rises above the others, and its own extent is drawn around it. The camera doesn't move — something on the page has said which result matters, not where to look — and anything that names neither a row nor an id simply clears the highlight.
+
+```js
+overview.highlighted = record.id; // or 3, or undefined to clear it
 ```
 
-To respond to changes in the geographic bounds, listen for the `boundsChange` event on the `<ogm-overview>` element:
+Set `bounds` to the area a search is currently filtered to. It's drawn as a box and the camera frames it, and it goes on holding: when the results change, the map returns to it rather than re-framing itself around the new set. It takes the same forms `boundsChange` reports, an `ENVELOPE` string, or anything else MapLibre reads as bounds — and being a string, it can come from an attribute:
+
+```html
+<ogm-overview bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-overview>
+```
+
+Set `geosearch` and a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through the `boundsChange` event; nothing in the viewer answers it, because what a new area means is the embedding page's to say. A line of help text says how to search, and you can replace its wording with `searchHelpText`.
+
+```html
+<ogm-overview geosearch></ogm-overview>
+```
 
 ```javascript
 document.querySelector('ogm-overview').addEventListener('boundsChange', event => {
-  console.log('New bounds:', event.detail); // bounds will have format [minLng, minLat, maxLng, maxLat]
+  // west, south, east, north - with east numerically west of west for a box crossing the antimeridian
+  console.log('New bounds:', event.detail);
 });
 ```
+
+Shift-drag is a mouse gesture, and there's no keyboard equivalent on the map, so keep the page's own search form as the accessible way to search.
+
+##### Upgrading from 0.11
+
+`<ogm-overview>` changed shape in this release, and `<ogm-locator>` above is where a single record now belongs.
+
+- Records are drawn as numbered markers rather than as bounding boxes.
+- `geosearch` is a boolean, and searching is shift+drag only. There is no longer an automatic mode that searches whenever the map moves, and no button. A stale `geosearch="auto"` attribute still switches it on.
+- `searchHereText` and `searchOnMoveText` are gone; `searchHelpText` replaces both.
+- `bounds` now means the area the search is filtered to: it is drawn as a box, and framed with the same gap as everything else rather than exactly.
+- The map always opens as a globe, whatever it was given, and carries a control to flatten it.
 
 ## Development
 
