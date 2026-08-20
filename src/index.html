@@ -58,7 +58,8 @@
       }
 
       ogm-viewer,
-      ogm-overview {
+      ogm-overview,
+      ogm-locator {
         display: block;
         height: 500px;
         flex: auto;
@@ -155,28 +156,28 @@
         const overview = document.querySelector('ogm-overview');
         const recordInput = document.getElementById('recordUrl');
         const loadRecordButton = document.getElementById('loadRecord');
+        const locator = document.querySelector('ogm-locator');
         const switchOverviewButton = document.getElementById('switch-overview');
         const switchViewerButton = document.getElementById('switch-viewer');
+        const switchLocatorButton = document.getElementById('switch-locator');
         const hideTitle = document.querySelector('.hideTitle');
         const geosearch = document.querySelector('.geosearch');
 
-        switchOverviewButton.addEventListener('click', () => {
-          overview.style.display = 'flex';
-          viewer.style.display = 'none';
-          switchOverviewButton.style.display = 'none';
-          switchViewerButton.style.display = 'inline-block';
-          hideTitle.style.display = 'none';
-          geosearch.style.display = 'inline-flex';
-        });
+        // Which of the three is on screen, and which of the controls belong to it
+        const show = which => {
+          viewer.style.display = which === 'viewer' ? 'block' : 'none';
+          overview.style.display = which === 'overview' ? 'flex' : 'none';
+          locator.style.display = which === 'locator' ? 'block' : 'none';
+          switchViewerButton.style.display = which === 'viewer' ? 'none' : 'inline-block';
+          switchOverviewButton.style.display = which === 'overview' ? 'none' : 'inline-block';
+          switchLocatorButton.style.display = which === 'locator' ? 'none' : 'inline-block';
+          hideTitle.style.display = which === 'viewer' ? 'inline-block' : 'none';
+          geosearch.style.display = which === 'overview' ? 'inline-flex' : 'none';
+        };
 
-        switchViewerButton.addEventListener('click', () => {
-          overview.style.display = 'none';
-          viewer.style.display = 'block';
-          switchOverviewButton.style.display = 'inline-block';
-          switchViewerButton.style.display = 'none';
-          hideTitle.style.display = 'inline-block';
-          geosearch.style.display = 'none';
-        });
+        switchViewerButton.addEventListener('click', () => show('viewer'));
+        switchOverviewButton.addEventListener('click', () => show('overview'));
+        switchLocatorButton.addEventListener('click', () => show('locator'));
 
         // Dynamically populate the selector
         try {
@@ -195,6 +196,7 @@
 
           if (recordUrl) viewer.recordUrl = recordUrl;
           if (record) overview.records = [record];
+          if (record) locator.record = record;
         });
 
         // Clear record button
@@ -204,6 +206,7 @@
           recordSelector.value = '';
           viewer.loadRecord(null);
           overview.records = [];
+          locator.record = undefined;
         });
 
         // Toggle theme button
@@ -212,6 +215,7 @@
           const theme = viewer.theme === 'light' ? 'dark' : 'light';
           viewer.theme = theme;
           overview.theme = theme;
+          locator.theme = theme;
         });
 
         // Hide title checkbox
@@ -250,6 +254,7 @@
       <div class="props">
         <button id="toggleTheme">Toggle Theme</button>
         <button id="switch-overview">Switch to overview</button>
+        <button id="switch-locator">Switch to locator</button>
         <button id="switch-viewer" style="display: none">Switch to viewer</button>
         <label class="hideTitle">Hide Title <input type="checkbox" id="hideTitle" /></label>
         <span class="geosearch" style="display: none">
@@ -261,5 +266,6 @@
 
     <ogm-viewer></ogm-viewer>
     <ogm-overview style="display: none"></ogm-overview>
+    <ogm-locator style="display: none"></ogm-locator>
   </body>
 </html>

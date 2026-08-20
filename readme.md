@@ -66,25 +66,27 @@ ogm-viewer {
 
 Here are the supported properties and what they apply to:
 
-| Property                       | Applies to                                             |
-| ------------------------------ | ------------------------------------------------------ |
-| `--ogm-data-color`             | Polygon fill, line geometry, and circle fill           |
-| `--ogm-highlight-color`        | The same, for a hovered feature                        |
-| `--ogm-selected-color`         | The same, for the feature whose attributes are shown   |
-| `--ogm-invalid-color`          | The same, for a feature marked unavailable             |
-| `--ogm-stroke-color`           | Polygon outlines and circle borders                    |
-| `--ogm-stroke-highlight-color` | Outline of a hovered feature                           |
-| `--ogm-stroke-selected-color`  | Outline of the selected feature                        |
-| `--ogm-stroke-invalid-color`   | Outline of a feature marked unavailable                |
-| `--ogm-text-color`             | Feature label text color                               |
-| `--ogm-text-halo-color`        | Feature label text outline color                       |
-| `--ogm-text-size`              | Feature label font size, in pixels                     |
-| `--ogm-font-family`            | Feature label font name (e.g. `"Noto Sans Regular"`)   |
-| `--ogm-data-opacity`           | Initial opacity of drawn data                          |
-| `--ogm-highlight-opacity`      | Opacity of a highlighted feature                       |
-| `--ogm-bounds-opacity`         | Initial opacity of a bounding box or index map         |
-| `--ogm-padding`                | Gap kept between the data and the view edge (pixels)   |
-| `--ogm-overview-padding`       | Gap for "overview" maps (static, search results, etc.) |
+| Property                       | Applies to                                           |
+| ------------------------------ | ---------------------------------------------------- |
+| `--ogm-data-color`             | Polygon fill, line geometry, and circle fill         |
+| `--ogm-highlight-color`        | The same, for a hovered feature                      |
+| `--ogm-selected-color`         | The same, for the feature whose attributes are shown |
+| `--ogm-invalid-color`          | The same, for a feature marked unavailable           |
+| `--ogm-marker-color`           | Disc a numbered result's marker is drawn on          |
+| `--ogm-marker-highlight-color` | The same, for the highlighted result                 |
+| `--ogm-stroke-color`           | Polygon outlines and circle borders                  |
+| `--ogm-stroke-highlight-color` | Outline of a hovered feature                         |
+| `--ogm-stroke-selected-color`  | Outline of the selected feature                      |
+| `--ogm-stroke-invalid-color`   | Outline of a feature marked unavailable              |
+| `--ogm-text-color`             | Feature label text color                             |
+| `--ogm-text-halo-color`        | Feature label text outline color                     |
+| `--ogm-text-size`              | Feature label font size, in pixels                   |
+| `--ogm-font-family`            | Feature label font name (e.g. `"Noto Sans Regular"`) |
+| `--ogm-data-opacity`           | Initial opacity of drawn data                        |
+| `--ogm-highlight-opacity`      | Opacity of a highlighted feature                     |
+| `--ogm-bounds-opacity`         | Initial opacity of a bounding box or index map       |
+| `--ogm-padding`                | Gap kept between the data and the view edge (pixels) |
+| `--ogm-overview-padding`       | Gap for locator and overview maps (pixels)           |
 
 By default, the viewer uses styles from [Web Awesome](https://webawesome.com/) that match the current mode (dark or light).
 
@@ -92,8 +94,9 @@ You usually only need the four `--ogm-*-color` properties, plus `--ogm-text-colo
 
 - Each outline comes from the color it outlines, moved away from the basemap: darker in light mode, lighter in dark mode. A color you name is used in both modes, but its outline follows the mode, so one declaration reads on either basemap.
 - The label halo comes from `--ogm-text-color`, as black or white — whichever contrasts more, the same choice CSS `contrast-color()` makes. It doesn't consult the mode, because the text color already did.
+- The disc a numbered result sits on comes from the same color, sunk to a fixed depth rather than moved by a step, so the numeral on it is legible on either basemap. The numeral's own color follows from the disc, the same way a halo follows from its text.
 
-`--ogm-stroke-*` and `--ogm-text-halo-color` are there if you want particular ones instead. Like the other colors, one you name is used in both modes.
+`--ogm-marker-*`, `--ogm-stroke-*` and `--ogm-text-halo-color` are there if you want particular ones instead. Like the other colors, one you name is used in both modes.
 
 ### Restricted content
 
@@ -168,6 +171,30 @@ document.querySelector('ogm-previews').previewers = [new GeoJsonPreviewer(geoJso
 ```
 
 `record` and `previewers` are DOM properties too. Neither component has an intrinsic size, so the embedding page should set it via CSS.
+
+#### Locator maps
+
+To show where a single record is — the map GeoBlacklight draws beside a record's metadata — use `<ogm-locator>`. Hand it a `record` and it draws that record's geometry, or the box around it if that's all the record has, and points the camera at what it drew.
+
+```js
+await customElements.whenDefined('ogm-locator');
+
+document.querySelector('ogm-locator').record = record;
+```
+
+`record` is a DOM property, not an attribute. If you've built a `LocationPreviewer` yourself, set `previewer` instead and the record isn't read at all.
+
+The map opens as a globe, with a button beside the zoom buttons to flatten it. It can be panned and zoomed but not turned or tilted, because a locator is read at a glance and a tilted one can't be compared with the next. It reports nothing back: a locator answers one question and has no state an embedding page needs to hear about. The basemap's attribution starts collapsed to the "i" in the corner, since a map this size has little room for it — CARTO and OpenStreetMap both require the credit, so it's there to open rather than gone.
+
+A record with neither `locn_geometry` nor `dcat_bbox` has nowhere to be drawn, so the map opens on the world with nothing on it. Call `record.getGeometry()` first if you'd rather not render the map at all in that case.
+
+Like the other components, `<ogm-locator>` has no intrinsic size, so the embedding page should give it one:
+
+```css
+ogm-locator {
+  height: 250px;
+}
+```
 
 #### Overviews and geosearch
 
