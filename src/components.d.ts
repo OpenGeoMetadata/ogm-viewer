@@ -51,13 +51,6 @@ export namespace Components {
         "layers": LayerControl[];
         "theme": 'light' | 'dark';
     }
-    /**
-     * Where one record is, on a map of its own: the geometry the record carries, or the box around it if
-     * that is all the record has. The map GeoBlacklight draws with Leaflet beside a record's metadata.
-     * One record, or one location built by hand, and nothing else. Several of them at once is a different
-     * question with different answers - which of them is which, and what a reader is meant to compare -
-     * and <ogm-overview> is where those are answered.
-     */
     interface OgmLocator {
         "previewer"?: LocationPreviewer;
         "record"?: OgmRecord;
@@ -258,13 +251,6 @@ declare global {
         prototype: HTMLOgmLayersElement;
         new (): HTMLOgmLayersElement;
     };
-    /**
-     * Where one record is, on a map of its own: the geometry the record carries, or the box around it if
-     * that is all the record has. The map GeoBlacklight draws with Leaflet beside a record's metadata.
-     * One record, or one location built by hand, and nothing else. Several of them at once is a different
-     * question with different answers - which of them is which, and what a reader is meant to compare -
-     * and <ogm-overview> is where those are answered.
-     */
     interface HTMLOgmLocatorElement extends Components.OgmLocator, HTMLStencilElement {
     }
     var HTMLOgmLocatorElement: {
@@ -432,13 +418,6 @@ declare namespace LocalJSX {
         "onLayerVisibilityChange"?: (event: OgmLayersCustomEvent<{ id: string; visible: boolean }>) => void;
         "theme"?: 'light' | 'dark';
     }
-    /**
-     * Where one record is, on a map of its own: the geometry the record carries, or the box around it if
-     * that is all the record has. The map GeoBlacklight draws with Leaflet beside a record's metadata.
-     * One record, or one location built by hand, and nothing else. Several of them at once is a different
-     * question with different answers - which of them is which, and what a reader is meant to compare -
-     * and <ogm-overview> is where those are answered.
-     */
     interface OgmLocator {
         "previewer"?: LocationPreviewer;
         "record"?: OgmRecord;
@@ -635,13 +614,6 @@ declare module "@stencil/core" {
             "ogm-attributes": LocalJSX.IntrinsicElements["ogm-attributes"] & JSXBase.HTMLAttributes<HTMLOgmAttributesElement>;
             "ogm-image": LocalJSX.IntrinsicElements["ogm-image"] & JSXBase.HTMLAttributes<HTMLOgmImageElement>;
             "ogm-layers": LocalJSX.IntrinsicElements["ogm-layers"] & JSXBase.HTMLAttributes<HTMLOgmLayersElement>;
-            /**
-             * Where one record is, on a map of its own: the geometry the record carries, or the box around it if
-             * that is all the record has. The map GeoBlacklight draws with Leaflet beside a record's metadata.
-             * One record, or one location built by hand, and nothing else. Several of them at once is a different
-             * question with different answers - which of them is which, and what a reader is meant to compare -
-             * and <ogm-overview> is where those are answered.
-             */
             "ogm-locator": LocalJSX.IntrinsicElements["ogm-locator"] & JSXBase.HTMLAttributes<HTMLOgmLocatorElement>;
             "ogm-map": LocalJSX.IntrinsicElements["ogm-map"] & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
             "ogm-menubar": LocalJSX.IntrinsicElements["ogm-menubar"] & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;

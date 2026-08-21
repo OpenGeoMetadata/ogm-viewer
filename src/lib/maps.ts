@@ -206,7 +206,7 @@ export const LOCATION_MAP: MapExtras = {
   cooperativeGestures: true,
   dragRotate: false,
   touchPitch: false,
-  minZoom: 0,
+  minZoom: 1,
 };
 
 // MapLibre's two remaining ways to turn a map, neither of which LOCATION_MAP covers because neither
