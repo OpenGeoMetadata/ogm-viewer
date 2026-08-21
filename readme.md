@@ -174,7 +174,7 @@ document.querySelector('ogm-previews').previewers = [new GeoJsonPreviewer(geoJso
 
 #### Locator maps
 
-To show where a single record is — the map GeoBlacklight draws beside a record's metadata — use `<ogm-locator>`. Hand it a `record` and it draws that record's geometry, or the box around it if that's all the record has, and points the camera at what it drew.
+To show where a single record is — the map GeoBlacklight draws beside a record's metadata — use `<ogm-locator>`. Hand it an `OgmRecord` as `record` and it draws that record's geometry, or the box around it if that's all the record has, and points the camera at what it drew.
 
 ```js
 await customElements.whenDefined('ogm-locator');
@@ -198,7 +198,7 @@ ogm-locator {
 
 #### Overviews and geosearch
 
-For showing where several records are — the map beside a page of search results — use `<ogm-overview>`. Hand it a list of `records` and it draws a numbered marker for each one, in the order you gave them.
+For showing where several records are — the map beside a page of search results — use `<ogm-overview>`. Hand it a list of `OgmRecord`s as `records` and it draws a numbered marker for each one, in the order you gave them.
 
 ```js
 await customElements.whenDefined('ogm-overview');
@@ -206,7 +206,7 @@ await customElements.whenDefined('ogm-overview');
 document.querySelector('ogm-overview').records = [record1, record2];
 ```
 
-Nothing of a record is drawn but its number, at the middle of its extent. A record with no geometry still takes up its number, so the numbers keep matching the rows in the list beside the map. Hand it `previewers` instead — a list of `LocationPreviewer`s — and those are numbered instead of the records.
+Nothing of a record is drawn but its number, at the middle of its extent. A record with no geometry still takes up its number, so the numbers keep matching the rows in the list beside the map. Hand it `previewers` instead — what `locationsFor` returns, or a list of `LocationPreviewer`s you built, gaps included — and those are numbered instead of the records.
 
 The map opens as a globe, with a button beside the zoom buttons to flatten it. It can be panned and zoomed but not turned or tilted.
 
@@ -244,7 +244,7 @@ Shift-drag is a mouse gesture, and there's no keyboard equivalent on the map, so
 - Records are drawn as numbered markers rather than as bounding boxes.
 - `geosearch` is a boolean, and searching is shift+drag only. There is no longer an automatic mode that searches whenever the map moves, and no button. A stale `geosearch="auto"` attribute still switches it on.
 - `searchHereText` and `searchOnMoveText` are gone; `searchHelpText` replaces both.
-- `bounds` now means the area the search is filtered to: it is drawn as a box, and framed with the same gap as everything else rather than exactly.
+- `bounds` is new: it names the area the search is filtered to, drawn as a box and framed with the same gap as everything else.
 - The map always opens as a globe, whatever it was given, and carries a control to flatten it.
 
 ## Development

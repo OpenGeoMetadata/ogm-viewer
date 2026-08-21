@@ -55,7 +55,12 @@ const NUMBER_HALO = 1;
 // How much room each number clears around itself, in pixels; MapLibre's own default is 2. Nothing
 // culls one of ours - see resultNumbersLayers - so this only ever pushes the basemap's own labels out
 // from under them, which is the one kind of overlap here worth spending anything on.
-const NUMBER_PADDING = 4;
+//
+// Roughly the difference between the numeral and the disc it sits on, because the box this pads is the
+// numeral's: the disc is a circle layer, and circles take no part in the collision grid at all. At
+// MapLibre's default of 2 a basemap label could sit under the disc's own rim while clearing the digits
+// inside it, which reads as a label with a marker dropped on it.
+const NUMBER_PADDING = 8;
 
 // Everything an overview draws, gathered in one place because the order it goes onto the map in is
 // most of what keeps it readable.

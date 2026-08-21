@@ -136,7 +136,7 @@ const THE_WORLD = 'ENVELOPE(-180.0,180.0,85.0,-85.0)';
 
 type Overview = HTMLElement & {
   records?: OgmRecord[];
-  previewers?: LocationPreviewer[];
+  previewers?: (LocationPreviewer | undefined)[];
   theme: 'light' | 'dark';
   map: FakeMap;
   mapTheme: MapLibreTheme;
@@ -231,6 +231,35 @@ describe('ogm-overview', () => {
     await el.load();
 
     expect([...map.sources.keys()]).toEqual([RESULT_NUMBERS]);
+  });
+
+  // Which is what `locationsFor` hands back, and what the library documents as the way to build these
+  // by hand: a record it could not place is a gap rather than a missing entry
+  it('numbers a list of extents with gaps in it', async () => {
+    const { el, map } = await renderOverview();
+    el.previewers = [
+      new LocationPreviewer(new LocationResource('one', { type: 'Point', coordinates: [0, 0] })),
+      undefined,
+      new LocationPreviewer(new LocationResource('three', { type: 'Point', coordinates: [10, 10] })),
+    ];
+    await el.load();
+
+    expect(marked(map).map((properties: { label: string }) => properties.label)).toEqual(['1', '3']);
+  });
+
+  it('highlights one of those by id, counting the gap', async () => {
+    const { el, map } = await renderOverview();
+    el.previewers = [
+      new LocationPreviewer(new LocationResource('one', { type: 'Point', coordinates: [0, 0] })),
+      undefined,
+      new LocationPreviewer(new LocationResource('three', { type: 'Point', coordinates: [10, 10] })),
+    ];
+    await el.load();
+
+    el.highlighted = 'three';
+    el.onHighlightedChange();
+
+    expect(highlightedLabel(map)).toEqual('3');
   });
 
   it('numbers the extents it was handed instead of the records’ own', async () => {
@@ -563,15 +592,30 @@ describe('ogm-overview highlight', () => {
     expect(map.sources.has(HIGHLIGHT_BOUNDS)).toBe(false);
   });
 
-  // A map with no highlight, rather than one with the wrong highlight
+  // A map with no highlight, rather than one with the wrong highlight. Each of these is a value a page
+  // can plausibly arrive at - a name nothing carries, a row past the end, a row counted from zero, a
+  // number that is no row at all - and none of them may land on a neighbour.
   it('highlights nothing it cannot find', async () => {
     const { el, map } = await two();
 
-    for (const value of ['nope', 99, 0, '', 1.5]) {
+    for (const value of ['nope', 99, 0, -1, '', 1.5]) {
       el.highlighted = value as number | string;
       el.onHighlightedChange();
+
       expect(highlightedLabel(map)).toBeUndefined();
+      expect(map.sources.has(HIGHLIGHT_BOUNDS)).toBe(false);
     }
+  });
+
+  // The one it could land on by accident: the row before the end, if a place past the end were let
+  // through and read modulo the list, or if a fractional place were rounded
+  it('does not round a place onto the row beside it', async () => {
+    const { el, map } = await two();
+
+    el.highlighted = 1.6;
+    el.onHighlightedChange();
+
+    expect(highlightedLabel(map)).toBeUndefined();
   });
 
   it('clears the highlight when it is withdrawn', async () => {
@@ -662,11 +706,14 @@ describe('ogm-overview geosearch', () => {
     el.onGeosearchChange();
 
     expect(map.boxZoom.enable).toHaveBeenCalled();
+    expect(map.boxZoom.disable).not.toHaveBeenCalled();
 
+    map.boxZoom.enable.mockClear();
     el.geosearch = false;
     el.onGeosearchChange();
 
     expect(map.boxZoom.disable).toHaveBeenCalled();
+    expect(map.boxZoom.enable).not.toHaveBeenCalled();
   });
 
   // A disabled handler stops being offered the mouseup that would have cleared its rectangle and the
@@ -742,6 +789,24 @@ describe('ogm-overview geosearch', () => {
     el.search(new Point(-10, 10), new Point(10, 40));
 
     expect(areas).toEqual([[175, -40, -175, -10]]);
+  });
+
+  // Screen y and latitude only run together while the pole is off screen. Pan one into view on a globe
+  // and a line of pixels crosses it, so the higher pixel can be the lower latitude - and a box dragged
+  // over the pole would otherwise come out with its south edge north of its north edge, which is a
+  // bbox no query can answer.
+  it('reports a box dragged over a pole the right way up', async () => {
+    const { el, map } = await renderOverview();
+    // The far side of the pole, where latitude starts coming back down again
+    map.unproject = ([, y]: [number, number]) => new LngLat(0, y < 20 ? 80 : 88);
+    const areas: [number, number, number, number][] = [];
+    el.addEventListener('boundsChange', event => areas.push((event as CustomEvent<[number, number, number, number]>).detail));
+
+    el.search(new Point(10, 10), new Point(30, 40));
+
+    const [[, south, , north]] = areas;
+    expect(south).toBeLessThan(north);
+    expect([south, north]).toEqual([80, 88]);
   });
 
   // Under MapLibre's own line between a click and a drag, no rectangle was ever drawn - and a search

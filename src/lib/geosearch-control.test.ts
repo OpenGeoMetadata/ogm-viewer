@@ -77,6 +77,18 @@ describe('GeosearchControl', () => {
     expect(container.hidden).toBe(false);
   });
 
+  // MapLibre calls every handler off when the window loses focus, and does it by resetting them - so
+  // the rectangle goes and neither boxzoomend nor boxzoomcancel is fired. Without this, coming back
+  // to the tab would mean coming back to a map with no help text on it.
+  it('should come back when the reader walks away partway through a box', () => {
+    const { container, map } = addControl();
+
+    map.fire('boxzoomstart');
+    window.dispatchEvent(new Event('blur'));
+
+    expect(container.hidden).toBe(false);
+  });
+
   it('should let go of the map when removed', () => {
     const { control, container, map } = addControl();
     control.onRemove(map as unknown as Map);
@@ -85,6 +97,11 @@ describe('GeosearchControl', () => {
     expect(map.bound('boxzoomend')).toEqual(0);
     expect(map.bound('boxzoomcancel')).toEqual(0);
     expect(container.parentNode).toBeNull();
+
+    // And the window with it, or a control taken off the map would still be answering for one
+    container.hidden = true;
+    window.dispatchEvent(new Event('blur'));
+    expect(container.hidden).toBe(true);
   });
 
   // Nothing retexts one before it is on a map, but a control with no element to write into shouldn't

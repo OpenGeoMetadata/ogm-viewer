@@ -117,7 +117,7 @@ export namespace Components {
           * Which result to bring forward, as either its place in the list counted from one or the id of the record - or of the resource a previewer draws - that it came from. An attribute hands over a string for either, since an attribute is always one.  The marker changes color and comes to the front, and the result's own extent is drawn around it. The camera doesn't move: something on the page has said which result matters, not where to look.
          */
         "highlighted"?: number | string;
-        "previewers"?: LocationPreviewer[];
+        "previewers"?: (LocationPreviewer | undefined)[];
         "records"?: OgmRecord[];
         /**
           * @default 'Shift + drag to search an area'
@@ -501,7 +501,7 @@ declare namespace LocalJSX {
          */
         "highlighted"?: number | string;
         "onBoundsChange"?: (event: OgmOverviewCustomEvent<[number, number, number, number]>) => void;
-        "previewers"?: LocationPreviewer[];
+        "previewers"?: (LocationPreviewer | undefined)[];
         "records"?: OgmRecord[];
         /**
           * @default 'Shift + drag to search an area'

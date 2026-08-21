@@ -72,6 +72,15 @@ describe('fitBounds', () => {
     expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING });
   });
 
+  // Zero is not a small map, it is a map nobody can see: held to what a hidden one measures, the
+  // camera it settles on - the one still there when the pane is shown again - would have no gap at all
+  it('should ask for the whole gap on a map with no box to measure', async () => {
+    const map = fittableMap(undefined, { clientWidth: 0, clientHeight: 0 });
+    await fitBounds(map as unknown as maplibregl.Map, theme, BOUNDS);
+
+    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING });
+  });
+
   it('should leave the camera alone when there is no camera that would frame the bounds', async () => {
     const map = fittableMap(vi.fn(() => undefined) as never);
     await fitBounds(map as unknown as maplibregl.Map, theme, BOUNDS);
