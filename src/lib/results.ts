@@ -20,16 +20,16 @@ export const RESULT_NUMBERS = 'ogm-result-numbers';
 export const RESULT_MARKERS = `${RESULT_NUMBERS}-markers`;
 
 // What an image of one marker is called. Two per number on the map: the picture of that number, and
-// the picture of it selected. Both are drawn whether anything has pointed at it or not, so that a
+// the picture of it highlighted. Both are drawn whether anything is highlighting it or not, so that a
 // highlight arriving changes no pictures at all; see syncMarkerImages.
 const MARKER_IMAGE = 'ogm-result-marker';
 
-// The two boxes drawn under the numbers: the area a search is filtered to, and the extent of the
-// result something outside has pointed at. A source each rather than two features of one, because they
-// are two different statements about the map, drawn in different colors, arriving at different times.
-// Both stay on the map once drawn, holding nothing when there is nothing to say; see drawInto.
+// The two boxes drawn under the numbers: the area a search is filtered to, and the extent of every
+// result being highlighted. A source each rather than features of one, because they are two different
+// statements about the map, drawn in different colors, arriving at different times. Both stay on the
+// map once drawn, holding nothing when there is nothing to say; see drawInto.
 export const SEARCH_BOUNDS = 'ogm-search-bounds';
-export const SELECTED_BOUNDS = 'ogm-selected-bounds';
+export const HIGHLIGHT_BOUNDS = 'ogm-highlight-bounds';
 
 // How big a result's number is drawn, against the size of a label on a feature. A little larger, and
 // no more: a marker is read at a glance rather than studied, and a page of twenty of them covers more
@@ -57,24 +57,25 @@ const NUMERAL_WIDTH = 0.72;
 // drawing for; past it the image is memory spent on detail nothing can show.
 const MAX_PIXEL_RATIO = 2;
 
-// Where the selected marker sorts. Above every other, which are sorted at minus their own number:
+// Where a highlighted marker sorts. Above every other, which are sorted at minus their own number:
 // see resultMarkersLayer.
-const SELECTED_SORT_KEY = 1;
+const HIGHLIGHT_SORT_KEY = 1;
 
 // Everything an overview draws, gathered in one place because the order it goes onto the map in is
 // most of what keeps it readable.
 export type DrawnResults = {
   // Where every result is, in the order they were given, including the ones nobody could place
   extents: (LngLatBoundsLike | undefined)[];
-  // Which of those results something outside has pointed at, as its place in that list counted from
-  // one. It is drawn as a selection rather than as a hover: see drawResults.
-  highlighted?: number;
+  // Which of those results are highlighted, as their places in that list counted from one. More than
+  // one can be: a pointer over a number highlights it, and so does something outside pointing at a
+  // result, and the two are separate ways of saying the same thing about different rows.
+  highlighted?: number[];
   // The area a search is currently filtered to, if one is
   searchBounds?: LngLatBounds;
 };
 
 // What a box is drawn in. The two of them differ in nothing else, so this is the whole of the
-// difference between the area being searched and the extent of the result being pointed at.
+// difference between the area being searched and the extent of a result being highlighted.
 type BoxColors = { color: string; strokeColor: string; opacity: number };
 
 /**
@@ -89,7 +90,7 @@ type BoxColors = { color: string; strokeColor: string; opacity: number };
  * touches, and with collision turned off below there is nothing left to suppress the copies. A
  * country-sized box would wear its number three or four times.
  */
-export const numberedResults = (extents: (LngLatBoundsLike | undefined)[], style: MapLibreStyle, highlighted?: number): GeoJSON.FeatureCollection<GeoJSON.Point> => ({
+export const numberedResults = (extents: (LngLatBoundsLike | undefined)[], style: MapLibreStyle, highlighted: number[] = []): GeoJSON.FeatureCollection<GeoJSON.Point> => ({
   type: 'FeatureCollection',
   features: extents.flatMap((extent, index) => {
     if (!extent) return [];
@@ -98,14 +99,14 @@ export const numberedResults = (extents: (LngLatBoundsLike | undefined)[], style
     // longitude from outside -180..180 everywhere it takes one, so there is nothing to wrap back.
     const { lng, lat } = LngLatBounds.convert(extent).getCenter();
     const label = String(index + 1);
-    const selected = index + 1 === highlighted;
+    const marked = highlighted.includes(index + 1);
 
     return [
       {
         type: 'Feature' as const,
         // The image each one is drawn as, named on the feature rather than worked out in an
         // expression, so there is one place that decides which marker wears which picture.
-        properties: { label, selected, icon: markerImageId(label, style, selected) },
+        properties: { label, highlighted: marked, icon: markerImageId(label, style, marked) },
         geometry: { type: 'Point' as const, coordinates: [lng, lat] },
       },
     ];
@@ -123,14 +124,14 @@ export const numberedResults = (extents: (LngLatBoundsLike | undefined)[], style
  * for names that aren't there, gets fresh pictures, and leaves the old names to be taken away - and
  * everything else, which is most redraws, asks for the names already on the map. See syncMarkerImages.
  */
-export const markerImageId = (label: string, style: MapLibreStyle, selected: boolean = false): string =>
-  [MARKER_IMAGE, selected ? 'selected' : 'plain', markerLook(style, selected), label].join('-');
+export const markerImageId = (label: string, style: MapLibreStyle, highlighted: boolean = false): string =>
+  [MARKER_IMAGE, highlighted ? 'highlight' : 'plain', markerLook(style, highlighted), label].join('-');
 
 // What a marker's picture depends on, in a form a name can carry: the color of the disc, the size of
 // the numeral, and the font it is set in. Word characters only, since this ends up in an id - and it is
 // only ever compared with itself, so what it drops costs nothing.
-const markerLook = (style: MapLibreStyle, selected: boolean): string =>
-  [selected ? style.markerSelectedColor : style.markerColor, style.textSize, style.markerFont].join('-').replace(/[^\w-]+/g, '');
+const markerLook = (style: MapLibreStyle, highlighted: boolean): string =>
+  [highlighted ? style.markerHighlightColor : style.markerColor, style.textSize, style.markerFont].join('-').replace(/[^\w-]+/g, '');
 
 /**
  * The one layer every marker is drawn from: an image apiece, and nothing else.
@@ -166,14 +167,14 @@ export const resultMarkersLayer = (): SymbolLayerSpecification => ({
     // Earlier results on top, so counting down the list beside the map is counting away from the
     // reader: the first result is the one a page put first, and it stays over the twentieth however the
     // map is panned. A higher key draws over a lower one, so the key is the number negated - and the
-    // selected one, which something outside has pointed at, sorts above all of them. Without a key at
-    // all MapLibre orders these by where they land on screen, and they restack as the map moves, which
-    // reads as the numbers rearranging themselves.
+    // ones being highlighted sort above all of them. Without a key at all MapLibre orders these by
+    // where they land on screen, and they restack as the map moves, which reads as the numbers
+    // rearranging themselves.
     'symbol-sort-key': markerSortKey,
   },
 });
 
-const markerSortKey: ExpressionSpecification = ['case', ['get', 'selected'], SELECTED_SORT_KEY, ['-', 0, ['to-number', ['get', 'label']]]];
+const markerSortKey: ExpressionSpecification = ['case', ['get', 'highlighted'], HIGHLIGHT_SORT_KEY, ['-', 0, ['to-number', ['get', 'label']]]];
 
 /**
  * A disc with a numeral centered on it, as pixels MapLibre can draw as an icon.
@@ -261,13 +262,14 @@ const boundsLayers = (id: string, { color, strokeColor, opacity }: BoxColors): [
   },
 ];
 
-// Nothing to say, in the form MapLibre takes it in. A box that isn't there stays on the map as a
-// source with no features in it rather than coming off, which is what lets the two layers that read it
-// stay on as well; see drawInto.
-const NOTHING: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
-
-const boundsData = (bounds: LngLatBounds | undefined): GeoJSON.GeoJSON =>
-  bounds ? { type: 'Feature', properties: {}, geometry: boundsToGeoJSON(bounds) as GeoJSON.Geometry } : NOTHING;
+// However many boxes there are to draw, which for the area being searched is one or none and for the
+// results being highlighted is one per result. A collection either way, so that a box nobody asked for
+// is an empty one rather than a source coming off the map - which is what lets the two layers that read
+// it stay on as well; see drawInto.
+const boundsData = (bounds: (LngLatBounds | undefined)[]): GeoJSON.FeatureCollection => ({
+  type: 'FeatureCollection',
+  features: bounds.filter((box): box is LngLatBounds => !!box).map(box => ({ type: 'Feature', properties: {}, geometry: boundsToGeoJSON(box) as GeoJSON.Geometry })),
+});
 
 // Anything this draws with, which is three kinds of layer over the same kind of source
 type DrawnLayer = FillLayerSpecification | LineLayerSpecification | SymbolLayerSpecification;
@@ -309,7 +311,7 @@ const repaint = (map: Map, layer: DrawnLayer) => {
 /**
  * Put everything an overview draws on the map, and from then on change it where it stands.
  *
- * Bottom to top: the area being searched, the extent of the selected result, and the markers. That
+ * Bottom to top: the area being searched, the extents of the highlighted results, and the markers. That
  * order is settled the first time this runs and kept by never taking any of it off again - addLayer
  * appends, so a layer put back on would come back above whatever had been added over it.
  *
@@ -326,17 +328,16 @@ export const drawResults = (map: Map, style: MapLibreStyle, { extents, highlight
   // Before the layer that names them, so that no frame asks for a picture that isn't there yet
   syncMarkerImages(map, style, numbers);
 
-  drawInto(map, SEARCH_BOUNDS, boundsData(searchBounds), boundsLayers(SEARCH_BOUNDS, { color: style.dataColor, strokeColor: style.strokeColor, opacity: style.boundsOpacity }));
+  drawInto(map, SEARCH_BOUNDS, boundsData([searchBounds]), boundsLayers(SEARCH_BOUNDS, { color: style.dataColor, strokeColor: style.strokeColor, opacity: style.boundsOpacity }));
 
-  // Nothing for a selection that landed on a result nobody could place. That is the truth rather than
+  // Nothing for a highlight that landed on a result nobody could place. That is the truth rather than
   // a gap: there is no number on the map to bring forward and no extent to draw around.
-  const extent = highlighted === undefined ? undefined : extents[highlighted - 1];
+  const marked = (highlighted ?? []).map(place => extents[place - 1]).map(extent => (extent ? LngLatBounds.convert(extent) : undefined));
 
-  // The colors a selected feature is drawn in rather than a hovered one. A hover is what points at
-  // it, but what it says is that this is the result being read - and it is drawn at the opacity any
-  // called-out feature gets, which is what InspectableRasterPreviewer draws a selection at too.
-  const selected = { color: style.selectedColor, strokeColor: style.strokeSelectedColor, opacity: style.highlightOpacity };
-  drawInto(map, SELECTED_BOUNDS, boundsData(extent ? LngLatBounds.convert(extent) : undefined), boundsLayers(SELECTED_BOUNDS, selected));
+  // The colors a hovered feature is drawn in, since being pointed at is what is being said - whether
+  // the pointer is over the number itself or over something outside that names the result
+  const highlight = { color: style.highlightColor, strokeColor: style.strokeHighlightColor, opacity: style.highlightOpacity };
+  drawInto(map, HIGHLIGHT_BOUNDS, boundsData(marked), boundsLayers(HIGHLIGHT_BOUNDS, highlight));
 
   drawInto(map, RESULT_NUMBERS, numbers, [resultMarkersLayer()]);
 };
@@ -367,7 +368,7 @@ const syncMarkerImages = (map: Map, style: MapLibreStyle, numbers: GeoJSON.Featu
     const label = String(properties?.label);
     return [
       { id: markerImageId(label, style), label, color: style.markerColor },
-      { id: markerImageId(label, style, true), label, color: style.markerSelectedColor },
+      { id: markerImageId(label, style, true), label, color: style.markerHighlightColor },
     ];
   });
 

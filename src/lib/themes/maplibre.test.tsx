@@ -89,7 +89,7 @@ describe('MapLibreTheme', () => {
   // numeral has to be readable on it in either mode. Asserted as that relationship, and as the
   // guarantee that rests on it, rather than against a hex.
   describe('derived marker colors', () => {
-    const tokens = { '--ogm-data-color': '#8f1414', '--ogm-selected-color': '#e98300' };
+    const tokens = { '--ogm-data-color': '#8f1414', '--ogm-highlight-color': '#e98300' };
 
     it('sinks a color to the depth a number can be read on', () => {
       const { dataColor, markerColor } = themed('light', tokens).getStyle();
@@ -106,13 +106,11 @@ describe('MapLibreTheme', () => {
       expect(dark.markerColor).toBe(light.markerColor);
     });
 
-    // From the selected color rather than the hovered one: a hover is what points a result out, but
-    // what it means is that this is the one being read
-    it('derives the marker of the result being pointed at from the selected color', () => {
-      const { selectedColor, markerSelectedColor } = themed('light', tokens).getStyle();
+    it('derives the highlighted marker from the highlight color', () => {
+      const { highlightColor, markerHighlightColor } = themed('light', tokens).getStyle();
 
-      expect(markerSelectedColor).toBe(atLightness(selectedColor, 0.45));
-      expect(markerSelectedColor).not.toBe(themed('light', tokens).getStyle().markerColor);
+      expect(markerHighlightColor).toBe(atLightness(highlightColor, 0.45));
+      expect(markerHighlightColor).not.toBe(themed('light', tokens).getStyle().markerColor);
     });
 
     // What the numeral's own color rests on. It is chosen by contrast at the point of drawing, so a
@@ -121,22 +119,22 @@ describe('MapLibreTheme', () => {
     // saturated pair a dark one does - and against a color pale enough that an app naming it would
     // otherwise get one.
     it('leaves both discs deep enough for white ink', () => {
-      const light = themed('light', { '--wa-color-blue-80': '#9fceff', '--wa-color-green-80': '#93da98' }).getStyle();
-      const dark = themed('dark', { '--wa-color-blue-50': '#0071ec', '--wa-color-green-50': '#00883c' }).getStyle();
-      const pale = themed('light', { '--ogm-data-color': '#ffe08a', '--ogm-selected-color': '#ffff00' }).getStyle();
+      const light = themed('light', { '--wa-color-blue-80': '#9fceff', '--wa-color-cyan-80': '#7fd6ec' }).getStyle();
+      const dark = themed('dark', { '--wa-color-blue-50': '#0071ec', '--wa-color-cyan-60': '#00a3c0' }).getStyle();
+      const pale = themed('light', { '--ogm-data-color': '#ffe08a', '--ogm-highlight-color': '#ffff00' }).getStyle();
 
       [light, dark, pale].forEach(style => {
         expect(contrastColor(style.markerColor)).toBe('#ffffff');
-        expect(contrastColor(style.markerSelectedColor)).toBe('#ffffff');
+        expect(contrastColor(style.markerHighlightColor)).toBe('#ffffff');
       });
     });
 
     it('steps aside for an app that names the disc itself', () => {
-      const named = { ...tokens, '--ogm-marker-color': '#4a0a0a', '--ogm-marker-selected-color': '#7a4600' };
+      const named = { ...tokens, '--ogm-marker-color': '#4a0a0a', '--ogm-marker-highlight-color': '#7a4600' };
       const style = themed('light', named).getStyle();
 
       expect(style.markerColor).toBe('#4a0a0a');
-      expect(style.markerSelectedColor).toBe('#7a4600');
+      expect(style.markerHighlightColor).toBe('#7a4600');
     });
   });
 

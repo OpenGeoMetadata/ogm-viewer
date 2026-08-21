@@ -114,7 +114,7 @@ export namespace Components {
          */
         "geosearch": boolean;
         /**
-          * Which result to bring forward, as either its place in the list counted from one or the id of the record - or of the resource a previewer draws - that it came from. An attribute hands over a string for either, since an attribute is always one.  The marker changes color and comes to the front, and the result's own extent is drawn around it. The camera doesn't move: something on the page has said which result matters, not where to look.
+          * Which result to bring forward, as either its place in the list counted from one or the id of the record - or of the resource a previewer draws - that it came from. An attribute hands over a string for either, since an attribute is always one.  The marker changes color and comes to the front, and the result's own extent is drawn around it. The camera doesn't move: something on the page has said which result matters, not where to look.  A reader's pointer over a number does the same thing without being asked, so both can be true at once - of two different results, if a page names one while the pointer is over another. Each is a way of saying the same thing about a row, so each gets the same drawing; see draw.
          */
         "highlighted"?: number | string;
         "previewers"?: (LocationPreviewer | undefined)[];
@@ -497,7 +497,7 @@ declare namespace LocalJSX {
          */
         "geosearch"?: boolean;
         /**
-          * Which result to bring forward, as either its place in the list counted from one or the id of the record - or of the resource a previewer draws - that it came from. An attribute hands over a string for either, since an attribute is always one.  The marker changes color and comes to the front, and the result's own extent is drawn around it. The camera doesn't move: something on the page has said which result matters, not where to look.
+          * Which result to bring forward, as either its place in the list counted from one or the id of the record - or of the resource a previewer draws - that it came from. An attribute hands over a string for either, since an attribute is always one.  The marker changes color and comes to the front, and the result's own extent is drawn around it. The camera doesn't move: something on the page has said which result matters, not where to look.  A reader's pointer over a number does the same thing without being asked, so both can be true at once - of two different results, if a page names one while the pointer is over another. Each is a way of saying the same thing about a row, so each gets the same drawing; see draw.
          */
         "highlighted"?: number | string;
         "onBoundsChange"?: (event: OgmOverviewCustomEvent<[number, number, number, number]>) => void;
