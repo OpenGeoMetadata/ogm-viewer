@@ -274,7 +274,7 @@
         clearFilterButton.addEventListener('click', () => setFilter(undefined));
 
         // A row per result, the way a page would render them beside the map. Hovering one drives
-        // `highlighted` by id, which is the half of it an attribute can't reach.
+        // `highlighted` by id, which is what a page holding records has to hand.
         const renderResults = records => {
           results.innerHTML = '';
           records.forEach((record, index) => {

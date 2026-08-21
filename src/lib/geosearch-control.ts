@@ -34,6 +34,13 @@ export default class GeosearchControl implements IControl {
     map.on('boxzoomend', this.show);
     map.on('boxzoomcancel', this.show);
 
+    // A gesture the reader walked away from. MapLibre calls every handler off when the window loses
+    // focus - alt-tab partway through a drag and the rectangle goes - but it does that by resetting
+    // the handler, which fires neither of the two events above. Left to those alone, coming back to
+    // the tab would mean coming back to a map with no help text on it, and nothing short of another
+    // whole drag would bring it back.
+    window.addEventListener('blur', this.show);
+
     return this.container;
   }
 
@@ -41,6 +48,7 @@ export default class GeosearchControl implements IControl {
     map.off('boxzoomstart', this.hide);
     map.off('boxzoomend', this.show);
     map.off('boxzoomcancel', this.show);
+    window.removeEventListener('blur', this.show);
 
     this.container?.remove();
     this.container = undefined;

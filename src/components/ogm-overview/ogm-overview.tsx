@@ -37,7 +37,10 @@ export class OgmOverview {
   @Element() el: HTMLElement;
   @Prop() theme: 'light' | 'dark' = themePreference();
   @Prop() records?: OgmRecord[];
-  @Prop() previewers?: LocationPreviewer[];
+
+  // Holes and all, because that is what `locationsFor` hands back: a record with nothing to place it
+  // by still holds its position, since that position is the number a reader sees beside the map.
+  @Prop() previewers?: (LocationPreviewer | undefined)[];
 
   /**
    * Which result to bring forward, as either its place in the list counted from one or the id of the
@@ -242,12 +245,20 @@ export class OgmOverview {
    * On a globe those two corners aren't the corners of a rectangle at all - the top edge of a screen
    * box isn't a line of latitude - but they are what the reader enclosed, and they are the same two
    * points MapLibre's own box zoom would have fitted.
+   *
+   * The latitudes are sorted afterwards, unlike the longitudes. Screen y and latitude only run
+   * together while the pole is off screen: pan one into view on a globe and a line of pixels crosses
+   * it, so the higher pixel can be the lower latitude, and a box dragged over the pole would come out
+   * with its south edge north of its north edge. Nothing rejects that - LngLatBounds holds whichever
+   * corners it is given - so it would leave here as a bbox no query can answer.
    */
   private search(start: maplibregl.Point, end: maplibregl.Point) {
     if (start.dist(end) < MIN_SEARCH_DRAG) return;
 
-    const northWest = this.map.unproject([Math.min(start.x, end.x), Math.min(start.y, end.y)]);
-    const southEast = this.map.unproject([Math.max(start.x, end.x), Math.max(start.y, end.y)]);
+    const topLeft = this.map.unproject([Math.min(start.x, end.x), Math.min(start.y, end.y)]);
+    const bottomRight = this.map.unproject([Math.max(start.x, end.x), Math.max(start.y, end.y)]);
+    const northWest = { lng: topLeft.lng, lat: Math.max(topLeft.lat, bottomRight.lat) };
+    const southEast = { lng: bottomRight.lng, lat: Math.min(topLeft.lat, bottomRight.lat) };
 
     // Through our own reader rather than straight into a LngLatBounds: it carries an east edge past
     // its west the way a box crossing the antimeridian is written, and it answers with nothing for a
@@ -319,7 +330,12 @@ export class OgmOverview {
   // reader is reading beside the map.
   private async measure() {
     const previewers = this.previewers ?? locationsFor(this.records ?? []);
-    this.ids = this.previewers ? this.previewers.map(previewer => previewer.resourceId) : (this.records ?? []).map(record => record.id);
+
+    // A hole keeps its place here as well, as the empty string, so the two lists stay the same length
+    // and a highlight named by id lands on the right row. Nothing shows for the empty string itself:
+    // it lands on the row of a result there was nothing to draw, which looks the same as asking for a
+    // name nothing carries.
+    this.ids = this.previewers ? this.previewers.map(previewer => previewer?.resourceId ?? '') : (this.records ?? []).map(record => record.id);
 
     // Asked of the previewers rather than read off the records, so an extent handed over and one
     // worked out here arrive by the same route - and so a geometry is squared off to its envelope in

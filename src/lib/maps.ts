@@ -168,8 +168,15 @@ export const fitBounds = async (map: maplibregl.Map, theme: Theme, bounds: mapli
 // here does that - what a sidebar covers is set on the map rather than asked of one camera.
 const fittablePadding = (map: maplibregl.Map, padding: maplibregl.FitBoundsOptions['padding']): maplibregl.FitBoundsOptions['padding'] => {
   if (typeof padding !== 'number') return padding;
+
+  // A map inside something hidden measures zero, and zero is not a small map: it is a map nobody can
+  // see. Held to what it measures, it would frame whatever it was pointed at with no gap at all, and
+  // that camera is the one still on screen when the pane is shown again.
   const canvas = map.getCanvas();
-  return Math.min(padding, Math.floor(Math.min(canvas.clientWidth, canvas.clientHeight) / 4));
+  const shortest = Math.min(canvas.clientWidth, canvas.clientHeight);
+  if (!shortest) return padding;
+
+  return Math.min(padding, Math.floor(shortest / 4));
 };
 
 // Whether there is a camera that would frame these bounds at all - there isn't, if the padding
