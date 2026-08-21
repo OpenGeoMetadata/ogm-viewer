@@ -8,7 +8,7 @@ import { LngLatBounds, type LngLatBoundsLike } from 'maplibre-gl';
 import {
   clearResults,
   drawResults,
-  HIGHLIGHT_BOUNDS,
+  SELECTED_BOUNDS,
   MARKER_IMAGE,
   markerImage,
   markerImageId,
@@ -67,8 +67,10 @@ const style = {
   strokeColor: '#517daa',
   highlightColor: '#7fd6ec',
   strokeHighlightColor: '#268499',
+  selectedColor: '#93da98',
+  strokeSelectedColor: '#1e662a',
   markerColor: '#2d5883',
-  markerHighlightColor: '#006175',
+  markerSelectedColor: '#1e662a',
   textColor: '#000',
   textHaloColor: '#fff',
   textFont: 'Noto Sans Regular',
@@ -137,10 +139,10 @@ describe('numberedResults', () => {
     expect(numberedResults([undefined]).features).toEqual([]);
   });
 
-  it('should mark the result at the highlighted place', () => {
+  it('should mark the result at the place it was pointed at', () => {
     const { features } = numberedResults([CALIFORNIA, ICELAND], 2);
 
-    expect(features.map(feature => feature.properties!.highlighted)).toEqual([false, true]);
+    expect(features.map(feature => feature.properties!.selected)).toEqual([false, true]);
   });
 
   // The picture each marker is drawn as. Named on the feature rather than worked out in an expression,
@@ -152,17 +154,17 @@ describe('numberedResults', () => {
     expect(markerImageId('2', true)).not.toEqual(markerImageId('2'));
   });
 
-  it('should mark nothing when nothing is highlighted', () => {
+  it('should mark nothing when nothing was pointed at', () => {
     const { features } = numberedResults([CALIFORNIA, ICELAND]);
 
-    expect(features.map(feature => feature.properties!.highlighted)).toEqual([false, false]);
+    expect(features.map(feature => feature.properties!.selected)).toEqual([false, false]);
   });
 
   // The places are counted over every result, so a highlight can land on one that was never drawn
   it('should mark nothing for a place it has nowhere to put', () => {
     const { features } = numberedResults([CALIFORNIA, undefined], 2);
 
-    expect(features.map(feature => feature.properties!.highlighted)).toEqual([false]);
+    expect(features.map(feature => feature.properties!.selected)).toEqual([false]);
   });
 });
 
@@ -194,7 +196,7 @@ describe('resultMarkersLayer', () => {
   // the reader pans - which reads as the numbers rearranging themselves. A higher key draws over a
   // lower one, so the key is the number negated, and the highlighted one sorts above all of them.
   it('should keep the earlier results on top of the later ones, and the highlight above both', () => {
-    expect(resultMarkersLayer().layout!['symbol-sort-key']).toEqual(['case', ['get', 'highlighted'], 1, ['-', 0, ['to-number', ['get', 'label']]]]);
+    expect(resultMarkersLayer().layout!['symbol-sort-key']).toEqual(['case', ['get', 'selected'], 1, ['-', 0, ['to-number', ['get', 'label']]]]);
   });
 });
 
@@ -258,7 +260,7 @@ describe('drawResults', () => {
   it('should draw the searched area, then the highlight, then the numbers', () => {
     const map = draw([CALIFORNIA, ICELAND], { highlighted: 2, searchBounds: LngLatBounds.convert(CALIFORNIA) });
 
-    expect([...map.layers.keys()]).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(HIGHLIGHT_BOUNDS), ...MARKER_LAYERS]);
+    expect([...map.layers.keys()]).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(SELECTED_BOUNDS), ...MARKER_LAYERS]);
   });
 
   it('should draw the area being searched in the colors a bounding box gets', () => {
@@ -277,24 +279,27 @@ describe('drawResults', () => {
     expect(map.sources.has(SEARCH_BOUNDS)).toBe(false);
   });
 
-  it('should draw the highlighted result’s own extent, in the highlight colors', () => {
+  // The colors a selected feature gets, not a hovered one: a hover is what points at it, but what it
+  // means is that this is the result being read
+  it('should draw the pointed-at result’s own extent, in the colors of a selection', () => {
     const map = draw([CALIFORNIA, ICELAND], { highlighted: 2 });
 
-    expect(map.sources.get(HIGHLIGHT_BOUNDS).data.geometry.coordinates[0][0]).toEqual([-24.55, 63.39]);
-    expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-color']).toEqual(style.strokeHighlightColor);
-    expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-opacity']).toEqual(style.highlightOpacity);
+    expect(map.sources.get(SELECTED_BOUNDS).data.geometry.coordinates[0][0]).toEqual([-24.55, 63.39]);
+    expect(map.layers.get(`${SELECTED_BOUNDS}-outline`).paint['line-color']).toEqual(style.strokeSelectedColor);
+    expect(map.layers.get(`${SELECTED_BOUNDS}-fill`).paint['fill-color']).toEqual(style.selectedColor);
+    expect(map.layers.get(`${SELECTED_BOUNDS}-outline`).paint['line-opacity']).toEqual(style.highlightOpacity);
     expect(marked(map)).toEqual([
-      { label: '1', highlighted: false, icon: markerImageId('1') },
-      { label: '2', highlighted: true, icon: markerImageId('2', true) },
+      { label: '1', selected: false, icon: markerImageId('1') },
+      { label: '2', selected: true, icon: markerImageId('2', true) },
     ]);
   });
 
   // There is no number on the map to bring forward and no extent to draw around, which is the truth
-  it('should draw no extent for a highlight it cannot place', () => {
+  it('should draw no extent for a selection it cannot place', () => {
     const map = draw([CALIFORNIA, undefined], { highlighted: 2 });
 
-    expect(map.sources.has(HIGHLIGHT_BOUNDS)).toBe(false);
-    expect(marked(map)).toEqual([{ label: '1', highlighted: false, icon: markerImageId('1') }]);
+    expect(map.sources.has(SELECTED_BOUNDS)).toBe(false);
+    expect(marked(map)).toEqual([{ label: '1', selected: false, icon: markerImageId('1') }]);
   });
 
   it('should take everything off the map when cleared', () => {

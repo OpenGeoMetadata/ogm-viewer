@@ -213,7 +213,7 @@ Nothing of a record is drawn but its number, at the middle of its extent. A reco
 
 The map opens as a globe, with a button beside the zoom buttons to flatten it. It can be panned and zoomed but not turned or tilted.
 
-To bring one result forward, set `highlighted` to either its place in the list counted from one, or the id of the record it came from (or, for the `previewers` path, the id of the resource a previewer draws). Its marker changes color and rises above the others, and its own extent is drawn around it. The camera doesn't move — something on the page has said which result matters, not where to look — and anything that names neither a row nor an id simply clears the highlight.
+To bring one result forward, set `highlighted` to either its place in the list counted from one, or the id of the record it came from (or, for the `previewers` path, the id of the resource a previewer draws). Its marker rises above the others and its own extent is drawn around it, both in the colors a selected feature gets rather than a hovered one — hovering a row is usually what points at it, but what it says is that this is the result being read. The camera doesn't move — something on the page has said which result matters, not where to look — and anything that names neither a row nor an id simply clears the highlight.
 
 ```js
 overview.highlighted = record.id; // or 3, or undefined to clear it

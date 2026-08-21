@@ -12,7 +12,7 @@ import { boundsToBbox } from '../../lib/geometry';
 import LocationPreviewer from '../../lib/previewers/location';
 import OgmRecord, { type GeoBlacklightSchemaAardvark } from '../../lib/record';
 import LocationResource from '../../lib/resources/location';
-import { HIGHLIGHT_BOUNDS, RESULT_MARKERS, RESULT_NUMBERS, SEARCH_BOUNDS } from '../../lib/results';
+import { SELECTED_BOUNDS, RESULT_MARKERS, RESULT_NUMBERS, SEARCH_BOUNDS } from '../../lib/results';
 import MapLibreTheme, { darkBasemapStyle } from '../../lib/themes/maplibre';
 
 // Enough of a MapLibre map to draw numbered results on, to be pointed at them, and to hang the
@@ -209,7 +209,7 @@ const BOX_LAYERS = (id: string) => [`${id}-fill`, `${id}-outline`];
 
 const layerIds = (map: FakeMap) => [...map.layers.keys()];
 const marked = (map: FakeMap) => map.sources.get(RESULT_NUMBERS).data.features.map((feature: GeoJSON.Feature) => feature.properties);
-const highlightedLabel = (map: FakeMap) => marked(map).find((properties: { highlighted: boolean }) => properties.highlighted)?.label;
+const highlightedLabel = (map: FakeMap) => marked(map).find((properties: { selected: boolean }) => properties.selected)?.label;
 
 const framed = (map: FakeMap) => map.fitBounds.mock.calls.at(-1) as [maplibregl.LngLatBoundsLike, maplibregl.FitBoundsOptions];
 
@@ -526,15 +526,17 @@ describe('ogm-overview highlight', () => {
     return rendered;
   };
 
-  it('brings a highlighted result to the front, in its own color', async () => {
+  // Drawn as a selected feature rather than a hovered one: a hover is what points at it, but what it
+  // says is that this is the result being read
+  it('brings the result it was pointed at to the front, in the colors of a selection', async () => {
     const { el, map } = await two();
     el.highlighted = 2;
     el.onHighlightedChange();
 
     expect(highlightedLabel(map)).toEqual('2');
     // It wears a picture of its own, which is what carries the color, and sorts above every other
-    expect(marked(map).map((properties: { icon: string }) => properties.icon)).toEqual(['ogm-result-marker-1', 'ogm-result-marker-highlight-2']);
-    expect(map.layers.get(RESULT_MARKERS).layout['symbol-sort-key']).toEqual(['case', ['get', 'highlighted'], 1, ['-', 0, ['to-number', ['get', 'label']]]]);
+    expect(marked(map).map((properties: { icon: string }) => properties.icon)).toEqual(['ogm-result-marker-1', 'ogm-result-marker-selected-2']);
+    expect(map.layers.get(RESULT_MARKERS).layout['symbol-sort-key']).toEqual(['case', ['get', 'selected'], 1, ['-', 0, ['to-number', ['get', 'label']]]]);
   });
 
   it('draws the highlighted result’s own extent under its number', async () => {
@@ -542,9 +544,9 @@ describe('ogm-overview highlight', () => {
     el.highlighted = 2;
     el.onHighlightedChange();
 
-    expect(map.sources.get(HIGHLIGHT_BOUNDS).data.geometry.coordinates[0][0]).toEqual([-24.55, 63.39]);
-    expect(layerIds(map)).toEqual([...BOX_LAYERS(HIGHLIGHT_BOUNDS), ...MARKER_LAYERS]);
-    expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-color']).toEqual(el.mapTheme.getStyle().strokeHighlightColor);
+    expect(map.sources.get(SELECTED_BOUNDS).data.geometry.coordinates[0][0]).toEqual([-24.55, 63.39]);
+    expect(layerIds(map)).toEqual([...BOX_LAYERS(SELECTED_BOUNDS), ...MARKER_LAYERS]);
+    expect(map.layers.get(`${SELECTED_BOUNDS}-outline`).paint['line-color']).toEqual(el.mapTheme.getStyle().strokeSelectedColor);
   });
 
   it('highlights a result named by id', async () => {
@@ -600,7 +602,7 @@ describe('ogm-overview highlight', () => {
     el.onHighlightedChange();
 
     expect(highlightedLabel(map)).toBeUndefined();
-    expect(map.sources.has(HIGHLIGHT_BOUNDS)).toBe(false);
+    expect(map.sources.has(SELECTED_BOUNDS)).toBe(false);
   });
 
   // A map with no highlight, rather than one with the wrong highlight. Each of these is a value a page
@@ -614,7 +616,7 @@ describe('ogm-overview highlight', () => {
       el.onHighlightedChange();
 
       expect(highlightedLabel(map)).toBeUndefined();
-      expect(map.sources.has(HIGHLIGHT_BOUNDS)).toBe(false);
+      expect(map.sources.has(SELECTED_BOUNDS)).toBe(false);
     }
   });
 
@@ -638,7 +640,7 @@ describe('ogm-overview highlight', () => {
     el.onHighlightedChange();
 
     expect(highlightedLabel(map)).toBeUndefined();
-    expect(map.sources.has(HIGHLIGHT_BOUNDS)).toBe(false);
+    expect(map.sources.has(SELECTED_BOUNDS)).toBe(false);
   });
 
   // Something on the page has said which result matters, not where to look
@@ -650,7 +652,7 @@ describe('ogm-overview highlight', () => {
     el.onHighlightedChange();
 
     expect(map.fitBounds.mock.calls.length).toEqual(framedOnce);
-    expect(map.sources.has(HIGHLIGHT_BOUNDS)).toBe(true);
+    expect(map.sources.has(SELECTED_BOUNDS)).toBe(true);
   });
 });
 
