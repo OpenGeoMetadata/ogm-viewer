@@ -1,10 +1,7 @@
 import {
   LngLatBounds,
-  type CircleLayerSpecification,
-  type DataDrivenPropertyValueSpecification,
   type ExpressionSpecification,
   type FillLayerSpecification,
-  type FilterSpecification,
   type LineLayerSpecification,
   type LngLatBoundsLike,
   type Map,
@@ -16,11 +13,14 @@ import { FILL_OPACITY } from './previewers/location';
 import { contrastColor } from './themes/color';
 import type { MapLibreStyle } from './themes/maplibre';
 
-// The one source that carries the result numbers, and the two pairs of layers that draw them: the
-// results as they were given, and the one something outside has asked to highlight. Not derived from
+// The source that carries the result numbers and the one layer that draws them. Not derived from
 // anything - there is exactly one set of these on a map, however many results are drawn on it.
 export const RESULT_NUMBERS = 'ogm-result-numbers';
-export const RESULT_HIGHLIGHT = `${RESULT_NUMBERS}-highlight`;
+export const RESULT_MARKERS = `${RESULT_NUMBERS}-markers`;
+
+// What an image of one marker is called. One per number on the map, plus one more for the number
+// something outside has asked to highlight; see markerImage.
+export const MARKER_IMAGE = 'ogm-result-marker';
 
 // The two boxes drawn under the numbers: the area a search is filtered to, and the extent of the
 // highlighted result. A source each rather than two features of one, because they are two different
@@ -32,35 +32,29 @@ export const HIGHLIGHT_BOUNDS = 'ogm-highlight-bounds';
 // for the reason LocationPreviewer's FILL_OPACITY isn't: this is the relationship between a number
 // read against a whole globe and the text drawn beside a feature, not a value an embedding app has
 // a reason to name. Setting --ogm-text-size still moves both together.
-//
-// It is also all the weight a number gets. `text-font` names a fontstack the basemap's own glyph
-// endpoint has to serve rather than a CSS font stack, so there is no Bold to ask for: a stack CARTO
-// doesn't serve draws nothing at all. The size, the disc under it and the halo are what make these
-// read as bold.
 const NUMBER_SIZE = 1.5;
 
-// How wide the disc behind a number is, as a multiple of the number's own size: room for one digit,
-// then for two, then for anything longer. Stepped rather than grown smoothly with the label, because
-// a page of eight results would otherwise wear eight slightly different discs and read as eight
-// different kinds of thing. Not themed, for the same reason NUMBER_SIZE isn't.
-const NUMBER_RADIUS = [0.7, 0.9, 1.15];
+// How wide the disc behind a number is, as a multiple of the number's own size. One size for every
+// marker, whatever it says and however far the map is zoomed: these are read as a set, and a set of
+// discs that are not the same size reads as a set of different things. A number too long for the disc
+// is drawn smaller rather than given a bigger one - see markerImage.
+const MARKER_RADIUS = 1.05;
 
-// The ring around a disc and the edge on the numeral inside it, in pixels. The same two the rest of
-// the library draws with: a location's outline is 2 and a feature label's halo is 1. The ring is what
-// holds a disc apart from the basemap and from the disc beside it, which is the halo's job done for
-// a shape.
-const NUMBER_STROKE = 2;
-const NUMBER_HALO = 1;
+// The ring around a disc, in CSS pixels. The same width a location's outline is drawn at. It is what
+// holds a disc apart from the basemap, and from the disc beside it when two results overlap.
+const MARKER_RING = 2;
 
-// How much room each number clears around itself, in pixels; MapLibre's own default is 2. Nothing
-// culls one of ours - see resultNumbersLayers - so this only ever pushes the basemap's own labels out
-// from under them, which is the one kind of overlap here worth spending anything on.
-//
-// Roughly the difference between the numeral and the disc it sits on, because the box this pads is the
-// numeral's: the disc is a circle layer, and circles take no part in the collision grid at all. At
-// MapLibre's default of 2 a basemap label could sit under the disc's own rim while clearing the digits
-// inside it, which reads as a label with a marker dropped on it.
-const NUMBER_PADDING = 8;
+// How much of the disc a numeral is allowed to fill across. Past this the numeral is drawn smaller,
+// which is what keeps a four-digit result inside the same disc as a one-digit one.
+const NUMERAL_WIDTH = 0.72;
+
+// The most a disc is drawn at, however many pixels the display has. Two is every screen worth
+// drawing for; past it the image is memory spent on detail nothing can show.
+const MAX_PIXEL_RATIO = 2;
+
+// Where the highlighted marker sorts. Above every other, which are sorted at minus their own number:
+// see resultMarkersLayer.
+const HIGHLIGHT_SORT_KEY = 1;
 
 // Everything an overview draws, gathered in one place because the order it goes onto the map in is
 // most of what keeps it readable.
@@ -97,112 +91,129 @@ export const numberedResults = (extents: (LngLatBoundsLike | undefined)[], highl
     // 180 - see unwrapEast - is centered on the Pacific rather than on Greenwich. MapLibre reads a
     // longitude from outside -180..180 everywhere it takes one, so there is nothing to wrap back.
     const { lng, lat } = LngLatBounds.convert(extent).getCenter();
+    const label = String(index + 1);
+    const marked = index + 1 === highlighted;
+
     return [
       {
         type: 'Feature' as const,
-        // Marked on every point rather than only on the one that has it. Two pairs of layers select
-        // on this from opposite sides, and a filter that reads as a plain comparison against
-        // something every feature carries is worth the two bytes it costs.
-        properties: { label: String(index + 1), highlighted: index + 1 === highlighted },
+        // The image each one is drawn as, named on the feature rather than worked out in an
+        // expression, so there is one place that decides which marker wears which picture.
+        properties: { label, highlighted: marked, icon: markerImageId(label, marked) },
         geometry: { type: 'Point' as const, coordinates: [lng, lat] },
       },
     ];
   }),
 });
 
+// What the image for one marker is called
+export const markerImageId = (label: string, highlighted: boolean = false): string => `${MARKER_IMAGE}${highlighted ? '-highlight' : ''}-${label}`;
+
 /**
- * A disc with a numeral on it, in the two style layers it takes to draw one.
+ * The one layer every marker is drawn from: an image apiece, and nothing else.
  *
- * A symbol layer has no background to put behind its text, so the disc is a circle layer of its own
- * underneath, reading the same source. Two of these pairs go on a map, selecting on the same property
- * from opposite sides, and the highlighted one goes on last. A `case` expression in each paint
- * property would color the highlighted marker in place, but it could not lift it: a symbol layer
- * draws all of its text after all of its icons, and layers draw in the order they were added, so
- * within one pair there is no arrangement that puts one feature's disc and its number together above
- * its neighbours'. Only a later pair does that.
+ * A disc with a numeral on it, drawn as one picture rather than as a circle with text over it. Two
+ * layers would be the obvious way and it cannot be made to work: a symbol layer draws all of its text
+ * after all of its icons, and a circle layer draws every circle before any layer above it, so with the
+ * numbers in a layer of their own *every* number lands over *every* disc - including its neighbour's.
+ * One image per marker is what makes overlapping markers read as markers: whichever is on top covers
+ * the one under it whole, disc and number together, which is the only arrangement in which a number is
+ * always the one thing you can see of the marker it belongs to.
  *
- * Neither pair is ever culled. A number that isn't there is worse than one that overlaps, because the
- * list beside the map is counting on every one of them being findable. What is deliberately not asked
- * for is `text-ignore-placement`: keeping our numbers out of the collision grid would leave the
- * basemap's own labels free to draw underneath them, which is the most cluttered thing they could sit
- * on. In the grid, a basemap label that collides with a number is dropped instead - and ours still
- * can't be dropped, because allowing overlap skips the hit test for them entirely and placement runs
- * from the top layer down, so these are placed before anything the basemap wanted that space for.
+ * It is also what makes the size of a disc ours rather than MapLibre's, and what lets a numeral be
+ * bold: `text-font` names a fontstack the basemap's glyph endpoint has to serve, and a stack CARTO
+ * doesn't serve draws nothing at all, so nothing asked of MapLibre could be.
+ *
+ * Nothing is ever culled. A number that isn't there is worse than one that overlaps, because the list
+ * beside the map is counting on every one of them being findable. What is deliberately not asked for
+ * is `icon-ignore-placement`: keeping our markers out of the collision grid would leave the basemap's
+ * own labels free to draw underneath them, which is the most cluttered thing they could sit on. In the
+ * grid a basemap label that collides with a marker is dropped instead - and ours still can't be,
+ * because allowing overlap skips the hit test for them entirely and placement runs from the top layer
+ * down, so these are placed before anything the basemap wanted that space for.
  */
-export const resultNumbersLayers = (style: MapLibreStyle, highlighted: boolean = false): [CircleLayerSpecification, SymbolLayerSpecification] => {
-  const id = highlighted ? RESULT_HIGHLIGHT : RESULT_NUMBERS;
-  const color = highlighted ? style.markerHighlightColor : style.markerColor;
-  const filter: FilterSpecification = highlighted ? ['==', ['get', 'highlighted'], true] : ['!=', ['get', 'highlighted'], true];
+export const resultMarkersLayer = (): SymbolLayerSpecification => ({
+  id: RESULT_MARKERS,
+  type: 'symbol' as const,
+  source: RESULT_NUMBERS,
+  layout: {
+    'visibility': 'visible' as const,
+    'icon-image': ['get', 'icon'] as const,
+    'icon-allow-overlap': true,
+    // Earlier results on top, so counting down the list beside the map is counting away from the
+    // reader: the first result is the one a page put first, and it stays over the twentieth however the
+    // map is panned. A higher key draws over a lower one, so the key is the number negated - and the
+    // highlighted one, which something outside has pointed at, sorts above all of them. Without a key
+    // at all MapLibre orders these by where they land on screen, and they restack as the map moves,
+    // which reads as the numbers rearranging themselves.
+    'symbol-sort-key': markerSortKey,
+  },
+});
+
+const markerSortKey: ExpressionSpecification = ['case', ['get', 'highlighted'], HIGHLIGHT_SORT_KEY, ['-', 0, ['to-number', ['get', 'label']]]];
+
+/**
+ * A disc with a numeral centered on it, as pixels MapLibre can draw as an icon.
+ *
+ * Drawn here rather than described to MapLibre because a marker has to be one picture; see
+ * resultMarkersLayer. Which also means the numeral is placed by measuring it: canvas centers text on
+ * the font's own box, and a digit - which has no descender to speak of - sits high in that box, so
+ * what is centered has to be the ink rather than the line it sits on.
+ *
+ * Drawn at the display's own pixel ratio and handed over with it, so a marker is as crisp as the map
+ * under it. Nothing comes back where there is nothing to draw on - a DOM without a canvas behind it,
+ * or no DOM at all - and the caller carries on without the picture rather than without the map.
+ */
+export const markerImage = (label: string, color: string, style: MapLibreStyle, pixelRatio: number): { width: number; height: number; data: Uint8ClampedArray } | undefined => {
   const size = style.textSize * NUMBER_SIZE;
+  const radius = size * MARKER_RADIUS;
+  const box = Math.ceil((radius + MARKER_RING) * 2);
+  const scale = Math.min(pixelRatio, MAX_PIXEL_RATIO);
 
-  // Earlier results on top, so counting down the list beside the map is counting away from the
-  // reader: the first result is the one a page put first, and it stays over the twentieth however the
-  // map is panned. Both properties draw a higher key over a lower one, so the key is the number
-  // negated. Without one at all, MapLibre orders symbols by where they land on screen, and they
-  // restack as the map moves - which reads as the numbers rearranging themselves.
-  const sortKey: ExpressionSpecification = ['-', 0, ['to-number', ['get', 'label']]];
+  if (typeof document === 'undefined') return undefined;
 
-  // Room for the digits, in the three sizes a page of results can need
-  const radius: DataDrivenPropertyValueSpecification<number> = [
-    'step',
-    ['length', ['get', 'label']],
-    size * NUMBER_RADIUS[0],
-    2,
-    size * NUMBER_RADIUS[1],
-    3,
-    size * NUMBER_RADIUS[2],
-  ];
+  const canvas = document.createElement('canvas');
+  canvas.width = box * scale;
+  canvas.height = box * scale;
 
-  return [
-    {
-      id: `${id}-circle`,
-      type: 'circle' as const,
-      source: RESULT_NUMBERS,
-      filter,
-      layout: {
-        'visibility': 'visible' as const,
-        'circle-sort-key': sortKey,
-      },
-      paint: {
-        'circle-color': color,
-        'circle-radius': radius,
-        // The ink the numeral is drawn in, so a disc reads as one shape with a rim rather than as a
-        // disc with a halo of its own. One color that holds up on either basemap, and the thing that
-        // keeps two overlapping discs from reading as one.
-        'circle-stroke-color': contrastColor(color) || style.textHaloColor,
-        'circle-stroke-width': NUMBER_STROKE,
-        // No opacity asked for, here or on the numbers. Everything else this map draws is a note
-        // about where to look and starts faint so the basemap can be read through it; a number is
-        // the thing being read, and there is nothing under it worth seeing.
-      },
-    },
-    {
-      id: `${id}-label`,
-      type: 'symbol' as const,
-      source: RESULT_NUMBERS,
-      filter,
-      layout: {
-        'visibility': 'visible' as const,
-        'text-field': ['get', 'label'] as const,
-        'text-font': [style.textFont],
-        'text-size': size,
-        'text-allow-overlap': true,
-        'text-padding': NUMBER_PADDING,
-        'symbol-sort-key': sortKey,
-      },
-      paint: {
-        // Whichever of black and white can be read on the disc, rather than the theme's own text
-        // color, which is near-black in light mode and would disappear into it. The disc is derived
-        // to a depth that makes this white; see MapLibreTheme.markerColor.
-        'text-color': contrastColor(color) || style.textHaloColor,
-        // The disc's own color, not the theme's halo: on a disc there is nothing left for white to
-        // hold the numeral apart from, and an edge in the disc's color is what keeps a numeral from
-        // touching the ring around it.
-        'text-halo-color': color,
-        'text-halo-width': NUMBER_HALO,
-      },
-    },
-  ];
+  const context = canvas.getContext('2d');
+  if (!context) return undefined;
+
+  context.scale(scale, scale);
+  const center = box / 2;
+
+  context.beginPath();
+  context.arc(center, center, radius, 0, Math.PI * 2);
+  context.fillStyle = color;
+  context.fill();
+  context.lineWidth = MARKER_RING;
+  // The same ink as the numeral, so a marker reads as one shape with a rim rather than as a disc with
+  // something drawn on it
+  context.strokeStyle = contrastColor(color) || style.textHaloColor;
+  context.stroke();
+
+  context.fillStyle = contrastColor(color) || style.textHaloColor;
+  context.textAlign = 'center';
+  context.textBaseline = 'alphabetic';
+  context.font = numeralFont(context, label, size, radius, style.markerFont);
+
+  // The middle of the ink, rather than the middle of the line box it was measured in
+  const metrics = context.measureText(label);
+  const ink = (metrics.actualBoundingBoxAscent ?? size * 0.7) - (metrics.actualBoundingBoxDescent ?? 0);
+  context.fillText(label, center, center + ink / 2);
+
+  return { width: canvas.width, height: canvas.height, data: context.getImageData(0, 0, canvas.width, canvas.height).data };
+};
+
+// The numeral at a size that fits the disc it sits on. Every disc is the same size, so a number long
+// enough to reach the rim is the thing that gives way: three digits still fill the disc, and a page
+// with a thousand results in it gets smaller numbers rather than bigger markers.
+const numeralFont = (context: CanvasRenderingContext2D, label: string, size: number, radius: number, family: string): string => {
+  const room = radius * 2 * NUMERAL_WIDTH;
+  context.font = `bold ${size}px ${family}`;
+  const width = context.measureText(label).width;
+
+  return width <= room ? context.font : `bold ${Math.floor((size * room) / width)}px ${family}`;
 };
 
 // A box, drawn the way LocationPreviewer draws a record's extent: a thin outline with a wash inside
@@ -235,11 +246,11 @@ const addBounds = (map: Map, id: string, bounds: LngLatBounds, colors: BoxColors
 /**
  * Put everything an overview draws on the map, in the order it has to be drawn in.
  *
- * Bottom to top: the area being searched, the extent of the highlighted result, the numbers, and the
- * highlighted number last of all. All of it comes off and goes back on rather than being changed in
- * place, because addLayer appends and there is no other way to say which of these sits over which.
- * Nothing here reaches the network, so moving one highlight costs a rebuild of eight style layers
- * and nothing else.
+ * Bottom to top: the area being searched, the extent of the highlighted result, and the markers. All
+ * of it comes off and goes back on rather than being changed in place, because addLayer appends and
+ * there is no other way to say which of these sits over which. Nothing here reaches the network - the
+ * markers are drawn on a canvas and the boxes are two shapes - so moving one highlight costs a handful
+ * of style layers and as many small pictures as there are results.
  */
 export const drawResults = (map: Map, style: MapLibreStyle, { extents, highlighted, searchBounds }: DrawnResults) => {
   clearResults(map);
@@ -255,21 +266,42 @@ export const drawResults = (map: Map, style: MapLibreStyle, { extents, highlight
     addBounds(map, HIGHLIGHT_BOUNDS, LngLatBounds.convert(extent), { color: style.highlightColor, strokeColor: style.strokeHighlightColor, opacity: style.highlightOpacity });
   }
 
-  map.addSource(RESULT_NUMBERS, { type: 'geojson', data: numberedResults(extents, highlighted) });
-  for (const layer of [...resultNumbersLayers(style), ...resultNumbersLayers(style, true)]) map.addLayer(layer);
+  const numbers = numberedResults(extents, highlighted);
+  addMarkerImages(map, style, numbers);
+  map.addSource(RESULT_NUMBERS, { type: 'geojson', data: numbers });
+  map.addLayer(resultMarkersLayer());
+};
+
+// A picture for every marker about to be drawn, in the colors the theme is currently in. Added rather
+// than reused, because clearResults has just taken the last set away: a theme swap changes what these
+// look like, and holding onto one drawn in the old palette would put a marker from the last theme on
+// the map. A DOM with no canvas in it draws none of them and the markers come out empty, which is a
+// map missing its numbers rather than a map that failed to open; see markerImage.
+const addMarkerImages = (map: Map, style: MapLibreStyle, numbers: GeoJSON.FeatureCollection<GeoJSON.Point>) => {
+  const ratio = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
+
+  for (const { properties } of numbers.features) {
+    const { label, highlighted, icon } = properties as { label: string; highlighted: boolean; icon: string };
+    const image = markerImage(label, highlighted ? style.markerHighlightColor : style.markerColor, style, ratio);
+    if (image) map.addImage(icon, image, { pixelRatio: Math.min(ratio, MAX_PIXEL_RATIO) });
+  }
 };
 
 // Every layer this draws, and every source under them. The layers go first: a source can't be taken
 // off the map while a layer is still reading it.
-const RESULT_LAYERS = [
-  ...[SEARCH_BOUNDS, HIGHLIGHT_BOUNDS].flatMap(id => [`${id}-fill`, `${id}-outline`]),
-  ...[RESULT_NUMBERS, RESULT_HIGHLIGHT].flatMap(id => [`${id}-circle`, `${id}-label`]),
-];
+const RESULT_LAYERS = [...[SEARCH_BOUNDS, HIGHLIGHT_BOUNDS].flatMap(id => [`${id}-fill`, `${id}-outline`]), RESULT_MARKERS];
 const RESULT_SOURCES = [SEARCH_BOUNDS, HIGHLIGHT_BOUNDS, RESULT_NUMBERS];
 
-// Take all of it back off. Guarded both ways: a theme swap empties the style document without asking,
-// so what this last drew may already be gone.
+/**
+ * Take all of it back off, pictures included.
+ *
+ * Guarded every way: a theme swap empties the style document without asking, so what this last drew
+ * may already be gone - and the images go with it, since they live on the style rather than on the map.
+ * The pictures are found by name rather than remembered, so a set left behind by a draw nobody
+ * finished is taken away too.
+ */
 export const clearResults = (map: Map) => {
   for (const id of RESULT_LAYERS) if (map.getLayer(id)) map.removeLayer(id);
   for (const id of RESULT_SOURCES) if (map.getSource(id)) map.removeSource(id);
+  for (const id of map.listImages()) if (id.startsWith(MARKER_IMAGE)) map.removeImage(id);
 };

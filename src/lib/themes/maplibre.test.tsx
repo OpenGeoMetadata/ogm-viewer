@@ -138,6 +138,20 @@ describe('MapLibreTheme', () => {
     });
   });
 
+  // The numbers on an overview's markers are drawn by this library rather than by MapLibre, so unlike
+  // every other font here this one is an ordinary CSS stack
+  describe('marker font', () => {
+    it('takes the page’s own body font, and an override before it', () => {
+      expect(themed('light', { '--wa-font-family-body': 'Untitled Sans, sans-serif' }).getStyle().markerFont).toBe('Untitled Sans, sans-serif');
+      expect(themed('light', { '--wa-font-family-body': 'Untitled Sans, sans-serif', '--ogm-marker-font': 'Redaction, serif' }).getStyle().markerFont).toBe('Redaction, serif');
+    });
+
+    // Unlike textFont, which names a glyph set the basemap's own endpoint has to serve
+    it('falls back to something a browser will certainly have', () => {
+      expect(themed('light').getStyle().markerFont).toBe('system-ui, sans-serif');
+    });
+  });
+
   // A label's halo is derived like an outline is, but to the opposite end of the scale: it isn't a
   // step away from the text, it's what holds the text apart from the basemap.
   describe('derived text halo', () => {

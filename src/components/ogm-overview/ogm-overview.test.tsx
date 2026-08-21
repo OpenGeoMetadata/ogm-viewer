@@ -12,7 +12,7 @@ import { boundsToBbox } from '../../lib/geometry';
 import LocationPreviewer from '../../lib/previewers/location';
 import OgmRecord, { type GeoBlacklightSchemaAardvark } from '../../lib/record';
 import LocationResource from '../../lib/resources/location';
-import { HIGHLIGHT_BOUNDS, RESULT_HIGHLIGHT, RESULT_NUMBERS, SEARCH_BOUNDS } from '../../lib/results';
+import { HIGHLIGHT_BOUNDS, RESULT_MARKERS, RESULT_NUMBERS, SEARCH_BOUNDS } from '../../lib/results';
 import MapLibreTheme, { darkBasemapStyle } from '../../lib/themes/maplibre';
 
 // Enough of a MapLibre map to draw numbered results on, to be pointed at them, and to hang the
@@ -22,6 +22,7 @@ import MapLibreTheme, { darkBasemapStyle } from '../../lib/themes/maplibre';
 class FakeMap {
   sources = new Map<string, any>();
   layers = new Map<string, any>();
+  images = new Map<string, any>();
   fitBounds = vi.fn();
   setSky = vi.fn();
   setStyle = vi.fn();
@@ -76,6 +77,17 @@ class FakeMap {
   once(event: string, listener: (event: unknown) => void) {
     if (event === 'moveend') return listener({});
     (this.onceListeners[event] ??= []).push(listener);
+  }
+
+  // A marker is a picture now, so the images are as much part of what gets drawn as the layers are
+  addImage(id: string, image: any) {
+    this.images.set(id, image);
+  }
+  removeImage(id: string) {
+    this.images.delete(id);
+  }
+  listImages() {
+    return [...this.images.keys()];
   }
 
   getSource(id: string) {
@@ -192,7 +204,7 @@ const renderOverview = async () => {
   return { el, map };
 };
 
-const NUMBER_LAYERS = [`${RESULT_NUMBERS}-circle`, `${RESULT_NUMBERS}-label`, `${RESULT_HIGHLIGHT}-circle`, `${RESULT_HIGHLIGHT}-label`];
+const MARKER_LAYERS = [RESULT_MARKERS];
 const BOX_LAYERS = (id: string) => [`${id}-fill`, `${id}-outline`];
 
 const layerIds = (map: FakeMap) => [...map.layers.keys()];
@@ -220,7 +232,7 @@ describe('ogm-overview', () => {
     await el.load();
 
     expect(marked(map).map((properties: { label: string }) => properties.label)).toEqual(['1', '2']);
-    expect(layerIds(map)).toEqual(NUMBER_LAYERS);
+    expect(layerIds(map)).toEqual(MARKER_LAYERS);
   });
 
   // A page of boxes says less than a page of numbers a reader can find again in the list beside the
@@ -291,7 +303,7 @@ describe('ogm-overview', () => {
     await el.onRecordsChange();
 
     expect(marked(map).map((properties: { label: string }) => properties.label)).toEqual(['1']);
-    expect(layerIds(map)).toEqual(NUMBER_LAYERS);
+    expect(layerIds(map)).toEqual(MARKER_LAYERS);
   });
 
   it('shows the whole world when it has no records to place', async () => {
@@ -425,7 +437,7 @@ describe('ogm-overview search filter', () => {
     el.bounds = CALIFORNIA;
     await el.load();
 
-    expect(layerIds(map)).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...NUMBER_LAYERS]);
+    expect(layerIds(map)).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...MARKER_LAYERS]);
     expect(map.sources.get(SEARCH_BOUNDS).data.geometry.coordinates[0][0]).toEqual([-124.41, 32.53]);
   });
 
@@ -520,10 +532,9 @@ describe('ogm-overview highlight', () => {
     el.onHighlightedChange();
 
     expect(highlightedLabel(map)).toEqual('2');
-    // The highlighted pair goes on last, which is the only thing that lifts a whole marker
-    expect(layerIds(map).slice(-2)).toEqual([`${RESULT_HIGHLIGHT}-circle`, `${RESULT_HIGHLIGHT}-label`]);
-    expect(map.layers.get(`${RESULT_HIGHLIGHT}-circle`).paint['circle-color']).toEqual(el.mapTheme.getStyle().markerHighlightColor);
-    expect(map.layers.get(`${RESULT_NUMBERS}-circle`).paint['circle-color']).toEqual(el.mapTheme.getStyle().markerColor);
+    // It wears a picture of its own, which is what carries the color, and sorts above every other
+    expect(marked(map).map((properties: { icon: string }) => properties.icon)).toEqual(['ogm-result-marker-1', 'ogm-result-marker-highlight-2']);
+    expect(map.layers.get(RESULT_MARKERS).layout['symbol-sort-key']).toEqual(['case', ['get', 'highlighted'], 1, ['-', 0, ['to-number', ['get', 'label']]]]);
   });
 
   it('draws the highlighted result’s own extent under its number', async () => {
@@ -532,7 +543,7 @@ describe('ogm-overview highlight', () => {
     el.onHighlightedChange();
 
     expect(map.sources.get(HIGHLIGHT_BOUNDS).data.geometry.coordinates[0][0]).toEqual([-24.55, 63.39]);
-    expect(layerIds(map)).toEqual([...BOX_LAYERS(HIGHLIGHT_BOUNDS), ...NUMBER_LAYERS]);
+    expect(layerIds(map)).toEqual([...BOX_LAYERS(HIGHLIGHT_BOUNDS), ...MARKER_LAYERS]);
     expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-color']).toEqual(el.mapTheme.getStyle().strokeHighlightColor);
   });
 
@@ -855,7 +866,7 @@ describe('ogm-overview theme', () => {
     map.sources.clear();
     await el.handleStyleLoad();
 
-    expect(layerIds(map)).toEqual(NUMBER_LAYERS);
+    expect(layerIds(map)).toEqual(MARKER_LAYERS);
   });
 });
 

@@ -1,8 +1,23 @@
+/** @vitest-environment happy-dom */
+// A DOM, because a marker is now a picture drawn on a canvas rather than a description handed to
+// MapLibre. happy-dom has no canvas behind its <canvas>, which is the case markerImage answers for -
+// what it draws when there is one is checked in a browser, since that is the only place pixels exist.
 import { describe, it, expect } from '@stencil/vitest';
 import { LngLatBounds, type LngLatBoundsLike } from 'maplibre-gl';
 
-import { clearResults, drawResults, HIGHLIGHT_BOUNDS, numberedResults, RESULT_HIGHLIGHT, RESULT_NUMBERS, resultNumbersLayers, SEARCH_BOUNDS } from './results';
-import { contrastColor } from './themes/color';
+import {
+  clearResults,
+  drawResults,
+  HIGHLIGHT_BOUNDS,
+  MARKER_IMAGE,
+  markerImage,
+  markerImageId,
+  numberedResults,
+  RESULT_MARKERS,
+  RESULT_NUMBERS,
+  resultMarkersLayer,
+  SEARCH_BOUNDS,
+} from './results';
 import type { MapLibreStyle } from './themes/maplibre';
 
 // Just enough of a MapLibre map to record what goes on it, in the order it went on. removeSource
@@ -11,6 +26,19 @@ import type { MapLibreStyle } from './themes/maplibre';
 class FakeMap {
   sources = new Map<string, any>();
   layers = new Map<string, any>();
+  images = new Map<string, any>();
+
+  addImage(id: string, image: any, options: any) {
+    if (this.images.has(id)) throw new Error(`An image named "${id}" already exists.`);
+    this.images.set(id, { image, options });
+  }
+  removeImage(id: string) {
+    if (!this.images.has(id)) throw new Error(`No image named "${id}" exists.`);
+    this.images.delete(id);
+  }
+  listImages() {
+    return [...this.images.keys()];
+  }
 
   getSource(id: string) {
     return this.sources.get(id);
@@ -63,7 +91,7 @@ const ALEUTIANS: LngLatBoundsLike = [
   [190, 54],
 ];
 
-const NUMBER_LAYERS = [`${RESULT_NUMBERS}-circle`, `${RESULT_NUMBERS}-label`, `${RESULT_HIGHLIGHT}-circle`, `${RESULT_HIGHLIGHT}-label`];
+const MARKER_LAYERS = [RESULT_MARKERS];
 const BOX_LAYERS = (id: string) => [`${id}-fill`, `${id}-outline`];
 
 const draw = (extents: (LngLatBoundsLike | undefined)[], rest: { highlighted?: number; searchBounds?: LngLatBounds } = {}) => {
@@ -115,6 +143,15 @@ describe('numberedResults', () => {
     expect(features.map(feature => feature.properties!.highlighted)).toEqual([false, true]);
   });
 
+  // The picture each marker is drawn as. Named on the feature rather than worked out in an expression,
+  // so one place decides which marker wears which.
+  it('should name the picture each marker is drawn as', () => {
+    const { features } = numberedResults([CALIFORNIA, ICELAND], 2);
+
+    expect(features.map(feature => feature.properties!.icon)).toEqual([markerImageId('1'), markerImageId('2', true)]);
+    expect(markerImageId('2', true)).not.toEqual(markerImageId('2'));
+  });
+
   it('should mark nothing when nothing is highlighted', () => {
     const { features } = numberedResults([CALIFORNIA, ICELAND]);
 
@@ -129,80 +166,44 @@ describe('numberedResults', () => {
   });
 });
 
-describe('resultNumbersLayers', () => {
-  // A number that isn't there is worse than one that overlaps: the list beside the map is counting
-  // on every one of them being findable, so nothing may cull one. What the numbers do get is room
-  // around them, which pushes the basemap's own labels out from under them instead.
-  it('should draw every number, and clear a little space around each', () => {
-    const [, label] = resultNumbersLayers(style);
+describe('resultMarkersLayer', () => {
+  // The whole reason a marker is one picture: two layers cannot be made to interleave. A symbol layer
+  // draws all of its text after all of its icons, and a circle layer draws every circle before any
+  // layer above it, so numbers in a layer of their own land over every disc including their
+  // neighbours'. One image apiece means whichever marker is on top covers the one under it whole.
+  it('should draw every marker from one layer, as an image apiece', () => {
+    const layer = resultMarkersLayer();
 
-    expect(label.layout!['text-allow-overlap']).toBe(true);
-    expect(label.layout!['text-padding']).toBeGreaterThan(2);
+    expect(layer.type).toEqual('symbol');
+    expect(layer.source).toEqual(RESULT_NUMBERS);
+    expect(layer.layout!['icon-image']).toEqual(['get', 'icon']);
+    // Nothing draws text: there is no second pass for a number to be left in
+    expect(layer.layout!['text-field']).toBeUndefined();
+  });
+
+  // A number that isn't there is worse than one that overlaps: the list beside the map is counting on
+  // every one of them being findable
+  it('should draw every marker, whatever it lands on', () => {
+    expect(resultMarkersLayer().layout!['icon-allow-overlap']).toBe(true);
     // Deliberately absent: MapLibre's own default of false is what puts these in the collision grid,
     // so a basemap label that wants the same space is the one that gets dropped
-    expect(label.layout!['text-ignore-placement']).toBeUndefined();
-  });
-
-  it('should draw the numbers the way the theme draws text', () => {
-    const [, label] = resultNumbersLayers(style);
-
-    expect(label.layout!['text-font']).toEqual([style.textFont]);
-    expect(label.paint!['text-color']).toEqual(contrastColor(style.markerColor));
-    // The disc's own color, so a numeral doesn't touch the ring around it
-    expect(label.paint!['text-halo-color']).toEqual(style.markerColor);
-  });
-
-  // Read against a whole globe rather than sitting beside a feature, so bigger than a feature label
-  it('should ask for a number bigger than a label on a feature', () => {
-    const [, label] = resultNumbersLayers(style);
-
-    expect(label.layout!['text-size']).toBeGreaterThan(style.textSize);
-  });
-
-  it('should take its numbers from the label each point carries', () => {
-    expect(resultNumbersLayers(style)[1].layout!['text-field']).toEqual(['get', 'label']);
-  });
-
-  it('should draw a disc behind each number', () => {
-    const [disc, label] = resultNumbersLayers(style);
-
-    expect(disc.type).toEqual('circle');
-    expect(disc.source).toEqual(label.source);
-    expect(disc.paint!['circle-color']).toEqual(style.markerColor);
-    expect(disc.paint!['circle-stroke-width']).toBeGreaterThan(0);
-  });
-
-  // Stepped rather than grown smoothly, so eight results don't wear eight slightly different discs
-  it('should widen the disc for a longer number', () => {
-    const [disc] = resultNumbersLayers(style);
-    const [, , one, , two, , three] = disc.paint!['circle-radius'] as [string, unknown, number, number, number, number, number];
-
-    expect(one).toBeLessThan(two);
-    expect(two).toBeLessThan(three);
-  });
-
-  // Which is the only arrangement that lifts a whole marker: a symbol layer draws all of its text
-  // after all of its icons, so one pair can never put one feature's disc and number above another's.
-  it('should draw the highlighted number in its own color, from a layer of its own', () => {
-    const [disc, label] = resultNumbersLayers(style, true);
-
-    expect([disc.id, label.id]).toEqual([`${RESULT_HIGHLIGHT}-circle`, `${RESULT_HIGHLIGHT}-label`]);
-    expect(disc.paint!['circle-color']).toEqual(style.markerHighlightColor);
-    expect(label.paint!['text-halo-color']).toEqual(style.markerHighlightColor);
-    // Both pairs read the one source, from opposite sides of the same mark
-    expect(disc.source).toEqual(RESULT_NUMBERS);
-    expect(disc.filter).toEqual(['==', ['get', 'highlighted'], true]);
-    expect(resultNumbersLayers(style)[0].filter).toEqual(['!=', ['get', 'highlighted'], true]);
+    expect(resultMarkersLayer().layout!['icon-ignore-placement']).toBeUndefined();
   });
 
   // Without a key of its own MapLibre orders symbols by where they land on screen, so they restack as
-  // the reader pans - which reads as the numbers rearranging themselves. Both properties draw a higher
-  // key over a lower one, so the key is the number negated: result 1 sorts above result 20.
-  it('should keep the earlier results on top of the later ones', () => {
-    const [disc, label] = resultNumbersLayers(style);
+  // the reader pans - which reads as the numbers rearranging themselves. A higher key draws over a
+  // lower one, so the key is the number negated, and the highlighted one sorts above all of them.
+  it('should keep the earlier results on top of the later ones, and the highlight above both', () => {
+    expect(resultMarkersLayer().layout!['symbol-sort-key']).toEqual(['case', ['get', 'highlighted'], 1, ['-', 0, ['to-number', ['get', 'label']]]]);
+  });
+});
 
-    expect(disc.layout!['circle-sort-key']).toEqual(['-', 0, ['to-number', ['get', 'label']]]);
-    expect(label.layout!['symbol-sort-key']).toEqual(disc.layout!['circle-sort-key']);
+describe('markerImage', () => {
+  // There is no canvas in this DOM, which is the case the caller has to survive: a map missing its
+  // numbers rather than a map that failed to open. What it draws when there is one is checked in a
+  // browser, since that is the only place pixels exist.
+  it('should draw nothing where there is nothing to draw on', () => {
+    expect(markerImage('1', '#2d5883', style, 2)).toBeUndefined();
   });
 });
 
@@ -212,7 +213,29 @@ describe('drawResults', () => {
 
     expect(map.sources.get(RESULT_NUMBERS).type).toEqual('geojson');
     expect(map.sources.get(RESULT_NUMBERS).data.features).toHaveLength(2);
-    expect([...map.layers.keys()]).toEqual(NUMBER_LAYERS);
+    expect([...map.layers.keys()]).toEqual(MARKER_LAYERS);
+  });
+
+  // Nothing is reused between draws: a theme swap changes what a marker looks like, and a picture kept
+  // from the last palette would put a marker from the last theme on the map. Asserted through the fake,
+  // which refuses a second image under a name it already holds the way MapLibre does.
+  it('should draw its pictures again rather than reuse them', () => {
+    const map = draw([CALIFORNIA, ICELAND]);
+    map.addImage(`${MARKER_IMAGE}-1`, {}, {});
+
+    expect(() => drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND] })).not.toThrow();
+    expect(map.listImages().filter(id => id.startsWith(MARKER_IMAGE))).toEqual([]);
+  });
+
+  // Left behind, they would outlive every marker that ever used them
+  it('should take its pictures off with everything else', () => {
+    const map = draw([CALIFORNIA]);
+    map.addImage(`${MARKER_IMAGE}-1`, {}, {});
+    map.addImage('someone-elses-image', {}, {});
+
+    clearResults(map as unknown as maplibregl.Map);
+
+    expect(map.listImages()).toEqual(['someone-elses-image']);
   });
 
   // A page of boxes says less than a page of numbers a reader can find in the list beside the map
@@ -229,13 +252,13 @@ describe('drawResults', () => {
     map.addLayer({ id: 'a-box', type: 'fill' });
     drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND] });
 
-    expect([...map.layers.keys()]).toEqual(['a-box', ...NUMBER_LAYERS]);
+    expect([...map.layers.keys()]).toEqual(['a-box', ...MARKER_LAYERS]);
   });
 
   it('should draw the searched area, then the highlight, then the numbers', () => {
     const map = draw([CALIFORNIA, ICELAND], { highlighted: 2, searchBounds: LngLatBounds.convert(CALIFORNIA) });
 
-    expect([...map.layers.keys()]).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(HIGHLIGHT_BOUNDS), ...NUMBER_LAYERS]);
+    expect([...map.layers.keys()]).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(HIGHLIGHT_BOUNDS), ...MARKER_LAYERS]);
   });
 
   it('should draw the area being searched in the colors a bounding box gets', () => {
@@ -261,8 +284,8 @@ describe('drawResults', () => {
     expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-color']).toEqual(style.strokeHighlightColor);
     expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-opacity']).toEqual(style.highlightOpacity);
     expect(marked(map)).toEqual([
-      { label: '1', highlighted: false },
-      { label: '2', highlighted: true },
+      { label: '1', highlighted: false, icon: markerImageId('1') },
+      { label: '2', highlighted: true, icon: markerImageId('2', true) },
     ]);
   });
 
@@ -271,7 +294,7 @@ describe('drawResults', () => {
     const map = draw([CALIFORNIA, undefined], { highlighted: 2 });
 
     expect(map.sources.has(HIGHLIGHT_BOUNDS)).toBe(false);
-    expect(marked(map)).toEqual([{ label: '1', highlighted: false }]);
+    expect(marked(map)).toEqual([{ label: '1', highlighted: false, icon: markerImageId('1') }]);
   });
 
   it('should take everything off the map when cleared', () => {
