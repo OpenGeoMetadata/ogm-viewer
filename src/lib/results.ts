@@ -19,9 +19,10 @@ import type { MapLibreStyle } from './themes/maplibre';
 export const RESULT_NUMBERS = 'ogm-result-numbers';
 export const RESULT_MARKERS = `${RESULT_NUMBERS}-markers`;
 
-// What an image of one marker is called. Two per number on the map: the picture of that number, and
-// the picture of it highlighted. Both are drawn whether anything is highlighting it or not, so that a
-// highlight arriving changes no pictures at all; see syncMarkerImages.
+// What an image of one marker is called. Two per number on the map: the picture of that number, and the
+// picture of it highlighted, which is drawn bigger and in another color. Both are drawn whether
+// anything is highlighting it or not, so that a highlight arriving changes no pictures at all; see
+// syncMarkerImages.
 const MARKER_IMAGE = 'ogm-result-marker';
 
 // The two boxes drawn under the numbers: the area a search is filtered to, and the extent of every
@@ -56,6 +57,12 @@ const NUMERAL_WIDTH = 0.72;
 // The most a disc is drawn at, however many pixels the display has. Two is every screen worth
 // drawing for; past it the image is memory spent on detail nothing can show.
 const MAX_PIXEL_RATIO = 2;
+
+// How much bigger a highlighted marker is drawn than the rest. Enough to read as coming forward, and
+// no more: it is the same marker, and one that jumped in size would say something happened rather than
+// that this is the one being pointed at. The ring around it doesn't grow with it - see MARKER_RING -
+// so a marker that has come forward still sits the same distance off the basemap.
+const HIGHLIGHT_GROWTH = 1.15;
 
 // Where a highlighted marker sorts. Above every other, which are sorted at minus their own number:
 // see resultMarkersLayer.
@@ -129,9 +136,31 @@ export const markerImageId = (label: string, style: MapLibreStyle, highlighted: 
 
 // What a marker's picture depends on, in a form a name can carry: the color of the disc, the size of
 // the numeral, and the font it is set in. Word characters only, since this ends up in an id - and it is
-// only ever compared with itself, so what it drops costs nothing.
-const markerLook = (style: MapLibreStyle, highlighted: boolean): string =>
-  [highlighted ? style.markerHighlightColor : style.markerColor, style.textSize, style.markerFont].join('-').replace(/[^\w-]+/g, '');
+// only ever compared with itself, so what it drops costs nothing. Nothing here says how big a
+// highlighted marker is drawn, because the name already says which of the two it is.
+const markerLook = (style: MapLibreStyle, highlighted: boolean): string => [discColor(style, highlighted), style.textSize, style.markerFont].join('-').replace(/[^\w-]+/g, '');
+
+// What a marker's disc is drawn in, which is the whole of what being highlighted does to its color
+const discColor = (style: MapLibreStyle, highlighted: boolean): string => (highlighted ? style.markerHighlightColor : style.markerColor);
+
+/**
+ * How big a marker is drawn, in CSS pixels: the numeral, the disc under it, and the square the two are
+ * drawn in.
+ *
+ * All three off one number, so that a marker grows as one thing - a disc that grew without its numeral
+ * would leave the number looking lost on it. That one number is what makes a highlighted marker bigger
+ * than the rest, and --ogm-text-size is what moves every marker together.
+ *
+ * The ring is added rather than scaled, so it is the same width on a marker that has come forward as on
+ * one that hasn't: what it does is hold a disc off the basemap and off its neighbours, and that job
+ * doesn't change with the size of the disc.
+ */
+export const markerMetrics = (style: MapLibreStyle, highlighted: boolean): { size: number; radius: number; box: number } => {
+  const size = style.textSize * NUMBER_SIZE * (highlighted ? HIGHLIGHT_GROWTH : 1);
+  const radius = size * MARKER_RADIUS;
+
+  return { size, radius, box: Math.ceil((radius + MARKER_RING) * 2) };
+};
 
 /**
  * The one layer every marker is drawn from: an image apiece, and nothing else.
@@ -185,13 +214,19 @@ const markerSortKey: ExpressionSpecification = ['case', ['get', 'highlighted'], 
  * what is centered has to be the ink rather than the line it sits on.
  *
  * Drawn at the display's own pixel ratio and handed over with it, so a marker is as crisp as the map
- * under it. Nothing comes back where there is nothing to draw on - a DOM without a canvas behind it,
- * or no DOM at all - and the caller carries on without the picture rather than without the map.
+ * under it - which is also why a highlighted marker is drawn bigger rather than the same picture scaled
+ * up by the layer that draws it. Nothing comes back where there is nothing to draw on - a DOM without a
+ * canvas behind it, or no DOM at all - and the caller carries on without the picture rather than
+ * without the map.
  */
-export const markerImage = (label: string, color: string, style: MapLibreStyle, pixelRatio: number): { width: number; height: number; data: Uint8ClampedArray } | undefined => {
-  const size = style.textSize * NUMBER_SIZE;
-  const radius = size * MARKER_RADIUS;
-  const box = Math.ceil((radius + MARKER_RING) * 2);
+export const markerImage = (
+  label: string,
+  style: MapLibreStyle,
+  highlighted: boolean,
+  pixelRatio: number,
+): { width: number; height: number; data: Uint8ClampedArray } | undefined => {
+  const { size, radius, box } = markerMetrics(style, highlighted);
+  const color = discColor(style, highlighted);
   const scale = Math.min(pixelRatio, MAX_PIXEL_RATIO);
 
   if (typeof document === 'undefined') return undefined;
@@ -366,18 +401,15 @@ const syncMarkerImages = (map: Map, style: MapLibreStyle, numbers: GeoJSON.Featu
 
   const wanted = numbers.features.flatMap(({ properties }) => {
     const label = String(properties?.label);
-    return [
-      { id: markerImageId(label, style), label, color: style.markerColor },
-      { id: markerImageId(label, style, true), label, color: style.markerHighlightColor },
-    ];
+    return [false, true].map(highlighted => ({ id: markerImageId(label, style, highlighted), label, highlighted }));
   });
 
   const keep = new Set(wanted.map(({ id }) => id));
   for (const id of map.listImages()) if (id.startsWith(MARKER_IMAGE) && !keep.has(id)) map.removeImage(id);
 
-  for (const { id, label, color } of wanted) {
+  for (const { id, label, highlighted } of wanted) {
     if (map.hasImage(id)) continue;
-    const image = markerImage(label, color, style, ratio);
+    const image = markerImage(label, style, highlighted, ratio);
     if (image) map.addImage(id, image, { pixelRatio: Math.min(ratio, MAX_PIXEL_RATIO) });
   }
 };

@@ -5,7 +5,18 @@
 import { describe, it, expect, vi } from '@stencil/vitest';
 import { LngLatBounds, type LngLatBoundsLike } from 'maplibre-gl';
 
-import { drawResults, HIGHLIGHT_BOUNDS, markerImage, markerImageId, numberedResults, RESULT_MARKERS, RESULT_NUMBERS, resultMarkersLayer, SEARCH_BOUNDS } from './results';
+import {
+  drawResults,
+  HIGHLIGHT_BOUNDS,
+  markerImage,
+  markerImageId,
+  markerMetrics,
+  numberedResults,
+  RESULT_MARKERS,
+  RESULT_NUMBERS,
+  resultMarkersLayer,
+  SEARCH_BOUNDS,
+} from './results';
 import type { MapLibreStyle } from './themes/maplibre';
 
 // Just enough of a MapLibre map to record what goes on it, in the order it went on, and to be changed
@@ -195,12 +206,38 @@ describe('resultMarkersLayer', () => {
   });
 });
 
+describe('markerMetrics', () => {
+  // Enough to read as coming forward, without saying that something happened
+  it('should draw a highlighted marker bigger than the rest', () => {
+    expect(markerMetrics(style, true).box).toBeGreaterThan(markerMetrics(style, false).box);
+    expect(markerMetrics(style, true).box / markerMetrics(style, false).box).toBeLessThan(1.3);
+  });
+
+  // A disc that grew without its numeral would leave the number looking lost on it
+  it('should grow the numeral with the disc', () => {
+    const plain = markerMetrics(style, false);
+    const grown = markerMetrics(style, true);
+
+    expect(grown.size / plain.size).toBeCloseTo(grown.radius / plain.radius);
+  });
+
+  // What holds a disc off the basemap and off its neighbours, which is the same job at either size
+  it('should leave the ring the same width on a marker that has come forward', () => {
+    expect(markerMetrics(style, true).box - markerMetrics(style, true).radius * 2).toBeCloseTo(markerMetrics(style, false).box - markerMetrics(style, false).radius * 2, 0);
+  });
+
+  // The one value an embedding app sets to move every marker together
+  it('should follow the text size the theme was given', () => {
+    expect(markerMetrics({ ...style, textSize: 24 }, false).box).toBeGreaterThan(markerMetrics({ ...style, textSize: 12 }, false).box);
+  });
+});
+
 describe('markerImage', () => {
   // There is no canvas in this DOM, which is the case the caller has to survive: a map missing its
   // numbers rather than a map that failed to open. What it draws when there is one is checked in a
   // browser, since that is the only place pixels exist.
   it('should draw nothing where there is nothing to draw on', () => {
-    expect(markerImage('1', '#2d5883', style, 2)).toBeUndefined();
+    expect(markerImage('1', style, false, 2)).toBeUndefined();
   });
 });
 
@@ -249,7 +286,7 @@ describe('drawResults', () => {
     drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA] });
 
     expect(addImage).not.toHaveBeenCalledWith(markerImageId('1', style), expect.anything(), expect.anything());
-    expect(markerImage(markerImageId('1', style), style.markerColor, style, 1)).toBeUndefined();
+    expect(addImage).toHaveBeenCalledTimes(0);
   });
 
   // MapLibre carries images across setStyle - it diffs the new style document against the old one, and
