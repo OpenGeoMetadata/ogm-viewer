@@ -315,6 +315,7 @@ declare global {
     };
     interface HTMLOgmOverviewElementEventMap {
         "boundsChange": [number, number, number, number];
+        "highlightChange": { place: number; id: string } | null;
     }
     /**
      * Where several records are: one numbered marker apiece, and optionally a way to search the map for
@@ -501,6 +502,10 @@ declare namespace LocalJSX {
          */
         "highlighted"?: number | string;
         "onBoundsChange"?: (event: OgmOverviewCustomEvent<[number, number, number, number]>) => void;
+        /**
+          * Which result the reader's pointer is over: its place in the list counted from one, and the id of the record - or of the resource a previewer draws - it came from. Null once the pointer has left every number.  Both terms, because a page holds its results in one or the other, and either is enough to light up the row the reader is pointing at - which is the whole of what this is for:    overview.addEventListener('highlightChange', event => mark(event.detail?.id));  The reader's own pointer only. Setting `highlighted` doesn't come back out: a page that has said which result matters already knows, and reporting it would be a loop waiting to be wired.
+         */
+        "onHighlightChange"?: (event: OgmOverviewCustomEvent<{ place: number; id: string } | null>) => void;
         "previewers"?: (LocationPreviewer | undefined)[];
         "records"?: OgmRecord[];
         /**

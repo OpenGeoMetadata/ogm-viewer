@@ -82,6 +82,21 @@ export class OgmOverview {
   // see boundsToBbox. Nothing here answers it: what a new area means is the embedding page's to say.
   @Event() boundsChange: EventEmitter<[number, number, number, number]>;
 
+  /**
+   * Which result the reader's pointer is over: its place in the list counted from one, and the id of
+   * the record - or of the resource a previewer draws - it came from. Null once the pointer has left
+   * every number.
+   *
+   * Both terms, because a page holds its results in one or the other, and either is enough to light up
+   * the row the reader is pointing at - which is the whole of what this is for:
+   *
+   *   overview.addEventListener('highlightChange', event => mark(event.detail?.id));
+   *
+   * The reader's own pointer only. Setting `highlighted` doesn't come back out: a page that has said
+   * which result matters already knows, and reporting it would be a loop waiting to be wired.
+   */
+  @Event() highlightChange: EventEmitter<{ place: number; id: string } | null>;
+
   private map: maplibregl.Map;
   private mapTheme: MapLibreTheme;
   private geosearchControl?: GeosearchControl;
@@ -191,11 +206,20 @@ export class OgmOverview {
 
   private handlePointerOut = () => this.setHovered(undefined);
 
-  // Redrawn only when the answer changes, since the pointer reports every pixel it crosses
+  // Redrawn, and the page told, only when the answer changes - the pointer reports every pixel it
+  // crosses, and a marker is a good many pixels wide.
   private setHovered(place: number | undefined) {
     if (this.hovered === place) return;
     this.hovered = place;
+    this.highlightChange.emit(this.hoveredResult());
     this.draw();
+  }
+
+  // What the pointer is over, in both of the terms a page might hold its results in. Null rather than
+  // undefined, because that is what a CustomEvent carries either way: WebIDL reads an undefined
+  // `detail` as one that was never given and hands the reader the default, which is null.
+  private hoveredResult(): { place: number; id: string } | null {
+    return this.hovered === undefined ? null : { place: this.hovered, id: this.ids[this.hovered - 1] ?? '' };
   }
 
   // Zoom buttons and the projection toggle, plus the search hint if one was asked for
@@ -319,7 +343,10 @@ export class OgmOverview {
   protected async onRecordsChange() {
     // Whatever the pointer was over is gone, and the place it named now names a different result. It
     // can't be re-asked either: MapLibre reports a pointer that moves, and this one is holding still.
-    this.hovered = undefined;
+    // Through the same door as everything else, so the row a page lit up goes out with the marker - the
+    // draw it costs is against extents that are about to be replaced by the load below, in the same
+    // task, so nothing is ever drawn from it.
+    this.setHovered(undefined);
     await this.load();
   }
 

@@ -723,7 +723,12 @@ describe('ogm-overview pointer', () => {
     rendered.el.records = [record('one', { dcat_bbox: CALIFORNIA }), record('two', { dcat_bbox: ICELAND })];
     await rendered.el.load();
     rendered.el.followPointer();
-    return rendered;
+
+    // What a page would be listening for, in the order it arrives
+    const reported: unknown[] = [];
+    rendered.el.addEventListener('highlightChange', event => reported.push((event as CustomEvent).detail));
+
+    return { ...rendered, reported };
   };
 
   // The reader's own way of asking the same question the `highlighted` prop asks
@@ -797,6 +802,76 @@ describe('ogm-overview pointer', () => {
     await el.onRecordsChange();
 
     expect(highlightedLabels(map)).toEqual([]);
+  });
+
+  // What a list beside the map needs to light up the row the reader is pointing at. Both terms, since a
+  // page holds its results in one or the other.
+  it('says which result the pointer is over, by place and by id', async () => {
+    const { map, reported } = await hovering();
+    pointAt(map, '2');
+
+    expect(reported).toEqual([{ place: 2, id: 'two' }]);
+  });
+
+  // The id of the resource a previewer draws, which is what that path has instead of a record
+  it('names the resource a previewer draws when that is what it was given', async () => {
+    const { el, map, reported } = await renderOverview().then(async rendered => {
+      rendered.el.previewers = [new LocationPreviewer(new LocationResource('a-resource', { type: 'Point', coordinates: [0, 0] }))];
+      await rendered.el.load();
+      rendered.el.followPointer();
+      const reported: unknown[] = [];
+      rendered.el.addEventListener('highlightChange', event => reported.push((event as CustomEvent).detail));
+      return { ...rendered, reported };
+    });
+    pointAt(map, '1');
+
+    expect(el.previewers).toHaveLength(1);
+    expect(reported).toEqual([{ place: 1, id: 'a-resource' }]);
+  });
+
+  // Null rather than undefined, because that is what a CustomEvent carries either way
+  it('says so when the pointer leaves', async () => {
+    const { map, reported } = await hovering();
+    pointAt(map, '2');
+    pointAway(map);
+
+    expect(reported).toEqual([{ place: 2, id: 'two' }, null]);
+  });
+
+  it('says nothing twice while the pointer stays on the same number', async () => {
+    const { map, reported } = await hovering();
+    pointAt(map, '1');
+    pointAt(map, '1');
+    pointAt(map, '2');
+
+    expect(reported).toEqual([
+      { place: 1, id: 'one' },
+      { place: 2, id: 'two' },
+    ]);
+  });
+
+  // A page that has said which result matters already knows. Reporting it back is a loop waiting to be
+  // wired, since the obvious handler for this event is the one that sets the prop.
+  it('says nothing when the highlight is set from outside', async () => {
+    const { el, reported } = await hovering();
+    el.highlighted = 2;
+    el.onHighlightedChange();
+
+    el.highlighted = undefined;
+    el.onHighlightedChange();
+
+    expect(reported).toEqual([]);
+  });
+
+  // Or the row stays lit beside a map that no longer has that marker on it
+  it('says the pointer is over nothing when the results change under it', async () => {
+    const { el, map, reported } = await hovering();
+    pointAt(map, '2');
+
+    el.records = [record('three', { dcat_bbox: ICELAND })];
+    await el.onRecordsChange();
+
+    expect(reported).toEqual([{ place: 2, id: 'two' }, null]);
   });
 
   // A style document is emptied and rebuilt by a theme swap, but a layer listener is the map's own
