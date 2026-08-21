@@ -2,6 +2,7 @@ import {
   LngLatBounds,
   type ExpressionSpecification,
   type FillLayerSpecification,
+  type GeoJSONSource,
   type LineLayerSpecification,
   type LngLatBoundsLike,
   type Map,
@@ -18,13 +19,15 @@ import type { MapLibreStyle } from './themes/maplibre';
 export const RESULT_NUMBERS = 'ogm-result-numbers';
 export const RESULT_MARKERS = `${RESULT_NUMBERS}-markers`;
 
-// What an image of one marker is called. One per number on the map, plus one more for the number
-// something outside has pointed at, which is drawn as a selection; see markerImage.
-export const MARKER_IMAGE = 'ogm-result-marker';
+// What an image of one marker is called. Two per number on the map: the picture of that number, and
+// the picture of it selected. Both are drawn whether anything has pointed at it or not, so that a
+// highlight arriving changes no pictures at all; see syncMarkerImages.
+const MARKER_IMAGE = 'ogm-result-marker';
 
 // The two boxes drawn under the numbers: the area a search is filtered to, and the extent of the
 // result something outside has pointed at. A source each rather than two features of one, because they
 // are two different statements about the map, drawn in different colors, arriving at different times.
+// Both stay on the map once drawn, holding nothing when there is nothing to say; see drawInto.
 export const SEARCH_BOUNDS = 'ogm-search-bounds';
 export const SELECTED_BOUNDS = 'ogm-selected-bounds';
 
@@ -86,7 +89,7 @@ type BoxColors = { color: string; strokeColor: string; opacity: number };
  * touches, and with collision turned off below there is nothing left to suppress the copies. A
  * country-sized box would wear its number three or four times.
  */
-export const numberedResults = (extents: (LngLatBoundsLike | undefined)[], highlighted?: number): GeoJSON.FeatureCollection<GeoJSON.Point> => ({
+export const numberedResults = (extents: (LngLatBoundsLike | undefined)[], style: MapLibreStyle, highlighted?: number): GeoJSON.FeatureCollection<GeoJSON.Point> => ({
   type: 'FeatureCollection',
   features: extents.flatMap((extent, index) => {
     if (!extent) return [];
@@ -102,15 +105,32 @@ export const numberedResults = (extents: (LngLatBoundsLike | undefined)[], highl
         type: 'Feature' as const,
         // The image each one is drawn as, named on the feature rather than worked out in an
         // expression, so there is one place that decides which marker wears which picture.
-        properties: { label, selected, icon: markerImageId(label, selected) },
+        properties: { label, selected, icon: markerImageId(label, style, selected) },
         geometry: { type: 'Point' as const, coordinates: [lng, lat] },
       },
     ];
   }),
 });
 
-// What the image for one marker is called
-export const markerImageId = (label: string, selected: boolean = false): string => `${MARKER_IMAGE}${selected ? '-selected' : ''}-${label}`;
+/**
+ * What the image for one marker is called: the number it shows, and everything that decides how it
+ * looks.
+ *
+ * The whole look is in the name because that is what makes a picture safe to keep. A name that said
+ * only which marker it was would be reused after a theme swap and the map would go on wearing the last
+ * palette's discs: MapLibre carries images across setStyle, since it diffs the new style document
+ * against the old one and the diff has nothing to say about images. Named this way, a new palette asks
+ * for names that aren't there, gets fresh pictures, and leaves the old names to be taken away - and
+ * everything else, which is most redraws, asks for the names already on the map. See syncMarkerImages.
+ */
+export const markerImageId = (label: string, style: MapLibreStyle, selected: boolean = false): string =>
+  [MARKER_IMAGE, selected ? 'selected' : 'plain', markerLook(style, selected), label].join('-');
+
+// What a marker's picture depends on, in a form a name can carry: the color of the disc, the size of
+// the numeral, and the font it is set in. Word characters only, since this ends up in an id - and it is
+// only ever compared with itself, so what it drops costs nothing.
+const markerLook = (style: MapLibreStyle, selected: boolean): string =>
+  [selected ? style.markerSelectedColor : style.markerColor, style.textSize, style.markerFont].join('-').replace(/[^\w-]+/g, '');
 
 /**
  * The one layer every marker is drawn from: an image apiece, and nothing else.
@@ -241,73 +261,122 @@ const boundsLayers = (id: string, { color, strokeColor, opacity }: BoxColors): [
   },
 ];
 
-const addBounds = (map: Map, id: string, bounds: LngLatBounds, colors: BoxColors) => {
-  map.addSource(id, { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: boundsToGeoJSON(bounds) as GeoJSON.Geometry } });
-  for (const layer of boundsLayers(id, colors)) map.addLayer(layer);
+// Nothing to say, in the form MapLibre takes it in. A box that isn't there stays on the map as a
+// source with no features in it rather than coming off, which is what lets the two layers that read it
+// stay on as well; see drawInto.
+const NOTHING: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
+
+const boundsData = (bounds: LngLatBounds | undefined): GeoJSON.GeoJSON =>
+  bounds ? { type: 'Feature', properties: {}, geometry: boundsToGeoJSON(bounds) as GeoJSON.Geometry } : NOTHING;
+
+// Anything this draws with, which is three kinds of layer over the same kind of source
+type DrawnLayer = FillLayerSpecification | LineLayerSpecification | SymbolLayerSpecification;
+
+/**
+ * New data into a source already on the map - or the source, and the layers that read it, if this is
+ * the first thing drawn into this style document.
+ *
+ * Which is the whole of what keeps a redraw from flashing. removeSource drops a source's tiles the
+ * moment it is called, so a redraw that begins by taking everything off has nothing to draw until a
+ * worker has parsed the new data and placed it again: several frames, every one of them missing
+ * whatever was there. setData marks the tiles for reloading and leaves them up, so what is on screen
+ * stays on screen until there is something to put in its place.
+ *
+ * The paint goes on again for a source that was already there, so a layer says the same thing however
+ * this was reached: these colors come out of the theme, and a theme can change under a map that has
+ * already been drawn. What can't be said twice is the order - addLayer appends, so the order these
+ * first went on in is the order they keep, and it is fixed by drawResults below.
+ */
+const drawInto = (map: Map, id: string, data: GeoJSON.GeoJSON, layers: DrawnLayer[]) => {
+  const source = map.getSource(id) as GeoJSONSource | undefined;
+
+  if (!source) {
+    map.addSource(id, { type: 'geojson', data });
+    for (const layer of layers) map.addLayer(layer);
+    return;
+  }
+
+  source.setData(data);
+  for (const layer of layers) repaint(map, layer);
+};
+
+// A layer's colors again. A no-op for the markers, which carry no paint at all: what a marker is drawn
+// in is in the picture.
+const repaint = (map: Map, layer: DrawnLayer) => {
+  for (const [property, value] of Object.entries(layer.paint ?? {})) map.setPaintProperty(layer.id, property, value);
 };
 
 /**
- * Put everything an overview draws on the map, in the order it has to be drawn in.
+ * Put everything an overview draws on the map, and from then on change it where it stands.
  *
- * Bottom to top: the area being searched, the extent of the selected result, and the markers. All
- * of it comes off and goes back on rather than being changed in place, because addLayer appends and
- * there is no other way to say which of these sits over which. Nothing here reaches the network - the
- * markers are drawn on a canvas and the boxes are two shapes - so moving the selection costs a handful
- * of style layers and as many small pictures as there are results.
+ * Bottom to top: the area being searched, the extent of the selected result, and the markers. That
+ * order is settled the first time this runs and kept by never taking any of it off again - addLayer
+ * appends, so a layer put back on would come back above whatever had been added over it.
+ *
+ * Changed rather than rebuilt, because rebuilding flashes, and the reader sees it: a highlight moves
+ * with the pointer down a list of results, so a set of markers that blinks once per redraw blinks the
+ * whole way down the page. Two things did it. Taking the sources off dropped their tiles on the spot -
+ * see drawInto - and taking the markers' pictures off had MapLibre place every symbol on the map over
+ * again, ours and the basemap's labels with them. So nothing comes off: a highlight arriving is two
+ * calls to setData, and it touches no layer and no picture at all.
  */
 export const drawResults = (map: Map, style: MapLibreStyle, { extents, highlighted, searchBounds }: DrawnResults) => {
-  clearResults(map);
+  const numbers = numberedResults(extents, style, highlighted);
 
-  if (searchBounds) {
-    addBounds(map, SEARCH_BOUNDS, searchBounds, { color: style.dataColor, strokeColor: style.strokeColor, opacity: style.boundsOpacity });
-  }
+  // Before the layer that names them, so that no frame asks for a picture that isn't there yet
+  syncMarkerImages(map, style, numbers);
+
+  drawInto(map, SEARCH_BOUNDS, boundsData(searchBounds), boundsLayers(SEARCH_BOUNDS, { color: style.dataColor, strokeColor: style.strokeColor, opacity: style.boundsOpacity }));
 
   // Nothing for a selection that landed on a result nobody could place. That is the truth rather than
   // a gap: there is no number on the map to bring forward and no extent to draw around.
   const extent = highlighted === undefined ? undefined : extents[highlighted - 1];
-  if (extent) {
-    // The colors a selected feature is drawn in rather than a hovered one. A hover is what points at
-    // it, but what it says is that this is the result being read - and it is drawn at the opacity any
-    // called-out feature gets, which is what InspectableRasterPreviewer draws a selection at too.
-    addBounds(map, SELECTED_BOUNDS, LngLatBounds.convert(extent), { color: style.selectedColor, strokeColor: style.strokeSelectedColor, opacity: style.highlightOpacity });
-  }
 
-  const numbers = numberedResults(extents, highlighted);
-  addMarkerImages(map, style, numbers);
-  map.addSource(RESULT_NUMBERS, { type: 'geojson', data: numbers });
-  map.addLayer(resultMarkersLayer());
+  // The colors a selected feature is drawn in rather than a hovered one. A hover is what points at
+  // it, but what it says is that this is the result being read - and it is drawn at the opacity any
+  // called-out feature gets, which is what InspectableRasterPreviewer draws a selection at too.
+  const selected = { color: style.selectedColor, strokeColor: style.strokeSelectedColor, opacity: style.highlightOpacity };
+  drawInto(map, SELECTED_BOUNDS, boundsData(extent ? LngLatBounds.convert(extent) : undefined), boundsLayers(SELECTED_BOUNDS, selected));
+
+  drawInto(map, RESULT_NUMBERS, numbers, [resultMarkersLayer()]);
 };
-
-// A picture for every marker about to be drawn, in the colors the theme is currently in. Added rather
-// than reused, because clearResults has just taken the last set away: a theme swap changes what these
-// look like, and holding onto one drawn in the old palette would put a marker from the last theme on
-// the map. A DOM with no canvas in it draws none of them and the markers come out empty, which is a
-// map missing its numbers rather than a map that failed to open; see markerImage.
-const addMarkerImages = (map: Map, style: MapLibreStyle, numbers: GeoJSON.FeatureCollection<GeoJSON.Point>) => {
-  const ratio = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
-
-  for (const { properties } of numbers.features) {
-    const { label, selected, icon } = properties as { label: string; selected: boolean; icon: string };
-    const image = markerImage(label, selected ? style.markerSelectedColor : style.markerColor, style, ratio);
-    if (image) map.addImage(icon, image, { pixelRatio: Math.min(ratio, MAX_PIXEL_RATIO) });
-  }
-};
-
-// Every layer this draws, and every source under them. The layers go first: a source can't be taken
-// off the map while a layer is still reading it.
-const RESULT_LAYERS = [...[SEARCH_BOUNDS, SELECTED_BOUNDS].flatMap(id => [`${id}-fill`, `${id}-outline`]), RESULT_MARKERS];
-const RESULT_SOURCES = [SEARCH_BOUNDS, SELECTED_BOUNDS, RESULT_NUMBERS];
 
 /**
- * Take all of it back off, pictures included.
+ * Both pictures of every marker that could be drawn, in the colors the theme is currently in.
  *
- * Guarded every way: a theme swap empties the style document without asking, so what this last drew
- * may already be gone - and the images go with it, since they live on the style rather than on the map.
- * The pictures are found by name rather than remembered, so a set left behind by a draw nobody
- * finished is taken away too.
+ * Both, whether or not anything has pointed at that number, so that which one a marker wears is a
+ * property of the feature rather than a picture that has to be swapped for it. That is why a highlight
+ * costs nothing: addImage and removeImage each invalidate the icon atlas, which has MapLibre place
+ * every symbol on the map over again, so changing one marker's picture would cost a frame of every
+ * marker on it. Two canvases per result instead, once.
+ *
+ * Which pictures are already there is read off the map rather than remembered, and the names carry the
+ * whole look - see markerImageId - so a picture is reused exactly when it would have been drawn the
+ * same. Both ways a set of pictures goes stale end up here: a theme swap asks for names that aren't on
+ * the map yet, and what it leaves behind is unwanted; so is the tail of a set of results that has been
+ * replaced by a shorter one. Unwanted pictures are found by our own prefix, so a set left by a draw
+ * nobody finished goes with them and nobody else's images are touched.
+ *
+ * A DOM with no canvas in it draws none of them and the markers come out empty, which is a map missing
+ * its numbers rather than a map that failed to open; see markerImage.
  */
-export const clearResults = (map: Map) => {
-  for (const id of RESULT_LAYERS) if (map.getLayer(id)) map.removeLayer(id);
-  for (const id of RESULT_SOURCES) if (map.getSource(id)) map.removeSource(id);
-  for (const id of map.listImages()) if (id.startsWith(MARKER_IMAGE)) map.removeImage(id);
+const syncMarkerImages = (map: Map, style: MapLibreStyle, numbers: GeoJSON.FeatureCollection<GeoJSON.Point>) => {
+  const ratio = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
+
+  const wanted = numbers.features.flatMap(({ properties }) => {
+    const label = String(properties?.label);
+    return [
+      { id: markerImageId(label, style), label, color: style.markerColor },
+      { id: markerImageId(label, style, true), label, color: style.markerSelectedColor },
+    ];
+  });
+
+  const keep = new Set(wanted.map(({ id }) => id));
+  for (const id of map.listImages()) if (id.startsWith(MARKER_IMAGE) && !keep.has(id)) map.removeImage(id);
+
+  for (const { id, label, color } of wanted) {
+    if (map.hasImage(id)) continue;
+    const image = markerImage(label, color, style, ratio);
+    if (image) map.addImage(id, image, { pixelRatio: Math.min(ratio, MAX_PIXEL_RATIO) });
+  }
 };
