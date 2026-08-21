@@ -177,7 +177,7 @@ document.querySelector('ogm-previews').previewers = [new GeoJsonPreviewer(geoJso
 
 #### Locator maps
 
-To show where a single record is — the map GeoBlacklight draws beside a record's metadata — use `<ogm-locator>`. Hand it an `OgmRecord` as `record` and it draws that record's geometry, or the box around it if that's all the record has, and points the camera at what it drew.
+To show where a single record is on earth, you can use the `<ogm-locator>` component. Hand it an `OgmRecord` as `record` and it will draw either the record's full geometry (`locn_geometry`) or its bounding box (`dcat_bbox`) if there's no geometry available.
 
 ```js
 await customElements.whenDefined('ogm-locator');
@@ -187,9 +187,7 @@ document.querySelector('ogm-locator').record = record;
 
 `record` is a DOM property, not an attribute. If you've built a `LocationPreviewer` yourself, set `previewer` instead and the record isn't read at all.
 
-The map opens as a globe, with a button beside the zoom buttons to flatten it. It can be panned and zoomed but not turned or tilted, because a locator is read at a glance and a tilted one can't be compared with the next. It reports nothing back: a locator answers one question and has no state an embedding page needs to hear about. The basemap's attribution starts collapsed to the "i" in the corner, since a map this size has little room for it — CARTO and OpenStreetMap both require the credit, so it's there to open rather than gone.
-
-A record with neither `locn_geometry` nor `dcat_bbox` has nowhere to be drawn, so the map opens on the world with nothing on it. Call `record.getGeometry()` first if you'd rather not render the map at all in that case.
+A record with neither `locn_geometry` nor `dcat_bbox` has nowhere to be drawn, so the map opens on the world with nothing on it.
 
 Like the other components, `<ogm-locator>` has no intrinsic size, so the embedding page should give it one:
 
@@ -201,7 +199,7 @@ ogm-locator {
 
 #### Overviews and geosearch
 
-For showing where several records are — the map beside a page of search results — use `<ogm-overview>`. Hand it a list of `OgmRecord`s as `records` and it draws a numbered marker for each one, in the order you gave them.
+For showing where several records are and searching/filtering them, you can use the `<ogm-overview>` component. Hand it a list of `OgmRecord`s as `records` and it draws a numbered marker for each one, in the order you gave them.
 
 ```js
 await customElements.whenDefined('ogm-overview');
@@ -209,33 +207,23 @@ await customElements.whenDefined('ogm-overview');
 document.querySelector('ogm-overview').records = [record1, record2];
 ```
 
-Nothing of a record is drawn but its number, at the middle of its extent. A record with no geometry still takes up its number, so the numbers keep matching the rows in the list beside the map. Hand it `previewers` instead — what `locationsFor` returns, or a list of `LocationPreviewer`s you built, gaps included — and those are numbered instead of the records.
+Nothing of a record is drawn but its number, at the middle of its extent. A record with no geometry still takes up its number, so the numbers keep matching the rows in the list beside the map. Hand it a list of `LocationPreviewer`s you built and those are numbered instead of the records (GeoBlacklight does this).
 
-The map opens as a globe, with a button beside the zoom buttons to flatten it. It can be panned and zoomed but not turned or tilted.
-
-A reader's pointer over a number highlights that result: the marker grows a little and rises above the others in the colors a highlighted feature gets, and the result's own extent is drawn around it in the same colors. The camera stays where it is — a pointer resting on a number is a question about that number, not a click — and the `highlightChange` event says which result it is, so the list beside the map can light up the matching row:
+A user's pointer over a number highlights that record and draws its geometry or bounding box temporarily. The `highlightChange` event says which record it is, so you can use this information to update other parts of the page.
 
 ```js
 overview.addEventListener('highlightChange', event => markRow(event.detail?.place));
 ```
 
-The detail carries the result's place in the list counted from one and the id of the record it came from — or, for the `previewers` path, the id of the resource a previewer draws — and is `null` once the pointer has left every number. Only the reader's pointer is reported: setting `highlighted` doesn't come back out, so the obvious handler for this event is free to set it.
+The event detail carries the result's place in the list (counted from one) and the id of the record it came from and is `null` once the pointer has left every number.
 
-To highlight one from outside, set `highlighted` to either its place in the list counted from one, or the id of the record it came from (or, for the `previewers` path, the id of the resource a previewer draws). It is drawn exactly as a hovered number is: pointing at a row beside the map and pointing at its number on the map are two ways of saying the same thing, so they get the same drawing. The camera doesn't move here either, and anything that names neither a row nor an id simply clears the highlight.
+To highlight a record explicitly, set `highlighted` to either its number in the list (counted from one), or the id of the record it came from. Anything else will clear the current highlight. Setting `highlighted` to explicitly highlight a record doesn't fire `highlightChange`, so you won't get an infinite loop.
 
 ```js
 overview.highlighted = record.id; // or 3, or undefined to clear it
 ```
 
-Both can be true at once, of two different results — a page naming one while the reader's pointer is over another — and both are then drawn, since neither statement is a correction of the other.
-
-Set `bounds` to the area a search is currently filtered to. It's drawn as a box and the camera frames it, and it goes on holding: when the results change, the map returns to it rather than re-framing itself around the new set. It takes the same forms `boundsChange` reports, an `ENVELOPE` string, or anything else MapLibre reads as bounds — and being a string, it can come from an attribute:
-
-```html
-<ogm-overview bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-overview>
-```
-
-Set `geosearch` and a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through the `boundsChange` event; nothing in the viewer answers it, because what a new area means is the embedding page's to say. A line of help text says how to search, and you can replace its wording with `searchHelpText`.
+Enable `geosearch` and a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through the `boundsChange` event. The help text in the viewer about how to search can be controlled with `searchHelpText`.
 
 ```html
 <ogm-overview geosearch></ogm-overview>
@@ -248,17 +236,11 @@ document.querySelector('ogm-overview').addEventListener('boundsChange', event =>
 });
 ```
 
-Shift-drag is a mouse gesture, and there's no keyboard equivalent on the map, so keep the page's own search form as the accessible way to search.
+Set `bounds` to the area a search is currently filtered to. It's drawn as a box and the camera frames it. It will accept an `ENVELOPE` string, or anything else MapLibre reads as bounds — and being a string, it can come from an attribute:
 
-##### Upgrading from 0.11
-
-`<ogm-overview>` changed shape in this release, and `<ogm-locator>` above is where a single record now belongs.
-
-- Records are drawn as numbered markers rather than as bounding boxes.
-- `geosearch` is a boolean, and searching is shift+drag only. There is no longer an automatic mode that searches whenever the map moves, and no button. A stale `geosearch="auto"` attribute still switches it on.
-- `searchHereText` and `searchOnMoveText` are gone; `searchHelpText` replaces both.
-- `bounds` is new: it names the area the search is filtered to, drawn as a box and framed with the same gap as everything else.
-- The map always opens as a globe, whatever it was given, and carries a control to flatten it.
+```html
+<ogm-overview bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-overview>
+```
 
 ## Development
 
