@@ -22,6 +22,7 @@ import MapLibreTheme from '../../lib/themes/maplibre';
 // fraction of a pixel. Odd-numbered so the clicked pixel is the exact center of the window.
 const QUERY_WINDOW = 51;
 
+// A component for rendering an interactive data preview on a map
 @Component({
   tag: 'ogm-map',
   styleUrl: 'ogm-map.css',
@@ -83,25 +84,23 @@ export class OgmMap {
     // so an --ogm-* override set on the host or on the embedding page still reaches it by inheritance.
     const scope = getElement(this.el, '.container');
     this.mapTheme = new MapLibreTheme(scope, this.theme);
-    // Asked for here, in the same task that rendered the link, and awaited in loadPreview
     this.themeReady = webAwesomeReady(getElement(this.el, 'link'), scope);
 
     // Keep attributes outside Stencil render pipeline so that MapLibre can
-    // use the HTML directly for the popup content. Before the wait below, since nothing about the
-    // popup needs a map to exist and a selection can arrive before one does.
+    // use the HTML directly for the popup content
     this.attributesEl = document.createElement('ogm-attributes') as HTMLOgmAttributesElement;
     this.attributesEl.features = [];
 
-    // A map is only ever built into a container with a box to build it in; see whenSized. Ours can be
-    // mounted inside one that has none - an inactive tab panel, a pane an embedding page has hidden -
-    // and every method below already answers for a component that has no map yet.
+    // Wait until we're inside an element that actually has a box to draw the map
+    // into, otherwise MapLibre will throw errors
     const container = getElement(this.el, '#map');
     await whenSized(container);
 
-    // Taken back off the page while we waited, so there is nothing left to build a map in
+    // Taken back off the page while we waited
     if (!this.el.isConnected) return;
 
     this.map = createMap(container, this.mapTheme, {
+      minZoom: 1,
       cooperativeGestures: true,
       // Read fresh on every request rather than captured once, so it always reflects whichever
       // previewer is currently attached - including across onPreviewerChange, with no watcher of
@@ -110,7 +109,7 @@ export class OgmMap {
       transformRequest: (url, resourceType) => toMapLibreRequest(this.previewer?.requestTransform?.(url, ourResourceType(resourceType)), url),
     });
 
-    // Bound before the controls go on: a control that can't be built shouldn't cost us the preview
+    // Bound before the controls go on, so the preview still works if that fails
     this.map.on('load', () => this.loadPreview());
     this.map.on('mousemove', this.handleHover.bind(this));
     this.map.on('click', this.handleClick.bind(this));

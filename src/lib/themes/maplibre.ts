@@ -11,8 +11,7 @@ export type MapLibreStyle = {
   highlightColor: string;
   selectedColor: string;
   invalidColor: string;
-  // CSS colors for the disc a result's number is drawn on, and for the disc of a result being
-  // highlighted - by a pointer over its number, or by something outside pointing at it
+  // Circular markers used on the overview map
   markerColor: string;
   markerHighlightColor: string;
   // CSS colors used for polygon outlines & circle borders

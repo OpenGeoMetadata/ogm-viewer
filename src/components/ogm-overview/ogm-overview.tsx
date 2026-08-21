@@ -156,6 +156,7 @@ export class OgmOverview {
       // on: their box never has the canvas' own shape, so the camera always covers more than they
       // asked about.
       boxZoom: { boxZoomEnd: (_map, start, end) => this.search(start, end) },
+      minZoom: 1,
     });
     disableRotation(this.map);
 
