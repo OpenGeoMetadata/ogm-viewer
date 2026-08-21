@@ -80,7 +80,8 @@
       }
 
       /* The row the map says the reader is pointing at; see the highlightChange listener */
-      .results li.highlighted button {
+      .results li.highlighted button,
+      .results li:hover button {
         background: #7fd6ec;
         color: #000;
       }
@@ -98,7 +99,7 @@
     </style>
 
     <script type="module">
-      import { OgmRecord } from './build/index.esm.js';
+      import { OgmRecord, locationsFor, unionBounds } from './build/index.esm.js';
 
       function parseCsvRecords(csvText) {
         const rows = [];
@@ -227,20 +228,18 @@
           const record = new OgmRecord(recordJson);
 
           if (recordUrl) viewer.recordUrl = recordUrl;
-          if (record) overview.records = [record];
           if (record) locator.record = record;
-          if (record) renderResults([record]);
+          if (record) await loadRecords([record]);
         });
 
         // Clear record button
         const clearRecordButton = document.getElementById('clearRecord');
-        clearRecordButton.addEventListener('click', () => {
+        clearRecordButton.addEventListener('click', async () => {
           recordInput.value = '';
           recordSelector.value = '';
           viewer.loadRecord(null);
-          overview.records = [];
           locator.record = undefined;
-          renderResults([]);
+          await loadRecords([]);
         });
 
         // Toggle theme button
@@ -263,9 +262,53 @@
         const boundsOut = document.getElementById('boundsOut');
         const clearFilterButton = document.getElementById('clearFilter');
 
+        // Every result the page is holding, each with the extent a search is answered from, and the area
+        // a search is filtered to. Read once as the records arrive, through the same previewers the map
+        // reads them through - so the boxes searched against are the boxes the numbers are drawn at.
+        let loaded = [];
+        let filter;
+
+        // Whether two areas meet at all, which is the whole of what filtering by a bounding box is.
+        // Latitudes are a plain comparison. Longitudes have to be squared up first, because either box
+        // can be written across the antimeridian: a search dragged over it comes back as west 175 and
+        // east -175, and a record's own extent carries its east edge past 180 instead. Each is turned
+        // into a span that starts at its west edge and runs east, and then it is a question of whether
+        // either span reaches the other - at any of the three turns of the world where they could.
+        const span = (west, east) => (east < west ? [west, east + 360] : [west, east]);
+        const meets = (search, extent) => {
+          const [searchWest, searchSouth, searchEast, searchNorth] = search;
+          if (extent.getNorth() < searchSouth || searchNorth < extent.getSouth()) return false;
+
+          const [west, east] = span(searchWest, searchEast);
+          const [extentWest, extentEast] = span(extent.getWest(), extent.getEast());
+          return [-360, 0, 360].some(turn => west <= extentEast + turn && extentWest + turn <= east);
+        };
+
+        // The results the filter leaves, handed to the map and to the list together so that the numbers
+        // on one are the rows of the other - which is what a page does with a search: a new set of
+        // results, numbered from one. A record with no extent has nothing to search by, so a filter
+        // drops it; with no filter, every record is a result.
+        const applyFilter = () => {
+          const kept = filter ? loaded.filter(({ extent }) => extent && meets(filter, extent)) : loaded;
+          overview.records = kept.map(({ record }) => record);
+          renderResults(kept.map(({ record }) => record));
+        };
+
+        // Records arriving, measured once. locationsFor leaves a gap where a record says nothing about
+        // where it is, which is the same gap <ogm-overview> would have found for itself. Each extent
+        // comes back as anything MapLibre reads as bounds, so it goes through unionBounds to arrive as
+        // one thing with edges that can be asked for.
+        const loadRecords = async records => {
+          const extents = await Promise.all(locationsFor(records).map(previewer => previewer?.getBounds()));
+          loaded = records.map((record, index) => ({ record, extent: unionBounds([extents[index]]) }));
+          applyFilter();
+        };
+
         const setFilter = bounds => {
+          filter = bounds;
           overview.bounds = bounds;
           boundsOut.textContent = bounds ? bounds.map(degrees => degrees.toFixed(3)).join(' ') : '';
+          applyFilter();
         };
 
         geosearchSelect.addEventListener('change', () => {
@@ -308,8 +351,7 @@
         loadAllButton.addEventListener('click', async () => {
           const urls = [...recordSelector.options].map(option => option.value).filter(Boolean);
           const records = await Promise.all(urls.map(async url => new OgmRecord(await (await fetch(url)).json())));
-          overview.records = records;
-          renderResults(records);
+          await loadRecords(records);
         });
       });
     </script>
