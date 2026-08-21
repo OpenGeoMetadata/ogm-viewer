@@ -12,7 +12,7 @@ import { boundsToBbox } from '../../lib/geometry';
 import LocationPreviewer from '../../lib/previewers/location';
 import OgmRecord, { type GeoBlacklightSchemaAardvark } from '../../lib/record';
 import LocationResource from '../../lib/resources/location';
-import { SELECTED_BOUNDS, markerImageId, RESULT_MARKERS, RESULT_NUMBERS, SEARCH_BOUNDS } from '../../lib/results';
+import { HIGHLIGHT_BOUNDS, markerImageId, RESULT_MARKERS, RESULT_NUMBERS, SEARCH_BOUNDS } from '../../lib/results';
 import MapLibreTheme, { darkBasemapStyle } from '../../lib/themes/maplibre';
 
 // Enough of a MapLibre map to draw numbered results on, to be pointed at them, and to hang the
@@ -60,11 +60,18 @@ class FakeMap {
     this.controls = this.controls.filter(added => added.control !== control);
     control.onRemove(this);
   }
-  on(event: string, listener: (event: unknown) => void) {
-    (this.listeners[event] ??= []).push(listener);
+  on(event: string, layer: unknown, listener?: (event: unknown) => void) {
+    const [key, bound] = this.delegated(event, layer, listener);
+    (this.listeners[key] ??= []).push(bound);
   }
-  off(event: string, listener: (event: unknown) => void) {
-    this.listeners[event] = (this.listeners[event] ?? []).filter(bound => bound !== listener);
+  off(event: string, layer: unknown, listener?: (event: unknown) => void) {
+    const [key, bound] = this.delegated(event, layer, listener);
+    this.listeners[key] = (this.listeners[key] ?? []).filter(other => other !== bound);
+  }
+  // MapLibre takes a layer id in the middle when a listener is only interested in that layer's
+  // features, so the two shapes are told apart the way it tells them apart
+  private delegated(event: string, layer: unknown, listener?: (event: unknown) => void): [string, (event: unknown) => void] {
+    return listener ? [`${event}:${layer}`, listener] : [event, layer as (event: unknown) => void];
   }
   fire(event: string, data: unknown = {}) {
     [...(this.listeners[event] ?? [])].forEach(listener => listener(data));
@@ -167,6 +174,7 @@ type Overview = HTMLElement & {
   geosearch: boolean;
   searchHelpText: string;
   addControls: () => void;
+  followPointer: () => void;
   handleStyleLoad: () => Promise<void>;
   handleProjectionTransition: (event: { newProjection: string }) => Promise<void>;
   load: () => Promise<void>;
@@ -217,15 +225,25 @@ const BOX_LAYERS = (id: string) => [`${id}-fill`, `${id}-outline`];
 // Every layer an overview draws, in the order they are drawn in. All of them go on with the first draw
 // and none of them ever comes off: what a redraw changes is the data in them, which is what keeps a
 // highlight from flashing. See drawResults.
-const ALL_LAYERS = [...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(SELECTED_BOUNDS), ...MARKER_LAYERS];
+const ALL_LAYERS = [...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(HIGHLIGHT_BOUNDS), ...MARKER_LAYERS];
 
 // Whether one of the two boxes has anything in it. Both stay on the map holding nothing when there is
 // nothing to say, so being there is not the question.
-const drawnBox = (map: FakeMap, id: string) => !!map.sources.get(id)?.data.geometry;
+const drawnBox = (map: FakeMap, id: string) => (map.sources.get(id)?.data.features ?? []).length > 0;
 
 const layerIds = (map: FakeMap) => [...map.layers.keys()];
 const marked = (map: FakeMap) => map.sources.get(RESULT_NUMBERS).data.features.map((feature: GeoJSON.Feature) => feature.properties);
-const highlightedLabel = (map: FakeMap) => marked(map).find((properties: { selected: boolean }) => properties.selected)?.label;
+// A pointer over some of the numbers, and a pointer leaving them, as MapLibre delegates each to a
+// listener bound to that layer. The features arrive in no promised order, so a test can say so.
+const pointAt = (map: FakeMap, ...labels: string[]) => map.fire(`mousemove:${RESULT_MARKERS}`, { features: labels.map(label => ({ properties: { label } })) });
+const pointAway = (map: FakeMap) => map.fire(`mouseleave:${RESULT_MARKERS}`);
+
+// Every number drawn as highlighted, and - where there should only be one - the one of them
+const highlightedLabels = (map: FakeMap): string[] =>
+  marked(map)
+    .filter((properties: { highlighted: boolean }) => properties.highlighted)
+    .map((properties: { label: string }) => properties.label);
+const highlightedLabel = (map: FakeMap) => highlightedLabels(map)[0];
 
 const framed = (map: FakeMap) => map.fitBounds.mock.calls.at(-1) as [maplibregl.LngLatBoundsLike, maplibregl.FitBoundsOptions];
 
@@ -259,7 +277,7 @@ describe('ogm-overview', () => {
     await el.load();
 
     expect(drawnBox(map, SEARCH_BOUNDS)).toBe(false);
-    expect(drawnBox(map, SELECTED_BOUNDS)).toBe(false);
+    expect(drawnBox(map, HIGHLIGHT_BOUNDS)).toBe(false);
   });
 
   // Which is what `locationsFor` hands back, and what the library documents as the way to build these
@@ -456,7 +474,7 @@ describe('ogm-overview search filter', () => {
     await el.load();
 
     expect(layerIds(map)).toEqual(ALL_LAYERS);
-    expect(map.sources.get(SEARCH_BOUNDS).data.geometry.coordinates[0][0]).toEqual([-124.41, 32.53]);
+    expect(map.sources.get(SEARCH_BOUNDS).data.features[0].geometry.coordinates[0][0]).toEqual([-124.41, 32.53]);
   });
 
   it('takes the box away when the search filter is withdrawn', async () => {
@@ -544,9 +562,9 @@ describe('ogm-overview highlight', () => {
     return rendered;
   };
 
-  // Drawn as a selected feature rather than a hovered one: a hover is what points at it, but what it
-  // says is that this is the result being read
-  it('brings the result it was pointed at to the front, in the colors of a selection', async () => {
+  // The colors of a hovered feature, since being pointed at is what is being said - by a page here,
+  // and by the reader's own pointer in the tests below
+  it('brings the result it was pointed at to the front, in the colors of a highlight', async () => {
     const { el, map } = await two();
     el.highlighted = 2;
     el.onHighlightedChange();
@@ -555,7 +573,7 @@ describe('ogm-overview highlight', () => {
     // It wears a picture of its own, which is what carries the color, and sorts above every other
     const style = el.mapTheme.getStyle();
     expect(marked(map).map((properties: { icon: string }) => properties.icon)).toEqual([markerImageId('1', style), markerImageId('2', style, true)]);
-    expect(map.layers.get(RESULT_MARKERS).layout['symbol-sort-key']).toEqual(['case', ['get', 'selected'], 1, ['-', 0, ['to-number', ['get', 'label']]]]);
+    expect(map.layers.get(RESULT_MARKERS).layout['symbol-sort-key']).toEqual(['case', ['get', 'highlighted'], 1, ['-', 0, ['to-number', ['get', 'label']]]]);
   });
 
   it('draws the highlighted result’s own extent under its number', async () => {
@@ -563,9 +581,9 @@ describe('ogm-overview highlight', () => {
     el.highlighted = 2;
     el.onHighlightedChange();
 
-    expect(map.sources.get(SELECTED_BOUNDS).data.geometry.coordinates[0][0]).toEqual([-24.55, 63.39]);
+    expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features[0].geometry.coordinates[0][0]).toEqual([-24.55, 63.39]);
     expect(layerIds(map)).toEqual(ALL_LAYERS);
-    expect(map.layers.get(`${SELECTED_BOUNDS}-outline`).paint['line-color']).toEqual(el.mapTheme.getStyle().strokeSelectedColor);
+    expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-color']).toEqual(el.mapTheme.getStyle().strokeSelectedColor);
   });
 
   it('highlights a result named by id', async () => {
@@ -621,7 +639,7 @@ describe('ogm-overview highlight', () => {
     el.onHighlightedChange();
 
     expect(highlightedLabel(map)).toBeUndefined();
-    expect(drawnBox(map, SELECTED_BOUNDS)).toBe(false);
+    expect(drawnBox(map, HIGHLIGHT_BOUNDS)).toBe(false);
   });
 
   // A map with no highlight, rather than one with the wrong highlight. Each of these is a value a page
@@ -635,7 +653,7 @@ describe('ogm-overview highlight', () => {
       el.onHighlightedChange();
 
       expect(highlightedLabel(map)).toBeUndefined();
-      expect(drawnBox(map, SELECTED_BOUNDS)).toBe(false);
+      expect(drawnBox(map, HIGHLIGHT_BOUNDS)).toBe(false);
     }
   });
 
@@ -659,7 +677,7 @@ describe('ogm-overview highlight', () => {
     el.onHighlightedChange();
 
     expect(highlightedLabel(map)).toBeUndefined();
-    expect(drawnBox(map, SELECTED_BOUNDS)).toBe(false);
+    expect(drawnBox(map, HIGHLIGHT_BOUNDS)).toBe(false);
   });
 
   // The redraw a hover drives, over and over as the pointer moves down the list beside the map. Nothing
@@ -693,7 +711,106 @@ describe('ogm-overview highlight', () => {
     el.onHighlightedChange();
 
     expect(map.fitBounds.mock.calls.length).toEqual(framedOnce);
-    expect(drawnBox(map, SELECTED_BOUNDS)).toBe(true);
+    expect(drawnBox(map, HIGHLIGHT_BOUNDS)).toBe(true);
+  });
+});
+
+describe('ogm-overview pointer', () => {
+  // The pointer is bound to the layer in componentDidLoad, which never gets as far as a map here; see
+  // renderOverview. Everything else about these is what the reader does.
+  const hovering = async () => {
+    const rendered = await renderOverview();
+    rendered.el.records = [record('one', { dcat_bbox: CALIFORNIA }), record('two', { dcat_bbox: ICELAND })];
+    await rendered.el.load();
+    rendered.el.followPointer();
+    return rendered;
+  };
+
+  // The reader's own way of asking the same question the `highlighted` prop asks
+  it('highlights the number the pointer is over, and draws its extent', async () => {
+    const { map } = await hovering();
+    pointAt(map, '2');
+
+    expect(highlightedLabels(map)).toEqual(['2']);
+    expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features[0].geometry.coordinates[0][0]).toEqual([-24.55, 63.39]);
+  });
+
+  it('lets the highlight go when the pointer leaves', async () => {
+    const { map } = await hovering();
+    pointAt(map, '2');
+    pointAway(map);
+
+    expect(highlightedLabels(map)).toEqual([]);
+    expect(drawnBox(map, HIGHLIGHT_BOUNDS)).toBe(false);
+  });
+
+  // Markers overlap, and the one the reader can see is the earliest of them, since that is how they are
+  // sorted. MapLibre hands back everything under the pointer without promising an order.
+  it('highlights the number drawn on top where two of them overlap', async () => {
+    const { map } = await hovering();
+    pointAt(map, '2', '1');
+
+    expect(highlightedLabels(map)).toEqual(['1']);
+  });
+
+  // Two separate statements about two different rows, and neither is a correction of the other
+  it('highlights what the page named and what the pointer is over', async () => {
+    const { el, map } = await hovering();
+    el.highlighted = 1;
+    el.onHighlightedChange();
+    pointAt(map, '2');
+
+    expect(highlightedLabels(map)).toEqual(['1', '2']);
+    expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features).toHaveLength(2);
+  });
+
+  // The pointer reports every pixel it crosses, and a marker is a good many pixels wide
+  it('redraws nothing while the pointer stays on the same number', async () => {
+    const { map } = await hovering();
+    pointAt(map, '2');
+    const setData = vi.spyOn(map.sources.get(RESULT_NUMBERS), 'setData');
+
+    pointAt(map, '2');
+    pointAt(map, '2');
+
+    expect(setData).not.toHaveBeenCalled();
+  });
+
+  // Something on the page has said which result matters, not where to look - and a pointer resting on a
+  // number has said even less than that
+  it('leaves the camera where it is when the pointer moves', async () => {
+    const { map } = await hovering();
+    const framed = map.fitBounds.mock.calls.length;
+
+    pointAt(map, '2');
+
+    expect(map.fitBounds.mock.calls.length).toEqual(framed);
+  });
+
+  // The place the pointer named now names a different result, and MapLibre won't say so again: it
+  // reports a pointer that moves, and this one is holding still.
+  it('forgets what the pointer was over when the results change', async () => {
+    const { el, map } = await hovering();
+    pointAt(map, '2');
+
+    el.records = [record('three', { dcat_bbox: ICELAND })];
+    await el.onRecordsChange();
+
+    expect(highlightedLabels(map)).toEqual([]);
+  });
+
+  // A style document is emptied and rebuilt by a theme swap, but a layer listener is the map's own
+  it('goes on following the pointer after a theme swap', async () => {
+    const { el, map } = await hovering();
+
+    el.theme = 'dark';
+    const swapped = el.onThemeChange();
+    map.fire('style.load');
+    await swapped;
+    await el.handleStyleLoad();
+    pointAt(map, '2');
+
+    expect(highlightedLabels(map)).toEqual(['2']);
   });
 });
 

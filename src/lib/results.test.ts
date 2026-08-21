@@ -5,7 +5,7 @@
 import { describe, it, expect, vi } from '@stencil/vitest';
 import { LngLatBounds, type LngLatBoundsLike } from 'maplibre-gl';
 
-import { drawResults, SELECTED_BOUNDS, markerImage, markerImageId, numberedResults, RESULT_MARKERS, RESULT_NUMBERS, resultMarkersLayer, SEARCH_BOUNDS } from './results';
+import { drawResults, HIGHLIGHT_BOUNDS, markerImage, markerImageId, numberedResults, RESULT_MARKERS, RESULT_NUMBERS, resultMarkersLayer, SEARCH_BOUNDS } from './results';
 import type { MapLibreStyle } from './themes/maplibre';
 
 // Just enough of a MapLibre map to record what goes on it, in the order it went on, and to be changed
@@ -65,7 +65,7 @@ const style = {
   selectedColor: '#93da98',
   strokeSelectedColor: '#1e662a',
   markerColor: '#2d5883',
-  markerSelectedColor: '#1e662a',
+  markerHighlightColor: '#268499',
   textColor: '#000',
   textHaloColor: '#fff',
   textFont: 'Noto Sans Regular',
@@ -91,7 +91,7 @@ const ALEUTIANS: LngLatBoundsLike = [
 const MARKER_LAYERS = [RESULT_MARKERS];
 const BOX_LAYERS = (id: string) => [`${id}-fill`, `${id}-outline`];
 
-const draw = (extents: (LngLatBoundsLike | undefined)[], rest: { highlighted?: number; searchBounds?: LngLatBounds } = {}) => {
+const draw = (extents: (LngLatBoundsLike | undefined)[], rest: { highlighted?: number[]; searchBounds?: LngLatBounds } = {}) => {
   const map = new FakeMap();
   drawResults(map as unknown as maplibregl.Map, style, { extents, ...rest });
   return map;
@@ -135,15 +135,15 @@ describe('numberedResults', () => {
   });
 
   it('should mark the result at the place it was pointed at', () => {
-    const { features } = numberedResults([CALIFORNIA, ICELAND], style, 2);
+    const { features } = numberedResults([CALIFORNIA, ICELAND], style, [2]);
 
-    expect(features.map(feature => feature.properties!.selected)).toEqual([false, true]);
+    expect(features.map(feature => feature.properties!.highlighted)).toEqual([false, true]);
   });
 
   // The picture each marker is drawn as. Named on the feature rather than worked out in an expression,
   // so one place decides which marker wears which.
   it('should name the picture each marker is drawn as', () => {
-    const { features } = numberedResults([CALIFORNIA, ICELAND], style, 2);
+    const { features } = numberedResults([CALIFORNIA, ICELAND], style, [2]);
 
     expect(features.map(feature => feature.properties!.icon)).toEqual([markerImageId('1', style), markerImageId('2', style, true)]);
     expect(markerImageId('2', style, true)).not.toEqual(markerImageId('2', style));
@@ -152,14 +152,14 @@ describe('numberedResults', () => {
   it('should mark nothing when nothing was pointed at', () => {
     const { features } = numberedResults([CALIFORNIA, ICELAND], style);
 
-    expect(features.map(feature => feature.properties!.selected)).toEqual([false, false]);
+    expect(features.map(feature => feature.properties!.highlighted)).toEqual([false, false]);
   });
 
   // The places are counted over every result, so a highlight can land on one that was never drawn
   it('should mark nothing for a place it has nowhere to put', () => {
-    const { features } = numberedResults([CALIFORNIA, undefined], style, 2);
+    const { features } = numberedResults([CALIFORNIA, undefined], style, [2]);
 
-    expect(features.map(feature => feature.properties!.selected)).toEqual([false]);
+    expect(features.map(feature => feature.properties!.highlighted)).toEqual([false]);
   });
 });
 
@@ -191,7 +191,7 @@ describe('resultMarkersLayer', () => {
   // the reader pans - which reads as the numbers rearranging themselves. A higher key draws over a
   // lower one, so the key is the number negated, and the highlighted one sorts above all of them.
   it('should keep the earlier results on top of the later ones, and the highlight above both', () => {
-    expect(resultMarkersLayer().layout!['symbol-sort-key']).toEqual(['case', ['get', 'selected'], 1, ['-', 0, ['to-number', ['get', 'label']]]]);
+    expect(resultMarkersLayer().layout!['symbol-sort-key']).toEqual(['case', ['get', 'highlighted'], 1, ['-', 0, ['to-number', ['get', 'label']]]]);
   });
 });
 
@@ -210,7 +210,7 @@ describe('drawResults', () => {
 
     expect(map.sources.get(RESULT_NUMBERS).type).toEqual('geojson');
     expect(map.sources.get(RESULT_NUMBERS).data.features).toHaveLength(2);
-    expect([...map.layers.keys()]).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(SELECTED_BOUNDS), ...MARKER_LAYERS]);
+    expect([...map.layers.keys()]).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(HIGHLIGHT_BOUNDS), ...MARKER_LAYERS]);
   });
 
   // A page of boxes says less than a page of numbers a reader can find in the list beside the map. The
@@ -221,7 +221,7 @@ describe('drawResults', () => {
 
     expect(marked(map)).toHaveLength(1);
     expect(map.sources.get(SEARCH_BOUNDS).data.features).toEqual([]);
-    expect(map.sources.get(SELECTED_BOUNDS).data.features).toEqual([]);
+    expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features).toEqual([]);
   });
 
   // The whole of why a highlight doesn't flash. Both are asserted through the fake, which refuses a
@@ -233,7 +233,7 @@ describe('drawResults', () => {
     const addImage = vi.spyOn(map, 'addImage');
     const removeImage = vi.spyOn(map, 'removeImage');
 
-    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND], highlighted: 2 });
+    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND], highlighted: [2] });
 
     expect(addImage).not.toHaveBeenCalled();
     expect(removeImage).not.toHaveBeenCalled();
@@ -288,7 +288,7 @@ describe('drawResults', () => {
     const removeSource = vi.spyOn(map, 'removeSource');
     const order = [...map.layers.keys()];
 
-    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND], highlighted: 2, searchBounds: LngLatBounds.convert(ICELAND) });
+    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND], highlighted: [2], searchBounds: LngLatBounds.convert(ICELAND) });
 
     expect([...map.layers.keys()]).toEqual(order);
     expect(removeLayer).not.toHaveBeenCalled();
@@ -308,21 +308,21 @@ describe('drawResults', () => {
   // A theme swap empties the style document without asking, so a draw that follows one is a first draw
   // again: everything back, in the order that keeps the numbers over the boxes.
   it('should build itself again into a style document a theme swap emptied', () => {
-    const map = draw([CALIFORNIA], { highlighted: 1 });
+    const map = draw([CALIFORNIA], { highlighted: [1] });
     map.sources.clear();
     map.layers.clear();
     map.images.clear();
 
-    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA], highlighted: 1 });
+    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA], highlighted: [1] });
 
-    expect([...map.layers.keys()]).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(SELECTED_BOUNDS), ...MARKER_LAYERS]);
+    expect([...map.layers.keys()]).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(HIGHLIGHT_BOUNDS), ...MARKER_LAYERS]);
     expect(marked(map)).toHaveLength(1);
   });
 
   it('should draw the searched area, then the highlight, then the numbers', () => {
-    const map = draw([CALIFORNIA, ICELAND], { highlighted: 2, searchBounds: LngLatBounds.convert(CALIFORNIA) });
+    const map = draw([CALIFORNIA, ICELAND], { highlighted: [2], searchBounds: LngLatBounds.convert(CALIFORNIA) });
 
-    expect([...map.layers.keys()]).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(SELECTED_BOUNDS), ...MARKER_LAYERS]);
+    expect([...map.layers.keys()]).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(HIGHLIGHT_BOUNDS), ...MARKER_LAYERS]);
   });
 
   it('should draw the area being searched in the colors a bounding box gets', () => {
@@ -344,42 +344,52 @@ describe('drawResults', () => {
   // Nothing takes these layers off again, so the colors have to be able to change where they stand:
   // a theme can swap under a map that is already drawn.
   it('should follow the colors of a theme that changed under it', () => {
-    const map = draw([CALIFORNIA], { highlighted: 1 });
+    const map = draw([CALIFORNIA], { highlighted: [1] });
 
-    drawResults(map as unknown as maplibregl.Map, { ...style, selectedColor: '#7a4600', strokeSelectedColor: '#4a0a0a' }, { extents: [CALIFORNIA], highlighted: 1 });
+    drawResults(map as unknown as maplibregl.Map, { ...style, highlightColor: '#7a4600', strokeHighlightColor: '#4a0a0a' }, { extents: [CALIFORNIA], highlighted: [1] });
 
-    expect(map.layers.get(`${SELECTED_BOUNDS}-fill`).paint['fill-color']).toEqual('#7a4600');
-    expect(map.layers.get(`${SELECTED_BOUNDS}-outline`).paint['line-color']).toEqual('#4a0a0a');
+    expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-fill`).paint['fill-color']).toEqual('#7a4600');
+    expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-color']).toEqual('#4a0a0a');
   });
 
-  // The colors a selected feature gets, not a hovered one: a hover is what points at it, but what it
-  // means is that this is the result being read
-  it('should draw the pointed-at result’s own extent, in the colors of a selection', () => {
-    const map = draw([CALIFORNIA, ICELAND], { highlighted: 2 });
+  // The colors a hovered feature gets, whichever of the two ways of pointing at a result is what asked
+  // for it: a pointer over the number, or something outside naming the row
+  it('should draw a highlighted result’s own extent, in the colors of a hover', () => {
+    const map = draw([CALIFORNIA, ICELAND], { highlighted: [2] });
 
-    expect(map.sources.get(SELECTED_BOUNDS).data.geometry.coordinates[0][0]).toEqual([-24.55, 63.39]);
-    expect(map.layers.get(`${SELECTED_BOUNDS}-outline`).paint['line-color']).toEqual(style.strokeSelectedColor);
-    expect(map.layers.get(`${SELECTED_BOUNDS}-fill`).paint['fill-color']).toEqual(style.selectedColor);
-    expect(map.layers.get(`${SELECTED_BOUNDS}-outline`).paint['line-opacity']).toEqual(style.highlightOpacity);
+    expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features[0].geometry.coordinates[0][0]).toEqual([-24.55, 63.39]);
+    expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-color']).toEqual(style.strokeHighlightColor);
+    expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-fill`).paint['fill-color']).toEqual(style.highlightColor);
+    expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-opacity']).toEqual(style.highlightOpacity);
     expect(marked(map)).toEqual([
-      { label: '1', selected: false, icon: markerImageId('1', style) },
-      { label: '2', selected: true, icon: markerImageId('2', style, true) },
+      { label: '1', highlighted: false, icon: markerImageId('1', style) },
+      { label: '2', highlighted: true, icon: markerImageId('2', style, true) },
     ]);
   });
 
   // There is no number on the map to bring forward and no extent to draw around, which is the truth
-  it('should draw no extent for a selection it cannot place', () => {
-    const map = draw([CALIFORNIA, undefined], { highlighted: 2 });
+  it('should draw no extent for a highlight it cannot place', () => {
+    const map = draw([CALIFORNIA, undefined], { highlighted: [2] });
 
-    expect(map.sources.get(SELECTED_BOUNDS).data.features).toEqual([]);
-    expect(marked(map)).toEqual([{ label: '1', selected: false, icon: markerImageId('1', style) }]);
+    expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features).toEqual([]);
+    expect(marked(map)).toEqual([{ label: '1', highlighted: false, icon: markerImageId('1', style) }]);
+  });
+
+  // A pointer over one number while something outside names a different row. Neither is a correction
+  // of the other, so both are drawn.
+  it('should draw every result being highlighted, and a box for each', () => {
+    const map = draw([CALIFORNIA, ICELAND], { highlighted: [1, 2] });
+
+    expect(marked(map).map((properties: { highlighted: boolean }) => properties.highlighted)).toEqual([true, true]);
+    expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features).toHaveLength(2);
+    expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features.map((feature: GeoJSON.Feature) => feature.geometry.type)).toEqual(['Polygon', 'Polygon']);
   });
 
   it('should take the extent away again when the highlight is withdrawn', () => {
-    const map = draw([CALIFORNIA, ICELAND], { highlighted: 2 });
+    const map = draw([CALIFORNIA, ICELAND], { highlighted: [2] });
 
     drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND] });
 
-    expect(map.sources.get(SELECTED_BOUNDS).data.features).toEqual([]);
+    expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features).toEqual([]);
   });
 });

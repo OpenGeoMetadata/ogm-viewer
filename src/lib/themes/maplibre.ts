@@ -11,11 +11,10 @@ export type MapLibreStyle = {
   highlightColor: string;
   selectedColor: string;
   invalidColor: string;
-  // CSS colors for the disc a result's number is drawn on, and for the disc of the one result
-  // something outside has pointed at. That one is drawn as selected rather than as hovered: what
-  // points at it is a hover, but what it means is that this is the result being read.
+  // CSS colors for the disc a result's number is drawn on, and for the disc of a result being
+  // highlighted - by a pointer over its number, or by something outside pointing at it
   markerColor: string;
-  markerSelectedColor: string;
+  markerHighlightColor: string;
   // CSS colors used for polygon outlines & circle borders
   strokeColor: string;
   strokeHighlightColor: string;
@@ -109,7 +108,7 @@ export default class MapLibreTheme extends Theme {
       selectedColor,
       invalidColor,
       markerColor: this.markerColor('--ogm-marker-color', dataColor),
-      markerSelectedColor: this.markerColor('--ogm-marker-selected-color', selectedColor),
+      markerHighlightColor: this.markerColor('--ogm-marker-highlight-color', highlightColor),
       strokeColor: this.strokeColor('--ogm-stroke-color', dataColor),
       strokeHighlightColor: this.strokeColor('--ogm-stroke-highlight-color', highlightColor),
       strokeSelectedColor: this.strokeColor('--ogm-stroke-selected-color', selectedColor),

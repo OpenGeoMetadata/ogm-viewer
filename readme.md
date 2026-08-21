@@ -213,11 +213,15 @@ Nothing of a record is drawn but its number, at the middle of its extent. A reco
 
 The map opens as a globe, with a button beside the zoom buttons to flatten it. It can be panned and zoomed but not turned or tilted.
 
-To bring one result forward, set `highlighted` to either its place in the list counted from one, or the id of the record it came from (or, for the `previewers` path, the id of the resource a previewer draws). Its marker rises above the others and its own extent is drawn around it, both in the colors a selected feature gets rather than a hovered one — hovering a row is usually what points at it, but what it says is that this is the result being read. The camera doesn't move — something on the page has said which result matters, not where to look — and anything that names neither a row nor an id simply clears the highlight.
+A reader's pointer over a number highlights that result: the marker rises above the others in the colors a highlighted feature gets, and the result's own extent is drawn around it in the same colors. Nothing else happens — the camera stays where it is, and the viewer reports nothing, since a pointer resting on a number is a question about that number rather than a click.
+
+To highlight one from outside, set `highlighted` to either its place in the list counted from one, or the id of the record it came from (or, for the `previewers` path, the id of the resource a previewer draws). It is drawn exactly as a hovered number is: pointing at a row beside the map and pointing at its number on the map are two ways of saying the same thing, so they get the same drawing. The camera doesn't move here either, and anything that names neither a row nor an id simply clears the highlight.
 
 ```js
 overview.highlighted = record.id; // or 3, or undefined to clear it
 ```
+
+Both can be true at once, of two different results — a page naming one while the reader's pointer is over another — and both are then drawn, since neither statement is a correction of the other.
 
 Set `bounds` to the area a search is currently filtered to. It's drawn as a box and the camera frames it, and it goes on holding: when the results change, the map returns to it rather than re-framing itself around the new set. It takes the same forms `boundsChange` reports, an `ENVELOPE` string, or anything else MapLibre reads as bounds — and being a string, it can come from an attribute:
 

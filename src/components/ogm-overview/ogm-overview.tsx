@@ -9,7 +9,7 @@ import { addLocationControls, createMap, disableRotation, frameLocation, LOCATIO
 import LocationPreviewer, { locationsFor } from '../../lib/previewers/location';
 import type { MapProjection } from '../../lib/previewers/map';
 import type OgmRecord from '../../lib/record';
-import { drawResults } from '../../lib/results';
+import { drawResults, RESULT_MARKERS } from '../../lib/results';
 import MapLibreTheme from '../../lib/themes/maplibre';
 
 // How far a shift-drag has to go before it counts as asking about an area, in pixels. MapLibre's own
@@ -49,6 +49,10 @@ export class OgmOverview {
    *
    * The marker changes color and comes to the front, and the result's own extent is drawn around it.
    * The camera doesn't move: something on the page has said which result matters, not where to look.
+   *
+   * A reader's pointer over a number does the same thing without being asked, so both can be true at
+   * once - of two different results, if a page names one while the pointer is over another. Each is a
+   * way of saying the same thing about a row, so each gets the same drawing; see draw.
    */
   @Prop() highlighted?: number | string;
 
@@ -100,6 +104,10 @@ export class OgmOverview {
   // twice would report an unreadable one twice as well.
   private searchFilter?: maplibregl.LngLatBounds;
 
+  // Which result the reader's pointer is over, as its place in the list counted from one. Ours rather
+  // than the page's: nothing outside can see a pointer land on a number drawn inside this shadow root.
+  private hovered?: number;
+
   async componentDidLoad() {
     const container = getElement(this.el, '#map');
 
@@ -136,8 +144,10 @@ export class OgmOverview {
     });
     disableRotation(this.map);
 
-    // Before the style loads, because none of these writes anything into it
+    // Before the style loads, because none of these writes anything into it - and the pointer can be
+    // followed before there are any markers for it to find, since a layer listener is the map's own
     this.addControls();
+    this.followPointer();
 
     // A reader reaching for the globe button, which is worth a fresh camera: what a globe can be
     // pointed at is not what a flat map can - see frameLocation - so flattening one is how a reader
@@ -152,6 +162,40 @@ export class OgmOverview {
   // Clean up the map to prevent warnings/errors when removed from the DOM
   disconnectedCallback() {
     if (this.map) this.map.remove();
+  }
+
+  /**
+   * Highlight whichever number the reader's pointer is over.
+   *
+   * Bound to the layer rather than to the map, so MapLibre does the hit testing against the symbols it
+   * actually placed - and bound once, before any of them exist, because a layer listener is the map's
+   * own and goes on answering for every style document that follows. Nothing here moves the camera or
+   * tells the page: a pointer resting on a number is a question about that number, not a click.
+   *
+   * mousemove rather than mouseenter, because the pointer can cross from one marker straight onto the
+   * next without ever leaving the layer, and mouseenter is only offered the first of those.
+   */
+  private followPointer() {
+    this.map.on('mousemove', RESULT_MARKERS, this.handlePointerOver);
+    this.map.on('mouseleave', RESULT_MARKERS, this.handlePointerOut);
+  }
+
+  // The number under the pointer, which is the one the reader can see: markers overlap, and the one
+  // drawn on top is the earliest, since that is how they are sorted - see resultMarkersLayer. MapLibre
+  // hands back everything under the pointer without promising an order, so the choice is made here
+  // rather than taken from the first of them.
+  private handlePointerOver = (event: maplibregl.MapLayerMouseEvent) => {
+    const places = (event.features ?? []).map(feature => Number(feature.properties?.label)).filter(place => Number.isInteger(place));
+    this.setHovered(places.length ? Math.min(...places) : undefined);
+  };
+
+  private handlePointerOut = () => this.setHovered(undefined);
+
+  // Redrawn only when the answer changes, since the pointer reports every pixel it crosses
+  private setHovered(place: number | undefined) {
+    if (this.hovered === place) return;
+    this.hovered = place;
+    this.draw();
   }
 
   // Zoom buttons and the projection toggle, plus the search hint if one was asked for
@@ -273,6 +317,9 @@ export class OgmOverview {
   @Watch('records')
   @Watch('previewers')
   protected async onRecordsChange() {
+    // Whatever the pointer was over is gone, and the place it named now names a different result. It
+    // can't be re-asked either: MapLibre reports a pointer that moves, and this one is holding still.
+    this.hovered = undefined;
     await this.load();
   }
 
@@ -354,7 +401,7 @@ export class OgmOverview {
     // are already on screen.
     drawResults(this.map, this.mapTheme.getStyle(), {
       extents: this.extents,
-      highlighted: this.highlightedPosition(),
+      highlighted: this.highlightedPositions(),
       searchBounds: this.searchFilter,
     });
   }
@@ -377,6 +424,15 @@ export class OgmOverview {
   // a single street shouldn't come back to a view of the city.
   private camera(): maplibregl.FitBoundsOptions {
     return this.searchFilter ? {} : { maxZoom: LOCATION_MAX_ZOOM };
+  }
+
+  // Every result to draw as highlighted, counted from one: the one the page named and the one the
+  // reader's pointer is over. Both, rather than one winning, because they are two separate statements
+  // and neither is a correction of the other - though in practice they are the same result or there is
+  // only one of them, since a pointer cannot be over a row beside the map and a number on it at once.
+  private highlightedPositions(): number[] {
+    const places = [this.highlightedPosition(), this.hovered].filter(place => place !== undefined);
+    return [...new Set(places)];
   }
 
   /**
