@@ -25,6 +25,9 @@ export type MapLibreStyle = {
   textHaloColor: string;
   textFont: string;
   textSize: number;
+  // A CSS font stack, for text this library draws itself rather than asking MapLibre to draw - see
+  // textFont, which names something else entirely
+  markerFont: string;
   // Opacity for highlighted polygons/circles
   highlightOpacity: number;
   // Initial opacity for a preview that says where a record is rather than showing its data: a
@@ -38,6 +41,12 @@ export type MapLibreStyle = {
 // URLs to MapLibre style documents for basemaps
 export const darkBasemapStyle = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 export const lightBasemapStyle = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+
+// What a result's number is drawn in when neither an app nor the palette has said. A CSS font stack,
+// unlike the glyph name below: the numbers are drawn into an image of our own rather than handed to
+// MapLibre, which is also the only reason they can be bold at all - see markerImage. Web Awesome's own
+// body font comes first, so the numbers match whatever the rest of the page is set in.
+const defaultMarkerFont = 'system-ui, sans-serif';
 
 // Default MapLibre `text-font` glyph name. Unlike the rest of our text styling, this can't fall
 // back to a CSS token: `text-font` names a glyph MapLibre requests from the style's glyphs
@@ -108,6 +117,7 @@ export default class MapLibreTheme extends Theme {
       textHaloColor: this.haloColor(textColor),
       textFont: this.readCssProperty('--ogm-font-family') || defaultGlyphFont,
       textSize: this.readCssNumber('--ogm-text-size', 14),
+      markerFont: this.readCssProperty('--ogm-marker-font') || this.readCssProperty('--wa-font-family-body') || defaultMarkerFont,
       highlightOpacity: this.readCssNumber('--ogm-highlight-opacity', 0.8),
       boundsOpacity: this.readCssNumber('--ogm-bounds-opacity', 0.6),
       overviewPadding: this.getOverviewPadding(),

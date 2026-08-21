@@ -82,6 +82,7 @@ Here are the supported properties and what they apply to:
 | `--ogm-text-halo-color`        | Feature label text outline color                     |
 | `--ogm-text-size`              | Feature label font size, in pixels                   |
 | `--ogm-font-family`            | Feature label font name (e.g. `"Noto Sans Regular"`) |
+| `--ogm-marker-font`            | CSS font stack for a numbered marker's numeral       |
 | `--ogm-data-opacity`           | Initial opacity of drawn data                        |
 | `--ogm-highlight-opacity`      | Opacity of a highlighted feature                     |
 | `--ogm-bounds-opacity`         | Initial opacity of a bounding box or index map       |
@@ -95,6 +96,8 @@ You usually only need the four `--ogm-*-color` properties, plus `--ogm-text-colo
 - Each outline comes from the color it outlines, moved away from the basemap: darker in light mode, lighter in dark mode. A color you name is used in both modes, but its outline follows the mode, so one declaration reads on either basemap.
 - The label halo comes from `--ogm-text-color`, as black or white — whichever contrasts more, the same choice CSS `contrast-color()` makes. It doesn't consult the mode, because the text color already did.
 - The disc a numbered result sits on comes from the same color, sunk to a fixed depth rather than moved by a step, so the numeral on it is legible on either basemap. The numeral's own color follows from the disc, the same way a halo follows from its text.
+
+A numbered marker is drawn as one image — a disc with its numeral on it — rather than as a circle with text over it. That's what keeps every marker the same size at every zoom, keeps a numeral from ever landing on the marker next to it, and lets the numerals be bold: `--ogm-font-family` names a glyph set the basemap has to serve, while `--ogm-marker-font` is an ordinary CSS stack this library draws with itself.
 
 `--ogm-marker-*`, `--ogm-stroke-*` and `--ogm-text-halo-color` are there if you want particular ones instead. Like the other colors, one you name is used in both modes.
 
