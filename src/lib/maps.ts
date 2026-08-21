@@ -1,6 +1,7 @@
 import maplibregl from 'maplibre-gl';
 
 import { clampToHemisphere } from './geometry';
+import type { MapProjection } from './previewers/map';
 import type Theme from './themes/theme';
 import type MapLibreTheme from './themes/maplibre';
 
@@ -130,6 +131,24 @@ const throttle = (fn: () => void, period: number): (() => void) => {
  * document and takes every source and layer on it away. The listener goes on before the swap rather
  * than after, so a style that loads from cache can't be up before anyone is listening for it.
  */
+/**
+ * Which projection a map is in, or nothing at all before it has a style document to carry one.
+ *
+ * MapLibre has two names for a sphere: 'globe' draws as one until it is zoomed in far enough that a
+ * sphere and a flat map are the same picture, and 'vertical-perspective' stays one throughout. Either
+ * is a globe as far as a camera is concerned - see frameLocation - so either comes back as one.
+ *
+ * Asked of the map rather than remembered, because the map is the one that knows: a projection can
+ * change without anything here having asked for it. A style document names its own, and applying one
+ * announces the change as the same event a reader pressing the globe button does.
+ */
+export const readProjection = (map: maplibregl.Map): MapProjection | undefined => {
+  const type = map.getProjection()?.type;
+  if (type === undefined) return undefined;
+
+  return type === 'mercator' ? 'mercator' : 'globe';
+};
+
 export const setBasemap = async (map: maplibregl.Map, theme: MapLibreTheme): Promise<void> =>
   new Promise<void>(resolve => {
     map.once('style.load', () => resolve());

@@ -176,7 +176,7 @@ type Overview = HTMLElement & {
   addControls: () => void;
   followPointer: () => void;
   handleStyleLoad: () => Promise<void>;
-  handleProjectionTransition: (event: { newProjection: string }) => Promise<void>;
+  handleProjectionTransition: () => Promise<void>;
   load: () => Promise<void>;
   draw: () => void;
   frame: () => Promise<void>;
@@ -367,12 +367,45 @@ describe('ogm-overview', () => {
   // basemap names anything, so every style document arrives flat. Read as the reader's own choice,
   // that flattened a globe on every theme swap.
   it('keeps the globe a style document resets on its way in', async () => {
-    const { el } = await renderOverview();
+    const { el, map } = await renderOverview();
     el.mapStyleLoaded = false;
 
-    await el.handleProjectionTransition({ newProjection: 'mercator' });
+    map.projection = { type: 'mercator' };
+    await el.handleProjectionTransition();
 
-    expect(el.projection).toEqual('globe');
+    expect(map.fitBounds).not.toHaveBeenCalled();
+
+    await el.handleStyleLoad();
+
+    expect(map.setProjection).toHaveBeenCalledWith({ type: 'globe' });
+  });
+
+  // The sequence a page that sets the theme as its maps are being built produces, which is what
+  // GeoBlacklight's own theme initializer does: the swap is asked for while the first style document
+  // is still on its way, so that document still lands and raises the flag, and the reset the second
+  // one arrives with falls after it. Taken for the reader reaching for the globe button, that left
+  // the map flat and kept it flat, because the choice was then remembered and put back.
+  it('keeps the globe through a swap asked for before its first style had loaded', async () => {
+    const { el, map } = await renderOverview();
+    el.records = [record('one', { dcat_bbox: CALIFORNIA })];
+    el.mapStyleLoaded = false;
+
+    el.theme = 'dark';
+    const swapped = el.onThemeChange();
+    map.fire('style.load');
+    await swapped;
+
+    // The first document landing, which puts the globe into it and raises the flag
+    await el.handleStyleLoad();
+
+    expect(map.setProjection).toHaveBeenLastCalledWith({ type: 'globe' });
+
+    // And then the document the swap asked for, arriving in the projection it names
+    map.projection = { type: 'mercator' };
+    await el.handleProjectionTransition();
+    await el.handleStyleLoad();
+
+    expect(map.setProjection).toHaveBeenLastCalledWith({ type: 'globe' });
   });
 
   it('opens in the projection the reader last chose, after a change of theme', async () => {
@@ -411,7 +444,10 @@ describe('ogm-overview', () => {
     await el.load();
     const framedOnce = map.fitBounds.mock.calls.length;
 
-    await el.handleProjectionTransition({ newProjection: 'mercator' });
+    // The map is already flat by the time it says so: MapLibre changes the projection and announces
+    // the change afterwards, and what the camera does is read off the map rather than off the news
+    map.projection = { type: 'mercator' };
+    await el.handleProjectionTransition();
 
     expect(map.fitBounds.mock.calls.length).toBeGreaterThan(framedOnce);
     expect(frameOf(map)).toEqual([-180, -85, 180, 85]);

@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from '@stencil/vitest';
 
 import { WORLD } from './geometry';
-import { addLocationControls, disableRotation, fitBounds, frameLocation, trackContainerSize, whenSized } from './maps';
+import { addLocationControls, disableRotation, fitBounds, frameLocation, readProjection, trackContainerSize, whenSized } from './maps';
 import type Theme from './themes/theme';
 import type MapLibreTheme from './themes/maplibre';
 
@@ -353,6 +353,28 @@ const controllableMap = () => {
     touchZoomRotate: { disableRotation: vi.fn() },
   };
 };
+
+describe('readProjection', () => {
+  const inProjection = (type: string | undefined) => ({ getProjection: () => (type === undefined ? undefined : { type }) }) as unknown as maplibregl.Map;
+
+  it('should read a flat map as flat', () => {
+    expect(readProjection(inProjection('mercator'))).toEqual('mercator');
+  });
+
+  // Either name MapLibre has for a sphere is a globe as far as a camera is concerned: 'globe' draws
+  // as one until it is zoomed in far enough that a sphere and a flat map are the same picture, and
+  // 'vertical-perspective' stays one throughout.
+  it('should read either kind of sphere as a globe', () => {
+    expect(readProjection(inProjection('globe'))).toEqual('globe');
+    expect(readProjection(inProjection('vertical-perspective'))).toEqual('globe');
+  });
+
+  // A map has no projection until a style document has arrived to carry one, and that is not the same
+  // answer as flat: a caller with a projection of its own to fall back on has to be able to tell.
+  it('should answer with nothing before a style has arrived', () => {
+    expect(readProjection(inProjection(undefined))).toBeUndefined();
+  });
+});
 
 describe('disableRotation', () => {
   // `dragRotate: false` looks like it covers this and doesn't: the keyboard's shift+arrows and the

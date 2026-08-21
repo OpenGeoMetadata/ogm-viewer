@@ -130,7 +130,7 @@ type Locator = HTMLElement & {
   projection: 'globe' | 'mercator';
   addControls: () => void;
   handleStyleLoad: () => Promise<void>;
-  handleProjectionTransition: (event: { newProjection: string }) => Promise<void>;
+  handleProjectionTransition: () => Promise<void>;
   draw: () => Promise<void>;
   frame: () => Promise<void>;
   onRecordChange: () => Promise<void>;
@@ -281,7 +281,10 @@ describe('ogm-locator', () => {
     el.record = record('the-world', { dcat_bbox: THE_WORLD });
     await el.draw();
 
-    await el.handleProjectionTransition({ newProjection: 'mercator' });
+    // The map is already flat by the time it says so: MapLibre changes the projection and announces
+    // the change afterwards, and what the camera does is read off the map rather than off the news
+    map.projection = { type: 'mercator' };
+    await el.handleProjectionTransition();
 
     expect(frameOf(map)).toEqual([-180, -85, 180, 85]);
   });
@@ -293,7 +296,8 @@ describe('ogm-locator', () => {
     el.record = record('the-world', { dcat_bbox: THE_WORLD });
     await el.draw();
 
-    await el.handleProjectionTransition({ newProjection: 'vertical-perspective' });
+    map.projection = { type: 'vertical-perspective' };
+    await el.handleProjectionTransition();
 
     expect(frameOf(map)).toEqual([-90, -85, 90, 85]);
   });
@@ -306,14 +310,42 @@ describe('ogm-locator', () => {
     el.record = record('one', { dcat_bbox: CALIFORNIA });
     el.mapStyleLoaded = false;
 
-    await el.handleProjectionTransition({ newProjection: 'mercator' });
+    map.projection = { type: 'mercator' };
+    await el.handleProjectionTransition();
 
-    expect(el.projection).toEqual('globe');
     expect(map.fitBounds).not.toHaveBeenCalled();
 
     await el.handleStyleLoad();
 
     expect(map.setProjection).toHaveBeenCalledWith({ type: 'globe' });
+  });
+
+  // The sequence a page that sets the theme as its maps are being built produces, which is what
+  // GeoBlacklight's own theme initializer does: the swap is asked for while the first style document
+  // is still on its way, so that document still lands and raises the flag, and the reset the second
+  // one arrives with falls after it. Taken for the reader reaching for the globe button, that left
+  // the map flat and kept it flat, because the choice was then remembered and put back.
+  it('keeps the globe through a swap asked for before its first style had loaded', async () => {
+    const { el, map } = await renderLocator();
+    el.record = record('one', { dcat_bbox: CALIFORNIA });
+    el.mapStyleLoaded = false;
+
+    el.theme = 'dark';
+    const swapped = el.onThemeChange();
+    map.fire('style.load');
+    await swapped;
+
+    // The first document landing, which puts the globe into it and raises the flag
+    await el.handleStyleLoad();
+
+    expect(map.setProjection).toHaveBeenLastCalledWith({ type: 'globe' });
+
+    // And then the document the swap asked for, arriving in the projection it names
+    map.projection = { type: 'mercator' };
+    await el.handleProjectionTransition();
+    await el.handleStyleLoad();
+
+    expect(map.setProjection).toHaveBeenLastCalledWith({ type: 'globe' });
   });
 
   // A style document carries its own projection and neither basemap names one, so every swap arrives

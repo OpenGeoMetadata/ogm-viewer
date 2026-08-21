@@ -5,7 +5,7 @@ import AttributionControl from '../../lib/attribution-control';
 import { getElement } from '../../lib/elements';
 import { WORLD } from '../../lib/geometry';
 import { themePreference, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
-import { addLocationControls, createMap, disableRotation, frameLocation, LOCATION_MAP, LOCATION_MAX_ZOOM, setBasemap, whenSized } from '../../lib/maps';
+import { addLocationControls, createMap, disableRotation, frameLocation, LOCATION_MAP, LOCATION_MAX_ZOOM, readProjection, setBasemap, whenSized } from '../../lib/maps';
 import type { MapProjection } from '../../lib/previewers/map';
 import LocationPreviewer, { locationFor } from '../../lib/previewers/location';
 import type OgmRecord from '../../lib/record';
@@ -29,7 +29,9 @@ export class OgmLocator {
   // Used to prevent trying to style layers before the map is ready
   private mapStyleLoaded: boolean = false;
 
-  // We track this so it survives theme/basemap swaps; MapLibre doesn't track it
+  // Which projection to open a new style document in. Held only for that: a swap arrives flat,
+  // because a style carries its own projection and neither basemap names one, so the map forgets what
+  // the reader was looking at. Everything else asks the map - see readProjection.
   private projection: MapProjection = 'globe';
 
   // What is currently drawn, if there is anything to draw
@@ -97,16 +99,19 @@ export class OgmLocator {
     await this.draw();
   }
 
-  // Called when you click the globe. We remember the projection you chose, and
-  // also reframe everything to match the new projection.
-  private handleProjectionTransition = async (event: maplibregl.MapProjectionEvent) => {
+  /**
+   * The projection changing under the camera, which is worth a fresh one: what a globe can be pointed
+   * at is not what a flat map can - see frameLocation - so flattening one is how a reader sees the
+   * whole of something too wide to fit on a sphere.
+   *
+   * Nothing is remembered here, because this event can't say who caused it. A reader pressing the
+   * globe button and a style document naming its own projection on the way in arrive as the same
+   * thing, and no flag holds them apart: a swap asked for while the map is still loading the document
+   * before it lands that reset squarely inside any window this could call the reader's. What to put
+   * back after a swap is read off the map instead, at the point the swap starts - see onThemeChange.
+   */
+  private handleProjectionTransition = async () => {
     if (!this.mapStyleLoaded) return;
-
-    // Anything that isn't flat is a globe as far as the camera is concerned. MapLibre has two names
-    // for one: 'globe' is the projection that draws as a sphere until it is zoomed in past the point
-    // where a sphere and a flat map are the same picture, and 'vertical-perspective' is the one that
-    // stays a sphere throughout.
-    this.projection = event.newProjection === 'mercator' ? 'mercator' : 'globe';
     await this.frame();
   };
 
@@ -123,6 +128,11 @@ export class OgmLocator {
   protected async onThemeChange() {
     if (!this.map) return;
     this.mapTheme.theme = this.theme;
+
+    // Read now, while the map still knows: the document replacing this one names its own projection
+    // and neither basemap names anything, so the map comes back flat unless it is put back.
+    this.projection = readProjection(this.map) ?? this.projection;
+
     this.mapStyleLoaded = false;
     await setBasemap(this.map, this.mapTheme);
     // style.load has already fired by the time this resolves, and it draws - so there is nothing
@@ -149,7 +159,14 @@ export class OgmLocator {
     if (!this.map || !this.mapStyleLoaded) return;
 
     const extent = await this.drawn?.getBounds();
-    await frameLocation(this.map, this.mapTheme, extent ?? WORLD, this.projection === 'globe', { maxZoom: LOCATION_MAX_ZOOM });
+    await frameLocation(this.map, this.mapTheme, extent ?? WORLD, this.globe(), { maxZoom: LOCATION_MAX_ZOOM });
+  }
+
+  // Whether the camera is pointing at a sphere, which is what decides whether what it is pointed at
+  // has to be held to the half of the world facing it. Asked of the map, because the map is the one
+  // that knows: a reader can change this without anything here being told which way it went.
+  private globe(): boolean {
+    return (readProjection(this.map) ?? this.projection) === 'globe';
   }
 
   // Take the last location back off the map
