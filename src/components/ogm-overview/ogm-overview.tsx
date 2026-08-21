@@ -5,7 +5,7 @@ import { getElement } from '../../lib/elements';
 import GeosearchControl from '../../lib/geosearch-control';
 import { boundsToBbox, readBounds, unionBounds, WORLD } from '../../lib/geometry';
 import { themePreference, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
-import { addLocationControls, createMap, disableRotation, frameLocation, LOCATION_MAP, LOCATION_MAX_ZOOM, setBasemap, whenSized } from '../../lib/maps';
+import { addLocationControls, createMap, disableRotation, frameLocation, LOCATION_MAP, LOCATION_MAX_ZOOM, readProjection, setBasemap, whenSized } from '../../lib/maps';
 import LocationPreviewer, { locationsFor } from '../../lib/previewers/location';
 import type { MapProjection } from '../../lib/previewers/map';
 import type OgmRecord from '../../lib/record';
@@ -104,9 +104,9 @@ export class OgmOverview {
   // Used to prevent drawing into a style document that isn't there yet
   private mapStyleLoaded: boolean = false;
 
-  // Which projection the map is in, as the reader last left it. Held rather than read off the map,
-  // because the map forgets: a style document carries its own projection and neither basemap names
-  // one, so every theme swap arrives flat and would take a globe the reader had chosen with it.
+  // Which projection to open a new style document in. Held only for that: a swap arrives flat,
+  // because a style carries its own projection and neither basemap names one, so the map forgets what
+  // the reader was looking at. Everything else asks the map - see readProjection.
   private projection: MapProjection = 'globe';
 
   // Where every result is and what each of them is called, in the order they were given - including
@@ -244,20 +244,19 @@ export class OgmOverview {
     await this.load();
   }
 
-  // The reader reaching for the globe button.
-  //
-  // Held to a style document that is already up, because a style loading is itself two of these: it
-  // ends by setting whatever projection it names, which is mercator for both basemaps, and then
-  // handleStyleLoad above puts the reader's choice back. Neither is a choice, and taking the first for
-  // one would flatten a globe on every theme swap.
-  private handleProjectionTransition = async (event: maplibregl.MapProjectionEvent) => {
+  /**
+   * The projection changing under the camera, which is worth a fresh one: what a globe can be pointed
+   * at is not what a flat map can - see frameLocation - so flattening one is how a reader sees the
+   * whole of something too wide to fit on a sphere.
+   *
+   * Nothing is remembered here, because this event can't say who caused it. A reader pressing the
+   * globe button and a style document naming its own projection on the way in arrive as the same
+   * thing, and no flag holds them apart: a swap asked for while the map is still loading the document
+   * before it lands that reset squarely inside any window this could call the reader's. What to put
+   * back after a swap is read off the map instead, at the point the swap starts - see onThemeChange.
+   */
+  private handleProjectionTransition = async () => {
     if (!this.mapStyleLoaded) return;
-
-    // Anything that isn't flat is a globe as far as the camera is concerned. MapLibre has two names
-    // for one: 'globe' is the projection that draws as a sphere until it is zoomed in past the point
-    // where a sphere and a flat map are the same picture, and 'vertical-perspective' is the one that
-    // stays a sphere throughout.
-    this.projection = event.newProjection === 'mercator' ? 'mercator' : 'globe';
     await this.frame();
   };
 
@@ -376,6 +375,11 @@ export class OgmOverview {
   protected async onThemeChange() {
     if (!this.map) return;
     this.mapTheme.theme = this.theme;
+
+    // Read now, while the map still knows: the document replacing this one names its own projection
+    // and neither basemap names anything, so the map comes back flat unless it is put back.
+    this.projection = readProjection(this.map) ?? this.projection;
+
     this.mapStyleLoaded = false;
     await setBasemap(this.map, this.mapTheme);
     // style.load has already fired by the time this resolves, and it draws - so there is nothing
@@ -441,7 +445,14 @@ export class OgmOverview {
 
     // Everywhere the results cover, or the whole world if none of them said where they are
     const target = this.searchFilter ?? unionBounds(this.extents) ?? WORLD;
-    await frameLocation(this.map, this.mapTheme, target, this.projection === 'globe', this.camera());
+    await frameLocation(this.map, this.mapTheme, target, this.globe(), this.camera());
+  }
+
+  // Whether the camera is pointing at a sphere, which is what decides whether what it is pointed at
+  // has to be held to the half of the world facing it. Asked of the map, because the map is the one
+  // that knows: a reader can change this without anything here being told which way it went.
+  private globe(): boolean {
+    return (readProjection(this.map) ?? this.projection) === 'globe';
   }
 
   // What the camera is allowed to do with what it was pointed at. The gap comes from frameLocation,
