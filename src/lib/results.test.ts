@@ -376,6 +376,7 @@ describe('drawResults', () => {
     const map = draw([CALIFORNIA]);
 
     expect(map.sources.get(SEARCH_BOUNDS).data.features).toEqual([]);
+    expect(map.layers.get(`${SEARCH_BOUNDS}-outline`).paint['line-opacity']).toEqual(0);
   });
 
   // Nothing takes these layers off again, so the colors have to be able to change where they stand:
@@ -408,7 +409,7 @@ describe('drawResults', () => {
   it('should draw no extent for a highlight it cannot place', () => {
     const map = draw([CALIFORNIA, undefined], { highlighted: [2] });
 
-    expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features).toEqual([]);
+    expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-opacity']).toEqual(0);
     expect(marked(map)).toEqual([{ label: '1', highlighted: false, icon: markerImageId('1', style) }]);
   });
 
@@ -422,11 +423,36 @@ describe('drawResults', () => {
     expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features.map((feature: GeoJSON.Feature) => feature.geometry.type)).toEqual(['Polygon', 'Polygon']);
   });
 
-  it('should take the extent away again when the highlight is withdrawn', () => {
+  // Faded out rather than taken off, which is why what it was drawn from stays where it is: a box whose
+  // geometry had been taken out of the source would have nothing left to fade.
+  it('should fade the extent out when the highlight is withdrawn', () => {
     const map = draw([CALIFORNIA, ICELAND], { highlighted: [2] });
 
     drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND] });
 
-    expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features).toEqual([]);
+    expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-opacity']).toEqual(0);
+    expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-fill`).paint['fill-opacity']).toEqual(0);
+    expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features).toHaveLength(1);
+  });
+
+  // MapLibre interpolates a paint property that changes, so a box arrives and leaves over this rather
+  // than appearing. Named on our own layers because getTransition() takes the style document's word for
+  // it first, and the basemaps are CARTO's to change.
+  it('should give both boxes an opacity that fades', () => {
+    const map = draw([CALIFORNIA], { highlighted: [1], searchBounds: LngLatBounds.convert(ICELAND) });
+
+    for (const id of [SEARCH_BOUNDS, HIGHLIGHT_BOUNDS]) {
+      expect(map.layers.get(`${id}-fill`).paint['fill-opacity-transition'].duration).toBeGreaterThan(0);
+      expect(map.layers.get(`${id}-outline`).paint['line-opacity-transition'].duration).toBeGreaterThan(0);
+    }
+  });
+
+  it('should fade the searched area out when the filter is withdrawn', () => {
+    const map = draw([CALIFORNIA], { searchBounds: LngLatBounds.convert(ICELAND) });
+
+    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA] });
+
+    expect(map.layers.get(`${SEARCH_BOUNDS}-outline`).paint['line-opacity']).toEqual(0);
+    expect(map.sources.get(SEARCH_BOUNDS).data.features).toHaveLength(1);
   });
 });

@@ -227,9 +227,10 @@ const BOX_LAYERS = (id: string) => [`${id}-fill`, `${id}-outline`];
 // highlight from flashing. See drawResults.
 const ALL_LAYERS = [...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(HIGHLIGHT_BOUNDS), ...MARKER_LAYERS];
 
-// Whether one of the two boxes has anything in it. Both stay on the map holding nothing when there is
-// nothing to say, so being there is not the question.
-const drawnBox = (map: FakeMap, id: string) => (map.sources.get(id)?.data.features ?? []).length > 0;
+// Whether one of the two boxes is being shown. Both stay on the map once drawn, and so does whatever
+// they were drawn from: what comes and goes is their opacity, so that a box fades rather than appears.
+// See drawBox.
+const drawnBox = (map: FakeMap, id: string) => (map.layers.get(`${id}-outline`)?.paint['line-opacity'] ?? 0) > 0;
 
 const layerIds = (map: FakeMap) => [...map.layers.keys()];
 const marked = (map: FakeMap) => map.sources.get(RESULT_NUMBERS).data.features.map((feature: GeoJSON.Feature) => feature.properties);
