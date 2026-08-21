@@ -66,25 +66,28 @@ ogm-viewer {
 
 Here are the supported properties and what they apply to:
 
-| Property                       | Applies to                                             |
-| ------------------------------ | ------------------------------------------------------ |
-| `--ogm-data-color`             | Polygon fill, line geometry, and circle fill           |
-| `--ogm-highlight-color`        | The same, for a hovered feature                        |
-| `--ogm-selected-color`         | The same, for the feature whose attributes are shown   |
-| `--ogm-invalid-color`          | The same, for a feature marked unavailable             |
-| `--ogm-stroke-color`           | Polygon outlines and circle borders                    |
-| `--ogm-stroke-highlight-color` | Outline of a hovered feature                           |
-| `--ogm-stroke-selected-color`  | Outline of the selected feature                        |
-| `--ogm-stroke-invalid-color`   | Outline of a feature marked unavailable                |
-| `--ogm-text-color`             | Feature label text color                               |
-| `--ogm-text-halo-color`        | Feature label text outline color                       |
-| `--ogm-text-size`              | Feature label font size, in pixels                     |
-| `--ogm-font-family`            | Feature label font name (e.g. `"Noto Sans Regular"`)   |
-| `--ogm-data-opacity`           | Initial opacity of drawn data                          |
-| `--ogm-highlight-opacity`      | Opacity of a highlighted feature                       |
-| `--ogm-bounds-opacity`         | Initial opacity of a bounding box or index map         |
-| `--ogm-padding`                | Gap kept between the data and the view edge (pixels)   |
-| `--ogm-overview-padding`       | Gap for "overview" maps (static, search results, etc.) |
+| Property                       | Applies to                                           |
+| ------------------------------ | ---------------------------------------------------- |
+| `--ogm-data-color`             | Polygon fill, line geometry, and circle fill         |
+| `--ogm-highlight-color`        | The same, for a hovered feature                      |
+| `--ogm-selected-color`         | The same, for the feature whose attributes are shown |
+| `--ogm-invalid-color`          | The same, for a feature marked unavailable           |
+| `--ogm-marker-color`           | Disc a numbered result's marker is drawn on          |
+| `--ogm-marker-highlight-color` | The same, for the highlighted result                 |
+| `--ogm-stroke-color`           | Polygon outlines and circle borders                  |
+| `--ogm-stroke-highlight-color` | Outline of a hovered feature                         |
+| `--ogm-stroke-selected-color`  | Outline of the selected feature                      |
+| `--ogm-stroke-invalid-color`   | Outline of a feature marked unavailable              |
+| `--ogm-text-color`             | Feature label text color                             |
+| `--ogm-text-halo-color`        | Feature label text outline color                     |
+| `--ogm-text-size`              | Feature label font size, in pixels                   |
+| `--ogm-font-family`            | Feature label font name (e.g. `"Noto Sans Regular"`) |
+| `--ogm-marker-font`            | CSS font stack for a numbered marker's numeral       |
+| `--ogm-data-opacity`           | Initial opacity of drawn data                        |
+| `--ogm-highlight-opacity`      | Opacity of a highlighted feature                     |
+| `--ogm-bounds-opacity`         | Initial opacity of a bounding box or index map       |
+| `--ogm-padding`                | Gap kept between the data and the view edge (pixels) |
+| `--ogm-overview-padding`       | Gap for locator and overview maps (pixels)           |
 
 By default, the viewer uses styles from [Web Awesome](https://webawesome.com/) that match the current mode (dark or light).
 
@@ -92,8 +95,11 @@ You usually only need the four `--ogm-*-color` properties, plus `--ogm-text-colo
 
 - Each outline comes from the color it outlines, moved away from the basemap: darker in light mode, lighter in dark mode. A color you name is used in both modes, but its outline follows the mode, so one declaration reads on either basemap.
 - The label halo comes from `--ogm-text-color`, as black or white — whichever contrasts more, the same choice CSS `contrast-color()` makes. It doesn't consult the mode, because the text color already did.
+- The disc a numbered result sits on comes from the same color, sunk to a fixed depth rather than moved by a step, so the numeral on it is legible on either basemap. The numeral's own color follows from the disc, the same way a halo follows from its text.
 
-`--ogm-stroke-*` and `--ogm-text-halo-color` are there if you want particular ones instead. Like the other colors, one you name is used in both modes.
+A numbered marker is drawn as one image — a disc with its numeral on it — rather than as a circle with text over it. That's what keeps every marker the same size at every zoom, keeps a numeral from ever landing on the marker next to it, and lets the numerals be bold: `--ogm-font-family` names a glyph set the basemap has to serve, while `--ogm-marker-font` is an ordinary CSS stack this library draws with itself.
+
+`--ogm-marker-*`, `--ogm-stroke-*` and `--ogm-text-halo-color` are there if you want particular ones instead. Like the other colors, one you name is used in both modes.
 
 ### Restricted content
 
@@ -169,9 +175,31 @@ document.querySelector('ogm-previews').previewers = [new GeoJsonPreviewer(geoJso
 
 `record` and `previewers` are DOM properties too. Neither component has an intrinsic size, so the embedding page should set it via CSS.
 
+#### Locator maps
+
+To show where a single record is on earth, you can use the `<ogm-locator>` component. Hand it an `OgmRecord` as `record` and it will draw either the record's full geometry (`locn_geometry`) or its bounding box (`dcat_bbox`) if there's no geometry available.
+
+```js
+await customElements.whenDefined('ogm-locator');
+
+document.querySelector('ogm-locator').record = record;
+```
+
+`record` is a DOM property, not an attribute. If you've built a `LocationPreviewer` yourself, set `previewer` instead and the record isn't read at all.
+
+A record with neither `locn_geometry` nor `dcat_bbox` has nowhere to be drawn, so the map opens on the world with nothing on it.
+
+Like the other components, `<ogm-locator>` has no intrinsic size, so the embedding page should give it one:
+
+```css
+ogm-locator {
+  height: 250px;
+}
+```
+
 #### Overviews and geosearch
 
-For showing just the location (geometry or bounding box) of one or several records, you can use the `<ogm-overview>` component. It takes a list of `record`s and renders a simplified map.
+For showing where several records are and searching/filtering them, you can use the `<ogm-overview>` component. Hand it a list of `OgmRecord`s as `records` and it draws a numbered marker for each one, in the order you gave them.
 
 ```js
 await customElements.whenDefined('ogm-overview');
@@ -179,20 +207,39 @@ await customElements.whenDefined('ogm-overview');
 document.querySelector('ogm-overview').records = [record1, record2];
 ```
 
-With just one record, the globe projection is used. When more than one is provided, the flat map projection is used instead so that everything can be kept in view.
+Nothing of a record is drawn but its number, at the middle of its extent. A record with no geometry still takes up its number, so the numbers keep matching the rows in the list beside the map. Hand it a list of `LocationPreviewer`s you built and those are numbered instead of the records (GeoBlacklight does this).
 
-If you set the `geosearch` property on `<ogm-overview>`, the map can be used to search for geographic bounds. The value can be `'auto'` to start in automatic mode, where the map emits `boundsChange` events whenever it moves, or `'manual'` to start in manual mode, where the user must manually trigger the search. Leaving it undefined disables the control.
+A user's pointer over a number highlights that record and draws its geometry or bounding box temporarily. The `highlightChange` event says which record it is, so you can use this information to update other parts of the page.
 
-```html
-<ogm-overview geosearch="auto"></ogm-overview>
+```js
+overview.addEventListener('highlightChange', event => markRow(event.detail?.place));
 ```
 
-To respond to changes in the geographic bounds, listen for the `boundsChange` event on the `<ogm-overview>` element:
+The event detail carries the result's place in the list (counted from one) and the id of the record it came from and is `null` once the pointer has left every number.
+
+To highlight a record explicitly, set `highlighted` to either its number in the list (counted from one), or the id of the record it came from. Anything else will clear the current highlight. Setting `highlighted` to explicitly highlight a record doesn't fire `highlightChange`, so you won't get an infinite loop.
+
+```js
+overview.highlighted = record.id; // or 3, or undefined to clear it
+```
+
+Enable `geosearch` and a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through the `boundsChange` event. The help text in the viewer about how to search can be controlled with `searchHelpText`.
+
+```html
+<ogm-overview geosearch></ogm-overview>
+```
 
 ```javascript
 document.querySelector('ogm-overview').addEventListener('boundsChange', event => {
-  console.log('New bounds:', event.detail); // bounds will have format [minLng, minLat, maxLng, maxLat]
+  // west, south, east, north - with east numerically west of west for a box crossing the antimeridian
+  console.log('New bounds:', event.detail);
 });
+```
+
+Set `bounds` to the area a search is currently filtered to. It's drawn as a box and the camera frames it. It will accept an `ENVELOPE` string, or anything else MapLibre reads as bounds — and being a string, it can come from an attribute:
+
+```html
+<ogm-overview bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-overview>
 ```
 
 ## Development

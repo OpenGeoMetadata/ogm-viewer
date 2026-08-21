@@ -51,6 +51,14 @@ export namespace Components {
         "layers": LayerControl[];
         "theme": 'light' | 'dark';
     }
+    interface OgmLocator {
+        "previewer"?: LocationPreviewer;
+        "record"?: OgmRecord;
+        /**
+          * @default themePreference()
+         */
+        "theme": 'light' | 'dark';
+    }
     interface OgmMap {
         "easeMapTo": (options: maplibregl.EaseToOptions) => Promise<maplibregl.Map>;
         /**
@@ -81,21 +89,33 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     /**
-     * Display the location of one or several records (or previewers) by drawing
-     * their geometry or basic bounding boxes.
+     * Where several records are: one numbered marker apiece, and optionally a way to search the map for
+     * more of them.
+     * Nothing of a record is drawn but its number. A page of boxes says less than a page of numbers a
+     * reader can find again in the list beside the map, and the only two boxes worth drawing are the ones
+     * that answer a question: which area is being searched, and where the one result something outside has
+     * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
      */
     interface OgmOverview {
-        "geosearch"?: 'auto' | 'manual';
-        "previewers"?: LocationPreviewer[];
+        /**
+          * The area a search is currently filtered to, drawn as a box and framed by the camera. Given as the west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an attribute, so a page rendered by a server can say what its map is filtered to without any JavaScript at all.  It goes on holding: whenever what is drawn changes, the camera returns here rather than re-framing itself around the new set of results. Leave it unset for a map that should look at whatever it has been given.
+         */
+        "bounds"?: maplibregl.LngLatBoundsLike | string;
+        /**
+          * Whether a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through `boundsChange`; nothing here answers it, because what a new area means is the embedding page's to say. The help text is a prop because GeoBlacklight runs the strings for the control this replaces through Rails I18n.
+          * @default false
+         */
+        "geosearch": boolean;
+        /**
+          * Which result to bring forward, as either its place in the list counted from one or the id of the record - or of the resource a previewer draws - that it came from. An attribute hands over a string for either, since an attribute is always one.  The marker changes color and comes to the front, and the result's own extent is drawn around it. The camera doesn't move: something on the page has said which result matters, not where to look.  A reader's pointer over a number does the same thing without being asked, so both can be true at once - of two different results, if a page names one while the pointer is over another. Each is a way of saying the same thing about a row, so each gets the same drawing; see draw.
+         */
+        "highlighted"?: number | string;
+        "previewers"?: (LocationPreviewer | undefined)[];
         "records"?: OgmRecord[];
         /**
-          * @default 'Search here'
+          * @default 'Shift + drag to search an area'
          */
-        "searchHereText": string;
-        /**
-          * @default 'Search when I move the map'
-         */
-        "searchOnMoveText": string;
+        "searchHelpText": string;
         /**
           * @default themePreference()
          */
@@ -231,6 +251,12 @@ declare global {
         prototype: HTMLOgmLayersElement;
         new (): HTMLOgmLayersElement;
     };
+    interface HTMLOgmLocatorElement extends Components.OgmLocator, HTMLStencilElement {
+    }
+    var HTMLOgmLocatorElement: {
+        prototype: HTMLOgmLocatorElement;
+        new (): HTMLOgmLocatorElement;
+    };
     interface HTMLOgmMapElementEventMap {
         "mapIdle": void;
         "mapLoading": void;
@@ -275,10 +301,15 @@ declare global {
     };
     interface HTMLOgmOverviewElementEventMap {
         "boundsChange": [number, number, number, number];
+        "highlightChange": { place: number; id: string } | null;
     }
     /**
-     * Display the location of one or several records (or previewers) by drawing
-     * their geometry or basic bounding boxes.
+     * Where several records are: one numbered marker apiece, and optionally a way to search the map for
+     * more of them.
+     * Nothing of a record is drawn but its number. A page of boxes says less than a page of numbers a
+     * reader can find again in the list beside the map, and the only two boxes worth drawing are the ones
+     * that answer a question: which area is being searched, and where the one result something outside has
+     * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
      */
     interface HTMLOgmOverviewElement extends Components.OgmOverview, HTMLStencilElement {
         addEventListener<K extends keyof HTMLOgmOverviewElementEventMap>(type: K, listener: (this: HTMLOgmOverviewElement, ev: OgmOverviewCustomEvent<HTMLOgmOverviewElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
@@ -335,6 +366,7 @@ declare global {
         "ogm-attributes": HTMLOgmAttributesElement;
         "ogm-image": HTMLOgmImageElement;
         "ogm-layers": HTMLOgmLayersElement;
+        "ogm-locator": HTMLOgmLocatorElement;
         "ogm-map": HTMLOgmMapElement;
         "ogm-menubar": HTMLOgmMenubarElement;
         "ogm-metadata": HTMLOgmMetadataElement;
@@ -386,6 +418,14 @@ declare namespace LocalJSX {
         "onLayerVisibilityChange"?: (event: OgmLayersCustomEvent<{ id: string; visible: boolean }>) => void;
         "theme"?: 'light' | 'dark';
     }
+    interface OgmLocator {
+        "previewer"?: LocationPreviewer;
+        "record"?: OgmRecord;
+        /**
+          * @default themePreference()
+         */
+        "theme"?: 'light' | 'dark';
+    }
     interface OgmMap {
         "onMapIdle"?: (event: OgmMapCustomEvent<void>) => void;
         "onMapLoading"?: (event: OgmMapCustomEvent<void>) => void;
@@ -419,22 +459,38 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     /**
-     * Display the location of one or several records (or previewers) by drawing
-     * their geometry or basic bounding boxes.
+     * Where several records are: one numbered marker apiece, and optionally a way to search the map for
+     * more of them.
+     * Nothing of a record is drawn but its number. A page of boxes says less than a page of numbers a
+     * reader can find again in the list beside the map, and the only two boxes worth drawing are the ones
+     * that answer a question: which area is being searched, and where the one result something outside has
+     * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
      */
     interface OgmOverview {
-        "geosearch"?: 'auto' | 'manual';
+        /**
+          * The area a search is currently filtered to, drawn as a box and framed by the camera. Given as the west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an attribute, so a page rendered by a server can say what its map is filtered to without any JavaScript at all.  It goes on holding: whenever what is drawn changes, the camera returns here rather than re-framing itself around the new set of results. Leave it unset for a map that should look at whatever it has been given.
+         */
+        "bounds"?: maplibregl.LngLatBoundsLike | string;
+        /**
+          * Whether a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through `boundsChange`; nothing here answers it, because what a new area means is the embedding page's to say. The help text is a prop because GeoBlacklight runs the strings for the control this replaces through Rails I18n.
+          * @default false
+         */
+        "geosearch"?: boolean;
+        /**
+          * Which result to bring forward, as either its place in the list counted from one or the id of the record - or of the resource a previewer draws - that it came from. An attribute hands over a string for either, since an attribute is always one.  The marker changes color and comes to the front, and the result's own extent is drawn around it. The camera doesn't move: something on the page has said which result matters, not where to look.  A reader's pointer over a number does the same thing without being asked, so both can be true at once - of two different results, if a page names one while the pointer is over another. Each is a way of saying the same thing about a row, so each gets the same drawing; see draw.
+         */
+        "highlighted"?: number | string;
         "onBoundsChange"?: (event: OgmOverviewCustomEvent<[number, number, number, number]>) => void;
-        "previewers"?: LocationPreviewer[];
+        /**
+          * Which result the reader's pointer is over: its place in the list counted from one, and the id of the record - or of the resource a previewer draws - it came from. Null once the pointer has left every number.  Both terms, because a page holds its results in one or the other, and either is enough to light up the row the reader is pointing at - which is the whole of what this is for:    overview.addEventListener('highlightChange', event => mark(event.detail?.id));  The reader's own pointer only. Setting `highlighted` doesn't come back out: a page that has said which result matters already knows, and reporting it would be a loop waiting to be wired.
+         */
+        "onHighlightChange"?: (event: OgmOverviewCustomEvent<{ place: number; id: string } | null>) => void;
+        "previewers"?: (LocationPreviewer | undefined)[];
         "records"?: OgmRecord[];
         /**
-          * @default 'Search here'
+          * @default 'Shift + drag to search an area'
          */
-        "searchHereText"?: string;
-        /**
-          * @default 'Search when I move the map'
-         */
-        "searchOnMoveText"?: string;
+        "searchHelpText"?: string;
         /**
           * @default themePreference()
          */
@@ -494,6 +550,9 @@ declare namespace LocalJSX {
     interface OgmLayersAttributes {
         "theme": 'light' | 'dark';
     }
+    interface OgmLocatorAttributes {
+        "theme": 'light' | 'dark';
+    }
     interface OgmMapAttributes {
         "theme": 'light' | 'dark';
         "padding": number;
@@ -508,9 +567,10 @@ declare namespace LocalJSX {
     }
     interface OgmOverviewAttributes {
         "theme": 'light' | 'dark';
-        "geosearch": 'auto' | 'manual';
-        "searchHereText": string;
-        "searchOnMoveText": string;
+        "highlighted": string;
+        "geosearch": boolean;
+        "searchHelpText": string;
+        "bounds": maplibregl.LngLatBoundsLike | string;
     }
     interface OgmPreviewAttributes {
         "theme": 'light' | 'dark';
@@ -535,6 +595,7 @@ declare namespace LocalJSX {
         "ogm-attributes": Omit<OgmAttributes, keyof OgmAttributesAttributes> & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes]?: OgmAttributes[K] } & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes as `attr:${K}`]?: OgmAttributesAttributes[K] } & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes as `prop:${K}`]?: OgmAttributes[K] };
         "ogm-image": Omit<OgmImage, keyof OgmImageAttributes> & { [K in keyof OgmImage & keyof OgmImageAttributes]?: OgmImage[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `attr:${K}`]?: OgmImageAttributes[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `prop:${K}`]?: OgmImage[K] };
         "ogm-layers": Omit<OgmLayers, keyof OgmLayersAttributes> & { [K in keyof OgmLayers & keyof OgmLayersAttributes]?: OgmLayers[K] } & { [K in keyof OgmLayers & keyof OgmLayersAttributes as `attr:${K}`]?: OgmLayersAttributes[K] } & { [K in keyof OgmLayers & keyof OgmLayersAttributes as `prop:${K}`]?: OgmLayers[K] };
+        "ogm-locator": Omit<OgmLocator, keyof OgmLocatorAttributes> & { [K in keyof OgmLocator & keyof OgmLocatorAttributes]?: OgmLocator[K] } & { [K in keyof OgmLocator & keyof OgmLocatorAttributes as `attr:${K}`]?: OgmLocatorAttributes[K] } & { [K in keyof OgmLocator & keyof OgmLocatorAttributes as `prop:${K}`]?: OgmLocator[K] };
         "ogm-map": Omit<OgmMap, keyof OgmMapAttributes> & { [K in keyof OgmMap & keyof OgmMapAttributes]?: OgmMap[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `attr:${K}`]?: OgmMapAttributes[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `prop:${K}`]?: OgmMap[K] };
         "ogm-menubar": Omit<OgmMenubar, keyof OgmMenubarAttributes> & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes]?: OgmMenubar[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `attr:${K}`]?: OgmMenubarAttributes[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `prop:${K}`]?: OgmMenubar[K] };
         "ogm-metadata": Omit<OgmMetadata, keyof OgmMetadataAttributes> & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes]?: OgmMetadata[K] } & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes as `attr:${K}`]?: OgmMetadataAttributes[K] } & { [K in keyof OgmMetadata & keyof OgmMetadataAttributes as `prop:${K}`]?: OgmMetadata[K] };
@@ -553,12 +614,17 @@ declare module "@stencil/core" {
             "ogm-attributes": LocalJSX.IntrinsicElements["ogm-attributes"] & JSXBase.HTMLAttributes<HTMLOgmAttributesElement>;
             "ogm-image": LocalJSX.IntrinsicElements["ogm-image"] & JSXBase.HTMLAttributes<HTMLOgmImageElement>;
             "ogm-layers": LocalJSX.IntrinsicElements["ogm-layers"] & JSXBase.HTMLAttributes<HTMLOgmLayersElement>;
+            "ogm-locator": LocalJSX.IntrinsicElements["ogm-locator"] & JSXBase.HTMLAttributes<HTMLOgmLocatorElement>;
             "ogm-map": LocalJSX.IntrinsicElements["ogm-map"] & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
             "ogm-menubar": LocalJSX.IntrinsicElements["ogm-menubar"] & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
             "ogm-metadata": LocalJSX.IntrinsicElements["ogm-metadata"] & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;
             /**
-             * Display the location of one or several records (or previewers) by drawing
-             * their geometry or basic bounding boxes.
+             * Where several records are: one numbered marker apiece, and optionally a way to search the map for
+             * more of them.
+             * Nothing of a record is drawn but its number. A page of boxes says less than a page of numbers a
+             * reader can find again in the list beside the map, and the only two boxes worth drawing are the ones
+             * that answer a question: which area is being searched, and where the one result something outside has
+             * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
              */
             "ogm-overview": LocalJSX.IntrinsicElements["ogm-overview"] & JSXBase.HTMLAttributes<HTMLOgmOverviewElement>;
             "ogm-preview": LocalJSX.IntrinsicElements["ogm-preview"] & JSXBase.HTMLAttributes<HTMLOgmPreviewElement>;

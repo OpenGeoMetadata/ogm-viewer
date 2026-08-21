@@ -1,6 +1,6 @@
 import type { SkySpecification } from 'maplibre-gl';
 
-import { contrastColor, shiftLightness } from './color';
+import { atLightness, contrastColor, shiftLightness } from './color';
 import Theme from './theme';
 
 export type MapLibreStyle = {
@@ -11,6 +11,9 @@ export type MapLibreStyle = {
   highlightColor: string;
   selectedColor: string;
   invalidColor: string;
+  // Circular markers used on the overview map
+  markerColor: string;
+  markerHighlightColor: string;
   // CSS colors used for polygon outlines & circle borders
   strokeColor: string;
   strokeHighlightColor: string;
@@ -21,6 +24,9 @@ export type MapLibreStyle = {
   textHaloColor: string;
   textFont: string;
   textSize: number;
+  // A CSS font stack, for text this library draws itself rather than asking MapLibre to draw - see
+  // textFont, which names something else entirely
+  markerFont: string;
   // Opacity for highlighted polygons/circles
   highlightOpacity: number;
   // Initial opacity for a preview that says where a record is rather than showing its data: a
@@ -35,6 +41,12 @@ export type MapLibreStyle = {
 export const darkBasemapStyle = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 export const lightBasemapStyle = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
+// What a result's number is drawn in when neither an app nor the palette has said. A CSS font stack,
+// unlike the glyph name below: the numbers are drawn into an image of our own rather than handed to
+// MapLibre, which is also the only reason they can be bold at all - see markerImage. Web Awesome's own
+// body font comes first, so the numbers match whatever the rest of the page is set in.
+const defaultMarkerFont = 'system-ui, sans-serif';
+
 // Default MapLibre `text-font` glyph name. Unlike the rest of our text styling, this can't fall
 // back to a CSS token: `text-font` names a glyph MapLibre requests from the style's glyphs
 // endpoint, not a CSS font stack, so `--wa-font-family-body` (e.g. "ui-sans-serif, system-ui,
@@ -48,7 +60,15 @@ const defaultGlyphFont = 'Noto Sans Regular';
 // the way it did, and one that names a color gets an outline that follows it into either mode.
 const strokeLightnessShift = 0.26;
 
-// Larger padding used for overviews (static map, search results)
+// How deep the disc a result's number is drawn on sits, in OKLab lightness. A target rather than a
+// step, unlike the outline above: a number has to be readable on its disc in both modes, and the two
+// tokens behind one color start at opposite ends of the scale, so the same step from each would land
+// one of them either side of the point where white stops being the more readable ink. Every color in
+// the palette clears that point at this value, and so does anything an app is likely to name, which
+// is what lets the numeral be white by construction rather than by luck.
+const markerLightness = 0.45;
+
+// Larger padding used for overviews (search results, locators)
 const defaultOverviewPadding = 64;
 
 // Style properties common to all MapLibre-based previewers
@@ -86,6 +106,8 @@ export default class MapLibreTheme extends Theme {
       highlightColor,
       selectedColor,
       invalidColor,
+      markerColor: this.markerColor('--ogm-marker-color', dataColor),
+      markerHighlightColor: this.markerColor('--ogm-marker-highlight-color', highlightColor),
       strokeColor: this.strokeColor('--ogm-stroke-color', dataColor),
       strokeHighlightColor: this.strokeColor('--ogm-stroke-highlight-color', highlightColor),
       strokeSelectedColor: this.strokeColor('--ogm-stroke-selected-color', selectedColor),
@@ -94,6 +116,7 @@ export default class MapLibreTheme extends Theme {
       textHaloColor: this.haloColor(textColor),
       textFont: this.readCssProperty('--ogm-font-family') || defaultGlyphFont,
       textSize: this.readCssNumber('--ogm-text-size', 14),
+      markerFont: this.readCssProperty('--ogm-marker-font') || this.readCssProperty('--wa-font-family-body') || defaultMarkerFont,
       highlightOpacity: this.readCssNumber('--ogm-highlight-opacity', 0.8),
       boundsOpacity: this.readCssNumber('--ogm-bounds-opacity', 0.6),
       overviewPadding: this.getOverviewPadding(),
@@ -115,6 +138,16 @@ export default class MapLibreTheme extends Theme {
   // had to name both could only name one pair for both modes. This one follows the mode.
   strokeColor(override: string, dataColor: string): string {
     return this.readCssProperty(override) || shiftLightness(dataColor, this.darkMode() ? strokeLightnessShift : -strokeLightnessShift);
+  }
+
+  // The disc a result's number is read against, unless an app named one. Derived for the reason the
+  // outline above is - an app that named --ogm-data-color has named this too, and one that had to name
+  // both could only name a pair for a single mode - but derived to a lightness rather than by a step,
+  // because this one has to carry a numeral. See markerLightness. Whatever comes out, the numeral is
+  // drawn in whichever of black and white can be read on it, so an app that does name a color of its
+  // own gets ink that follows it.
+  markerColor(override: string, color: string): string {
+    return this.readCssProperty(override) || atLightness(color, markerLightness);
   }
 
   // What a label is read against, derived the same way, but to the opposite end of the scale rather

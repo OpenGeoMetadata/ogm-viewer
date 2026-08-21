@@ -82,6 +82,27 @@ export const shiftLightness = (color: string, delta: number): string => {
 };
 
 /**
+ * The same color at a stated perceptual lightness, rather than a step away from wherever it was.
+ * Hue and chroma are left where they were, as above.
+ *
+ * `shiftLightness` answers a different question and can't answer this one. An outline only has to be
+ * told apart from the color it outlines, so a step in either direction will do, and which direction
+ * depends on the basemap - which is why that one takes a delta and this one takes a destination. A
+ * color that has to carry text has to arrive somewhere in particular whatever it started as, and the
+ * two mode tokens behind one of ours start at opposite ends of the scale: the same step from each
+ * lands them either side of the point where white stops being the more readable ink.
+ *
+ * Anything d3-color can't read comes back untouched, for the reason above.
+ */
+export const atLightness = (color: string, lightness: number): string => {
+  const { r, g, b } = rgb(commaSyntax(color));
+  if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) return color;
+
+  const [, a, bb] = toOklab(r, g, b);
+  return toHex(lightness, a, bb);
+};
+
+/**
  * Black or white, whichever contrasts more with the color given - the choice CSS `contrast-color()`
  * makes, made here for the reason at the top of this file, and by the measure that function's
  * definition rests on: WCAG relative luminance, whose crossover sits near 0.18 rather than at the

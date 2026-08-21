@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@stencil/vitest';
 
-import { shiftLightness } from './color';
+import { atLightness, contrastColor, shiftLightness } from './color';
 import MapLibreTheme, { darkBasemapStyle, lightBasemapStyle } from './maplibre';
 
 // A theme reading from an element carrying the given custom properties.
@@ -82,6 +82,73 @@ describe('MapLibreTheme', () => {
 
       expect(themed('light', named).getStyle().strokeColor).toBe('#4a0a0a');
       expect(themed('dark', named).getStyle().strokeColor).toBe('#4a0a0a');
+    });
+  });
+
+  // The disc a result's number sits on is derived to a lightness rather than by a step, because a
+  // numeral has to be readable on it in either mode. Asserted as that relationship, and as the
+  // guarantee that rests on it, rather than against a hex.
+  describe('derived marker colors', () => {
+    const tokens = { '--ogm-data-color': '#8f1414', '--ogm-highlight-color': '#e98300' };
+
+    it('sinks a color to the depth a number can be read on', () => {
+      const { dataColor, markerColor } = themed('light', tokens).getStyle();
+
+      expect(markerColor).toBe(atLightness(dataColor, 0.45));
+    });
+
+    // Which is what a step could not do: the two tokens behind one color start at opposite ends of
+    // the scale, so one step from each would land them either side of where white stops being legible.
+    it('sinks it to the same depth in both modes', () => {
+      const light = themed('light', tokens).getStyle();
+      const dark = themed('dark', tokens).getStyle();
+
+      expect(dark.markerColor).toBe(light.markerColor);
+    });
+
+    it('derives the highlighted marker from the highlight color', () => {
+      const { highlightColor, markerHighlightColor } = themed('light', tokens).getStyle();
+
+      expect(markerHighlightColor).toBe(atLightness(highlightColor, 0.45));
+      expect(markerHighlightColor).not.toBe(themed('light', tokens).getStyle().markerColor);
+    });
+
+    // What the numeral's own color rests on. It is chosen by contrast at the point of drawing, so a
+    // disc that came out pale would put black ink on a map whose other numbers are white. Checked
+    // against the palette's own values for each mode - the pale pair a light basemap gets and the
+    // saturated pair a dark one does - and against a color pale enough that an app naming it would
+    // otherwise get one.
+    it('leaves both discs deep enough for white ink', () => {
+      const light = themed('light', { '--wa-color-blue-80': '#9fceff', '--wa-color-cyan-80': '#7fd6ec' }).getStyle();
+      const dark = themed('dark', { '--wa-color-blue-50': '#0071ec', '--wa-color-cyan-60': '#00a3c0' }).getStyle();
+      const pale = themed('light', { '--ogm-data-color': '#ffe08a', '--ogm-highlight-color': '#ffff00' }).getStyle();
+
+      [light, dark, pale].forEach(style => {
+        expect(contrastColor(style.markerColor)).toBe('#ffffff');
+        expect(contrastColor(style.markerHighlightColor)).toBe('#ffffff');
+      });
+    });
+
+    it('steps aside for an app that names the disc itself', () => {
+      const named = { ...tokens, '--ogm-marker-color': '#4a0a0a', '--ogm-marker-highlight-color': '#7a4600' };
+      const style = themed('light', named).getStyle();
+
+      expect(style.markerColor).toBe('#4a0a0a');
+      expect(style.markerHighlightColor).toBe('#7a4600');
+    });
+  });
+
+  // The numbers on an overview's markers are drawn by this library rather than by MapLibre, so unlike
+  // every other font here this one is an ordinary CSS stack
+  describe('marker font', () => {
+    it('takes the page’s own body font, and an override before it', () => {
+      expect(themed('light', { '--wa-font-family-body': 'Untitled Sans, sans-serif' }).getStyle().markerFont).toBe('Untitled Sans, sans-serif');
+      expect(themed('light', { '--wa-font-family-body': 'Untitled Sans, sans-serif', '--ogm-marker-font': 'Redaction, serif' }).getStyle().markerFont).toBe('Redaction, serif');
+    });
+
+    // Unlike textFont, which names a glyph set the basemap's own endpoint has to serve
+    it('falls back to something a browser will certainly have', () => {
+      expect(themed('light').getStyle().markerFont).toBe('system-ui, sans-serif');
     });
   });
 

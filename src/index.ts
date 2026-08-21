@@ -84,7 +84,8 @@ export { default as GeoJsonPreviewer, type AddGeoJsonSourceObject } from './lib/
 export { default as ImagePreviewer } from './lib/previewers/image';
 // `locationsFor` is what <ogm-overview> turns records into: one extent apiece, keeping the place of
 // a record it can't put anywhere, since that place is the number a reader sees on the map.
-export { default as LocationPreviewer, locationsFor } from './lib/previewers/location';
+// `locationFor` is the one of them <ogm-locator> draws.
+export { default as LocationPreviewer, locationFor, locationsFor } from './lib/previewers/location';
 export { default as OpenIndexMapPreviewer } from './lib/previewers/openindexmap';
 export { default as PMTilesRasterPreviewer } from './lib/previewers/pmtiles-raster';
 export { default as PMTilesVectorPreviewer } from './lib/previewers/pmtiles-vector';

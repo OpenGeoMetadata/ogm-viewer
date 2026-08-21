@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@stencil/vitest';
 
-import { contrastColor, shiftLightness } from './color';
+import { atLightness, contrastColor, shiftLightness } from './color';
 
 // Perceptual lightness of a hex color, on the 0-1 scale shiftLightness works in. Reimplemented here
 // rather than exported from the module under test, so an error in its conversion can't cancel out.
@@ -76,6 +76,52 @@ describe('shiftLightness', () => {
     expect(shiftLightness('oklch(0.5 0.1 20)', -0.26)).toBe('oklch(0.5 0.1 20)');
     expect(shiftLightness('color-mix(in oklab, red, blue)', -0.26)).toBe('color-mix(in oklab, red, blue)');
     expect(shiftLightness('', -0.26)).toBe('');
+  });
+});
+
+describe('atLightness', () => {
+  // To within what eight bits a channel can hold: the answer is a hex color, and reading its
+  // lightness back off three rounded channels is worth about a thousandth either way.
+  it('lands on the lightness it was given, wherever it started', () => {
+    expect(lightness(atLightness('#9fceff', 0.45))).toBeCloseTo(0.45, 2);
+    expect(lightness(atLightness('#7fd6ec', 0.6))).toBeCloseTo(0.6, 2);
+  });
+
+  // Holding a hue and its chroma while moving the lightness can land outside sRGB, and clipping the
+  // channel back into it costs a little of the lightness that was asked for. The same trade
+  // shiftLightness documents, and it only shows on the colors with the most chroma in them.
+  it('gets as close as sRGB allows for a color with no room left', () => {
+    expect(lightness(atLightness('#0071ec', 0.45))).toBeCloseTo(0.45, 1);
+  });
+
+  // Which is the whole point of taking a destination rather than a step: the two tokens behind one of
+  // our colors sit at opposite ends of the scale, and both have to end up somewhere a numeral reads.
+  it('brings a pair of light and dark colors to the same place', () => {
+    const pale = atLightness('#9fceff', 0.45);
+    const deep = atLightness(shiftLightness('#9fceff', 0.3), 0.45);
+
+    expect(lightness(pale)).toBeCloseTo(lightness(deep), 2);
+  });
+
+  it('keeps the hue it was given', () => {
+    // Still a blue, and still nearer blue than the red it isn't
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(atLightness('#9fceff', 0.45).slice(i, i + 2), 16));
+    expect(b).toBeGreaterThan(g);
+    expect(g).toBeGreaterThan(r);
+  });
+
+  // What the disc behind a result's number rests on. Asserted against every color the palette can
+  // hand over, plus what an app is likely to name, because the numeral's own color is chosen by
+  // contrast and a disc that came out pale would put black ink on a map full of white ink.
+  it('lands deep enough for white ink, whatever color it was given', () => {
+    const colors = ['#9fceff', '#0071ec', '#7fd6ec', '#00a3c0', '#93da98', '#00883c', '#f3676c', '#dc3146', '#ffe08a', '#ffff00', '#ffffff', '#000000'];
+
+    colors.forEach(color => expect(contrastColor(atLightness(color, 0.45))).toBe('#ffffff'));
+  });
+
+  it('hands back anything it cannot read, untouched', () => {
+    expect(atLightness('oklch(0.5 0.1 20)', 0.45)).toBe('oklch(0.5 0.1 20)');
+    expect(atLightness('', 0.45)).toBe('');
   });
 });
 

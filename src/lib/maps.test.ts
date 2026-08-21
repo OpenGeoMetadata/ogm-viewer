@@ -1,7 +1,13 @@
+/** @vitest-environment happy-dom */
+// A DOM, for the controls at the bottom of the file: MapLibre's own build their buttons as they are
+// added, and there is no way to check what a map ends up offering without letting them. The same
+// reason globe-control.test.ts asks for one.
 import { describe, it, expect, vi, beforeEach, afterEach } from '@stencil/vitest';
 
-import { fitBounds, trackContainerSize, whenSized } from './maps';
+import { WORLD } from './geometry';
+import { addLocationControls, disableRotation, fitBounds, frameLocation, readProjection, trackContainerSize, whenSized } from './maps';
 import type Theme from './themes/theme';
+import type MapLibreTheme from './themes/maplibre';
 
 const PADDING = 50;
 const theme = { getPadding: () => PADDING } as Theme;
@@ -12,10 +18,12 @@ const BOUNDS: [[number, number], [number, number]] = [
 ];
 
 // Enough of a MapLibre map to be pointed somewhere: it can work out a camera, it can be moved, and
-// it reports the move as having finished, which is what fitBounds waits for before resolving.
-const fittableMap = (cameraForBounds = vi.fn(() => ({ center: [0, 0], zoom: 4 }))) => ({
+// it reports the move as having finished, which is what fitBounds waits for before resolving. It also
+// answers how big its canvas is, since that is what decides how much of a gap it can spare.
+const fittableMap = (cameraForBounds = vi.fn(() => ({ center: [0, 0], zoom: 4 })), canvas = { clientWidth: 800, clientHeight: 600 }) => ({
   cameraForBounds,
   fitBounds: vi.fn(),
+  getCanvas: () => canvas,
   once: vi.fn((_event: string, listener: () => void) => listener()),
 });
 
@@ -45,6 +53,32 @@ describe('fitBounds', () => {
 
     expect(map.cameraForBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING, maxZoom: 12 });
     expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING, maxZoom: 12 });
+  });
+
+  // MapLibre has no camera for bounds it can't fit the padding inside, and the guard below reads that
+  // as "leave the camera alone" - so without this a pane shorter than twice the gap would sit at
+  // whatever view it opened on, with what it was pointed at off screen and nothing saying so.
+  it('should give up the gap rather than the framing on a map too small for both', async () => {
+    const map = fittableMap(undefined, { clientWidth: 300, clientHeight: 120 });
+    await fitBounds(map as unknown as maplibregl.Map, theme, BOUNDS);
+
+    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: 30 });
+  });
+
+  it('should ask for the whole gap on a map with room for it', async () => {
+    const map = fittableMap(undefined, { clientWidth: 800, clientHeight: 400 });
+    await fitBounds(map as unknown as maplibregl.Map, theme, BOUNDS);
+
+    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING });
+  });
+
+  // Zero is not a small map, it is a map nobody can see: held to what a hidden one measures, the
+  // camera it settles on - the one still there when the pane is shown again - would have no gap at all
+  it('should ask for the whole gap on a map with no box to measure', async () => {
+    const map = fittableMap(undefined, { clientWidth: 0, clientHeight: 0 });
+    await fitBounds(map as unknown as maplibregl.Map, theme, BOUNDS);
+
+    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING });
   });
 
   it('should leave the camera alone when there is no camera that would frame the bounds', async () => {
@@ -240,5 +274,151 @@ describe('whenSized', () => {
 
     await expect(sized).resolves.toBe(true);
     expect(observer.disconnected).toBe(true);
+  });
+});
+
+// A theme is only ever asked for the two gaps, and a location map is framed with the wider one
+const locationTheme = { getPadding: () => 8, getOverviewPadding: () => 64 } as MapLibreTheme;
+
+describe('frameLocation', () => {
+  it('should leave the overview gap around what it frames', async () => {
+    const map = fittableMap();
+    await frameLocation(map as unknown as maplibregl.Map, locationTheme, BOUNDS, false);
+
+    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: 64 });
+  });
+
+  it('should carry the caller’s own camera options', async () => {
+    const map = fittableMap();
+    await frameLocation(map as unknown as maplibregl.Map, locationTheme, BOUNDS, false, { maxZoom: 12 });
+
+    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: 64, maxZoom: 12 });
+  });
+
+  // A globe camera has no answer for anything wider than the half of the world facing it: it hands
+  // back nothing and the camera stays put, so half of a wide area is what gets framed instead.
+  it('should hold a globe camera to the half of the world it can face', async () => {
+    const map = fittableMap();
+    await frameLocation(map as unknown as maplibregl.Map, locationTheme, WORLD, true);
+
+    const [bounds] = map.fitBounds.mock.calls[0] as unknown as [maplibregl.LngLatBounds];
+    expect(bounds.getEast() - bounds.getWest()).toEqual(180);
+    expect(bounds.getCenter().lng).toEqual(0);
+  });
+
+  it('should point a flat map at the whole of the same area', async () => {
+    const map = fittableMap();
+    await frameLocation(map as unknown as maplibregl.Map, locationTheme, WORLD, false);
+
+    expect(map.fitBounds).toHaveBeenCalledWith(WORLD, { padding: 64 });
+  });
+
+  // Nothing to clamp, so a globe gets what it was given
+  it('should leave an area a globe can face where it is', async () => {
+    const map = fittableMap();
+    await frameLocation(map as unknown as maplibregl.Map, locationTheme, BOUNDS, true);
+
+    const [bounds] = map.fitBounds.mock.calls[0] as unknown as [maplibregl.LngLatBounds];
+    expect([bounds.getWest(), bounds.getEast()]).toEqual([-124.41, -114.13]);
+  });
+});
+
+// Enough of a map to hang controls on. MapLibre's own read all of this as they are added: the
+// navigation control asks for its titles and for the zoom limits to grey its buttons at, and the
+// globe control asks which projection it should be showing.
+const controllableMap = () => {
+  const controls: { control: maplibregl.IControl; element: HTMLElement }[] = [];
+  const pending: Record<string, (() => void)[]> = {};
+
+  return {
+    controls,
+    addControl(control: maplibregl.IControl) {
+      controls.push({ control, element: control.onAdd(this as unknown as maplibregl.Map) });
+    },
+    // Held rather than run, so a test can say when the style arrives
+    once(event: string, listener: () => void) {
+      (pending[event] ??= []).push(listener);
+    },
+    fire(event: string) {
+      (pending[event] ?? []).splice(0).forEach(listener => listener());
+    },
+    on: () => {},
+    off: () => {},
+    _getUIString: (key: string) => key,
+    getZoom: () => 4,
+    getMinZoom: () => 0,
+    getMaxZoom: () => 22,
+    getProjection: () => ({ type: 'globe' }),
+    keyboard: { disableRotation: vi.fn() },
+    touchZoomRotate: { disableRotation: vi.fn() },
+  };
+};
+
+describe('readProjection', () => {
+  const inProjection = (type: string | undefined) => ({ getProjection: () => (type === undefined ? undefined : { type }) }) as unknown as maplibregl.Map;
+
+  it('should read a flat map as flat', () => {
+    expect(readProjection(inProjection('mercator'))).toEqual('mercator');
+  });
+
+  // Either name MapLibre has for a sphere is a globe as far as a camera is concerned: 'globe' draws
+  // as one until it is zoomed in far enough that a sphere and a flat map are the same picture, and
+  // 'vertical-perspective' stays one throughout.
+  it('should read either kind of sphere as a globe', () => {
+    expect(readProjection(inProjection('globe'))).toEqual('globe');
+    expect(readProjection(inProjection('vertical-perspective'))).toEqual('globe');
+  });
+
+  // A map has no projection until a style document has arrived to carry one, and that is not the same
+  // answer as flat: a caller with a projection of its own to fall back on has to be able to tell.
+  it('should answer with nothing before a style has arrived', () => {
+    expect(readProjection(inProjection(undefined))).toBeUndefined();
+  });
+});
+
+describe('disableRotation', () => {
+  // `dragRotate: false` looks like it covers this and doesn't: the keyboard's shift+arrows and the
+  // two-finger pinch-rotate are each a handler of their own.
+  it('should turn off the two gestures a map option cannot name', () => {
+    const map = controllableMap();
+    disableRotation(map as unknown as maplibregl.Map);
+
+    expect(map.keyboard.disableRotation).toHaveBeenCalled();
+    expect(map.touchZoomRotate.disableRotation).toHaveBeenCalled();
+  });
+});
+
+describe('addLocationControls', () => {
+  it('should offer zoom buttons and no compass', () => {
+    const map = controllableMap();
+    addLocationControls(map as unknown as maplibregl.Map);
+
+    const { element } = map.controls[0];
+    expect(Array.from(element.querySelectorAll('button'), button => button.className)).toEqual(['maplibregl-ctrl-zoom-in', 'maplibregl-ctrl-zoom-out']);
+    expect(element.querySelector('.maplibregl-ctrl-compass')).toBeNull();
+  });
+
+  // Its click reaches a style document, and asking one that isn't there yet throws. The window
+  // between building a map and the basemap's style landing is easy to click in on a map this small.
+  it('should wait for a style document before offering the projection toggle', () => {
+    const map = controllableMap();
+    addLocationControls(map as unknown as maplibregl.Map);
+
+    expect(map.controls).toHaveLength(1);
+
+    map.fire('style.load');
+
+    expect(map.controls).toHaveLength(2);
+    expect(map.controls[1].element.querySelector('[class^="maplibregl-ctrl-globe"]')).toBeTruthy();
+  });
+
+  // A theme swap brings a second style document with it, and the button is already on the map
+  it('should offer the projection toggle once, however many styles arrive', () => {
+    const map = controllableMap();
+    addLocationControls(map as unknown as maplibregl.Map);
+    map.fire('style.load');
+    map.fire('style.load');
+
+    expect(map.controls).toHaveLength(2);
   });
 });
