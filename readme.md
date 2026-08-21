@@ -213,7 +213,13 @@ Nothing of a record is drawn but its number, at the middle of its extent. A reco
 
 The map opens as a globe, with a button beside the zoom buttons to flatten it. It can be panned and zoomed but not turned or tilted.
 
-A reader's pointer over a number highlights that result: the marker rises above the others in the colors a highlighted feature gets, and the result's own extent is drawn around it in the same colors. Nothing else happens — the camera stays where it is, and the viewer reports nothing, since a pointer resting on a number is a question about that number rather than a click.
+A reader's pointer over a number highlights that result: the marker rises above the others in the colors a highlighted feature gets, and the result's own extent is drawn around it in the same colors. The camera stays where it is — a pointer resting on a number is a question about that number, not a click — and the `highlightChange` event says which result it is, so the list beside the map can light up the matching row:
+
+```js
+overview.addEventListener('highlightChange', event => markRow(event.detail?.place));
+```
+
+The detail carries the result's place in the list counted from one and the id of the record it came from — or, for the `previewers` path, the id of the resource a previewer draws — and is `null` once the pointer has left every number. Only the reader's pointer is reported: setting `highlighted` doesn't come back out, so the obvious handler for this event is free to set it.
 
 To highlight one from outside, set `highlighted` to either its place in the list counted from one, or the id of the record it came from (or, for the `previewers` path, the id of the resource a previewer draws). It is drawn exactly as a hovered number is: pointing at a row beside the map and pointing at its number on the map are two ways of saying the same thing, so they get the same drawing. The camera doesn't move here either, and anything that names neither a row nor an id simply clears the highlight.
 

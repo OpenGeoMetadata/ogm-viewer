@@ -79,6 +79,12 @@
         text-align: start;
       }
 
+      /* The row the map says the reader is pointing at; see the highlightChange listener */
+      .results li.highlighted button {
+        background: #7fd6ec;
+        color: #000;
+      }
+
       ogm-viewer,
       ogm-overview,
       ogm-locator {
@@ -272,6 +278,13 @@
         overview.addEventListener('boundsChange', event => setFilter(event.detail));
 
         clearFilterButton.addEventListener('click', () => setFilter(undefined));
+
+        // The row the map says the reader's pointer is over, marked the way a page would mark it. The
+        // other direction from `highlighted` below: this one is the map telling the list.
+        overview.addEventListener('highlightChange', event => {
+          const pointed = event.detail?.place;
+          [...results.children].forEach((item, index) => item.classList.toggle('highlighted', index + 1 === pointed));
+        });
 
         // A row per result, the way a page would render them beside the map. Hovering one drives
         // `highlighted` by id, which is what a page holding records has to hand.
