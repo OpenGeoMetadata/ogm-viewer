@@ -19,20 +19,22 @@ export const RESULT_NUMBERS = 'ogm-result-numbers';
 export const RESULT_MARKERS = `${RESULT_NUMBERS}-markers`;
 
 // What an image of one marker is called. One per number on the map, plus one more for the number
-// something outside has asked to highlight; see markerImage.
+// something outside has pointed at, which is drawn as a selection; see markerImage.
 export const MARKER_IMAGE = 'ogm-result-marker';
 
 // The two boxes drawn under the numbers: the area a search is filtered to, and the extent of the
-// highlighted result. A source each rather than two features of one, because they are two different
-// statements about the map, drawn in different colors, arriving at different times.
+// result something outside has pointed at. A source each rather than two features of one, because they
+// are two different statements about the map, drawn in different colors, arriving at different times.
 export const SEARCH_BOUNDS = 'ogm-search-bounds';
-export const HIGHLIGHT_BOUNDS = 'ogm-highlight-bounds';
+export const SELECTED_BOUNDS = 'ogm-selected-bounds';
 
-// How much bigger a result's number is drawn than a label on a feature. Deliberately not themed,
-// for the reason LocationPreviewer's FILL_OPACITY isn't: this is the relationship between a number
-// read against a whole globe and the text drawn beside a feature, not a value an embedding app has
-// a reason to name. Setting --ogm-text-size still moves both together.
-const NUMBER_SIZE = 1.5;
+// How big a result's number is drawn, against the size of a label on a feature. A little larger, and
+// no more: a marker is read at a glance rather than studied, and a page of twenty of them covers more
+// of the map than it says anything about. Deliberately not themed, for the reason LocationPreviewer's
+// FILL_OPACITY isn't - this is the relationship between a number and the text drawn beside a feature,
+// not a value an embedding app has a reason to name. Setting --ogm-text-size still moves both
+// together, and the disc follows the number.
+const NUMBER_SIZE = 1.05;
 
 // How wide the disc behind a number is, as a multiple of the number's own size. One size for every
 // marker, whatever it says and however far the map is zoomed: these are read as a set, and a set of
@@ -52,23 +54,24 @@ const NUMERAL_WIDTH = 0.72;
 // drawing for; past it the image is memory spent on detail nothing can show.
 const MAX_PIXEL_RATIO = 2;
 
-// Where the highlighted marker sorts. Above every other, which are sorted at minus their own number:
+// Where the selected marker sorts. Above every other, which are sorted at minus their own number:
 // see resultMarkersLayer.
-const HIGHLIGHT_SORT_KEY = 1;
+const SELECTED_SORT_KEY = 1;
 
 // Everything an overview draws, gathered in one place because the order it goes onto the map in is
 // most of what keeps it readable.
 export type DrawnResults = {
   // Where every result is, in the order they were given, including the ones nobody could place
   extents: (LngLatBoundsLike | undefined)[];
-  // Which of those results is highlighted, as its place in that list counted from one
+  // Which of those results something outside has pointed at, as its place in that list counted from
+  // one. It is drawn as a selection rather than as a hover: see drawResults.
   highlighted?: number;
   // The area a search is currently filtered to, if one is
   searchBounds?: LngLatBounds;
 };
 
 // What a box is drawn in. The two of them differ in nothing else, so this is the whole of the
-// difference between the area being searched and the extent of the highlighted result.
+// difference between the area being searched and the extent of the result being pointed at.
 type BoxColors = { color: string; strokeColor: string; opacity: number };
 
 /**
@@ -92,14 +95,14 @@ export const numberedResults = (extents: (LngLatBoundsLike | undefined)[], highl
     // longitude from outside -180..180 everywhere it takes one, so there is nothing to wrap back.
     const { lng, lat } = LngLatBounds.convert(extent).getCenter();
     const label = String(index + 1);
-    const marked = index + 1 === highlighted;
+    const selected = index + 1 === highlighted;
 
     return [
       {
         type: 'Feature' as const,
         // The image each one is drawn as, named on the feature rather than worked out in an
         // expression, so there is one place that decides which marker wears which picture.
-        properties: { label, highlighted: marked, icon: markerImageId(label, marked) },
+        properties: { label, selected, icon: markerImageId(label, selected) },
         geometry: { type: 'Point' as const, coordinates: [lng, lat] },
       },
     ];
@@ -107,7 +110,7 @@ export const numberedResults = (extents: (LngLatBoundsLike | undefined)[], highl
 });
 
 // What the image for one marker is called
-export const markerImageId = (label: string, highlighted: boolean = false): string => `${MARKER_IMAGE}${highlighted ? '-highlight' : ''}-${label}`;
+export const markerImageId = (label: string, selected: boolean = false): string => `${MARKER_IMAGE}${selected ? '-selected' : ''}-${label}`;
 
 /**
  * The one layer every marker is drawn from: an image apiece, and nothing else.
@@ -143,14 +146,14 @@ export const resultMarkersLayer = (): SymbolLayerSpecification => ({
     // Earlier results on top, so counting down the list beside the map is counting away from the
     // reader: the first result is the one a page put first, and it stays over the twentieth however the
     // map is panned. A higher key draws over a lower one, so the key is the number negated - and the
-    // highlighted one, which something outside has pointed at, sorts above all of them. Without a key
-    // at all MapLibre orders these by where they land on screen, and they restack as the map moves,
-    // which reads as the numbers rearranging themselves.
+    // selected one, which something outside has pointed at, sorts above all of them. Without a key at
+    // all MapLibre orders these by where they land on screen, and they restack as the map moves, which
+    // reads as the numbers rearranging themselves.
     'symbol-sort-key': markerSortKey,
   },
 });
 
-const markerSortKey: ExpressionSpecification = ['case', ['get', 'highlighted'], HIGHLIGHT_SORT_KEY, ['-', 0, ['to-number', ['get', 'label']]]];
+const markerSortKey: ExpressionSpecification = ['case', ['get', 'selected'], SELECTED_SORT_KEY, ['-', 0, ['to-number', ['get', 'label']]]];
 
 /**
  * A disc with a numeral centered on it, as pixels MapLibre can draw as an icon.
@@ -246,10 +249,10 @@ const addBounds = (map: Map, id: string, bounds: LngLatBounds, colors: BoxColors
 /**
  * Put everything an overview draws on the map, in the order it has to be drawn in.
  *
- * Bottom to top: the area being searched, the extent of the highlighted result, and the markers. All
+ * Bottom to top: the area being searched, the extent of the selected result, and the markers. All
  * of it comes off and goes back on rather than being changed in place, because addLayer appends and
  * there is no other way to say which of these sits over which. Nothing here reaches the network - the
- * markers are drawn on a canvas and the boxes are two shapes - so moving one highlight costs a handful
+ * markers are drawn on a canvas and the boxes are two shapes - so moving the selection costs a handful
  * of style layers and as many small pictures as there are results.
  */
 export const drawResults = (map: Map, style: MapLibreStyle, { extents, highlighted, searchBounds }: DrawnResults) => {
@@ -259,11 +262,14 @@ export const drawResults = (map: Map, style: MapLibreStyle, { extents, highlight
     addBounds(map, SEARCH_BOUNDS, searchBounds, { color: style.dataColor, strokeColor: style.strokeColor, opacity: style.boundsOpacity });
   }
 
-  // Nothing for a highlight that landed on a result nobody could place. That is the truth rather than
+  // Nothing for a selection that landed on a result nobody could place. That is the truth rather than
   // a gap: there is no number on the map to bring forward and no extent to draw around.
   const extent = highlighted === undefined ? undefined : extents[highlighted - 1];
   if (extent) {
-    addBounds(map, HIGHLIGHT_BOUNDS, LngLatBounds.convert(extent), { color: style.highlightColor, strokeColor: style.strokeHighlightColor, opacity: style.highlightOpacity });
+    // The colors a selected feature is drawn in rather than a hovered one. A hover is what points at
+    // it, but what it says is that this is the result being read - and it is drawn at the opacity any
+    // called-out feature gets, which is what InspectableRasterPreviewer draws a selection at too.
+    addBounds(map, SELECTED_BOUNDS, LngLatBounds.convert(extent), { color: style.selectedColor, strokeColor: style.strokeSelectedColor, opacity: style.highlightOpacity });
   }
 
   const numbers = numberedResults(extents, highlighted);
@@ -281,16 +287,16 @@ const addMarkerImages = (map: Map, style: MapLibreStyle, numbers: GeoJSON.Featur
   const ratio = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
 
   for (const { properties } of numbers.features) {
-    const { label, highlighted, icon } = properties as { label: string; highlighted: boolean; icon: string };
-    const image = markerImage(label, highlighted ? style.markerHighlightColor : style.markerColor, style, ratio);
+    const { label, selected, icon } = properties as { label: string; selected: boolean; icon: string };
+    const image = markerImage(label, selected ? style.markerSelectedColor : style.markerColor, style, ratio);
     if (image) map.addImage(icon, image, { pixelRatio: Math.min(ratio, MAX_PIXEL_RATIO) });
   }
 };
 
 // Every layer this draws, and every source under them. The layers go first: a source can't be taken
 // off the map while a layer is still reading it.
-const RESULT_LAYERS = [...[SEARCH_BOUNDS, HIGHLIGHT_BOUNDS].flatMap(id => [`${id}-fill`, `${id}-outline`]), RESULT_MARKERS];
-const RESULT_SOURCES = [SEARCH_BOUNDS, HIGHLIGHT_BOUNDS, RESULT_NUMBERS];
+const RESULT_LAYERS = [...[SEARCH_BOUNDS, SELECTED_BOUNDS].flatMap(id => [`${id}-fill`, `${id}-outline`]), RESULT_MARKERS];
+const RESULT_SOURCES = [SEARCH_BOUNDS, SELECTED_BOUNDS, RESULT_NUMBERS];
 
 /**
  * Take all of it back off, pictures included.
