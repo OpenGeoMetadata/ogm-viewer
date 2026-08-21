@@ -58,6 +58,11 @@ const NUMERAL_WIDTH = 0.72;
 // drawing for; past it the image is memory spent on detail nothing can show.
 const MAX_PIXEL_RATIO = 2;
 
+// How long a box takes to fade in or out, in milliseconds. MapLibre's own default for a paint property,
+// but named on our own layers rather than left to the style document: getTransition() takes whatever the
+// stylesheet says over the default, and the stylesheets are CARTO's to change.
+const BOX_FADE = 300;
+
 // How much bigger a highlighted marker is drawn than the rest. Enough to read as coming forward, and
 // no more: it is the same marker, and one that jumped in size would say something happened rather than
 // that this is the one being pointed at. The ring around it doesn't grow with it - see MARKER_RING -
@@ -286,32 +291,35 @@ const boundsLayers = (id: string, { color, strokeColor, opacity }: BoxColors): [
     type: 'fill' as const,
     source: id,
     layout: { visibility: 'visible' as const },
-    paint: { 'fill-color': color, 'fill-opacity': opacity * FILL_OPACITY },
+    paint: { 'fill-color': color, 'fill-opacity': opacity * FILL_OPACITY, 'fill-opacity-transition': { duration: BOX_FADE, delay: 0 } },
   },
   {
     id: `${id}-outline`,
     type: 'line' as const,
     source: id,
     layout: { visibility: 'visible' as const },
-    paint: { 'line-color': strokeColor, 'line-width': 2, 'line-opacity': opacity },
+    paint: { 'line-color': strokeColor, 'line-width': 2, 'line-opacity': opacity, 'line-opacity-transition': { duration: BOX_FADE, delay: 0 } },
   },
 ];
 
-// However many boxes there are to draw, which for the area being searched is one or none and for the
-// results being highlighted is one per result. A collection either way, so that a box nobody asked for
-// is an empty one rather than a source coming off the map - which is what lets the two layers that read
-// it stay on as well; see drawInto.
-const boundsData = (bounds: (LngLatBounds | undefined)[]): GeoJSON.FeatureCollection => ({
+// However many boxes there are to draw, which for the area being searched is one and for the results
+// being highlighted is one per result
+const boundsData = (bounds: LngLatBounds[]): GeoJSON.FeatureCollection => ({
   type: 'FeatureCollection',
-  features: bounds.filter((box): box is LngLatBounds => !!box).map(box => ({ type: 'Feature', properties: {}, geometry: boundsToGeoJSON(box) as GeoJSON.Geometry })),
+  features: bounds.map(box => ({ type: 'Feature', properties: {}, geometry: boundsToGeoJSON(box) as GeoJSON.Geometry })),
 });
+
+// What a map that has never had a box on it starts from. Everything after that is a change of opacity,
+// and a box on its way out stays in the source it was drawn from; see drawBox.
+const NOTHING: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 
 // Anything this draws with, which is three kinds of layer over the same kind of source
 type DrawnLayer = FillLayerSpecification | LineLayerSpecification | SymbolLayerSpecification;
 
 /**
  * New data into a source already on the map - or the source, and the layers that read it, if this is
- * the first thing drawn into this style document.
+ * the first thing drawn into this style document. Data of `undefined` leaves whatever the source is
+ * holding, for a box that is fading out and still has to be drawn while it does; see drawBox.
  *
  * Which is the whole of what keeps a redraw from flashing. removeSource drops a source's tiles the
  * moment it is called, so a redraw that begins by taking everything off has nothing to draw until a
@@ -324,17 +332,40 @@ type DrawnLayer = FillLayerSpecification | LineLayerSpecification | SymbolLayerS
  * already been drawn. What can't be said twice is the order - addLayer appends, so the order these
  * first went on in is the order they keep, and it is fixed by drawResults below.
  */
-const drawInto = (map: Map, id: string, data: GeoJSON.GeoJSON, layers: DrawnLayer[]) => {
+const drawInto = (map: Map, id: string, data: GeoJSON.GeoJSON | undefined, layers: DrawnLayer[]) => {
   const source = map.getSource(id) as GeoJSONSource | undefined;
 
   if (!source) {
-    map.addSource(id, { type: 'geojson', data });
+    map.addSource(id, { type: 'geojson', data: data ?? NOTHING });
     for (const layer of layers) map.addLayer(layer);
     return;
   }
 
-  source.setData(data);
+  if (data) source.setData(data);
   for (const layer of layers) repaint(map, layer);
+};
+
+/**
+ * A box, faded in or out rather than put on the map and taken off it.
+ *
+ * An opacity that changes is interpolated by MapLibre over the layer's transition, so a box with
+ * something to say arrives at the theme's opacity over BOX_FADE and one with nothing to say leaves the
+ * same way. What it was drawn from stays where it is while that happens - a box whose geometry had been
+ * taken out of the source would have nothing left to fade - and a box at no opacity is invisible either
+ * way.
+ *
+ * Only a constant fades. MapLibre's DataDrivenProperty.interpolate gives up on anything evaluated per
+ * feature - "we aren't able to interpolate data-driven values" - and holds the old value until the
+ * transition is over, so this is one opacity for the whole layer rather than one for each box on it.
+ * Which also means a highlight moving from one result to another moves the box rather than fading it
+ * across: the geometry changes under an opacity that is already up. That is the right way round for a
+ * reader running down a list of results, where a box lagging behind the pointer would read worse than
+ * one that keeps up with it.
+ */
+const drawBox = (map: Map, id: string, bounds: (LngLatBounds | undefined)[], colors: BoxColors) => {
+  const shown = bounds.filter((box): box is LngLatBounds => !!box);
+
+  drawInto(map, id, shown.length ? boundsData(shown) : undefined, boundsLayers(id, { ...colors, opacity: shown.length ? colors.opacity : 0 }));
 };
 
 // A layer's colors again. A no-op for the markers, which carry no paint at all: what a marker is drawn
@@ -363,7 +394,7 @@ export const drawResults = (map: Map, style: MapLibreStyle, { extents, highlight
   // Before the layer that names them, so that no frame asks for a picture that isn't there yet
   syncMarkerImages(map, style, numbers);
 
-  drawInto(map, SEARCH_BOUNDS, boundsData([searchBounds]), boundsLayers(SEARCH_BOUNDS, { color: style.dataColor, strokeColor: style.strokeColor, opacity: style.boundsOpacity }));
+  drawBox(map, SEARCH_BOUNDS, [searchBounds], { color: style.dataColor, strokeColor: style.strokeColor, opacity: style.boundsOpacity });
 
   // Nothing for a highlight that landed on a result nobody could place. That is the truth rather than
   // a gap: there is no number on the map to bring forward and no extent to draw around.
@@ -372,7 +403,7 @@ export const drawResults = (map: Map, style: MapLibreStyle, { extents, highlight
   // The colors a hovered feature is drawn in, since being pointed at is what is being said - whether
   // the pointer is over the number itself or over something outside that names the result
   const highlight = { color: style.highlightColor, strokeColor: style.strokeHighlightColor, opacity: style.highlightOpacity };
-  drawInto(map, HIGHLIGHT_BOUNDS, boundsData(marked), boundsLayers(HIGHLIGHT_BOUNDS, highlight));
+  drawBox(map, HIGHLIGHT_BOUNDS, marked, highlight);
 
   drawInto(map, RESULT_NUMBERS, numbers, [resultMarkersLayer()]);
 };

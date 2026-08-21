@@ -213,7 +213,7 @@ Nothing of a record is drawn but its number, at the middle of its extent. A reco
 
 The map opens as a globe, with a button beside the zoom buttons to flatten it. It can be panned and zoomed but not turned or tilted.
 
-A reader's pointer over a number highlights that result: the marker grows a little and rises above the others in the colors a highlighted feature gets, and the result's own extent is drawn around it in the same colors. The camera stays where it is — a pointer resting on a number is a question about that number, not a click — and the `highlightChange` event says which result it is, so the list beside the map can light up the matching row:
+A reader's pointer over a number highlights that result: the marker grows a little and rises above the others in the colors a highlighted feature gets, and the result's own extent fades in around it in the same colors. The camera stays where it is — a pointer resting on a number is a question about that number, not a click — and the `highlightChange` event says which result it is, so the list beside the map can light up the matching row:
 
 ```js
 overview.addEventListener('highlightChange', event => markRow(event.detail?.place));
