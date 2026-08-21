@@ -12,7 +12,7 @@ import { boundsToBbox } from '../../lib/geometry';
 import LocationPreviewer from '../../lib/previewers/location';
 import OgmRecord, { type GeoBlacklightSchemaAardvark } from '../../lib/record';
 import LocationResource from '../../lib/resources/location';
-import { SELECTED_BOUNDS, RESULT_MARKERS, RESULT_NUMBERS, SEARCH_BOUNDS } from '../../lib/results';
+import { SELECTED_BOUNDS, markerImageId, RESULT_MARKERS, RESULT_NUMBERS, SEARCH_BOUNDS } from '../../lib/results';
 import MapLibreTheme, { darkBasemapStyle } from '../../lib/themes/maplibre';
 
 // Enough of a MapLibre map to draw numbered results on, to be pointed at them, and to hang the
@@ -86,15 +86,19 @@ class FakeMap {
   removeImage(id: string) {
     this.images.delete(id);
   }
+  hasImage(id: string) {
+    return this.images.has(id);
+  }
   listImages() {
     return [...this.images.keys()];
   }
 
+  // Handed new data rather than taken off and put back, which is what a redraw does now; see drawResults
   getSource(id: string) {
     return this.sources.get(id);
   }
   addSource(id: string, spec: any) {
-    this.sources.set(id, spec);
+    this.sources.set(id, { ...spec, setData: (data: any) => (this.sources.get(id).data = data) });
   }
   removeSource(id: string) {
     this.sources.delete(id);
@@ -107,6 +111,9 @@ class FakeMap {
   }
   removeLayer(id: string) {
     this.layers.delete(id);
+  }
+  setPaintProperty(id: string, property: string, value: unknown) {
+    this.layers.get(id).paint[property] = value;
   }
   cameraForBounds() {
     return { center: [0, 0], zoom: 4 };
@@ -207,6 +214,15 @@ const renderOverview = async () => {
 const MARKER_LAYERS = [RESULT_MARKERS];
 const BOX_LAYERS = (id: string) => [`${id}-fill`, `${id}-outline`];
 
+// Every layer an overview draws, in the order they are drawn in. All of them go on with the first draw
+// and none of them ever comes off: what a redraw changes is the data in them, which is what keeps a
+// highlight from flashing. See drawResults.
+const ALL_LAYERS = [...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(SELECTED_BOUNDS), ...MARKER_LAYERS];
+
+// Whether one of the two boxes has anything in it. Both stay on the map holding nothing when there is
+// nothing to say, so being there is not the question.
+const drawnBox = (map: FakeMap, id: string) => !!map.sources.get(id)?.data.geometry;
+
 const layerIds = (map: FakeMap) => [...map.layers.keys()];
 const marked = (map: FakeMap) => map.sources.get(RESULT_NUMBERS).data.features.map((feature: GeoJSON.Feature) => feature.properties);
 const highlightedLabel = (map: FakeMap) => marked(map).find((properties: { selected: boolean }) => properties.selected)?.label;
@@ -232,7 +248,7 @@ describe('ogm-overview', () => {
     await el.load();
 
     expect(marked(map).map((properties: { label: string }) => properties.label)).toEqual(['1', '2']);
-    expect(layerIds(map)).toEqual(MARKER_LAYERS);
+    expect(layerIds(map)).toEqual(ALL_LAYERS);
   });
 
   // A page of boxes says less than a page of numbers a reader can find again in the list beside the
@@ -242,7 +258,8 @@ describe('ogm-overview', () => {
     el.records = [record('one', { dcat_bbox: CALIFORNIA })];
     await el.load();
 
-    expect([...map.sources.keys()]).toEqual([RESULT_NUMBERS]);
+    expect(drawnBox(map, SEARCH_BOUNDS)).toBe(false);
+    expect(drawnBox(map, SELECTED_BOUNDS)).toBe(false);
   });
 
   // Which is what `locationsFor` hands back, and what the library documents as the way to build these
@@ -294,7 +311,7 @@ describe('ogm-overview', () => {
     expect(marked(map).map((properties: { label: string }) => properties.label)).toEqual(['1', '3']);
   });
 
-  it('takes the last set of numbers off the map before drawing the next', async () => {
+  it('replaces the last set of numbers rather than adding to it', async () => {
     const { el, map } = await renderOverview();
     el.records = [record('one', { dcat_bbox: CALIFORNIA }), record('two', { dcat_bbox: ICELAND })];
     await el.load();
@@ -303,7 +320,8 @@ describe('ogm-overview', () => {
     await el.onRecordsChange();
 
     expect(marked(map).map((properties: { label: string }) => properties.label)).toEqual(['1']);
-    expect(layerIds(map)).toEqual(MARKER_LAYERS);
+    // The same layers throughout, in the same order: what a redraw changes is the data in them
+    expect(layerIds(map)).toEqual(ALL_LAYERS);
   });
 
   it('shows the whole world when it has no records to place', async () => {
@@ -437,7 +455,7 @@ describe('ogm-overview search filter', () => {
     el.bounds = CALIFORNIA;
     await el.load();
 
-    expect(layerIds(map)).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...MARKER_LAYERS]);
+    expect(layerIds(map)).toEqual(ALL_LAYERS);
     expect(map.sources.get(SEARCH_BOUNDS).data.geometry.coordinates[0][0]).toEqual([-124.41, 32.53]);
   });
 
@@ -449,7 +467,7 @@ describe('ogm-overview search filter', () => {
     el.bounds = undefined;
     await el.onBoundsChange();
 
-    expect(map.sources.has(SEARCH_BOUNDS)).toBe(false);
+    expect(drawnBox(map, SEARCH_BOUNDS)).toBe(false);
   });
 
   // The same gap everything else gets, which is what makes the box readable as a box - and a reader
@@ -498,7 +516,7 @@ describe('ogm-overview search filter', () => {
     await el.onBoundsChange();
 
     expect(frameOf(map)).toEqual([-124.41, 32.53, -114.13, 42.01]);
-    expect(map.sources.has(SEARCH_BOUNDS)).toBe(true);
+    expect(drawnBox(map, SEARCH_BOUNDS)).toBe(true);
   });
 
   it('frames what it drew, and says so, when it cannot read the filter it was given', async () => {
@@ -535,7 +553,8 @@ describe('ogm-overview highlight', () => {
 
     expect(highlightedLabel(map)).toEqual('2');
     // It wears a picture of its own, which is what carries the color, and sorts above every other
-    expect(marked(map).map((properties: { icon: string }) => properties.icon)).toEqual(['ogm-result-marker-1', 'ogm-result-marker-selected-2']);
+    const style = el.mapTheme.getStyle();
+    expect(marked(map).map((properties: { icon: string }) => properties.icon)).toEqual([markerImageId('1', style), markerImageId('2', style, true)]);
     expect(map.layers.get(RESULT_MARKERS).layout['symbol-sort-key']).toEqual(['case', ['get', 'selected'], 1, ['-', 0, ['to-number', ['get', 'label']]]]);
   });
 
@@ -545,7 +564,7 @@ describe('ogm-overview highlight', () => {
     el.onHighlightedChange();
 
     expect(map.sources.get(SELECTED_BOUNDS).data.geometry.coordinates[0][0]).toEqual([-24.55, 63.39]);
-    expect(layerIds(map)).toEqual([...BOX_LAYERS(SELECTED_BOUNDS), ...MARKER_LAYERS]);
+    expect(layerIds(map)).toEqual(ALL_LAYERS);
     expect(map.layers.get(`${SELECTED_BOUNDS}-outline`).paint['line-color']).toEqual(el.mapTheme.getStyle().strokeSelectedColor);
   });
 
@@ -602,7 +621,7 @@ describe('ogm-overview highlight', () => {
     el.onHighlightedChange();
 
     expect(highlightedLabel(map)).toBeUndefined();
-    expect(map.sources.has(SELECTED_BOUNDS)).toBe(false);
+    expect(drawnBox(map, SELECTED_BOUNDS)).toBe(false);
   });
 
   // A map with no highlight, rather than one with the wrong highlight. Each of these is a value a page
@@ -616,7 +635,7 @@ describe('ogm-overview highlight', () => {
       el.onHighlightedChange();
 
       expect(highlightedLabel(map)).toBeUndefined();
-      expect(map.sources.has(SELECTED_BOUNDS)).toBe(false);
+      expect(drawnBox(map, SELECTED_BOUNDS)).toBe(false);
     }
   });
 
@@ -640,7 +659,29 @@ describe('ogm-overview highlight', () => {
     el.onHighlightedChange();
 
     expect(highlightedLabel(map)).toBeUndefined();
-    expect(map.sources.has(SELECTED_BOUNDS)).toBe(false);
+    expect(drawnBox(map, SELECTED_BOUNDS)).toBe(false);
+  });
+
+  // The redraw a hover drives, over and over as the pointer moves down the list beside the map. Nothing
+  // comes off the map to do it: dropping a source drops its tiles on the spot, and taking a marker's
+  // picture off has MapLibre place every symbol on the map again, so either one costs a frame with no
+  // numbers in it - which is what a reader sees as a flash. See drawResults.
+  it('takes nothing off the map to move the highlight', async () => {
+    const { el, map } = await two();
+    const removeLayer = vi.spyOn(map, 'removeLayer');
+    const removeSource = vi.spyOn(map, 'removeSource');
+    const removeImage = vi.spyOn(map, 'removeImage');
+    const drawn = layerIds(map);
+
+    for (const value of [1, 2, undefined]) {
+      el.highlighted = value;
+      el.onHighlightedChange();
+    }
+
+    expect(layerIds(map)).toEqual(drawn);
+    expect(removeLayer).not.toHaveBeenCalled();
+    expect(removeSource).not.toHaveBeenCalled();
+    expect(removeImage).not.toHaveBeenCalled();
   });
 
   // Something on the page has said which result matters, not where to look
@@ -652,7 +693,7 @@ describe('ogm-overview highlight', () => {
     el.onHighlightedChange();
 
     expect(map.fitBounds.mock.calls.length).toEqual(framedOnce);
-    expect(map.sources.has(SELECTED_BOUNDS)).toBe(true);
+    expect(drawnBox(map, SELECTED_BOUNDS)).toBe(true);
   });
 });
 
@@ -868,7 +909,7 @@ describe('ogm-overview theme', () => {
     map.sources.clear();
     await el.handleStyleLoad();
 
-    expect(layerIds(map)).toEqual(MARKER_LAYERS);
+    expect(layerIds(map)).toEqual(ALL_LAYERS);
   });
 });
 

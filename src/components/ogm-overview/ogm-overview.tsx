@@ -276,8 +276,8 @@ export class OgmOverview {
     await this.load();
   }
 
-  // The area being searched has changed. The box that says where it is has to go on again, but
-  // nothing about the results has moved, so nobody is asked for their extent a second time.
+  // The area being searched has changed. The box that says where it is changes with it, but nothing
+  // about the results has moved, so nobody is asked for their extent a second time.
   @Watch('bounds')
   protected async onBoundsChange() {
     this.readSearchFilter();
@@ -285,10 +285,11 @@ export class OgmOverview {
     await this.frame();
   }
 
-  // A highlight arriving from outside. Only the marker and the box around its extent change, and the
-  // camera is left exactly where it is: something on the page has said which result matters, not
-  // where to look, and flying the map at a row the reader happened to hover is not what they asked
-  // for.
+  // A highlight arriving from outside. Only the marker and the box around its extent change - nothing
+  // is taken off the map to do it, or the whole set of markers would blink each time the pointer moved
+  // to the next row; see drawResults. The camera is left exactly where it is: something on the page has
+  // said which result matters, not where to look, and flying the map at a row the reader happened to
+  // hover is not what they asked for.
   @Watch('highlighted')
   protected onHighlightedChange() {
     this.draw();

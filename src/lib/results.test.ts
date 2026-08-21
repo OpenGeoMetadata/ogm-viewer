@@ -2,27 +2,16 @@
 // A DOM, because a marker is now a picture drawn on a canvas rather than a description handed to
 // MapLibre. happy-dom has no canvas behind its <canvas>, which is the case markerImage answers for -
 // what it draws when there is one is checked in a browser, since that is the only place pixels exist.
-import { describe, it, expect } from '@stencil/vitest';
+import { describe, it, expect, vi } from '@stencil/vitest';
 import { LngLatBounds, type LngLatBoundsLike } from 'maplibre-gl';
 
-import {
-  clearResults,
-  drawResults,
-  SELECTED_BOUNDS,
-  MARKER_IMAGE,
-  markerImage,
-  markerImageId,
-  numberedResults,
-  RESULT_MARKERS,
-  RESULT_NUMBERS,
-  resultMarkersLayer,
-  SEARCH_BOUNDS,
-} from './results';
+import { drawResults, SELECTED_BOUNDS, markerImage, markerImageId, numberedResults, RESULT_MARKERS, RESULT_NUMBERS, resultMarkersLayer, SEARCH_BOUNDS } from './results';
 import type { MapLibreStyle } from './themes/maplibre';
 
-// Just enough of a MapLibre map to record what goes on it, in the order it went on. removeSource
-// refuses while a layer is still reading it, the way the real one does: that ordering is the one
-// mistake clearResults can make.
+// Just enough of a MapLibre map to record what goes on it, in the order it went on, and to be changed
+// in place afterwards: a source hands back something with setData on it, an image that is already there
+// is refused a second time the way the real one does, and paint properties are written where the layer
+// stands. Between them those are every way a redraw can avoid taking something off the map.
 class FakeMap {
   sources = new Map<string, any>();
   layers = new Map<string, any>();
@@ -36,6 +25,9 @@ class FakeMap {
     if (!this.images.has(id)) throw new Error(`No image named "${id}" exists.`);
     this.images.delete(id);
   }
+  hasImage(id: string) {
+    return this.images.has(id);
+  }
   listImages() {
     return [...this.images.keys()];
   }
@@ -44,7 +36,7 @@ class FakeMap {
     return this.sources.get(id);
   }
   addSource(id: string, spec: any) {
-    this.sources.set(id, spec);
+    this.sources.set(id, { ...spec, setData: (data: any) => (this.sources.get(id).data = data) });
   }
   removeSource(id: string) {
     const reader = [...this.layers.values()].find(layer => layer.source === id);
@@ -59,6 +51,9 @@ class FakeMap {
   }
   removeLayer(id: string) {
     this.layers.delete(id);
+  }
+  setPaintProperty(id: string, property: string, value: unknown) {
+    this.layers.get(id).paint[property] = value;
   }
 }
 
@@ -106,13 +101,13 @@ const marked = (map: FakeMap) => map.sources.get(RESULT_NUMBERS).data.features.m
 
 describe('numberedResults', () => {
   it('should number the extents from one, in the order it was given them', () => {
-    const { features } = numberedResults([CALIFORNIA, ICELAND]);
+    const { features } = numberedResults([CALIFORNIA, ICELAND], style);
 
     expect(features.map(feature => feature.properties!.label)).toEqual(['1', '2']);
   });
 
   it('should put each number in the middle of its own box', () => {
-    const [california] = numberedResults([CALIFORNIA]).features;
+    const [california] = numberedResults([CALIFORNIA], style).features;
 
     expect(california.geometry.coordinates[0]).toBeCloseTo(-119.27);
     expect(california.geometry.coordinates[1]).toBeCloseTo(37.27);
@@ -121,7 +116,7 @@ describe('numberedResults', () => {
   // The middle of 170..190 is the date line, not Greenwich. MapLibre reads a longitude from outside
   // -180..180 everywhere it takes one, so there is nothing here that has to wrap it back.
   it('should keep a number on the same side of the world as the box it belongs to', () => {
-    const [aleutians] = numberedResults([ALEUTIANS]).features;
+    const [aleutians] = numberedResults([ALEUTIANS], style).features;
 
     expect(aleutians.geometry.coordinates[0]).toEqual(180);
   });
@@ -129,18 +124,18 @@ describe('numberedResults', () => {
   // The number is where the record sits in the list beside the map, so a record nobody could place
   // has to spend its number rather than pass it on to the next one.
   it('should spend a number on a record it has nowhere to put', () => {
-    const { features } = numberedResults([CALIFORNIA, undefined, ICELAND]);
+    const { features } = numberedResults([CALIFORNIA, undefined, ICELAND], style);
 
     expect(features).toHaveLength(2);
     expect(features.map(feature => feature.properties!.label)).toEqual(['1', '3']);
   });
 
   it('should have nothing to draw when no record says where it is', () => {
-    expect(numberedResults([undefined]).features).toEqual([]);
+    expect(numberedResults([undefined], style).features).toEqual([]);
   });
 
   it('should mark the result at the place it was pointed at', () => {
-    const { features } = numberedResults([CALIFORNIA, ICELAND], 2);
+    const { features } = numberedResults([CALIFORNIA, ICELAND], style, 2);
 
     expect(features.map(feature => feature.properties!.selected)).toEqual([false, true]);
   });
@@ -148,21 +143,21 @@ describe('numberedResults', () => {
   // The picture each marker is drawn as. Named on the feature rather than worked out in an expression,
   // so one place decides which marker wears which.
   it('should name the picture each marker is drawn as', () => {
-    const { features } = numberedResults([CALIFORNIA, ICELAND], 2);
+    const { features } = numberedResults([CALIFORNIA, ICELAND], style, 2);
 
-    expect(features.map(feature => feature.properties!.icon)).toEqual([markerImageId('1'), markerImageId('2', true)]);
-    expect(markerImageId('2', true)).not.toEqual(markerImageId('2'));
+    expect(features.map(feature => feature.properties!.icon)).toEqual([markerImageId('1', style), markerImageId('2', style, true)]);
+    expect(markerImageId('2', style, true)).not.toEqual(markerImageId('2', style));
   });
 
   it('should mark nothing when nothing was pointed at', () => {
-    const { features } = numberedResults([CALIFORNIA, ICELAND]);
+    const { features } = numberedResults([CALIFORNIA, ICELAND], style);
 
     expect(features.map(feature => feature.properties!.selected)).toEqual([false, false]);
   });
 
   // The places are counted over every result, so a highlight can land on one that was never drawn
   it('should mark nothing for a place it has nowhere to put', () => {
-    const { features } = numberedResults([CALIFORNIA, undefined], 2);
+    const { features } = numberedResults([CALIFORNIA, undefined], style, 2);
 
     expect(features.map(feature => feature.properties!.selected)).toEqual([false]);
   });
@@ -215,46 +210,113 @@ describe('drawResults', () => {
 
     expect(map.sources.get(RESULT_NUMBERS).type).toEqual('geojson');
     expect(map.sources.get(RESULT_NUMBERS).data.features).toHaveLength(2);
-    expect([...map.layers.keys()]).toEqual(MARKER_LAYERS);
+    expect([...map.layers.keys()]).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(SELECTED_BOUNDS), ...MARKER_LAYERS]);
   });
 
-  // Nothing is reused between draws: a theme swap changes what a marker looks like, and a picture kept
-  // from the last palette would put a marker from the last theme on the map. Asserted through the fake,
-  // which refuses a second image under a name it already holds the way MapLibre does.
-  it('should draw its pictures again rather than reuse them', () => {
-    const map = draw([CALIFORNIA, ICELAND]);
-    map.addImage(`${MARKER_IMAGE}-1`, {}, {});
+  // A page of boxes says less than a page of numbers a reader can find in the list beside the map. The
+  // two boxes are on the map either way, holding nothing until there is something for them to say:
+  // that is what lets them stay under the numbers without being put back there on every draw.
+  it('should draw nothing of a result but its number', () => {
+    const map = draw([CALIFORNIA]);
 
-    expect(() => drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND] })).not.toThrow();
-    expect(map.listImages().filter(id => id.startsWith(MARKER_IMAGE))).toEqual([]);
+    expect(marked(map)).toHaveLength(1);
+    expect(map.sources.get(SEARCH_BOUNDS).data.features).toEqual([]);
+    expect(map.sources.get(SELECTED_BOUNDS).data.features).toEqual([]);
+  });
+
+  // The whole of why a highlight doesn't flash. Both are asserted through the fake, which refuses a
+  // second image under a name it already holds the way MapLibre does, and which is holding the pictures
+  // a canvas would have drawn - there is none in this DOM; see markerImage.
+  it('should change no pictures at all when the highlight moves', () => {
+    const map = draw([CALIFORNIA, ICELAND]);
+    for (const label of ['1', '2']) for (const id of [markerImageId(label, style), markerImageId(label, style, true)]) map.addImage(id, {}, {});
+    const addImage = vi.spyOn(map, 'addImage');
+    const removeImage = vi.spyOn(map, 'removeImage');
+
+    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND], highlighted: 2 });
+
+    expect(addImage).not.toHaveBeenCalled();
+    expect(removeImage).not.toHaveBeenCalled();
+  });
+
+  // Both pictures of every number, so that which one a marker wears is a property rather than a swap
+  it('should draw each number both ways, pointed at or not', () => {
+    const map = draw([CALIFORNIA]);
+    map.addImage(markerImageId('1', style), {}, {});
+    const addImage = vi.spyOn(map, 'addImage');
+
+    // A canvas would have drawn the other one here; this DOM has none, so what is asserted is the ask
+    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA] });
+
+    expect(addImage).not.toHaveBeenCalledWith(markerImageId('1', style), expect.anything(), expect.anything());
+    expect(markerImage(markerImageId('1', style), style.markerColor, style, 1)).toBeUndefined();
+  });
+
+  // MapLibre carries images across setStyle - it diffs the new style document against the old one, and
+  // the diff has nothing to say about images - so a picture kept under a name that said only which
+  // marker it was would leave the map wearing the palette it was drawn in. See markerImageId.
+  it('should draw its pictures again for a palette that changed under it', () => {
+    const map = draw([CALIFORNIA]);
+    map.addImage(markerImageId('1', style), {}, {});
+    const dusk = { ...style, markerColor: '#004ac3' };
+
+    expect(markerImageId('1', dusk)).not.toEqual(markerImageId('1', style));
+
+    drawResults(map as unknown as maplibregl.Map, dusk, { extents: [CALIFORNIA] });
+
+    // The picture drawn in the old palette is gone; a canvas would have drawn the new one in its place
+    expect(map.listImages()).toEqual([]);
   });
 
   // Left behind, they would outlive every marker that ever used them
-  it('should take its pictures off with everything else', () => {
-    const map = draw([CALIFORNIA]);
-    map.addImage(`${MARKER_IMAGE}-1`, {}, {});
+  it('should take away the pictures no marker needs any more', () => {
+    const map = draw([CALIFORNIA, ICELAND]);
+    map.addImage(markerImageId('2', style), {}, {});
+    map.addImage(markerImageId('2', style, true), {}, {});
     map.addImage('someone-elses-image', {}, {});
 
-    clearResults(map as unknown as maplibregl.Map);
+    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA] });
 
     expect(map.listImages()).toEqual(['someone-elses-image']);
   });
 
-  // A page of boxes says less than a page of numbers a reader can find in the list beside the map
-  it('should draw nothing of a result but its number', () => {
+  // addLayer appends, so a layer put back on would come back over whatever had been added above it -
+  // and dropping a source drops its tiles, which is the frame a reader sees as a flash
+  it('should take nothing off the map to draw again', () => {
     const map = draw([CALIFORNIA]);
+    const removeLayer = vi.spyOn(map, 'removeLayer');
+    const removeSource = vi.spyOn(map, 'removeSource');
+    const order = [...map.layers.keys()];
 
-    expect([...map.sources.keys()]).toEqual([RESULT_NUMBERS]);
+    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND], highlighted: 2, searchBounds: LngLatBounds.convert(ICELAND) });
+
+    expect([...map.layers.keys()]).toEqual(order);
+    expect(removeLayer).not.toHaveBeenCalled();
+    expect(removeSource).not.toHaveBeenCalled();
   });
 
-  // addLayer appends, so the numbers only stay over the boxes if they go back on after the boxes
-  // are redrawn. Adding them again rather than updating the source in place is what does that.
-  it('should put the numbers back on top of boxes drawn after them', () => {
+  it('should hand its sources new data rather than replacing them', () => {
     const map = draw([CALIFORNIA]);
-    map.addLayer({ id: 'a-box', type: 'fill' });
+    const numbers = map.sources.get(RESULT_NUMBERS);
+
     drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND] });
 
-    expect([...map.layers.keys()]).toEqual(['a-box', ...MARKER_LAYERS]);
+    expect(map.sources.get(RESULT_NUMBERS)).toBe(numbers);
+    expect(numbers.data.features).toHaveLength(2);
+  });
+
+  // A theme swap empties the style document without asking, so a draw that follows one is a first draw
+  // again: everything back, in the order that keeps the numbers over the boxes.
+  it('should build itself again into a style document a theme swap emptied', () => {
+    const map = draw([CALIFORNIA], { highlighted: 1 });
+    map.sources.clear();
+    map.layers.clear();
+    map.images.clear();
+
+    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA], highlighted: 1 });
+
+    expect([...map.layers.keys()]).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(SELECTED_BOUNDS), ...MARKER_LAYERS]);
+    expect(marked(map)).toHaveLength(1);
   });
 
   it('should draw the searched area, then the highlight, then the numbers', () => {
@@ -276,7 +338,18 @@ describe('drawResults', () => {
   it('should draw nothing for a search area it was not given', () => {
     const map = draw([CALIFORNIA]);
 
-    expect(map.sources.has(SEARCH_BOUNDS)).toBe(false);
+    expect(map.sources.get(SEARCH_BOUNDS).data.features).toEqual([]);
+  });
+
+  // Nothing takes these layers off again, so the colors have to be able to change where they stand:
+  // a theme can swap under a map that is already drawn.
+  it('should follow the colors of a theme that changed under it', () => {
+    const map = draw([CALIFORNIA], { highlighted: 1 });
+
+    drawResults(map as unknown as maplibregl.Map, { ...style, selectedColor: '#7a4600', strokeSelectedColor: '#4a0a0a' }, { extents: [CALIFORNIA], highlighted: 1 });
+
+    expect(map.layers.get(`${SELECTED_BOUNDS}-fill`).paint['fill-color']).toEqual('#7a4600');
+    expect(map.layers.get(`${SELECTED_BOUNDS}-outline`).paint['line-color']).toEqual('#4a0a0a');
   });
 
   // The colors a selected feature gets, not a hovered one: a hover is what points at it, but what it
@@ -289,8 +362,8 @@ describe('drawResults', () => {
     expect(map.layers.get(`${SELECTED_BOUNDS}-fill`).paint['fill-color']).toEqual(style.selectedColor);
     expect(map.layers.get(`${SELECTED_BOUNDS}-outline`).paint['line-opacity']).toEqual(style.highlightOpacity);
     expect(marked(map)).toEqual([
-      { label: '1', selected: false, icon: markerImageId('1') },
-      { label: '2', selected: true, icon: markerImageId('2', true) },
+      { label: '1', selected: false, icon: markerImageId('1', style) },
+      { label: '2', selected: true, icon: markerImageId('2', style, true) },
     ]);
   });
 
@@ -298,28 +371,15 @@ describe('drawResults', () => {
   it('should draw no extent for a selection it cannot place', () => {
     const map = draw([CALIFORNIA, undefined], { highlighted: 2 });
 
-    expect(map.sources.has(SELECTED_BOUNDS)).toBe(false);
-    expect(marked(map)).toEqual([{ label: '1', selected: false, icon: markerImageId('1') }]);
+    expect(map.sources.get(SELECTED_BOUNDS).data.features).toEqual([]);
+    expect(marked(map)).toEqual([{ label: '1', selected: false, icon: markerImageId('1', style) }]);
   });
 
-  it('should take everything off the map when cleared', () => {
-    const map = draw([CALIFORNIA], { highlighted: 1, searchBounds: LngLatBounds.convert(ICELAND) });
-    clearResults(map as unknown as maplibregl.Map);
+  it('should take the extent away again when the highlight is withdrawn', () => {
+    const map = draw([CALIFORNIA, ICELAND], { highlighted: 2 });
 
-    expect(map.sources.size).toEqual(0);
-    expect(map.layers.size).toEqual(0);
-  });
+    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND] });
 
-  // Which is what the fake above refuses, the way MapLibre does
-  it('should take every layer off before the source it reads', () => {
-    const map = draw([CALIFORNIA], { highlighted: 1, searchBounds: LngLatBounds.convert(ICELAND) });
-
-    expect(() => clearResults(map as unknown as maplibregl.Map)).not.toThrow();
-  });
-
-  // A theme swap empties the style document without asking, so what this last drew may be gone by
-  // the time anyone thinks to take it off
-  it('should have nothing to say about layers a style swap already took away', () => {
-    expect(() => clearResults(new FakeMap() as unknown as maplibregl.Map)).not.toThrow();
+    expect(map.sources.get(SELECTED_BOUNDS).data.features).toEqual([]);
   });
 });
