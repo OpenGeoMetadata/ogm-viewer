@@ -5,7 +5,7 @@ import AttributionControl from '../../lib/attribution-control';
 import { fetchOrThrow } from '../../lib/errors';
 import { getElement } from '../../lib/elements';
 import { WORLD } from '../../lib/geometry';
-import { initialTheme, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
+import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
 import {
   addLocationControls,
   createMap,
@@ -60,13 +60,8 @@ export class OgmLocator {
   async componentDidLoad() {
     const container = getElement(this.el, '#map');
 
-    // Wait until we can read the palette CSS colors to draw
-    await webAwesomeReady(getElement(this.el, 'link'), container);
-
-    // Taken back off the page while we waited for it. Checked here as well as below, because the wait
-    // below starts observing the container and only gives up once it has a box: a container that has
-    // been detached will never get one, so a locator that came and went before its palette arrived
-    // would leave an observer running behind it for good.
+    // A locator that came and went before this ran would otherwise still leave whenSized's
+    // ResizeObserver behind, watching a container that has no box and so will never resize.
     if (!this.el.isConnected) return;
 
     // Wait until we're inside an element that actually has a box to draw the map
@@ -225,10 +220,10 @@ export class OgmLocator {
     this.drawn = undefined;
   }
 
-  // Web Awesome is linked even though nothing here renders a wa-* element: MapLibreTheme reads
-  // --wa-color-* tokens for the shape it draws and the stylesheet reads them for MapLibre's own
-  // chrome, and this component is only ever used on its own, so it is always the one establishing
-  // them.
+  // Web Awesome is linked even though nothing here renders a wa-* element: an --ogm-* override
+  // still reaches the shape MapLibreTheme draws through this scope, and the stylesheet styles
+  // MapLibre's own chrome, and this component is only ever used on its own, so it is always the
+  // one establishing them.
   render() {
     return (
       <Host class={waScope(this.theme)}>
