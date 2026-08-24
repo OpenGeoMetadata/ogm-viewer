@@ -92,7 +92,7 @@ describe('MapLibreTheme', () => {
     it('sinks a color to the depth a number can be read on', () => {
       const { dataColor, markerColor } = themed('light', tokens).getStyle();
 
-      expect(markerColor).toBe(atLightness(dataColor, 0.45));
+      expect(markerColor).toBe(atLightness(dataColor, 0.7));
     });
 
     // Which is what a step could not do: the two tokens behind one color start at opposite ends of
@@ -107,23 +107,23 @@ describe('MapLibreTheme', () => {
     it('derives the highlighted marker from the highlight color', () => {
       const { highlightColor, markerHighlightColor } = themed('light', tokens).getStyle();
 
-      expect(markerHighlightColor).toBe(atLightness(highlightColor, 0.45));
+      expect(markerHighlightColor).toBe(atLightness(highlightColor, 0.7));
       expect(markerHighlightColor).not.toBe(themed('light', tokens).getStyle().markerColor);
     });
 
     // What the numeral's own color rests on. It is chosen by contrast at the point of drawing, so a
-    // disc that came out pale would put black ink on a map whose other numbers are white. Checked
+    // disc that came out dark would put white ink on a map whose other numbers are black. Checked
     // against our own defaults for each mode - the pale pair a light basemap gets and the
-    // saturated pair a dark one does - and against a color pale enough that an app naming it would
-    // otherwise get one.
-    it('leaves both discs deep enough for white ink', () => {
+    // saturated pair a dark one does - and against a hue saturated enough, at this lightness, that
+    // an app naming it would otherwise be the one to break the guarantee.
+    it('leaves both discs bright enough for black ink', () => {
       const light = themed('light').getStyle();
       const dark = themed('dark').getStyle();
-      const pale = themed('light', { '--ogm-data-color': '#ffe08a', '--ogm-highlight-color': '#ffff00' }).getStyle();
+      const saturated = themed('light', { '--ogm-data-color': '#0000ff', '--ogm-highlight-color': '#4b0082' }).getStyle();
 
-      [light, dark, pale].forEach(style => {
-        expect(contrastColor(style.markerColor)).toBe('#ffffff');
-        expect(contrastColor(style.markerHighlightColor)).toBe('#ffffff');
+      [light, dark, saturated].forEach(style => {
+        expect(contrastColor(style.markerColor)).toBe('#000000');
+        expect(contrastColor(style.markerHighlightColor)).toBe('#000000');
       });
     });
 
