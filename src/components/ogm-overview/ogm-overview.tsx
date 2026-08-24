@@ -484,8 +484,13 @@ export class OgmOverview {
   // A zoom limit only for what was drawn, because there may be nothing named on the basemap to place
   // a page of results any closer by. An area a search is filtered to gets none: a reader who searched
   // a single street shouldn't come back to a view of the city.
+  //
+  // Animated here, unlike the plain fitBounds an <ogm-map> drives: this camera moves itself, in
+  // response to a search or a highlighted row, while a reader's attention is elsewhere on the page,
+  // so a cut would be a jump they didn't ask for. An <ogm-map> only refits when told to by a caller
+  // who's watching the map already.
   private camera(): maplibregl.FitBoundsOptions {
-    return this.searchFilter ? {} : { maxZoom: LOCATION_MAX_ZOOM };
+    return this.searchFilter ? { animate: true } : { animate: true, maxZoom: LOCATION_MAX_ZOOM };
   }
 
   // Every result to draw as highlighted, counted from one: the one the page named and the one the
