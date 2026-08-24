@@ -105,15 +105,17 @@ class FakeMap {
   }
 }
 
-const record = (id: string, fields: Partial<GeoBlacklightSchemaAardvark> = {}) =>
-  new OgmRecord({
+const aardvark = (id: string, fields: Partial<GeoBlacklightSchemaAardvark> = {}) =>
+  ({
     id,
     dct_title_s: id,
     gbl_resourceClass_sm: ['Datasets'],
     dct_accessRights_s: 'Public',
     gbl_mdVersion_s: 'Aardvark',
     ...fields,
-  } as GeoBlacklightSchemaAardvark);
+  }) as GeoBlacklightSchemaAardvark;
+
+const record = (id: string, fields: Partial<GeoBlacklightSchemaAardvark> = {}) => new OgmRecord(aardvark(id, fields));
 
 const CALIFORNIA = 'ENVELOPE(-124.41,-114.13,42.01,32.53)';
 const THE_WORLD = 'ENVELOPE(-180.0,180.0,85.0,-85.0)';
@@ -123,6 +125,7 @@ const ISLANDS = 'MULTIPOLYGON(((-124 42,-114 42,-114 32,-124 32,-124 42)),((-160
 type Locator = HTMLElement & {
   record?: OgmRecord;
   previewer?: LocationPreviewer;
+  recordUrl?: string;
   theme: 'light' | 'dark';
   map: FakeMap;
   mapTheme: MapLibreTheme;
@@ -411,6 +414,71 @@ describe('ogm-locator', () => {
 
     expect(el.className).toContain('wa-palette-default');
     expect((el.shadowRoot as ShadowRoot).querySelector('link[rel="stylesheet"]')).toBeTruthy();
+  });
+});
+
+// Mounted with recordUrl set from the start, the way it arrives on a parsed page - componentWillLoad
+// reads it before anything else runs. A plain container rather than renderLocator(): what's under
+// test here is what feeds `record`, not what a map does with it once drawn.
+const mount = async (recordUrl: string) => {
+  const container = document.createElement('div');
+  containers.push(container);
+  document.body.appendChild(container);
+  await stencilRender(<ogm-locator recordUrl={recordUrl}></ogm-locator>, container);
+  const el = container.firstElementChild as Locator;
+  await flush();
+  return el;
+};
+
+// Long enough for a mocked fetch's own microtasks to have run, so a promise that hasn't settled by
+// now is one that is genuinely still waiting - see init.test.tsx, which does the same for the same
+// reason.
+const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
+describe('ogm-locator, given a URL instead of a record', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('fetches it and draws from what comes back, the same as a record handed over directly', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(aardvark('one', { dcat_bbox: CALIFORNIA }))));
+
+    const el = await mount('https://example.com/one.json');
+
+    expect(el.record?.id).toEqual('one');
+    expect(el.record?.getGeometry()).toEqual(record('one', { dcat_bbox: CALIFORNIA }).getGeometry());
+  });
+
+  it('asks the URL it was given, unchanged', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(aardvark('one'))));
+
+    await mount('https://example.com/one.json');
+
+    expect(fetchSpy.mock.calls[0][0]).toEqual('https://example.com/one.json');
+  });
+
+  // Unlike <ogm-viewer>, there is nowhere here to show an error - a locator is read at a glance, not
+  // watched for one to resolve - so the map is left to open on the world instead, the same as a
+  // record that never said where it was.
+  it('logs a fetch that fails rather than throwing, and leaves record unset', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(new Response('not found', { status: 404 }));
+
+    const el = await mount('https://example.com/missing.json');
+
+    expect(el.record).toBeUndefined();
+    expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('https://example.com/missing.json'), expect.anything());
+  });
+
+  it('fetches again when the URL changes', async () => {
+    const fetchSpy = vi
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response(JSON.stringify(aardvark('one'))))
+      .mockResolvedValueOnce(new Response(JSON.stringify(aardvark('two'))));
+
+    const el = await mount('https://example.com/one.json');
+    el.recordUrl = 'https://example.com/two.json';
+    await flush();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(el.record?.id).toEqual('two');
   });
 });
 

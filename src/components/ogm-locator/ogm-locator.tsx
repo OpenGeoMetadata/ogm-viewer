@@ -2,13 +2,15 @@ import { Component, Element, h, Host, Prop, Watch } from '@stencil/core';
 import type maplibregl from 'maplibre-gl';
 
 import AttributionControl from '../../lib/attribution-control';
+import { fetchOrThrow } from '../../lib/errors';
 import { getElement } from '../../lib/elements';
 import { WORLD } from '../../lib/geometry';
 import { initialTheme, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
 import { addLocationControls, createMap, disableRotation, frameLocation, LOCATION_MAP, LOCATION_MAX_ZOOM, readProjection, setBasemap, whenSized } from '../../lib/maps';
 import type { MapProjection } from '../../lib/previewers/map';
 import LocationPreviewer, { locationFor } from '../../lib/previewers/location';
-import type OgmRecord from '../../lib/record';
+import OgmRecord from '../../lib/record';
+import { resolveRequest } from '../../lib/request';
 import MapLibreTheme from '../../lib/themes/maplibre';
 
 // A component for locating a single record on a map using its geometry
@@ -23,6 +25,9 @@ export class OgmLocator {
   @Prop() record?: OgmRecord;
   @Prop() previewer?: LocationPreviewer; // Overrides record if passed
 
+  // A URL to fetch an Aardvark record from - the same one <ogm-viewer> takes. Sets `record`.
+  @Prop() recordUrl?: string;
+
   private map: maplibregl.Map;
   private mapTheme: MapLibreTheme;
 
@@ -36,6 +41,10 @@ export class OgmLocator {
 
   // What is currently drawn, if there is anything to draw
   private drawn?: LocationPreviewer;
+
+  componentWillLoad() {
+    if (this.recordUrl) void this.fetchRecord();
+  }
 
   async componentDidLoad() {
     const container = getElement(this.el, '#map');
@@ -120,6 +129,24 @@ export class OgmLocator {
   protected async onRecordChange() {
     await this.clear();
     await this.draw();
+  }
+
+  @Watch('recordUrl')
+  protected async onRecordUrlChange() {
+    await this.fetchRecord();
+  }
+
+  // Left unset rather than thrown on failure: unlike <ogm-viewer>, this has nowhere to show an error.
+  private async fetchRecord() {
+    if (!this.recordUrl) return;
+
+    try {
+      const { url, init } = resolveRequest(this.recordUrl, 'metadata');
+      const response = await fetchOrThrow(url, init);
+      this.record = new OgmRecord(await response.json());
+    } catch (error) {
+      console.error(`Error loading record ${this.recordUrl}:`, error);
+    }
   }
 
   // When the theme changes, swap the basemap to match, then draw the same location into the style
