@@ -39,6 +39,18 @@ describe('initialTheme', () => {
     expect(initialTheme(el)).toEqual('dark');
   });
 
+  // The lazy build asks without an element: a @Prop's default runs as a class field initializer,
+  // ahead of the constructor body that registers the host ref @Element() reads from, so there is
+  // nothing to read an attribute off yet. Answering with the preference is right *and* enough there
+  // - the runtime has the attribute either way, and puts it on the prop before anything renders -
+  // where throwing takes the component's whole construction down with it. That is what it used to
+  // do; src/lib/init.www.test.ts holds the other end of that story.
+  it('falls back to the browser preference when there is no element yet', () => {
+    preferDark(true);
+
+    expect(initialTheme(undefined)).toEqual('dark');
+  });
+
   // An attribute naming neither theme isn't a statement about either one - it's read the same as no
   // attribute at all, rather than, say, coerced to whichever name it happens to resemble.
   it('falls back to the browser preference for an attribute naming neither theme', () => {

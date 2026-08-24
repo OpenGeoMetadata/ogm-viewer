@@ -32,6 +32,7 @@
     "test": "stencil-test",
     "test:unit": "stencil-test --project unit",
     "test:component": "stencil-test --project component",
+    "test:www": "stencil-test --project www",
     "generate": "stencil generate",
     "lint": "tsc --noEmit && prettier --check ."
   },
