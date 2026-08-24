@@ -177,9 +177,22 @@ export class OgmOverview {
     this.map.on('style.load', () => this.handleStyleLoad());
   }
 
-  // Clean up the map to prevent warnings/errors when removed from the DOM
+  /**
+   * Clean up the map, unless this disconnect turns out to be a relocation rather than a removal.
+   *
+   * A page can preserve this element across a Turbo visit - data-turbo-permanent - by detaching it
+   * from the old document and reattaching it to the new one, and the two happen close enough together
+   * that nothing else runs in between: no repaint, no other timer, nothing but the microtasks Turbo's
+   * own rendering steps through. Waiting a macrotask is enough to stand on the far side of all of
+   * that and ask what actually happened - isConnected is true again if a reattach was coming, and
+   * still false if this really was the end of it - without holding up anything that depends on
+   * disconnectedCallback happening promptly. Checked instead of assumed: guessing "permanent" from
+   * the attribute would be a second thing to keep in sync with Turbo's own timing, for no less code.
+   */
   disconnectedCallback() {
-    if (this.map) this.map.remove();
+    setTimeout(() => {
+      if (!this.el.isConnected && this.map) this.map.remove();
+    }, 0);
   }
 
   /**

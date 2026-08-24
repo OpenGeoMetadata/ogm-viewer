@@ -260,6 +260,9 @@ const frameOf = (map: FakeMap): [number, number, number, number] => {
   return [west, south, east, north];
 };
 
+// Long enough for a setTimeout(0) to have run, so a check deferred that way has had its turn
+const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
 describe('ogm-overview', () => {
   it('draws a numbered marker for every record it can place', async () => {
     const { el, map } = await renderOverview();
@@ -495,11 +498,28 @@ describe('ogm-overview', () => {
     expect((el.shadowRoot as ShadowRoot).querySelector('link[rel="stylesheet"]')).toBeTruthy();
   });
 
-  it('takes its map down with it', async () => {
+  it('takes its map down with it once it is sure the disconnect is not a relocation', async () => {
     const { el, map } = await renderOverview();
-    (el as unknown as { disconnectedCallback: () => void }).disconnectedCallback();
+    el.remove();
+
+    expect(map.remove).not.toHaveBeenCalled();
+    await flush();
 
     expect(map.remove).toHaveBeenCalled();
+  });
+
+  // What a page preserving this element across a Turbo visit does: detach it from the old document,
+  // then reattach it to the new one, before anything else gets a turn to run. appendChild on an
+  // already-connected element does exactly that in one step - disconnect, then reconnect - which is
+  // what fires disconnectedCallback here rather than a direct call to it. A map that survives keeps
+  // its canvas, its loaded tiles, everything a rebuild would have thrown away and fetched again.
+  it('keeps its map when a disconnect is followed by a reconnect, rather than tearing it down', async () => {
+    const { el, map } = await renderOverview();
+    document.body.appendChild(el);
+
+    await flush();
+
+    expect(map.remove).not.toHaveBeenCalled();
   });
 });
 
