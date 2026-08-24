@@ -83,8 +83,21 @@ export const themePreference = (): 'light' | 'dark' => (window.matchMedia?.('(pr
 /**
  * What to open a component's `theme` prop with, before anyone has had a chance to set it: the
  * attribute already on the tag, or themePreference() when there isn't one.
+ *
+ * The element is optional because of *when* a @Prop default is evaluated: it compiles to a class
+ * field initializer, and those run ahead of the constructor's own body. That is early enough to
+ * matter in the lazy build, where @Element() becomes a getter over the host ref and the ref is only
+ * registered by the constructor's first statement - so a field reading it gets undefined, and
+ * anything it calls has to survive that. (Under dist-custom-elements the instance *is* the element,
+ * which is why the same field reads fine there, and why nothing but the lazy build ever noticed.)
+ *
+ * Falling back to the preference there costs no accuracy: the lazy runtime has already recorded the
+ * `theme` attribute against the prop by the time it builds the instance - it does that as the element
+ * upgrades - and it keeps that value over one a field initializer writes during construction. So a
+ * tag that named a theme still renders in it, first frame included, which is the whole point of
+ * resolving a theme this early.
  */
-export const initialTheme = (el: Element): 'light' | 'dark' => {
-  const attr = el.getAttribute('theme');
+export const initialTheme = (el?: Element): 'light' | 'dark' => {
+  const attr = el?.getAttribute('theme');
   return attr === 'light' || attr === 'dark' ? attr : themePreference();
 };
