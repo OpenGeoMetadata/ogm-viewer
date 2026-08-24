@@ -136,6 +136,7 @@ type Locator = HTMLElement & {
   handleProjectionTransition: () => Promise<void>;
   draw: () => Promise<void>;
   frame: () => Promise<void>;
+  opening: () => maplibregl.LngLatBoundsLike;
   onRecordChange: () => Promise<void>;
   onThemeChange: () => Promise<void>;
   componentDidLoad: () => Promise<void>;
@@ -201,6 +202,19 @@ describe('ogm-locator', () => {
 
     expect(drawn(map)).toEqual(['one-location-fill', 'one-location-outline']);
     expect(frameOf(map)).toEqual([-124.41, 32.53, -114.13, 42.01]);
+  });
+
+  // Where the map is built already pointed, before there is a style document to draw the shape into:
+  // the record states its own extent, so that much is known that early - and it has to be the view
+  // frame() settles on, or opening there would move the reader twice. See MapPreviewer.declaredBounds.
+  it('opens on the view it goes on to frame', async () => {
+    const { el, map } = await renderLocator();
+    el.record = record('one', { dcat_bbox: CALIFORNIA });
+
+    const [[west, south], [east, north]] = el.opening() as [[number, number], [number, number]];
+    await el.draw();
+
+    expect([west, south, east, north]).toEqual(frameOf(map));
   });
 
   // Which is what "the geometry or the bounding box, as appropriate" means: squaring an archipelago

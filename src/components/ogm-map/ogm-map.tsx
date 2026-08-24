@@ -7,7 +7,7 @@ import GlobeControl from '../../lib/globe-control';
 import { initialTheme, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
 import { dedupeFeatures } from '../../lib/features';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
-import { createMap, fitBounds, setBasemap, whenSized } from '../../lib/maps';
+import { createMap, fitBounds, openingCamera, setBasemap, whenSized } from '../../lib/maps';
 import { isLayerDrawn, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
 import LayersControl from '../../lib/layers-control';
 import InspectableRasterPreviewer from '../../lib/previewers/inspectable-raster';
@@ -107,6 +107,12 @@ export class OgmMap {
       // our own needed. Applies to the basemap's own style/glyphs/sprites too, not just this
       // preview's data; see RequestTransform for why a transform has to account for that itself.
       transformRequest: (url, resourceType) => toMapLibreRequest(this.previewer?.requestTransform?.(url, ourResourceType(resourceType)), url),
+      // Already looking at the record, rather than at the world for as long as it takes the preview to
+      // draw and loadPreview to fit the camera to it - which is a round trip or two, and every one of
+      // them is spent watching a basemap of somewhere else. Only what the record declared, since that
+      // is the part that can be answered without asking anyone; see MapPreviewer.declaredBounds. A
+      // resource that reads a truer extent for itself is still fitted to that one below.
+      ...openingCamera(container, this.mapTheme, this.previewer?.declaredBounds),
     });
 
     // Bound before the controls go on, so the preview still works if that fails

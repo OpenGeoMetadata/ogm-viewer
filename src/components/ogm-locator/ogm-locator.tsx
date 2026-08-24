@@ -6,7 +6,18 @@ import { fetchOrThrow } from '../../lib/errors';
 import { getElement } from '../../lib/elements';
 import { WORLD } from '../../lib/geometry';
 import { initialTheme, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
-import { addLocationControls, createMap, disableRotation, frameLocation, LOCATION_MAP, LOCATION_MAX_ZOOM, readProjection, setBasemap, whenSized } from '../../lib/maps';
+import {
+  addLocationControls,
+  createMap,
+  disableRotation,
+  frameLocation,
+  LOCATION_MAP,
+  LOCATION_MAX_ZOOM,
+  openingLocation,
+  readProjection,
+  setBasemap,
+  whenSized,
+} from '../../lib/maps';
 import type { MapProjection } from '../../lib/previewers/map';
 import LocationPreviewer, { locationFor } from '../../lib/previewers/location';
 import OgmRecord from '../../lib/record';
@@ -70,6 +81,8 @@ export class OgmLocator {
       ...LOCATION_MAP,
       // We handle this on our own so we can start it collapsed
       attributionControl: false,
+      // Already looking at the record, rather than at the world
+      ...openingLocation(container, this.mapTheme, this.opening(), this.projection === 'globe', { maxZoom: LOCATION_MAX_ZOOM }),
     });
     disableRotation(this.map);
 
@@ -173,12 +186,22 @@ export class OgmLocator {
     // Only known now: the colors come out of the theme, and the theme can change under a location
     // that is already on screen.
     const style = this.mapTheme.getStyle();
-    this.drawn = this.previewer ?? (this.record && locationFor(this.record));
+    this.drawn = this.location();
 
     // Nothing here reaches the network - a LocationResource is built from a shape rather than a URL
     await this.drawn?.attach(this.map, style).preview();
 
     await this.frame();
+  }
+
+  // What there is to put on the map, if there is anything
+  private location(): LocationPreviewer | undefined {
+    return this.previewer ?? (this.record && locationFor(this.record));
+  }
+
+  // Where to open, which is the same place frame() will point once there is a style document
+  private opening(): maplibregl.LngLatBoundsLike {
+    return this.location()?.declaredBounds ?? WORLD;
   }
 
   // Point the camera at what was drawn, or at the world when there was nothing to draw

@@ -180,6 +180,7 @@ type Overview = HTMLElement & {
   load: () => Promise<void>;
   draw: () => void;
   frame: () => Promise<void>;
+  declaredExtents: () => unknown[];
   search: (start: Point, end: Point) => void;
   onRecordsChange: () => Promise<void>;
   onBoundsChange: () => Promise<void>;
@@ -451,6 +452,19 @@ describe('ogm-overview', () => {
 
     expect(map.fitBounds.mock.calls.length).toBeGreaterThan(framedOnce);
     expect(frameOf(map)).toEqual([-180, -85, 180, 85]);
+  });
+
+  // What the map is built already pointed at, before a single previewer has been asked anything: see
+  // MapPreviewer.declaredBounds. They have to be the extents measure() goes on to settle on, or
+  // opening there would move the reader twice instead of saving them the trip in from the world.
+  it('opens on the extents it goes on to frame', async () => {
+    const { el } = await renderOverview();
+    el.records = [record('one', { dcat_bbox: CALIFORNIA }), record('nowhere'), record('two', { locn_geometry: 'POINT(-122.17 37.43)' })];
+
+    const opening = el.declaredExtents();
+    await el.load();
+
+    expect(opening).toEqual(el.extents);
   });
 
   // There may be nothing named on the basemap to place a page of results any closer by

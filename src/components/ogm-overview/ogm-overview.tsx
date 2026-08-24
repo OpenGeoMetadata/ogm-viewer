@@ -5,7 +5,18 @@ import { getElement } from '../../lib/elements';
 import GeosearchControl from '../../lib/geosearch-control';
 import { boundsToBbox, readBounds, unionBounds, WORLD } from '../../lib/geometry';
 import { initialTheme, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
-import { addLocationControls, createMap, disableRotation, frameLocation, LOCATION_MAP, LOCATION_MAX_ZOOM, readProjection, setBasemap, whenSized } from '../../lib/maps';
+import {
+  addLocationControls,
+  createMap,
+  disableRotation,
+  frameLocation,
+  LOCATION_MAP,
+  LOCATION_MAX_ZOOM,
+  openingLocation,
+  readProjection,
+  setBasemap,
+  whenSized,
+} from '../../lib/maps';
 import LocationPreviewer, { locationsFor } from '../../lib/previewers/location';
 import type { MapProjection } from '../../lib/previewers/map';
 import type OgmRecord from '../../lib/record';
@@ -146,17 +157,16 @@ export class OgmOverview {
     if (!this.el.isConnected) return;
 
     this.mapTheme = new MapLibreTheme(container, this.theme);
+
+    // What the camera should be looking at, worked out before there is a camera
+    this.readSearchFilter();
+    this.extents = this.declaredExtents();
+
     this.map = createMap(container, this.mapTheme, {
       ...LOCATION_MAP,
-      // Always handed over, even with geosearch switched off: MapLibre reads this once as the handler
-      // is built and offers no way to hand it one later, so the offer has to be made now and taken
-      // back by disabling the handler - see applyGeosearch. Making it at all is also what stops a
-      // shift-drag flying the camera to whatever it enclosed. A search shouldn't move the map, and the
-      // area worth reporting is the box the reader drew rather than the wider view a fit to it settles
-      // on: their box never has the canvas' own shape, so the camera always covers more than they
-      // asked about.
       boxZoom: { boxZoomEnd: (_map, start, end) => this.search(start, end) },
       minZoom: 1,
+      ...openingLocation(container, this.mapTheme, this.target(), this.projection === 'globe', this.camera()),
     });
     disableRotation(this.map);
 
@@ -424,6 +434,11 @@ export class OgmOverview {
     this.extents = await Promise.all(previewers.map(previewer => previewer?.getBounds()));
   }
 
+  // Where each result says it is, answered on the spot
+  private declaredExtents(): (maplibregl.LngLatBoundsLike | undefined)[] {
+    return (this.previewers ?? locationsFor(this.records ?? [])).map(previewer => previewer?.declaredBounds);
+  }
+
   // Put the results on the map: their numbers, the highlighted one's own extent, and the area being
   // searched. See drawResults, which is where the order all of that goes on in lives.
   private draw() {
@@ -443,9 +458,12 @@ export class OgmOverview {
   private async frame() {
     if (!this.map || !this.mapStyleLoaded) return;
 
-    // Everywhere the results cover, or the whole world if none of them said where they are
-    const target = this.searchFilter ?? unionBounds(this.extents) ?? WORLD;
-    await frameLocation(this.map, this.mapTheme, target, this.globe(), this.camera());
+    await frameLocation(this.map, this.mapTheme, this.target(), this.globe(), this.camera());
+  }
+
+  // Where to point: the area a search is filtered to, or everywhere the results cover
+  private target(): maplibregl.LngLatBoundsLike {
+    return this.searchFilter ?? unionBounds(this.extents) ?? WORLD;
   }
 
   // Whether the camera is pointing at a sphere, which is what decides whether what it is pointed at
