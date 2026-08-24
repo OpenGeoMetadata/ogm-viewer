@@ -156,6 +156,31 @@ export const setBasemap = async (map: maplibregl.Map, theme: MapLibreTheme): Pro
   });
 
 /**
+ * Where to open a map, for a caller that already knows where its map is going.
+ *
+ * MapLibre reads `bounds` in place of the center and zoom createMap opens on, and points the camera
+ * there inside the constructor, before there is a frame for anyone to see. Nothing else here can be
+ * that early: a preview is fitted once it has drawn and a location once its style document is up, and
+ * until whichever it waits on lands, a map that could have opened on its record is showing the whole
+ * world instead. The camera that follows still runs - what a record declares isn't always the whole
+ * of what a resource turns out to cover - but it moves from one view of the record to another rather
+ * than in from the world.
+ *
+ * The gap is measured against the container, because there is no canvas to measure yet: it is the same
+ * box either way, and MapLibre resizes to it before it fits anything. Nothing of ours holds the camera
+ * still, either - MapLibre hands this one its own `duration: 0`.
+ *
+ * Nothing at all for a caller with nowhere to point, which leaves createMap's own view where it is.
+ */
+export const openingCamera = (container: HTMLElement, theme: Theme, target: maplibregl.LngLatBoundsLike | undefined, extras: maplibregl.FitBoundsOptions = {}): MapExtras => {
+  if (!target) return {};
+
+  const fitBoundsOptions: maplibregl.FitBoundsOptions = { padding: theme.getPadding(), ...extras };
+  fitBoundsOptions.padding = fittablePadding(container, fitBoundsOptions.padding);
+  return { bounds: target, fitBoundsOptions };
+};
+
+/**
  * Point the map at the given bounds; resolve once it has finished moving.
  *
  * The theme's gap, on all four edges, so what's drawn reads as having edges instead of running off
@@ -166,7 +191,7 @@ export const setBasemap = async (map: maplibregl.Map, theme: MapLibreTheme): Pro
  */
 export const fitBounds = async (map: maplibregl.Map, theme: Theme, bounds: maplibregl.LngLatBoundsLike, extras: maplibregl.FitBoundsOptions = {}): Promise<void> => {
   const options: maplibregl.FitBoundsOptions = { padding: theme.getPadding(), animate: false, ...extras };
-  options.padding = fittablePadding(map, options.padding);
+  options.padding = fittablePadding(map.getCanvas(), options.padding);
   if (!cameraForBounds(map, bounds, options)) return;
   return new Promise<void>(resolve => {
     map.once('moveend', () => resolve());
@@ -174,7 +199,8 @@ export const fitBounds = async (map: maplibregl.Map, theme: Theme, bounds: mapli
   });
 };
 
-// The gap asked for, held to what the canvas can actually spare.
+// The gap asked for, held to what the box it has to fit inside can actually spare - a map's canvas,
+// or the container a map is about to be built in; see openingCamera, which has no canvas to ask yet.
 //
 // MapLibre has no camera for bounds it can't fit the padding inside - the width left over goes
 // negative and cameraForBounds hands back nothing - and the guard below reads that as "leave the
@@ -185,14 +211,13 @@ export const fitBounds = async (map: maplibregl.Map, theme: Theme, bounds: mapli
 //
 // Only a plain number is held down. `padding` can also name the four edges one at a time, and nothing
 // here does that - what a sidebar covers is set on the map rather than asked of one camera.
-const fittablePadding = (map: maplibregl.Map, padding: maplibregl.FitBoundsOptions['padding']): maplibregl.FitBoundsOptions['padding'] => {
+const fittablePadding = (box: { clientWidth: number; clientHeight: number }, padding: maplibregl.FitBoundsOptions['padding']): maplibregl.FitBoundsOptions['padding'] => {
   if (typeof padding !== 'number') return padding;
 
   // A map inside something hidden measures zero, and zero is not a small map: it is a map nobody can
   // see. Held to what it measures, it would frame whatever it was pointed at with no gap at all, and
   // that camera is the one still on screen when the pane is shown again.
-  const canvas = map.getCanvas();
-  const shortest = Math.min(canvas.clientWidth, canvas.clientHeight);
+  const shortest = Math.min(box.clientWidth, box.clientHeight);
   if (!shortest) return padding;
 
   return Math.min(padding, Math.floor(shortest / 4));
@@ -284,3 +309,19 @@ export const frameLocation = async (
   globe: boolean,
   extras: maplibregl.FitBoundsOptions = {},
 ): Promise<void> => fitBounds(map, theme, globe ? clampToHemisphere(target) : target, { padding: theme.getOverviewPadding(), ...extras });
+
+/**
+ * Where to open a map that says where records are: the camera frameLocation would settle on, worked
+ * out before there is a map to ask for one.
+ *
+ * The same overview gap, and the same holding to what a globe can face - because that is the
+ * projection these maps open in, and a wide record framed as though it were flat would be re-framed
+ * the moment the style document lands, which is the jump this exists to avoid.
+ */
+export const openingLocation = (
+  container: HTMLElement,
+  theme: MapLibreTheme,
+  target: maplibregl.LngLatBoundsLike,
+  globe: boolean,
+  extras: maplibregl.FitBoundsOptions = {},
+): MapExtras => openingCamera(container, theme, globe ? clampToHemisphere(target) : target, { padding: theme.getOverviewPadding(), ...extras });

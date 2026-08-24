@@ -233,6 +233,21 @@ export default abstract class MapPreviewer extends Previewer {
     return this.previewLayers.find(layer => layer.id === id);
   }
 
+  /**
+   * What the record said this covers, answered on the spot: the bounding box the resource was built
+   * with, and nothing that would have to be fetched to know.
+   *
+   * For the one caller that can't wait - a map is built before anything is drawn on it, and building
+   * it already pointed at the record is what saves the reader a look at the whole world first; see
+   * openingCamera. getBounds() below is the better answer and is what the camera settles on, but it
+   * can be a round trip or two away, and a map cannot be built later than it is built.
+   *
+   * Undefined for a record that never said where it is, which leaves the map wherever it opens.
+   */
+  get declaredBounds(): maplibregl.LngLatBoundsLike | undefined {
+    return this.resource.declaredBounds;
+  }
+
   // Where the map should be pointed to see this preview. The resource usually knows - from the
   // record's bounding box, or from metadata it reads itself - so only a preview that learns its
   // extent while drawing, like a warped image, has anything to override here.

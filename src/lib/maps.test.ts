@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from '@stencil/vitest';
 
 import { WORLD } from './geometry';
-import { addLocationControls, disableRotation, fitBounds, frameLocation, readProjection, trackContainerSize, whenSized } from './maps';
+import { addLocationControls, disableRotation, fitBounds, frameLocation, openingCamera, openingLocation, readProjection, trackContainerSize, whenSized } from './maps';
 import type Theme from './themes/theme';
 import type MapLibreTheme from './themes/maplibre';
 
@@ -100,6 +100,31 @@ describe('fitBounds', () => {
 
     await expect(fitBounds(map as unknown as maplibregl.Map, theme, BOUNDS)).resolves.toBeUndefined();
     expect(map.fitBounds).not.toHaveBeenCalled();
+  });
+});
+
+describe('openingCamera', () => {
+  // MapLibre reads these in place of the center and zoom a map would otherwise open on, and points the
+  // camera in the constructor - so the first frame is of the record rather than of the whole world
+  it('should hand the bounds and the theme’s gap to the map being built', () => {
+    expect(openingCamera(container(800, 600), theme, BOUNDS)).toEqual({ bounds: BOUNDS, fitBoundsOptions: { padding: PADDING } });
+  });
+
+  // The container rather than a canvas, because the map that would have one doesn't exist yet: the same
+  // holding to what the box can spare, so a pane shorter than twice the gap opens framed rather than
+  // wherever a camera that couldn't be solved left it. See fittablePadding.
+  it('should give up the gap rather than the framing on a container too small for both', () => {
+    expect(openingCamera(container(300, 120), theme, BOUNDS)).toEqual({ bounds: BOUNDS, fitBoundsOptions: { padding: 30 } });
+  });
+
+  it('should carry the caller’s own camera options', () => {
+    expect(openingCamera(container(800, 600), theme, BOUNDS, { maxZoom: 12 })).toEqual({ bounds: BOUNDS, fitBoundsOptions: { padding: PADDING, maxZoom: 12 } });
+  });
+
+  // A record that never said where it is leaves the map at whatever view createMap opens on, rather
+  // than being pointed at nothing
+  it('should ask for nothing when there is nowhere to point', () => {
+    expect(openingCamera(container(800, 600), theme, undefined)).toEqual({});
   });
 });
 
@@ -320,6 +345,31 @@ describe('frameLocation', () => {
 
     const [bounds] = map.fitBounds.mock.calls[0] as unknown as [maplibregl.LngLatBounds];
     expect([bounds.getWest(), bounds.getEast()]).toEqual([-124.41, -114.13]);
+  });
+});
+
+describe('openingLocation', () => {
+  it('should open with the overview gap around what it frames', () => {
+    expect(openingLocation(container(800, 600), locationTheme, BOUNDS, false)).toEqual({ bounds: BOUNDS, fitBoundsOptions: { padding: 64 } });
+  });
+
+  it('should carry the caller’s own camera options', () => {
+    expect(openingLocation(container(800, 600), locationTheme, BOUNDS, false, { maxZoom: 12 })).toEqual({ bounds: BOUNDS, fitBoundsOptions: { padding: 64, maxZoom: 12 } });
+  });
+
+  // The projection these maps open in is the globe, so a wide record has to be held to the half of the
+  // world facing the camera here as well - otherwise the style document landing would re-frame it, and
+  // the reader would open on a jump instead of on the record.
+  it('should hold a globe camera to the half of the world it can face', () => {
+    const { bounds } = openingLocation(container(800, 600), locationTheme, WORLD, true);
+    const framed = bounds as maplibregl.LngLatBounds;
+
+    expect(framed.getEast() - framed.getWest()).toEqual(180);
+    expect(framed.getCenter().lng).toEqual(0);
+  });
+
+  it('should open a flat map on the whole of the same area', () => {
+    expect(openingLocation(container(800, 600), locationTheme, WORLD, false)).toEqual({ bounds: WORLD, fitBoundsOptions: { padding: 64 } });
   });
 });
 
