@@ -63,28 +63,23 @@ const strokeLightnessShift = 0.26;
 // How deep the disc a result's number is drawn on sits, in OKLab lightness. A target rather than a
 // step, unlike the outline above: a number has to be readable on its disc in both modes, and the two
 // tokens behind one color start at opposite ends of the scale, so the same step from each would land
-// one of them either side of the point where white stops being the more readable ink. Every color in
-// the palette clears that point at this value, and so does anything an app is likely to name, which
-// is what lets the numeral be white by construction rather than by luck.
-const markerLightness = 0.45;
+// one of them either side of the point where white stops being the more readable ink.
+const markerLightness = 0.7;
 
 // Larger padding used for overviews (search results, locators)
 const defaultOverviewPadding = 64;
 
-// Web Awesome's own default colors, copied in as literals rather than read from its stylesheet -
-// see getStyle() below for why. Each is named for the --wa-color-* custom property in Web Awesome's
-// default theme it was copied from, so a real palette change can be matched back to its source -
-// but copied rather than linked, so nothing here moves on its own if that palette does.
-const dataColorDark = '#0071ec'; // --wa-color-blue-50
-const dataColorLight = '#9fceff'; // --wa-color-blue-80
-const highlightColorDark = '#00a3c0'; // --wa-color-cyan-60
-const highlightColorLight = '#7fd6ec'; // --wa-color-cyan-80
-const selectedColorDark = '#00883c'; // --wa-color-green-50
-const selectedColorLight = '#93da98'; // --wa-color-green-80
-const invalidColorDark = '#dc3146'; // --wa-color-red-50
-const invalidColorLight = '#f3676c'; // --wa-color-red-60
-const textColorDark = '#f1f2f3'; // --wa-color-gray-95
-const textColorLight = '#101219'; // --wa-color-gray-05
+// The default theme colors.
+const dataColorDark = '#0071ec';
+const dataColorLight = '#9fceff';
+const highlightColorDark = '#f36d00';
+const highlightColorLight = '#f36d00';
+const selectedColorDark = '#e9a010';
+const selectedColorLight = '#fde588';
+const invalidColorDark = '#e02c2b';
+const invalidColorLight = '#f56667';
+const textColorDark = '#f1f2f3';
+const textColorLight = '#101219';
 
 // Style properties common to all MapLibre-based previewers
 export default class MapLibreTheme extends Theme {
