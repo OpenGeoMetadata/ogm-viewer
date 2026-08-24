@@ -6,7 +6,7 @@ import '@awesome.me/webawesome/dist/components/icon/icon.js';
 
 import { getElement, findElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
-import { themePreference, waScope, webAwesomeStylesheet } from '../../lib/init';
+import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
 import type ImagePreviewer from '../../lib/previewers/image';
 import Theme from '../../lib/themes/theme';
 
@@ -16,9 +16,9 @@ import Theme from '../../lib/themes/theme';
   shadow: true,
 })
 export class OgmImage {
-  @Element() el: HTMLElement;
+  @Element() el!: HTMLElement;
   @Prop() previewer: ImagePreviewer;
-  @Prop() theme: 'light' | 'dark' = themePreference();
+  @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
   @Prop() padding: number = 0;
   @Event() imageLoaded: EventEmitter<void>;
   @Event() imageLoading: EventEmitter<void>;

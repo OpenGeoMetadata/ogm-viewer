@@ -4,7 +4,7 @@ import type maplibregl from 'maplibre-gl';
 import { getElement } from '../../lib/elements';
 import GeosearchControl from '../../lib/geosearch-control';
 import { boundsToBbox, readBounds, unionBounds, WORLD } from '../../lib/geometry';
-import { themePreference, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
+import { initialTheme, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
 import { addLocationControls, createMap, disableRotation, frameLocation, LOCATION_MAP, LOCATION_MAX_ZOOM, readProjection, setBasemap, whenSized } from '../../lib/maps';
 import LocationPreviewer, { locationsFor } from '../../lib/previewers/location';
 import type { MapProjection } from '../../lib/previewers/map';
@@ -34,8 +34,8 @@ const MIN_SEARCH_DRAG = 3;
   shadow: true,
 })
 export class OgmOverview {
-  @Element() el: HTMLElement;
-  @Prop() theme: 'light' | 'dark' = themePreference();
+  @Element() el!: HTMLElement;
+  @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
   @Prop() records?: OgmRecord[];
 
   // Holes and all, because that is what `locationsFor` hands back: a record with nothing to place it

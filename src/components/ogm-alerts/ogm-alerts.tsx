@@ -1,9 +1,9 @@
-import { Component, Host, Prop, h } from '@stencil/core';
+import { Component, Element, Host, Prop, h } from '@stencil/core';
 
 import '@awesome.me/webawesome/dist/components/callout/callout.js';
 import '@awesome.me/webawesome/dist/components/icon/icon.js';
 
-import { themePreference, waScope, webAwesomeStylesheet } from '../../lib/init';
+import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
 import type { PreviewError } from '../../lib/errors';
 
 // Renders a single preview error, centered and filling its container. Used in place of a failed
@@ -14,7 +14,8 @@ import type { PreviewError } from '../../lib/errors';
   shadow: true,
 })
 export class OgmAlerts {
-  @Prop() theme: 'light' | 'dark' = themePreference();
+  @Element() el!: HTMLElement;
+  @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
   @Prop() error?: PreviewError;
 
   // The callout takes its colors from the scope on .alerts rather than from the one on the Host: a

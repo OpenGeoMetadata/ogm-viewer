@@ -1,11 +1,11 @@
-import { Component, Event, EventEmitter, h, Host, Prop, State, Watch } from '@stencil/core';
+import { Component, Element, Event, EventEmitter, Host, Prop, State, Watch, h } from '@stencil/core';
 
 import '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
 import '@awesome.me/webawesome/dist/components/tab-panel/tab-panel.js';
 import '@awesome.me/webawesome/dist/components/tab/tab.js';
 
 import type OgmRecord from '../../lib/record';
-import { themePreference, waScope, webAwesomeStylesheet } from '../../lib/init';
+import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
 import { resourcesFor } from '../../lib/resources/factory';
 import { previewersForResources, type AnyPreviewer } from '../../lib/previewers/factory';
 import type { RequestTransform } from '../../lib/request';
@@ -16,7 +16,8 @@ import type { RequestTransform } from '../../lib/request';
   shadow: true,
 })
 export class OgmPreviews {
-  @Prop() theme: 'light' | 'dark' = themePreference();
+  @Element() el!: HTMLElement;
+  @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
   @Prop() record?: OgmRecord;
   // Previews to show, for an application that builds its own rather than handing over a record - the
   // tab strip is worth having either way. Takes the place of `record`, which is then not read at all.

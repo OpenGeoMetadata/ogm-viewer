@@ -2,7 +2,7 @@ import { Component, Element, Host, Listen, Method, Prop, State, Watch, h } from 
 
 import OgmRecord from '../../lib/record';
 import { fetchOrThrow, recordError, type PreviewError } from '../../lib/errors';
-import { themePreference, waScope, webAwesomeStylesheet } from '../../lib/init';
+import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
 import { resolveRequest, type RequestTransform } from '../../lib/request';
 
 @Component({
@@ -11,9 +11,9 @@ import { resolveRequest, type RequestTransform } from '../../lib/request';
   shadow: true,
 })
 export class OgmViewer {
-  @Element() el: HTMLElement;
+  @Element() el!: HTMLElement;
   @Prop() recordUrl: string;
-  @Prop() theme: 'light' | 'dark' = themePreference();
+  @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
   @Prop() hideTitle: boolean = false;
   // Applied to the record fetch itself, and passed down to every resource built from it - see
   // Resource.requestTransform. A DOM property, like previewer on <ogm-preview>: set it before or

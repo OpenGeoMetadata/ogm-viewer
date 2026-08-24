@@ -79,3 +79,12 @@ export const webAwesomeReady = (link: Element, scope: Element): Promise<void> =>
 // Which theme to draw in when nobody said. Only consulted by a component used on its own;
 // <ogm-viewer> passes its own resolved theme down to everything it renders.
 export const themePreference = (): 'light' | 'dark' => (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+/**
+ * What to open a component's `theme` prop with, before anyone has had a chance to set it: the
+ * attribute already on the tag, or themePreference() when there isn't one.
+ */
+export const initialTheme = (el: Element): 'light' | 'dark' => {
+  const attr = el.getAttribute('theme');
+  return attr === 'light' || attr === 'dark' ? attr : themePreference();
+};

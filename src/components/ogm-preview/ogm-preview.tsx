@@ -1,6 +1,6 @@
-import { Component, h, Host, Listen, Prop, State, Watch } from '@stencil/core';
+import { Component, Element, Host, Listen, Prop, State, Watch, h } from '@stencil/core';
 
-import { themePreference, waScope, webAwesomeStylesheet } from '../../lib/init';
+import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
 import type { AnyPreviewer } from '../../lib/previewers/factory';
 import type { PreviewError } from '../../lib/errors';
 
@@ -11,7 +11,8 @@ import type { PreviewError } from '../../lib/errors';
   shadow: true,
 })
 export class OgmPreview {
-  @Prop() theme: 'light' | 'dark' = themePreference();
+  @Element() el!: HTMLElement;
+  @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
   @Prop() previewer: AnyPreviewer;
   @Prop() sidebarPadding: number;
   @State() error?: PreviewError;
