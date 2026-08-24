@@ -71,6 +71,21 @@ const markerLightness = 0.45;
 // Larger padding used for overviews (search results, locators)
 const defaultOverviewPadding = 64;
 
+// Web Awesome's own default colors, copied in as literals rather than read from its stylesheet -
+// see getStyle() below for why. Each is named for the --wa-color-* custom property in Web Awesome's
+// default theme it was copied from, so a real palette change can be matched back to its source -
+// but copied rather than linked, so nothing here moves on its own if that palette does.
+const dataColorDark = '#0071ec'; // --wa-color-blue-50
+const dataColorLight = '#9fceff'; // --wa-color-blue-80
+const highlightColorDark = '#00a3c0'; // --wa-color-cyan-60
+const highlightColorLight = '#7fd6ec'; // --wa-color-cyan-80
+const selectedColorDark = '#00883c'; // --wa-color-green-50
+const selectedColorLight = '#93da98'; // --wa-color-green-80
+const invalidColorDark = '#dc3146'; // --wa-color-red-50
+const invalidColorLight = '#f3676c'; // --wa-color-red-60
+const textColorDark = '#f1f2f3'; // --wa-color-gray-95
+const textColorLight = '#101219'; // --wa-color-gray-05
+
 // Style properties common to all MapLibre-based previewers
 export default class MapLibreTheme extends Theme {
   /**
@@ -80,9 +95,10 @@ export default class MapLibreTheme extends Theme {
    *
    *   ogm-viewer { --ogm-data-color: #8f1414; }
    *
-   * Left alone, each falls back to a Web Awesome token, picked for the current mode. Those are the
-   * library's own palette and move with it; the `--ogm-*` names are the contract, and are the only
-   * ones an embedding app should be naming.
+   * Left alone, each falls back to one of Web Awesome's own default colors, picked for the current
+   * mode - copied in as literals rather than read from its stylesheet, so a preview never has to
+   * wait for that stylesheet to load before it can draw. The `--ogm-*` names are the contract, and
+   * are the only ones an embedding app should be naming.
    *
    * An app names the color of the data itself and the outline comes from it, so one declaration
    * restyles a state. `--ogm-stroke-*` is still there for anyone who wants a particular outline.
@@ -94,11 +110,11 @@ export default class MapLibreTheme extends Theme {
    * glyph name the active basemap style actually serves.
    */
   getStyle(): MapLibreStyle {
-    const dataColor = this.themedColor('--ogm-data-color', '--wa-color-blue-50', '--wa-color-blue-80');
-    const highlightColor = this.themedColor('--ogm-highlight-color', '--wa-color-cyan-60', '--wa-color-cyan-80');
-    const selectedColor = this.themedColor('--ogm-selected-color', '--wa-color-green-50', '--wa-color-green-80');
-    const invalidColor = this.themedColor('--ogm-invalid-color', '--wa-color-red-50', '--wa-color-red-60');
-    const textColor = this.themedColor('--ogm-text-color', '--wa-color-gray-95', '--wa-color-gray-05');
+    const dataColor = this.themedColor('--ogm-data-color', dataColorDark, dataColorLight);
+    const highlightColor = this.themedColor('--ogm-highlight-color', highlightColorDark, highlightColorLight);
+    const selectedColor = this.themedColor('--ogm-selected-color', selectedColorDark, selectedColorLight);
+    const invalidColor = this.themedColor('--ogm-invalid-color', invalidColorDark, invalidColorLight);
+    const textColor = this.themedColor('--ogm-text-color', textColorDark, textColorLight);
 
     return {
       opacity: this.readCssNumber('--ogm-data-opacity', 0.8),
@@ -153,10 +169,11 @@ export default class MapLibreTheme extends Theme {
   // What a label is read against, derived the same way, but to the opposite end of the scale rather
   // than a step along it - the halo's whole job is to hold the text apart from whatever basemap is
   // under it. No mode to consult: the text color already answered that, and the halo answers to the
-  // text. Falls back to the token pair only if the text color is something we can't read, where a
-  // halo derived from it would come out the same color as the text and swallow the label.
+  // text. Falls back to textColor's own gray pair, reversed, only if the text color is something we
+  // can't read, where a halo derived from it would come out the same color as the text and swallow
+  // the label.
   haloColor(textColor: string): string {
-    return this.readCssProperty('--ogm-text-halo-color') || contrastColor(textColor) || this.dualCssColors('--wa-color-gray-05', '--wa-color-gray-95');
+    return this.readCssProperty('--ogm-text-halo-color') || contrastColor(textColor) || this.dualColors(textColorLight, textColorDark);
   }
 
   // Atmosphere style for globe

@@ -18,16 +18,13 @@ const themed = (theme: 'light' | 'dark' | undefined, tokens: Record<string, stri
 
 describe('MapLibreTheme', () => {
   describe('colors', () => {
-    it('reads our own token for the mode when nothing overrides it', () => {
-      const light = themed('light', { '--wa-color-blue-80': 'rebeccapurple' });
-      const dark = themed('dark', { '--wa-color-blue-50': 'papayawhip' });
-
-      expect(light.getStyle().dataColor).toBe('rebeccapurple');
-      expect(dark.getStyle().dataColor).toBe('papayawhip');
+    it('falls back to our own default for the mode when nothing overrides it', () => {
+      expect(themed('light').getStyle().dataColor).toBe('#9fceff');
+      expect(themed('dark').getStyle().dataColor).toBe('#0071ec');
     });
 
-    it('prefers an --ogm-* override to the token it falls back to', () => {
-      const theme = themed('light', { '--ogm-data-color': '#8f1414', '--wa-color-blue-80': 'rebeccapurple' });
+    it('prefers an --ogm-* override to the default it falls back to', () => {
+      const theme = themed('light', { '--ogm-data-color': '#8f1414' });
 
       expect(theme.getStyle().dataColor).toBe('#8f1414');
     });
@@ -35,16 +32,17 @@ describe('MapLibreTheme', () => {
     // An app that names a color has said it wants that color; picking a different one in dark mode
     // would be picking one it never asked for.
     it('honors a single override in both modes', () => {
-      const tokens = { '--ogm-data-color': '#8f1414', '--wa-color-blue-50': 'papayawhip', '--wa-color-blue-80': 'rebeccapurple' };
+      const tokens = { '--ogm-data-color': '#8f1414' };
 
       expect(themed('light', tokens).getStyle().dataColor).toBe('#8f1414');
       expect(themed('dark', tokens).getStyle().dataColor).toBe('#8f1414');
     });
 
     // Web Awesome documents its palette tokens inline, and Safari leaks the comment into the
-    // computed value, which MapLibre then rejects as an invalid color.
-    it('strips a comment left in a token value', () => {
-      const theme = themed('light', { '--wa-color-blue-80': '#0a3a1d /* oklch(30% 0.08 150) */' });
+    // computed value, which MapLibre then rejects as an invalid color. An override is the only
+    // remaining path a comment like that could arrive on, e.g. an app setting one to var(--wa-color-*).
+    it('strips a comment left in an override value', () => {
+      const theme = themed('light', { '--ogm-data-color': '#0a3a1d /* oklch(30% 0.08 150) */' });
 
       expect(theme.getStyle().dataColor).toBe('#0a3a1d');
     });
@@ -115,12 +113,12 @@ describe('MapLibreTheme', () => {
 
     // What the numeral's own color rests on. It is chosen by contrast at the point of drawing, so a
     // disc that came out pale would put black ink on a map whose other numbers are white. Checked
-    // against the palette's own values for each mode - the pale pair a light basemap gets and the
+    // against our own defaults for each mode - the pale pair a light basemap gets and the
     // saturated pair a dark one does - and against a color pale enough that an app naming it would
     // otherwise get one.
     it('leaves both discs deep enough for white ink', () => {
-      const light = themed('light', { '--wa-color-blue-80': '#9fceff', '--wa-color-cyan-80': '#7fd6ec' }).getStyle();
-      const dark = themed('dark', { '--wa-color-blue-50': '#0071ec', '--wa-color-cyan-60': '#00a3c0' }).getStyle();
+      const light = themed('light').getStyle();
+      const dark = themed('dark').getStyle();
       const pale = themed('light', { '--ogm-data-color': '#ffe08a', '--ogm-highlight-color': '#ffff00' }).getStyle();
 
       [light, dark, pale].forEach(style => {
@@ -161,11 +159,9 @@ describe('MapLibreTheme', () => {
       expect(themed('light', { '--ogm-text-color': '#f1f2f3' }).getStyle().textHaloColor).toBe('#000000');
     });
 
-    it('follows the mode by way of the token the text color falls back to', () => {
-      const tokens = { '--wa-color-gray-05': '#101219', '--wa-color-gray-95': '#f1f2f3' };
-
-      expect(themed('dark', tokens).getStyle().textHaloColor).toBe('#000000');
-      expect(themed('light', tokens).getStyle().textHaloColor).toBe('#ffffff');
+    it('follows the mode by way of the default the text color falls back to', () => {
+      expect(themed('dark').getStyle().textHaloColor).toBe('#000000');
+      expect(themed('light').getStyle().textHaloColor).toBe('#ffffff');
     });
 
     it('steps aside for an app that names the halo itself', () => {
@@ -175,9 +171,9 @@ describe('MapLibreTheme', () => {
     });
 
     // Deriving from a color we can't read would hand back the text color itself and swallow the
-    // label, so this is the one case that still reaches for the token pair
-    it('falls back to the token when the text color cannot be read', () => {
-      const tokens = { '--ogm-text-color': 'oklch(0.5 0.1 20)', '--wa-color-gray-95': '#f1f2f3' };
+    // label, so this is the one case that still reaches for our own default pair
+    it('falls back to the default when the text color cannot be read', () => {
+      const tokens = { '--ogm-text-color': 'oklch(0.5 0.1 20)' };
 
       expect(themed('light', tokens).getStyle().textHaloColor).toBe('#f1f2f3');
     });

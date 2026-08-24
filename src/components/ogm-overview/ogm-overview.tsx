@@ -4,7 +4,7 @@ import type maplibregl from 'maplibre-gl';
 import { getElement } from '../../lib/elements';
 import GeosearchControl from '../../lib/geosearch-control';
 import { boundsToBbox, readBounds, unionBounds, WORLD } from '../../lib/geometry';
-import { initialTheme, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
+import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
 import {
   addLocationControls,
   createMap,
@@ -137,16 +137,8 @@ export class OgmOverview {
   async componentDidLoad() {
     const container = getElement(this.el, '#map');
 
-    // Held until that palette has actually arrived. Once, here, rather than before each draw: the
-    // map is built after it, so nothing that gets drawn on the map can be early.
-    await webAwesomeReady(getElement(this.el, 'link'), container);
-
-    // Taken back off the page while we waited for it. Checked here as well as below, because the wait
-    // below starts observing the container and only gives up once it has a box: a container that has
-    // been detached will never get one, so an overview that came and went before its palette arrived
-    // would leave an observer running behind it for good. Unlike <ogm-map>, which asks for the palette
-    // without waiting on it here, this is a later task than the one that rendered - so there is a real
-    // gap for the element to go missing in.
+    // An overview that came and went before this ran would otherwise still leave whenSized's
+    // ResizeObserver behind, watching a container that has no box and so will never resize.
     if (!this.el.isConnected) return;
 
     // And until there is a box to build the map into; see whenSized. An overview is as likely as a
@@ -522,9 +514,9 @@ export class OgmOverview {
     return Number.isInteger(place) && place >= 1 && place <= this.extents.length ? place : undefined;
   }
 
-  // Web Awesome is linked even though nothing here renders a wa-* element: MapLibreTheme reads
-  // --wa-color-* tokens for the numbers and the boxes, and this component is meant to be used on
-  // its own, so it is the one that has to establish them.
+  // Web Awesome is linked even though nothing here renders a wa-* element: an --ogm-* override
+  // still reaches the numbers and the boxes MapLibreTheme draws through this scope, and this
+  // component is meant to be used on its own, so it is the one that has to establish them.
   render() {
     return (
       <Host class={waScope(this.theme)}>

@@ -633,7 +633,7 @@ describe('ogm-overview highlight', () => {
 
     expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features[0].geometry.coordinates[0][0]).toEqual([-24.55, 63.39]);
     expect(layerIds(map)).toEqual(ALL_LAYERS);
-    expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-color']).toEqual(el.mapTheme.getStyle().strokeSelectedColor);
+    expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-color']).toEqual(el.mapTheme.getStyle().strokeHighlightColor);
   });
 
   it('highlights a result named by id', async () => {

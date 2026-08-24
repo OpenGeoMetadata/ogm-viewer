@@ -47,16 +47,17 @@ export default class Theme {
       .trim();
   };
 
-  // If dark mode, use the first CSS color, otherwise use the second CSS color
-  dualCssColors(darkColor: string, lightColor: string): string {
-    return this.darkMode() ? this.readCssProperty(darkColor) : this.readCssProperty(lightColor);
+  // If dark mode, use the first color, otherwise use the second - both given as literals, not CSS
+  // custom property names, so picking between them needs nothing read from the DOM.
+  dualColors(darkColor: string, lightColor: string): string {
+    return this.darkMode() ? darkColor : lightColor;
   }
 
-  // An embedding app's override if it set one, otherwise our own token for the current mode. One
+  // An embedding app's override if it set one, otherwise our own default for the current mode. One
   // override covers both modes: an app that names a color has said it wants that color, and
   // second-guessing it in dark mode would be picking a color it never asked for.
   themedColor(override: string, darkColor: string, lightColor: string): string {
-    return this.readCssProperty(override) || this.dualCssColors(darkColor, lightColor);
+    return this.readCssProperty(override) || this.dualColors(darkColor, lightColor);
   }
 
   // A custom property read as a number, for the styles that aren't colors. A property nobody set

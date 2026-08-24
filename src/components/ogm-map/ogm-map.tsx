@@ -4,7 +4,7 @@ import maplibregl from 'maplibre-gl';
 import { closestAcrossShadows, findElement, getElement } from '../../lib/elements';
 import { referenceError, TimeoutError, type PreviewError } from '../../lib/errors';
 import GlobeControl from '../../lib/globe-control';
-import { initialTheme, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
+import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
 import { dedupeFeatures } from '../../lib/features';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
 import { createMap, fitBounds, openingCamera, setBasemap, whenSized } from '../../lib/maps';
@@ -68,8 +68,6 @@ export class OgmMap {
   // MapLibre map instance and popup instance for feature info display
   protected map: maplibregl.Map;
   protected mapTheme: MapLibreTheme;
-  // Resolves once the theme's colors can be read; see webAwesomeReady and loadPreview
-  protected themeReady: Promise<void>;
   protected popup: maplibregl.Popup | undefined = undefined;
   // Watches the popup's contents for a change of size; see createPopup
   protected popupResize: ResizeObserver | undefined = undefined;
@@ -84,7 +82,6 @@ export class OgmMap {
     // so an --ogm-* override set on the host or on the embedding page still reaches it by inheritance.
     const scope = getElement(this.el, '.container');
     this.mapTheme = new MapLibreTheme(scope, this.theme);
-    this.themeReady = webAwesomeReady(getElement(this.el, 'link'), scope);
 
     // Keep attributes outside Stencil render pipeline so that MapLibre can
     // use the HTML directly for the popup content
@@ -227,13 +224,6 @@ export class OgmMap {
     };
 
     try {
-      // Nothing below can be drawn until the colors it would be drawn in can be read, and the
-      // stylesheet they come from is linked into our own shadow root - on a first load it may still
-      // be arriving. Waiting on the MapLibre 'load' event that brought us here is not the same thing:
-      // that waits for a round trip to a tile server, which usually but not always takes longer, and
-      // the redraw after a theme change starts from 'style.load', which is earlier still.
-      await this.themeReady;
-
       // The style is only known now: it comes out of the theme, and the theme can change under a
       // preview that is already on screen
       this.previewer.attach(this.map, this.mapTheme.getStyle());
