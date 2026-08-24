@@ -165,7 +165,7 @@ export const setBasemap = async (map: maplibregl.Map, theme: MapLibreTheme): Pro
  * camera including the ones a reader drives.
  */
 export const fitBounds = async (map: maplibregl.Map, theme: Theme, bounds: maplibregl.LngLatBoundsLike, extras: maplibregl.FitBoundsOptions = {}): Promise<void> => {
-  const options: maplibregl.FitBoundsOptions = { padding: theme.getPadding(), ...extras };
+  const options: maplibregl.FitBoundsOptions = { padding: theme.getPadding(), animate: false, ...extras };
   options.padding = fittablePadding(map, options.padding);
   if (!cameraForBounds(map, bounds, options)) return;
   return new Promise<void>(resolve => {

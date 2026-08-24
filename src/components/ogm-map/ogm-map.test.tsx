@@ -185,7 +185,7 @@ describe('ogm-map', () => {
 
     await fitTo(el, bounds);
 
-    expect((el as unknown as { map: ReturnType<typeof fittableMap> }).map.fitBounds).toHaveBeenCalledWith(bounds, { padding: 50 });
+    expect((el as unknown as { map: ReturnType<typeof fittableMap> }).map.fitBounds).toHaveBeenCalledWith(bounds, { padding: 50, animate: false });
   });
 
   // What the sidebar covers is the map's own padding, which MapLibre already takes off the space it
@@ -197,7 +197,7 @@ describe('ogm-map', () => {
 
     await fitTo(el, bounds);
 
-    expect((el as unknown as { map: ReturnType<typeof fittableMap> }).map.fitBounds).toHaveBeenCalledWith(bounds, { padding: 50 });
+    expect((el as unknown as { map: ReturnType<typeof fittableMap> }).map.fitBounds).toHaveBeenCalledWith(bounds, { padding: 50, animate: false });
   });
 
   // Only a standalone <ogm-map> gets here: under <ogm-preview> the previewer arrives as an initial prop,

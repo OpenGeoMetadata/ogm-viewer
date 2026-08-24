@@ -32,7 +32,7 @@ describe('fitBounds', () => {
     const map = fittableMap();
     await fitBounds(map as unknown as maplibregl.Map, theme, BOUNDS);
 
-    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING });
+    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING, animate: false });
     expect(map.once).toHaveBeenCalledWith('moveend', expect.any(Function));
   });
 
@@ -41,7 +41,7 @@ describe('fitBounds', () => {
     const map = fittableMap();
     await fitBounds(map as unknown as maplibregl.Map, { getPadding: () => 8 } as Theme, BOUNDS);
 
-    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: 8 });
+    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: 8, animate: false });
   });
 
   // What a caller wants of this one camera, as against the limits it set on the map itself: those
@@ -51,8 +51,8 @@ describe('fitBounds', () => {
     const map = fittableMap();
     await fitBounds(map as unknown as maplibregl.Map, theme, BOUNDS, { maxZoom: 12 });
 
-    expect(map.cameraForBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING, maxZoom: 12 });
-    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING, maxZoom: 12 });
+    expect(map.cameraForBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING, maxZoom: 12, animate: false });
+    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING, maxZoom: 12, animate: false });
   });
 
   // MapLibre has no camera for bounds it can't fit the padding inside, and the guard below reads that
@@ -62,14 +62,14 @@ describe('fitBounds', () => {
     const map = fittableMap(undefined, { clientWidth: 300, clientHeight: 120 });
     await fitBounds(map as unknown as maplibregl.Map, theme, BOUNDS);
 
-    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: 30 });
+    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: 30, animate: false });
   });
 
   it('should ask for the whole gap on a map with room for it', async () => {
     const map = fittableMap(undefined, { clientWidth: 800, clientHeight: 400 });
     await fitBounds(map as unknown as maplibregl.Map, theme, BOUNDS);
 
-    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING });
+    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING, animate: false });
   });
 
   // Zero is not a small map, it is a map nobody can see: held to what a hidden one measures, the
@@ -78,7 +78,7 @@ describe('fitBounds', () => {
     const map = fittableMap(undefined, { clientWidth: 0, clientHeight: 0 });
     await fitBounds(map as unknown as maplibregl.Map, theme, BOUNDS);
 
-    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING });
+    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING, animate: false });
   });
 
   it('should leave the camera alone when there is no camera that would frame the bounds', async () => {
@@ -285,14 +285,14 @@ describe('frameLocation', () => {
     const map = fittableMap();
     await frameLocation(map as unknown as maplibregl.Map, locationTheme, BOUNDS, false);
 
-    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: 64 });
+    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: 64, animate: false });
   });
 
   it('should carry the caller’s own camera options', async () => {
     const map = fittableMap();
     await frameLocation(map as unknown as maplibregl.Map, locationTheme, BOUNDS, false, { maxZoom: 12 });
 
-    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: 64, maxZoom: 12 });
+    expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: 64, maxZoom: 12, animate: false });
   });
 
   // A globe camera has no answer for anything wider than the half of the world facing it: it hands
@@ -310,7 +310,7 @@ describe('frameLocation', () => {
     const map = fittableMap();
     await frameLocation(map as unknown as maplibregl.Map, locationTheme, WORLD, false);
 
-    expect(map.fitBounds).toHaveBeenCalledWith(WORLD, { padding: 64 });
+    expect(map.fitBounds).toHaveBeenCalledWith(WORLD, { padding: 64, animate: false });
   });
 
   // Nothing to clamp, so a globe gets what it was given
