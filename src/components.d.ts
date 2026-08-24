@@ -21,7 +21,7 @@ export namespace Components {
     interface OgmAlerts {
         "error"?: PreviewError;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme": 'light' | 'dark';
     }
@@ -40,7 +40,7 @@ export namespace Components {
         "padding": number;
         "previewer": ImagePreviewer;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme": 'light' | 'dark';
     }
@@ -55,7 +55,7 @@ export namespace Components {
         "previewer"?: LocationPreviewer;
         "record"?: OgmRecord;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme": 'light' | 'dark';
     }
@@ -67,7 +67,7 @@ export namespace Components {
         "padding": number;
         "previewer": MapPreviewer;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme": 'light' | 'dark';
     }
@@ -117,7 +117,7 @@ export namespace Components {
          */
         "searchHelpText": string;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme": 'light' | 'dark';
     }
@@ -125,7 +125,7 @@ export namespace Components {
         "previewer": AnyPreviewer;
         "sidebarPadding": number;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme": 'light' | 'dark';
     }
@@ -135,7 +135,7 @@ export namespace Components {
         "requestTransform"?: RequestTransform;
         "sidebarPadding": number;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme": 'light' | 'dark';
     }
@@ -156,7 +156,7 @@ export namespace Components {
         "recordUrl": string;
         "requestTransform"?: RequestTransform;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme": 'light' | 'dark';
     }
@@ -381,7 +381,7 @@ declare namespace LocalJSX {
     interface OgmAlerts {
         "error"?: PreviewError;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme"?: 'light' | 'dark';
     }
@@ -404,7 +404,7 @@ declare namespace LocalJSX {
         "padding"?: number;
         "previewer"?: ImagePreviewer;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme"?: 'light' | 'dark';
     }
@@ -422,7 +422,7 @@ declare namespace LocalJSX {
         "previewer"?: LocationPreviewer;
         "record"?: OgmRecord;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme"?: 'light' | 'dark';
     }
@@ -436,7 +436,7 @@ declare namespace LocalJSX {
         "padding"?: number;
         "previewer"?: MapPreviewer;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme"?: 'light' | 'dark';
     }
@@ -492,7 +492,7 @@ declare namespace LocalJSX {
          */
         "searchHelpText"?: string;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme"?: 'light' | 'dark';
     }
@@ -500,7 +500,7 @@ declare namespace LocalJSX {
         "previewer"?: AnyPreviewer;
         "sidebarPadding"?: number;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme"?: 'light' | 'dark';
     }
@@ -512,7 +512,7 @@ declare namespace LocalJSX {
         "requestTransform"?: RequestTransform;
         "sidebarPadding"?: number;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme"?: 'light' | 'dark';
     }
@@ -532,7 +532,7 @@ declare namespace LocalJSX {
         "recordUrl"?: string;
         "requestTransform"?: RequestTransform;
         /**
-          * @default themePreference()
+          * @default initialTheme(this.el)
          */
         "theme"?: 'light' | 'dark';
     }

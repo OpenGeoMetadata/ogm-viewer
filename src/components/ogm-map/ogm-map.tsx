@@ -4,7 +4,7 @@ import maplibregl from 'maplibre-gl';
 import { closestAcrossShadows, findElement, getElement } from '../../lib/elements';
 import { referenceError, TimeoutError, type PreviewError } from '../../lib/errors';
 import GlobeControl from '../../lib/globe-control';
-import { themePreference, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
+import { initialTheme, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
 import { dedupeFeatures } from '../../lib/features';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
 import { createMap, fitBounds, setBasemap, whenSized } from '../../lib/maps';
@@ -29,9 +29,9 @@ const QUERY_WINDOW = 51;
   shadow: true,
 })
 export class OgmMap {
-  @Element() el: HTMLElement;
+  @Element() el!: HTMLElement;
   @Prop() previewer: MapPreviewer;
-  @Prop() theme: 'light' | 'dark' = themePreference();
+  @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
   @Prop() padding: number = 0;
   @Event() mapIdle: EventEmitter<void>;
   @Event() mapLoading: EventEmitter<void>;

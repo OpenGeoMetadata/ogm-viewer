@@ -4,7 +4,7 @@ import type maplibregl from 'maplibre-gl';
 import AttributionControl from '../../lib/attribution-control';
 import { getElement } from '../../lib/elements';
 import { WORLD } from '../../lib/geometry';
-import { themePreference, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
+import { initialTheme, waScope, webAwesomeReady, webAwesomeStylesheet } from '../../lib/init';
 import { addLocationControls, createMap, disableRotation, frameLocation, LOCATION_MAP, LOCATION_MAX_ZOOM, readProjection, setBasemap, whenSized } from '../../lib/maps';
 import type { MapProjection } from '../../lib/previewers/map';
 import LocationPreviewer, { locationFor } from '../../lib/previewers/location';
@@ -18,8 +18,8 @@ import MapLibreTheme from '../../lib/themes/maplibre';
   shadow: true,
 })
 export class OgmLocator {
-  @Element() el: HTMLElement;
-  @Prop() theme: 'light' | 'dark' = themePreference();
+  @Element() el!: HTMLElement;
+  @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
   @Prop() record?: OgmRecord;
   @Prop() previewer?: LocationPreviewer; // Overrides record if passed
 
