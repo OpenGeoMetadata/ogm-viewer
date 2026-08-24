@@ -177,7 +177,13 @@ document.querySelector('ogm-previews').previewers = [new GeoJsonPreviewer(geoJso
 
 #### Locator maps
 
-To show where a single record is on earth, you can use the `<ogm-locator>` component. Hand it an `OgmRecord` as `record` and it will draw either the record's full geometry (`locn_geometry`) or its bounding box (`dcat_bbox`) if there's no geometry available.
+To show where a single record is on earth, you can use the `<ogm-locator>` component. Give it a `record-url` and it fetches and draws that record's full geometry (`locn_geometry`) or its bounding box (`dcat_bbox`) if there's no geometry available - the same URL and format `<ogm-viewer>` takes:
+
+```html
+<ogm-locator record-url="https://example.com/record.json"></ogm-locator>
+```
+
+If you already have an `OgmRecord`, hand it over directly instead:
 
 ```js
 await customElements.whenDefined('ogm-locator');
@@ -185,9 +191,7 @@ await customElements.whenDefined('ogm-locator');
 document.querySelector('ogm-locator').record = record;
 ```
 
-`record` is a DOM property, not an attribute. If you've built a `LocationPreviewer` yourself, set `previewer` instead and the record isn't read at all.
-
-A record with neither `locn_geometry` nor `dcat_bbox` has nowhere to be drawn, so the map opens on the world with nothing on it.
+`record` is a DOM property, not an attribute; `recordUrl` is both, so either can be set from HTML or JavaScript. If you've built a `LocationPreviewer` yourself, set `previewer` instead to override them.
 
 Like the other components, `<ogm-locator>` has no intrinsic size, so the embedding page should give it one:
 

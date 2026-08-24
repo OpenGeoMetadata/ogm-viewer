@@ -54,6 +54,7 @@ export namespace Components {
     interface OgmLocator {
         "previewer"?: LocationPreviewer;
         "record"?: OgmRecord;
+        "recordUrl"?: string;
         /**
           * @default initialTheme(this.el)
          */
@@ -421,6 +422,7 @@ declare namespace LocalJSX {
     interface OgmLocator {
         "previewer"?: LocationPreviewer;
         "record"?: OgmRecord;
+        "recordUrl"?: string;
         /**
           * @default initialTheme(this.el)
          */
@@ -552,6 +554,7 @@ declare namespace LocalJSX {
     }
     interface OgmLocatorAttributes {
         "theme": 'light' | 'dark';
+        "recordUrl": string;
     }
     interface OgmMapAttributes {
         "theme": 'light' | 'dark';
