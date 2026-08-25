@@ -135,20 +135,17 @@ export const config: Config = {
       // Bundle the Stencil runtime rather than leaving bare `@stencil/core/*` specifiers behind.
       // Without this a browser loading us from a script tag has nothing to resolve them against.
       externalRuntime: false,
-      // Unlike the other output targets, `dest` here is resolved from the project root
-      copy: [
-        { src: '../assets', dest: 'dist/components/assets' },
-        { src: '../node_modules/@awesome.me/webawesome/dist/styles', dest: 'dist/components/assets/webawesome/styles' },
-      ],
+      // Nothing is copied beside the bundle. Everything a component needs at runtime - Web Awesome's
+      // theme, our icons - is compiled into it by scripts/inline-assets.mjs, because an app that
+      // bundles us carries the JavaScript it imported and knows nothing of a directory beside it.
     },
     // This target is used for the GitHub Pages preview site.
     {
       type: 'www',
       serviceWorker: null,
-      copy: [
-        { src: '../assets', dest: 'build/assets' },
-        { src: '../node_modules/@awesome.me/webawesome/dist/styles', dest: 'build/assets/webawesome/styles' },
-      ],
+      // The demo page's own furniture - its favicon and the records it offers to preview. What the
+      // components themselves need is in the bundle, as above.
+      copy: [{ src: '../assets', dest: 'build/assets' }],
     },
   ],
 };

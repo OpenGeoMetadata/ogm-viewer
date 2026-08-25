@@ -5,7 +5,7 @@ import '@awesome.me/webawesome/dist/components/tab-panel/tab-panel.js';
 import '@awesome.me/webawesome/dist/components/tab/tab.js';
 
 import type OgmRecord from '../../lib/record';
-import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
+import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import { resourcesFor } from '../../lib/resources/factory';
 import { previewersForResources, type AnyPreviewer } from '../../lib/previewers/factory';
 import type { RequestTransform } from '../../lib/request';
@@ -46,6 +46,7 @@ export class OgmPreviews {
   // the promise makes Stencil hold the first render until the tabs are known, so the tab strip is
   // never painted empty and then filled in.
   componentWillLoad() {
+    adoptWebAwesomeTheme(this.el);
     return this.buildPreviewers(this.record);
   }
 
@@ -93,7 +94,6 @@ export class OgmPreviews {
 
     return (
       <Host class={waScope(this.theme)}>
-        <link rel="stylesheet" href={webAwesomeStylesheet()} />
         <wa-tab-group class={waScope(this.theme)} key={tabs.map(previewer => previewer.previewId).join()}>
           {tabs.map(previewer => (
             <wa-tab key={`tab-${previewer.previewId}`} panel={previewer.previewId}>

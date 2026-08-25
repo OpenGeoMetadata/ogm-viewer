@@ -5,7 +5,7 @@ import AttributionControl from '../../lib/attribution-control';
 import { fetchOrThrow } from '../../lib/errors';
 import { getElement } from '../../lib/elements';
 import { WORLD } from '../../lib/geometry';
-import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
+import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import {
   addLocationControls,
   createMap,
@@ -54,6 +54,7 @@ export class OgmLocator {
   private drawn?: LocationPreviewer;
 
   componentWillLoad() {
+    adoptWebAwesomeTheme(this.el);
     if (this.recordUrl) void this.fetchRecord();
   }
 
@@ -220,14 +221,13 @@ export class OgmLocator {
     this.drawn = undefined;
   }
 
-  // Web Awesome is linked even though nothing here renders a wa-* element: an --ogm-* override
-  // still reaches the shape MapLibreTheme draws through this scope, and the stylesheet styles
+  // Web Awesome is adopted even though nothing here renders a wa-* element: an --ogm-* override
+  // still reaches the shape MapLibreTheme draws through this scope, and the theme styles
   // MapLibre's own chrome, and this component is only ever used on its own, so it is always the
   // one establishing them.
   render() {
     return (
       <Host class={waScope(this.theme)}>
-        <link rel="stylesheet" href={webAwesomeStylesheet()} />
         <div id="map" class={waScope(this.theme)}></div>
       </Host>
     );

@@ -26,8 +26,11 @@
     "dist/"
   ],
   "scripts": {
+    "assets": "node scripts/inline-assets.mjs",
+    "prebuild": "npm run assets",
     "build": "stencil build",
-    "prepare": "stencil build",
+    "prepare": "npm run build",
+    "prestart": "npm run assets",
     "start": "stencil build --dev --watch --serve",
     "test": "stencil-test",
     "test:unit": "stencil-test --project unit",

@@ -4,7 +4,7 @@ import type maplibregl from 'maplibre-gl';
 import { getElement } from '../../lib/elements';
 import GeosearchControl from '../../lib/geosearch-control';
 import { boundsToBbox, readBounds, unionBounds, WORLD } from '../../lib/geometry';
-import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
+import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import {
   addLocationControls,
   createMap,
@@ -133,6 +133,11 @@ export class OgmOverview {
   // Which result the reader's pointer is over, as its place in the list counted from one. Ours rather
   // than the page's: nothing outside can see a pointer land on a number drawn inside this shadow root.
   private hovered?: number;
+
+  // Before the first frame, so nothing paints unstyled
+  componentWillLoad() {
+    adoptWebAwesomeTheme(this.el);
+  }
 
   async componentDidLoad() {
     const container = getElement(this.el, '#map');
@@ -532,13 +537,12 @@ export class OgmOverview {
     return Number.isInteger(place) && place >= 1 && place <= this.extents.length ? place : undefined;
   }
 
-  // Web Awesome is linked even though nothing here renders a wa-* element: an --ogm-* override
+  // Web Awesome is adopted even though nothing here renders a wa-* element: an --ogm-* override
   // still reaches the numbers and the boxes MapLibreTheme draws through this scope, and this
   // component is meant to be used on its own, so it is the one that has to establish them.
   render() {
     return (
       <Host class={waScope(this.theme)}>
-        <link rel="stylesheet" href={webAwesomeStylesheet()} />
         <div id="map" class={waScope(this.theme)}></div>
       </Host>
     );

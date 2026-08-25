@@ -1,6 +1,6 @@
 import { Component, Element, Host, Listen, Prop, State, Watch, h } from '@stencil/core';
 
-import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
+import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import type { AnyPreviewer } from '../../lib/previewers/factory';
 import type { PreviewError } from '../../lib/errors';
 
@@ -16,6 +16,11 @@ export class OgmPreview {
   @Prop() previewer: AnyPreviewer;
   @Prop() sidebarPadding: number;
   @State() error?: PreviewError;
+
+  // Before the first frame, so nothing paints unstyled
+  componentWillLoad() {
+    adoptWebAwesomeTheme(this.el);
+  }
 
   // A new preview is a fresh load attempt, so clear any error left over from the previous one.
   @Watch('previewer')
@@ -46,7 +51,6 @@ export class OgmPreview {
   render() {
     return (
       <Host class={waScope(this.theme)}>
-        <link rel="stylesheet" href={webAwesomeStylesheet()} />
         {this.renderPreview()}
         {this.error && <ogm-alerts theme={this.theme} error={this.error}></ogm-alerts>}
       </Host>

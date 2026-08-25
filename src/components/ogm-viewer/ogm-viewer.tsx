@@ -2,7 +2,7 @@ import { Component, Element, Host, Listen, Method, Prop, State, Watch, h } from 
 
 import OgmRecord from '../../lib/record';
 import { fetchOrThrow, recordError, type PreviewError } from '../../lib/errors';
-import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
+import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import { resolveRequest, type RequestTransform } from '../../lib/request';
 
 @Component({
@@ -27,8 +27,9 @@ export class OgmViewer {
   private loadingCount: number = 0;
   private sidebarPadding: number = 0;
 
-  // Prior to rendering, fetch the record if a URL is provided
+  // Prior to rendering, take the theme and fetch the record if a URL is provided
   async componentWillLoad() {
+    adoptWebAwesomeTheme(this.el);
     if (this.recordUrl) return await this.updateRecord();
   }
 
@@ -93,12 +94,9 @@ export class OgmViewer {
     }
   }
 
-  // Link Web Awesome's stylesheet inside the shadow tree so it doesn't
-  // leak into the host page when rendering.
   render() {
     return (
       <Host class={`wa-${this.theme}`}>
-        <link rel="stylesheet" href={webAwesomeStylesheet()} />
         <div class={`container ${waScope(this.theme)}`}>
           <ogm-menubar theme={this.theme} record={this.record} loading={this.loading} hideTitle={this.hideTitle}></ogm-menubar>
           <div class="main-container">

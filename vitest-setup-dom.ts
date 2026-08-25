@@ -27,7 +27,11 @@ if (!HTMLElement.prototype.attachInternals) {
 // Used to intercept requests for fixture data in tests
 const crossOrigin = (url: string | URL): boolean => {
   try {
-    return new URL(String(url), window.location.href).origin !== window.location.origin;
+    const resolved = new URL(String(url), window.location.href);
+    // Every icon in the library is a data URL - see registerIconLibrary in src/lib/init.ts. Nothing
+    // leaves the page for one, so there is nothing here to block, and its origin reads as null.
+    if (resolved.protocol === 'data:') return false;
+    return resolved.origin !== window.location.origin;
   } catch {
     return false;
   }
