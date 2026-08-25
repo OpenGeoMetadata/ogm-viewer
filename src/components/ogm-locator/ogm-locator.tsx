@@ -33,6 +33,10 @@ import MapLibreTheme from '../../lib/themes/maplibre';
 export class OgmLocator {
   @Element() el!: HTMLElement;
   @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
+  // A caller's own basemap for each mode, as a CARTO name (e.g. 'positron') or a URL to a MapLibre
+  // style document; see MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default.
+  @Prop() darkBasemap?: string;
+  @Prop() lightBasemap?: string;
   @Prop() record?: OgmRecord;
   @Prop() previewer?: LocationPreviewer; // Overrides record if passed
 
@@ -72,7 +76,7 @@ export class OgmLocator {
     // Taken back off the page while we waited, so there is nothing left to build a map in
     if (!this.el.isConnected) return;
 
-    this.mapTheme = new MapLibreTheme(container, this.theme);
+    this.mapTheme = new MapLibreTheme(container, this.theme, { darkBasemap: this.darkBasemap, lightBasemap: this.lightBasemap });
     this.map = createMap(container, this.mapTheme, {
       ...LOCATION_MAP,
       // We handle this on our own so we can start it collapsed
@@ -158,12 +162,16 @@ export class OgmLocator {
     }
   }
 
-  // When the theme changes, swap the basemap to match, then draw the same location into the style
-  // document the swap just emptied.
+  // When the theme or a basemap prop changes, swap the basemap to match, then draw the same location
+  // into the style document the swap just emptied.
   @Watch('theme')
+  @Watch('darkBasemap')
+  @Watch('lightBasemap')
   protected async onThemeChange() {
     if (!this.map) return;
     this.mapTheme.theme = this.theme;
+    this.mapTheme.darkBasemap = this.darkBasemap;
+    this.mapTheme.lightBasemap = this.lightBasemap;
 
     // Read now, while the map still knows: the document replacing this one names its own projection
     // and neither basemap names anything, so the map comes back flat unless it is put back.

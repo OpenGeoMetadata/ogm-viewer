@@ -56,6 +56,22 @@ To programmatically control dark mode, you can use the `theme` attribute with a 
 <ogm-viewer record-url="https://example.com/record.json" theme="dark"></ogm-viewer>
 ```
 
+### Basemaps
+
+By default, the viewer draws on one of [CARTO](https://carto.com/basemaps)'s basemaps: Dark Matter in dark mode, Positron in light mode. To use a different one for either mode, set `dark-basemap` and/or `light-basemap` to one of CARTO's own style names (`positron`, `dark-matter`, `voyager`, or any of those with `-nolabels`):
+
+```html
+<ogm-viewer record-url="https://example.com/record.json" dark-basemap="voyager" light-basemap="voyager"></ogm-viewer>
+```
+
+Or set either to a URL, for a basemap of your own from CARTO or anywhere else that serves a [MapLibre style document](https://maplibre.org/maplibre-style-spec/):
+
+```html
+<ogm-viewer record-url="https://example.com/record.json" light-basemap="https://api.maptiler.com/maps/basic-v2/style.json?key=your-key"></ogm-viewer>
+```
+
+Both attributes are also DOM properties, so they can be set from JavaScript the same way `theme` can. They're supported everywhere `theme` is - `<ogm-viewer>`, `<ogm-preview>`, `<ogm-previews>`, `<ogm-map>`, `<ogm-locator>`, and `<ogm-overview>` - and GeoBlacklight uses them to let a site configure its own basemaps.
+
 ### Colors
 
 You can style the viewer's colors by setting CSS custom properties on its element.

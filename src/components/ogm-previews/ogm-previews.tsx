@@ -18,6 +18,10 @@ import type { RequestTransform } from '../../lib/request';
 export class OgmPreviews {
   @Element() el!: HTMLElement;
   @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
+  // A caller's own basemap for each mode, as a CARTO name (e.g. 'positron') or a URL to a MapLibre
+  // style document; see MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default.
+  @Prop() darkBasemap?: string;
+  @Prop() lightBasemap?: string;
   @Prop() record?: OgmRecord;
   // Previews to show, for an application that builds its own rather than handing over a record - the
   // tab strip is worth having either way. Takes the place of `record`, which is then not read at all.
@@ -102,7 +106,13 @@ export class OgmPreviews {
           ))}
           {tabs.map((previewer, idx) => (
             <wa-tab-panel key={`panel-${previewer.previewId}`} name={previewer.previewId} active={idx === 0}>
-              <ogm-preview theme={this.theme} previewer={previewer} sidebar-padding={this.sidebarPadding}></ogm-preview>
+              <ogm-preview
+                theme={this.theme}
+                darkBasemap={this.darkBasemap}
+                lightBasemap={this.lightBasemap}
+                previewer={previewer}
+                sidebar-padding={this.sidebarPadding}
+              ></ogm-preview>
             </wa-tab-panel>
           ))}
         </wa-tab-group>

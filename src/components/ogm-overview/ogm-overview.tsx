@@ -47,6 +47,10 @@ const MIN_SEARCH_DRAG = 3;
 export class OgmOverview {
   @Element() el!: HTMLElement;
   @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
+  // A caller's own basemap for each mode, as a CARTO name (e.g. 'positron') or a URL to a MapLibre
+  // style document; see MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default.
+  @Prop() darkBasemap?: string;
+  @Prop() lightBasemap?: string;
   @Prop() records?: OgmRecord[];
 
   // Holes and all, because that is what `locationsFor` hands back: a record with nothing to place it
@@ -172,7 +176,7 @@ export class OgmOverview {
     // Taken back off the page while we waited, so there is nothing left to build a map in
     if (!this.el.isConnected) return;
 
-    this.mapTheme = new MapLibreTheme(container, this.theme);
+    this.mapTheme = new MapLibreTheme(container, this.theme, { darkBasemap: this.darkBasemap, lightBasemap: this.lightBasemap });
 
     // What the camera should be looking at, worked out before there is a camera
     this.readSearchFilter();
@@ -418,12 +422,16 @@ export class OgmOverview {
     this.draw();
   }
 
-  // When the theme changes, swap the basemap to match, then draw the same results into the style
-  // document the swap just emptied.
+  // When the theme or a basemap prop changes, swap the basemap to match, then draw the same results
+  // into the style document the swap just emptied.
   @Watch('theme')
+  @Watch('darkBasemap')
+  @Watch('lightBasemap')
   protected async onThemeChange() {
     if (!this.map) return;
     this.mapTheme.theme = this.theme;
+    this.mapTheme.darkBasemap = this.darkBasemap;
+    this.mapTheme.lightBasemap = this.lightBasemap;
 
     // Read now, while the map still knows: the document replacing this one names its own projection
     // and neither basemap names anything, so the map comes back flat unless it is put back.

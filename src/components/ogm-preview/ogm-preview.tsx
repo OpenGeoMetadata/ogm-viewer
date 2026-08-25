@@ -13,6 +13,11 @@ import type { PreviewError } from '../../lib/errors';
 export class OgmPreview {
   @Element() el!: HTMLElement;
   @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
+  // A caller's own basemap for each mode, as a CARTO name (e.g. 'positron') or a URL to a MapLibre
+  // style document; see MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default.
+  // Only reaches the map preview below - an image preview has no basemap to apply it to.
+  @Prop() darkBasemap?: string;
+  @Prop() lightBasemap?: string;
   @Prop() previewer: AnyPreviewer;
   @Prop() sidebarPadding: number;
   @State() error?: PreviewError;
@@ -40,7 +45,7 @@ export class OgmPreview {
     if (this.previewer.renderer === 'image') {
       return <ogm-image theme={this.theme} previewer={this.previewer} padding={this.sidebarPadding}></ogm-image>;
     }
-    return <ogm-map theme={this.theme} previewer={this.previewer} padding={this.sidebarPadding}></ogm-map>;
+    return <ogm-map theme={this.theme} darkBasemap={this.darkBasemap} lightBasemap={this.lightBasemap} previewer={this.previewer} padding={this.sidebarPadding}></ogm-map>;
   }
 
   // No scope on an element of our own, unlike the components below: nothing we draw reads a color -

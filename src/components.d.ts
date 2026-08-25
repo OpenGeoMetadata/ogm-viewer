@@ -67,6 +67,8 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmLocator {
+        "darkBasemap"?: string;
+        "lightBasemap"?: string;
         "previewer"?: LocationPreviewer;
         "record"?: OgmRecord;
         "recordUrl"?: string;
@@ -76,7 +78,9 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmMap {
+        "darkBasemap"?: string;
         "easeMapTo": (options: maplibregl.EaseToOptions) => Promise<maplibregl.Map>;
+        "lightBasemap"?: string;
         /**
           * @default 0
          */
@@ -113,6 +117,7 @@ export namespace Components {
      * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
      */
     interface OgmOverview {
+        "darkBasemap"?: string;
         /**
           * Whether a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through `boundsChange`; nothing here answers it, because what a new area means is the embedding page's to say. The help text is a prop because GeoBlacklight runs the strings for the control this replaces through Rails I18n.
           * @default false
@@ -122,6 +127,7 @@ export namespace Components {
           * Which result to bring forward, as either its place in the list counted from one or the id of the record - or of the resource a previewer draws - that it came from. An attribute hands over a string for either, since an attribute is always one.  The marker changes color and comes to the front, and the result's own extent is drawn around it. The camera doesn't move: something on the page has said which result matters, not where to look.  A reader's pointer over a number does the same thing without being asked, so both can be true at once - of two different results, if a page names one while the pointer is over another. Each is a way of saying the same thing about a row, so each gets the same drawing; see draw.
          */
         "highlighted"?: number | string;
+        "lightBasemap"?: string;
         "previewers"?: (LocationPreviewer | undefined)[];
         "records"?: OgmRecord[];
         /**
@@ -142,6 +148,8 @@ export namespace Components {
         "viewBounds"?: maplibregl.LngLatBoundsLike | string;
     }
     interface OgmPreview {
+        "darkBasemap"?: string;
+        "lightBasemap"?: string;
         "previewer": AnyPreviewer;
         "sidebarPadding": number;
         /**
@@ -150,6 +158,8 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmPreviews {
+        "darkBasemap"?: string;
+        "lightBasemap"?: string;
         "previewers"?: AnyPreviewer[];
         "record"?: OgmRecord;
         "requestTransform"?: RequestTransform;
@@ -168,10 +178,12 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmViewer {
+        "darkBasemap"?: string;
         /**
           * @default false
          */
         "hideTitle": boolean;
+        "lightBasemap"?: string;
         "loadRecord": (record: OgmRecord) => Promise<void>;
         "recordUrl": string;
         "requestTransform"?: RequestTransform;
@@ -459,6 +471,8 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface OgmLocator {
+        "darkBasemap"?: string;
+        "lightBasemap"?: string;
         "previewer"?: LocationPreviewer;
         "record"?: OgmRecord;
         "recordUrl"?: string;
@@ -468,6 +482,8 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface OgmMap {
+        "darkBasemap"?: string;
+        "lightBasemap"?: string;
         "onMapIdle"?: (event: OgmMapCustomEvent<void>) => void;
         "onMapLoading"?: (event: OgmMapCustomEvent<void>) => void;
         "onPreviewError"?: (event: OgmMapCustomEvent<PreviewError>) => void;
@@ -508,6 +524,7 @@ declare namespace LocalJSX {
      * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
      */
     interface OgmOverview {
+        "darkBasemap"?: string;
         /**
           * Whether a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through `boundsChange`; nothing here answers it, because what a new area means is the embedding page's to say. The help text is a prop because GeoBlacklight runs the strings for the control this replaces through Rails I18n.
           * @default false
@@ -517,6 +534,7 @@ declare namespace LocalJSX {
           * Which result to bring forward, as either its place in the list counted from one or the id of the record - or of the resource a previewer draws - that it came from. An attribute hands over a string for either, since an attribute is always one.  The marker changes color and comes to the front, and the result's own extent is drawn around it. The camera doesn't move: something on the page has said which result matters, not where to look.  A reader's pointer over a number does the same thing without being asked, so both can be true at once - of two different results, if a page names one while the pointer is over another. Each is a way of saying the same thing about a row, so each gets the same drawing; see draw.
          */
         "highlighted"?: number | string;
+        "lightBasemap"?: string;
         "onBoundsChange"?: (event: OgmOverviewCustomEvent<[number, number, number, number]>) => void;
         /**
           * Which result the reader's pointer is over: its place in the list counted from one, and the id of the record - or of the resource a previewer draws - it came from. Null once the pointer has left every number.  Both terms, because a page holds its results in one or the other, and either is enough to light up the row the reader is pointing at - which is the whole of what this is for:    overview.addEventListener('highlightChange', event => mark(event.detail?.id));  The reader's own pointer only. Setting `highlighted` doesn't come back out: a page that has said which result matters already knows, and reporting it would be a loop waiting to be wired.
@@ -542,6 +560,8 @@ declare namespace LocalJSX {
         "viewBounds"?: maplibregl.LngLatBoundsLike | string;
     }
     interface OgmPreview {
+        "darkBasemap"?: string;
+        "lightBasemap"?: string;
         "previewer"?: AnyPreviewer;
         "sidebarPadding"?: number;
         /**
@@ -550,6 +570,8 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface OgmPreviews {
+        "darkBasemap"?: string;
+        "lightBasemap"?: string;
         "onPreviewsLoaded"?: (event: OgmPreviewsCustomEvent<void>) => void;
         "onPreviewsLoading"?: (event: OgmPreviewsCustomEvent<void>) => void;
         "previewers"?: AnyPreviewer[];
@@ -570,10 +592,12 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface OgmViewer {
+        "darkBasemap"?: string;
         /**
           * @default false
          */
         "hideTitle"?: boolean;
+        "lightBasemap"?: string;
         "recordUrl"?: string;
         "requestTransform"?: RequestTransform;
         /**
@@ -600,10 +624,14 @@ declare namespace LocalJSX {
     }
     interface OgmLocatorAttributes {
         "theme": 'light' | 'dark';
+        "darkBasemap": string;
+        "lightBasemap": string;
         "recordUrl": string;
     }
     interface OgmMapAttributes {
         "theme": 'light' | 'dark';
+        "darkBasemap": string;
+        "lightBasemap": string;
         "padding": number;
     }
     interface OgmMenubarAttributes {
@@ -616,6 +644,8 @@ declare namespace LocalJSX {
     }
     interface OgmOverviewAttributes {
         "theme": 'light' | 'dark';
+        "darkBasemap": string;
+        "lightBasemap": string;
         "highlighted": string;
         "geosearch": boolean;
         "searchHelpText": string;
@@ -624,10 +654,14 @@ declare namespace LocalJSX {
     }
     interface OgmPreviewAttributes {
         "theme": 'light' | 'dark';
+        "darkBasemap": string;
+        "lightBasemap": string;
         "sidebarPadding": number;
     }
     interface OgmPreviewsAttributes {
         "theme": 'light' | 'dark';
+        "darkBasemap": string;
+        "lightBasemap": string;
         "sidebarPadding": number;
     }
     interface OgmSidebarAttributes {
@@ -637,6 +671,8 @@ declare namespace LocalJSX {
     interface OgmViewerAttributes {
         "recordUrl": string;
         "theme": 'light' | 'dark';
+        "darkBasemap": string;
+        "lightBasemap": string;
         "hideTitle": boolean;
     }
 

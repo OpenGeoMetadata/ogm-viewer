@@ -14,6 +14,10 @@ export class OgmViewer {
   @Element() el!: HTMLElement;
   @Prop() recordUrl: string;
   @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
+  // A caller's own basemap for each mode, as a CARTO name (e.g. 'positron') or a URL to a MapLibre
+  // style document; see MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default.
+  @Prop() darkBasemap?: string;
+  @Prop() lightBasemap?: string;
   @Prop() hideTitle: boolean = false;
   // Applied to the record fetch itself, and passed down to every resource built from it - see
   // Resource.requestTransform. A DOM property, like previewer on <ogm-preview>: set it before or
@@ -104,7 +108,14 @@ export class OgmViewer {
             {this.error ? (
               <ogm-alerts theme={this.theme} error={this.error}></ogm-alerts>
             ) : (
-              <ogm-previews theme={this.theme} record={this.record} requestTransform={this.requestTransform} sidebar-padding={this.sidebarPadding}></ogm-previews>
+              <ogm-previews
+                theme={this.theme}
+                darkBasemap={this.darkBasemap}
+                lightBasemap={this.lightBasemap}
+                record={this.record}
+                requestTransform={this.requestTransform}
+                sidebar-padding={this.sidebarPadding}
+              ></ogm-previews>
             )}
           </div>
         </div>
