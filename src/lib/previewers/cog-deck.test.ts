@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from '@stencil/vitest
 
 import DeckCogPreviewer from './cog-deck';
 import CogPreviewer from './cog';
+import { scalarGetTileData } from './cog-pipeline';
 import CogResource from '../resources/cog';
+import { DEFAULT_COLOR_RAMP } from '../colormap';
 import type { MapLibreStyle } from '../themes/maplibre';
 
 // Just enough of a MapLibre map to record what the previewer does. setPaintProperty and
@@ -60,6 +62,17 @@ class FakeOverlay {
 // hands it over - which is the whole of what these tests check about it.
 const FAKE_GEOTIFF = { crs: 'EPSG:4326' };
 
+// A single-band float COG - SampleFormat 3, one sample per pixel - with statistics already on
+// record, which is what most GDAL-written COGs carry. Read by isScalarSampleFormat and scalarRange
+// (see cog-pipeline.test.ts for both in isolation); statistics being present means scalarRange never
+// has to reach for fetchTile, so nothing here needs to answer one.
+const FAKE_SCALAR_GEOTIFF = {
+  crs: 'EPSG:4326',
+  cachedTags: { sampleFormat: [3], samplesPerPixel: 1 },
+  gdalMetadata: { bandStatistics: new Map([[1, { min: -184.48, max: 607.27, mean: null, std: null, validPercent: null }]]) },
+  overviews: [],
+};
+
 // Substitutes the fake overlay for deck.gl's and the fake COG for a real read, leaving everything else
 // the real previewer
 class TestDeckCogPreviewer extends DeckCogPreviewer {
@@ -71,6 +84,8 @@ class TestDeckCogPreviewer extends DeckCogPreviewer {
 
   opened: string[] = [];
   refusal: Error | undefined;
+  // What loadGeoTIFF hands back - FAKE_GEOTIFF unless a test needs a scalar one instead
+  geotiffToLoad: unknown = FAKE_GEOTIFF;
 
   protected getDeckOverlay() {
     return this.overlay as never;
@@ -79,7 +94,7 @@ class TestDeckCogPreviewer extends DeckCogPreviewer {
   protected async loadGeoTIFF() {
     if (this.refusal) throw this.refusal;
     this.opened.push(this.resource.url);
-    return FAKE_GEOTIFF as never;
+    return this.geotiffToLoad as never;
   }
 }
 
@@ -191,6 +206,85 @@ describe('DeckCogPreviewer', () => {
       await previewer.preview();
       previewer.applyLayerState(new Map([['stanford-vq494qx9344-cog', { visible: true, opacity: 0.5 }]]));
 
+      const ids = previewer.overlay.props.flatMap(p => (p.layers ?? []).map((l: any) => l.id));
+      expect(new Set(ids).size).toEqual(1);
+    });
+  });
+
+  // A scalar COG - single-band float or signed-integer data - draws through its own pipeline
+  // (src/lib/previewers/cog-pipeline.ts) rather than @developmentseed/deck.gl-geotiff's own, which
+  // refuses that data outright.
+  describe('a scalar COG', () => {
+    it("publishes the default ramp and the file's own value range on the layer", async () => {
+      const { previewer } = previewFor();
+      previewer.geotiffToLoad = FAKE_SCALAR_GEOTIFF;
+      await previewer.preview();
+
+      expect(previewer.previewLayers[0].defaultColorRamp).toEqual(DEFAULT_COLOR_RAMP);
+      expect(previewer.previewLayers[0].colorRampRange).toEqual([-184.48, 607.27]);
+    });
+
+    it('publishes no ramp at all for an ordinary COG', async () => {
+      const { previewer } = previewFor();
+      await previewer.preview();
+
+      expect(previewer.previewLayers[0].defaultColorRamp).toBeUndefined();
+      expect(previewer.previewLayers[0].colorRampRange).toBeUndefined();
+    });
+
+    it("draws through the scalar pipeline rather than deck.gl-geotiff's own", async () => {
+      const { previewer } = previewFor();
+      previewer.geotiffToLoad = FAKE_SCALAR_GEOTIFF;
+      await previewer.preview();
+
+      const { props } = previewer.overlay.lastLayers[0];
+      expect(props.getTileData).toBe(scalarGetTileData);
+      expect(props.renderTile).toBeInstanceOf(Function);
+    });
+
+    // getTileData and renderTile are unset either way - COGLayer's _parseGeoTIFF checks !this.props.getTileData
+    // || !this.props.renderTile to decide whether to infer a render pipeline itself, which either
+    // falsy value satisfies. deck.gl's own defaultProps happens to fill the two differently (null
+    // for one, plain undefined for the other); both are asserted so a change either way is caught.
+    it('leaves getTileData and renderTile unset for an ordinary COG, so its own pipeline is inferred', async () => {
+      const { previewer } = previewFor();
+      await previewer.preview();
+
+      const { props } = previewer.overlay.lastLayers[0];
+      expect(props.getTileData).toBeFalsy();
+      expect(props.renderTile).toBeFalsy();
+    });
+
+    it('draws in the default ramp until the user chooses one', async () => {
+      const { previewer } = previewFor();
+      previewer.geotiffToLoad = FAKE_SCALAR_GEOTIFF;
+      await previewer.preview();
+
+      expect(previewer.overlay.lastLayers[0].props.updateTriggers).toEqual({ renderTile: [DEFAULT_COLOR_RAMP, -184.48, 607.27] });
+    });
+
+    // The trap this test guards: drawDeckLayer rebuilds the layer object on every layer-state
+    // change, but deck.gl matches it by id and updates props in place rather than re-rendering from
+    // scratch - so without naming the ramp as a renderTile dependency, a swatch click would change
+    // nothing the user could see.
+    it('changes updateTriggers when the ramp changes, so deck.gl actually redraws it', async () => {
+      const { previewer } = previewFor();
+      previewer.geotiffToLoad = FAKE_SCALAR_GEOTIFF;
+      await previewer.preview();
+
+      previewer.applyLayerState(new Map([['stanford-vq494qx9344-cog', { visible: true, opacity: 0.8, colorRamp: 'magma' }]]));
+
+      expect(previewer.overlay.lastLayers[0].props.updateTriggers).toEqual({ renderTile: ['magma', -184.48, 607.27] });
+    });
+
+    it('keeps the COG open and the layer id stable across a ramp change, same as an opacity change', async () => {
+      const { previewer } = previewFor();
+      previewer.geotiffToLoad = FAKE_SCALAR_GEOTIFF;
+      await previewer.preview();
+
+      previewer.applyLayerState(new Map([['stanford-vq494qx9344-cog', { visible: true, opacity: 0.8, colorRamp: 'magma' }]]));
+
+      expect(previewer.opened).toEqual([COG_URL]);
       const ids = previewer.overlay.props.flatMap(p => (p.layers ?? []).map((l: any) => l.id));
       expect(new Set(ids).size).toEqual(1);
     });

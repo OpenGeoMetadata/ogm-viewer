@@ -19,6 +19,15 @@ const vectorLayer: Layer = {
   ],
 };
 
+const scalarLayer: Layer = {
+  id: 'stanford-def456-cog',
+  title: 'Groundwater Elevation',
+  defaultOpacity: 0.8,
+  styleLayers: [{ id: 'stanford-def456-cog', type: 'custom' }],
+  defaultColorRamp: 'viridis',
+  colorRampRange: [-184.48, 607.27],
+};
+
 describe('humanizeLayerName', () => {
   it('turns a machine-written tileset name into a readable one', () => {
     expect(humanizeLayerName('landuse_overlay')).toEqual('Landuse overlay');
@@ -55,6 +64,23 @@ describe('resolveLayerState', () => {
     const states = new Map<string, LayerState>([[rasterLayer.id, { visible: false, opacity: 0.25 }]]);
     expect(resolveLayerState(vectorLayer, states)).toEqual({ visible: true, opacity: 0.8 });
   });
+
+  it("follows the layer's own ramp for a rampable row the user has not touched", () => {
+    expect(resolveLayerState(scalarLayer, new Map())).toEqual({ visible: true, opacity: 0.8, colorRamp: 'viridis' });
+  });
+
+  it('prefers the ramp the user chose', () => {
+    const states = new Map<string, LayerState>([[scalarLayer.id, { visible: true, opacity: 0.8, colorRamp: 'magma' }]]);
+    expect(resolveLayerState(scalarLayer, states).colorRamp).toEqual('magma');
+  });
+
+  // The case a whole-object fallback (states.get(id) ?? default) would get wrong: a state already
+  // on record from changing some other field - opacity, say - while the ramp went untouched, which
+  // carries no colorRamp key of its own rather than the layer's default under that key
+  it("falls back to the layer's own ramp when the state on record has none", () => {
+    const states = new Map<string, LayerState>([[scalarLayer.id, { visible: true, opacity: 0.4 }]]);
+    expect(resolveLayerState(scalarLayer, states).colorRamp).toEqual('viridis');
+  });
 });
 
 describe('isLayerDrawn', () => {
@@ -89,5 +115,16 @@ describe('toLayerControlItems', () => {
 
     expect(item.visible).toBe(false);
     expect(item.opacity).toEqual(0.4);
+  });
+
+  // A vector or raster layer's entry gains no colorRamp/colorRampRange keys at all, not even as
+  // undefined - most entries in this list are one of those, and there's no reason for them to carry
+  // two keys that never mean anything for them. The rampable layer's entry is the one that does.
+  it('carries a ramp and its range only for a layer that has one', () => {
+    const [scalar] = toLayerControlItems([scalarLayer], new Map());
+    expect(scalar).toEqual({ id: scalarLayer.id, title: 'Groundwater Elevation', visible: true, opacity: 0.8, colorRamp: 'viridis', colorRampRange: [-184.48, 607.27] });
+
+    const [vector] = toLayerControlItems([vectorLayer], new Map());
+    expect(Object.keys(vector).sort()).toEqual(['id', 'opacity', 'title', 'visible']);
   });
 });

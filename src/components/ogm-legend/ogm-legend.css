@@ -1,0 +1,53 @@
+:host {
+  display: block;
+}
+
+.panel {
+  background-color: var(--wa-color-surface-default);
+  border: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+  border-radius: var(--wa-border-radius-m, 0.25rem);
+  box-shadow: var(--wa-shadow-m);
+  color: var(--wa-color-text-normal);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--wa-font-family-body);
+  font-size: var(--wa-font-size-s);
+  gap: var(--wa-space-xs);
+  line-height: var(--wa-line-height-condensed);
+  max-width: 18rem;
+  min-width: 13rem;
+  padding: var(--wa-space-2xs);
+}
+
+.entry + .entry {
+  border-top: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+  margin-top: var(--wa-space-2xs);
+  padding-top: var(--wa-space-2xs);
+}
+
+.title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The gradient itself is an inline style, set from JS once the sprite has decoded - see
+   ogm-legend.tsx. This background is what a bar shows before that, or if it never does. */
+.bar {
+  background-color: var(--wa-color-surface-lowered, var(--wa-color-surface-default));
+  border-radius: var(--wa-border-radius-s, 0.125rem);
+  height: var(--wa-space-s, 0.75rem);
+  margin-top: var(--wa-space-3xs);
+  width: 100%;
+}
+
+/* Min at the start, max at the end - no midpoint label, matching how little space a bar this
+   narrow has to say anything more without crowding. */
+.labels {
+  display: flex;
+  font-variant-numeric: tabular-nums;
+  justify-content: space-between;
+  color: var(--wa-color-text-quiet);
+  margin-top: var(--wa-space-3xs);
+}

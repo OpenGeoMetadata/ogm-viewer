@@ -92,3 +92,56 @@
   min-width: 2.75rem;
   text-align: end;
 }
+
+/* The ramp picker's own row, unlike the two above it: every swatch wants equal width, which align
+   the row itself is a flex container the way .row (opacity, visibility) already is */
+.row:has(.ramps) {
+  align-items: stretch;
+}
+
+/* Twelve ramps at four per row fits the panel's own 13-18rem width without crowding a swatch below
+   a size it can still be told apart at. No <legend> - aria-label carries the name instead, since a
+   visible one would repeat the layer's own title immediately above it. */
+.ramps {
+  border: none;
+  display: grid;
+  gap: var(--wa-space-3xs);
+  grid-template-columns: repeat(4, 1fr);
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.swatch {
+  aspect-ratio: 2 / 1;
+  border-radius: var(--wa-border-radius-s, 0.125rem);
+  cursor: pointer;
+  display: block;
+  outline: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+  outline-offset: -1px;
+  /* Set from JS as an inline gradient once the sprite has decoded; a name-only fallback swatch
+     until then, or if it never does, still works as a picker - just without the preview. */
+  background-color: var(--wa-color-surface-lowered, var(--wa-color-surface-default));
+}
+
+/* Radio inputs carry the choice and the keyboard behavior (arrow keys move within the fieldset,
+   same group semantics a native radio group always has); their own box is never drawn, which is
+   why the swatch has to answer :focus-visible and :checked on their behalf. Not display:none or
+   visibility:hidden - either would also drop it from the accessibility tree and the tab order. */
+.swatch input {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+}
+
+.swatch:has(input:checked) {
+  outline: 2px solid var(--wa-color-brand-fill-loud, currentColor);
+  outline-offset: 0;
+}
+
+.swatch:has(input:focus-visible) {
+  outline: 2px solid var(--wa-color-brand-fill-loud, currentColor);
+  outline-offset: 1px;
+}

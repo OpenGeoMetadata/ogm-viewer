@@ -1,18 +1,21 @@
 /**
- * Writes src/lib/assets.generated.ts: the two things a component needs at runtime that used to be
- * files beside it - Web Awesome's default theme and our bootstrap-icons subset - as strings the
- * bundler carries with the rest of the library.
+ * Writes src/lib/assets.generated.ts: things a component needs at runtime that used to be files
+ * beside it - Web Awesome's default theme, our bootstrap-icons subset, and the colormap sprite
+ * scalar COGs are drawn through - as strings and base64 the bundler carries with the rest of the
+ * library.
  *
- * Both used to be fetched from a URL beside this package's own files, anchored to the module's
- * import.meta.url. That is right for a script tag and for a CDN importmap, and wrong for every app
- * that bundles us: a bundler copies the JavaScript it was asked for, and knows nothing about a
- * sibling directory of assets it was never pointed at. So `npm i ogm-viewer` and `import
- * 'ogm-viewer'` drew the map correctly and everything around it unstyled - serif fallback font, no
- * icons - with a handful of failed requests to explain it. Nothing a consumer can configure fixes
- * that; the files have to be inside the module graph, which is what this puts them there for.
+ * All three used to be (or, for the sprite, would otherwise be) fetched from a URL beside this
+ * package's own files, anchored to the module's import.meta.url. That is right for a script tag and
+ * for a CDN importmap, and wrong for every app that bundles us: a bundler copies the JavaScript it
+ * was asked for, and knows nothing about a sibling directory of assets it was never pointed at. So
+ * `npm i ogm-viewer` and `import 'ogm-viewer'` drew the map correctly and everything around it
+ * unstyled - serif fallback font, no icons - with a handful of failed requests to explain it.
+ * Nothing a consumer can configure fixes that; the files have to be inside the module graph, which
+ * is what this puts them there for.
  *
  * Run ahead of Stencil by `npm run build` and `npm start`, rather than checked in, so the tree can
- * never carry a copy of Web Awesome's CSS that disagrees with the version in package.json.
+ * never carry a copy of Web Awesome's CSS, or of a sprite from @developmentseed/deck.gl-raster, that
+ * disagrees with the version in package.json.
  *
  * A step ahead of the compiler rather than a Rollup transform like the decoder worker's in
  * stencil.config.ts, because the two fail differently: that source can be empty in a build that
@@ -23,6 +26,8 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 
+import { COLORMAP_INDEX } from '@developmentseed/deck.gl-raster/gpu-modules';
+
 // The stylesheet every component used to link, resolved through Web Awesome's own exports rather
 // than from a path into node_modules, so this holds wherever the package manager hoisted it to.
 const THEME = '@awesome.me/webawesome/dist/styles/themes/default.css';
@@ -30,6 +35,13 @@ const THEME = '@awesome.me/webawesome/dist/styles/themes/default.css';
 // Our icons: the subset of bootstrap-icons checked in beside this repo's other assets. Whatever is
 // in that directory is what <wa-icon name="..."> can name - see registerIconLibrary in src/lib/init.ts.
 const ICONS = new URL('../assets/icons/', import.meta.url);
+
+// The 107 named color ramps a scalar COG can be drawn with, as one 256x107 RGBA sprite - see
+// src/lib/colormap.ts. Resolved the same way as THEME, so it holds wherever the package manager put
+// it, and small enough (16.4 KB) to compile in rather than publish as a copied file the way lerc's
+// wasm still is; see the note on the dist-custom-elements output target in stencil.config.ts for why
+// that one is different.
+const COLORMAP_SPRITE = '@developmentseed/deck.gl-raster/gpu-modules/colormaps.png';
 
 const OUTPUT = new URL('../src/lib/assets.generated.ts', import.meta.url);
 
@@ -63,6 +75,28 @@ const icons = readdirSync(ICONS)
 
 if (icons.length === 0) throw new Error(`No icons in ${ICONS.pathname}. Every wa-icon in the library resolves through that directory.`);
 
+const spritePath = import.meta.resolve(COLORMAP_SPRITE).replace('file://', '');
+const sprite = readFileSync(spritePath);
+
+// A PNG's width and height are the first two 4-byte big-endian fields of its IHDR chunk, which is
+// always the first chunk - right after the 8-byte signature every PNG opens with. Read rather than
+// trusted, because both numbers are load-bearing for what reads this sprite at runtime:
+// createColormapTexture (@developmentseed/deck.gl-raster) throws on anything but a 256-wide image,
+// and src/lib/colormap.ts indexes rows by COLORMAP_INDEX, which is only correct while there is
+// exactly one row per name that package exports.
+const spriteWidth = sprite.readUInt32BE(16);
+const spriteHeight = sprite.readUInt32BE(20);
+if (spriteWidth !== 256) {
+  throw new Error(
+    `${COLORMAP_SPRITE} is ${spriteWidth}px wide, not the 256 createColormapTexture requires. Check what changed upstream, and update src/lib/colormap.ts and this script.`,
+  );
+}
+if (spriteHeight !== Object.keys(COLORMAP_INDEX).length) {
+  throw new Error(
+    `${COLORMAP_SPRITE} has ${spriteHeight} rows, but COLORMAP_INDEX names ${Object.keys(COLORMAP_INDEX).length} ramps. The two have to agree on which row is which ramp - check what changed upstream, and update src/lib/colormap.ts and this script.`,
+  );
+}
+
 // JSON rather than template literals: both of these carry backticks and backslashes of their own.
 const entries = icons.map(([name, svg]) => `  ${JSON.stringify(name)}: ${JSON.stringify(svg)},`).join('\n');
 
@@ -78,7 +112,12 @@ export const webAwesomeThemeCss = ${JSON.stringify(css)};
 export const iconSvgs: Record<string, string> = {
 ${entries}
 };
+
+// ${COLORMAP_SPRITE}, base64-encoded. See src/lib/colormap.ts for how this is decoded and read.
+export const colormapSpriteBase64 = ${JSON.stringify(sprite.toString('base64'))};
 `,
 );
 
-console.log(`inline-assets: ${Math.round(css.length / 1024)} KB of CSS and ${icons.length} icons into src/lib/assets.generated.ts`);
+console.log(
+  `inline-assets: ${Math.round(css.length / 1024)} KB of CSS, ${icons.length} icons, and a ${Math.round(sprite.length / 1024)} KB colormap sprite into src/lib/assets.generated.ts`,
+);

@@ -42,6 +42,19 @@ ogm-layers {
   display: flex;
 }
 
+/* Bottom-left, the one corner nothing else claims: the layer panel above is top-right, and
+   MapLibre's own attribution control defaults to bottom-right. Unlike the panel, this is never
+   toggled, so there's no button stack of its own to clear - just the same inset the panel keeps
+   from the map's own edge. */
+ogm-legend {
+  position: absolute;
+  inset-block-end: var(--ogm-control-inset);
+  inset-inline-start: var(--ogm-control-inset);
+  z-index: 3;
+  max-width: calc(100% - 2 * var(--ogm-control-inset));
+  display: flex;
+}
+
 /* Our own control button, drawn the way MapLibre draws its own: the glyph is a background image with
    its ink baked in at #333 rather than following currentColor, because the dark-mode rule below
    inverts the whole group - a themed glyph would turn near-white and then invert to black on black.

@@ -4,7 +4,9 @@ import type { DecoderPool, GeoTIFF } from '@developmentseed/geotiff';
 import type { AddLayerObject, LngLatBoundsLike } from 'maplibre-gl';
 
 import MapPreviewer from './map';
+import { isScalarSampleFormat, scalarGetTileData, scalarRange, scalarRenderTile, type ScalarRange, type ScalarTileData } from './cog-pipeline';
 import type CogResource from '../resources/cog';
+import { DEFAULT_COLOR_RAMP } from '../colormap';
 import { decoderPool } from '../decoder';
 import { openGeoTIFF } from '../geotiff';
 import { isLayerDrawn, type LayerState, type PreviewStyleLayer } from '../layers';
@@ -53,6 +55,13 @@ export default class DeckCogPreviewer extends MapPreviewer {
   // open file instead of reading its header again.
   protected geotiff: GeoTIFF | undefined;
 
+  // Set once per preview(), and only for a single-band COG of floats or signed integers - the kind
+  // @developmentseed/deck.gl-geotiff's own render pipeline refuses to draw at all. Its presence is
+  // what createLayers and createDeckLayer below both key off of to decide whether this COG draws
+  // through our own scalar pipeline (src/lib/previewers/cog-pipeline.ts) instead of upstream's;
+  // there is deliberately nowhere else that re-derives the same answer.
+  protected valueRange: ScalarRange | undefined;
+
   // Whether any tile of this COG has been drawn, which is what tells a COG that can't be drawn at
   // all from one tile of it that couldn't. Reset per attach, alongside everything else a fresh load
   // attempt starts over. See reportTileError.
@@ -82,6 +91,10 @@ export default class DeckCogPreviewer extends MapPreviewer {
       title: this.resource.label(),
       defaultOpacity: this.style.opacity,
       styleLayers: [{ id: this.getLayerId(), type: 'custom' }],
+      // Only present for a scalar COG - see valueRange above - which is what marks the layer as
+      // rampable to the panel and to resolveLayerState. this.valueRange is already known by the
+      // time this runs; see preview() for why the ordering has to be that way round.
+      ...(this.valueRange && { defaultColorRamp: DEFAULT_COLOR_RAMP, colorRampRange: this.valueRange }),
     });
 
     return [];
@@ -94,9 +107,16 @@ export default class DeckCogPreviewer extends MapPreviewer {
   // Opening the COG here rather than leaving deck.gl to do it is what lets a restricted one be drawn:
   // deck.gl only reads a URL with a plain fetch. It also means a COG that refuses to be read fails the
   // preview, so the alert names it, where before it only turned up in the console.
+  //
+  // Both reads happen before super.preview() now, not after: super.preview() is what calls
+  // createLayers(), and that needs to already know whether this COG is scalar - and its value range,
+  // if so - to publish the ramp defaults the layer starts with. A COG that fails to open still fails
+  // preview() the same way either order; the difference is that it no longer leaves a phantom layer
+  // registered for a COG that was never actually readable.
   async preview(): Promise<void> {
-    await super.preview();
     this.geotiff = await this.loadGeoTIFF();
+    this.valueRange = isScalarSampleFormat(this.geotiff.cachedTags) ? await scalarRange(this.geotiff, this.decoderPool) : undefined;
+    await super.preview();
     this.drawDeckLayer();
   }
 
@@ -108,6 +128,7 @@ export default class DeckCogPreviewer extends MapPreviewer {
     await super.clearPreview();
     this.deckOverlay?.setProps({ layers: [] });
     this.geotiff = undefined;
+    this.valueRange = undefined;
   }
 
   // MapLibre knows nothing about this layer, so the inherited version - which starts by looking it
@@ -125,8 +146,20 @@ export default class DeckCogPreviewer extends MapPreviewer {
     this.deckOverlay.setProps({ layers: [this.createDeckLayer(this.geotiff, this.drawnState)] });
   }
 
-  protected createDeckLayer(geotiff: GeoTIFF, state: LayerState): COGLayer {
-    return new COGLayer({
+  // COGLayer's own generic parameter tracks the shape getTileData/renderTile produce and consume,
+  // and the two branches below produce different shapes - so each is its own `new COGLayer(...)`
+  // rather than one call with the pair conditionally spread into its props. A single call can't be
+  // typed for both at once, and building the discriminated union COGLayerDataProps actually wants by
+  // hand would say the same thing this does, at more length.
+  protected createDeckLayer(geotiff: GeoTIFF, state: LayerState): COGLayer | COGLayer<ScalarTileData> {
+    // Not this.geotiff: the layer this becomes is drawn from whichever GeoTIFF the caller handed
+    // over, and drawDeckLayer's caller is always that same field - the distinction only matters for
+    // a test building a layer directly. this.valueRange is the field that matters, and is safe to
+    // read as-is: it's set from this same geotiff in preview(), and cleared with it in
+    // clearPreview(), so the two never point at different files.
+    const range = this.valueRange;
+
+    const shared = {
       id: this.getLayerId(),
       // The open COG, not a URL: handed one of those, deck.gl opens it with a plain fetch that no
       // transform can reach. (And never getMapLibreSourceUrl(), which prefixes the cog:// scheme the
@@ -134,7 +167,7 @@ export default class DeckCogPreviewer extends MapPreviewer {
       geotiff,
       visible: isLayerDrawn(state),
       opacity: state.opacity,
-      onGeoTIFFLoad: (_data, options) => {
+      onGeoTIFFLoad: (_data: GeoTIFF, options: { geographicBounds: { west: number; south: number; east: number; north: number } }) => {
         const { west, south, east, north } = options.geographicBounds;
         this.resolveGeotiffBounds([
           [west, south],
@@ -143,8 +176,24 @@ export default class DeckCogPreviewer extends MapPreviewer {
       },
       onTileLoad: () => this.reportTileDrawn(),
       onTileError: (error: unknown) => this.reportTileError(error),
-      parameters: { depthCompare: 'always', cullMode: 'back' },
+      parameters: { depthCompare: 'always' as const, cullMode: 'back' as const },
       pool: this.decoderPool,
+    };
+
+    if (!range) return new COGLayer(shared);
+
+    const ramp = state.colorRamp ?? DEFAULT_COLOR_RAMP;
+    return new COGLayer({
+      ...shared,
+      getTileData: scalarGetTileData,
+      renderTile: scalarRenderTile(ramp, range),
+      // Without this, a ramp swatch click would do nothing visible: drawDeckLayer rebuilds the
+      // layer object on every layer-state change, but deck.gl matches it by id and updates props in
+      // place rather than re-rendering from scratch, so the inner TileLayer keeps whichever shader
+      // pipeline it already rendered with unless told a dependency of renderTile changed. Naming
+      // renderTile's own dependencies here, rather than getTileData's: nothing about fetching or
+      // decoding a tile depends on the ramp, only on how the decoded value is drawn.
+      updateTriggers: { renderTile: [ramp, ...range] },
     });
   }
 
