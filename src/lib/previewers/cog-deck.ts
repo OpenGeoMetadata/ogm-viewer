@@ -1,10 +1,11 @@
 import { MapboxOverlay as DeckOverlay } from '@deck.gl/mapbox';
 import { COGLayer } from '@developmentseed/deck.gl-geotiff';
-import { DecoderPool, type GeoTIFF } from '@developmentseed/geotiff';
+import type { DecoderPool, GeoTIFF } from '@developmentseed/geotiff';
 import type { AddLayerObject, LngLatBoundsLike } from 'maplibre-gl';
 
 import MapPreviewer from './map';
 import type CogResource from '../resources/cog';
+import { decoderPool } from '../decoder';
 import { openGeoTIFF } from '../geotiff';
 import { isLayerDrawn, type LayerState, type PreviewStyleLayer } from '../layers';
 import type { MapLibreStyle } from '../themes/maplibre';
@@ -34,7 +35,8 @@ export default class DeckCogPreviewer extends MapPreviewer {
   protected deckOverlay: DeckOverlay | undefined;
 
   // Built once and reused: recreating it on every opacity change would throw away the decoder
-  // workers along with it, and this layer is rebuilt on each of those.
+  // workers along with it, and this layer is rebuilt on each of those. Shared with every other COG
+  // on the page - see src/lib/decoder.ts.
   protected decoderPool: DecoderPool | undefined;
 
   // What the user has asked for, held because deck.gl takes visibility and opacity as layer props,
@@ -176,11 +178,11 @@ export default class DeckCogPreviewer extends MapPreviewer {
     this.onError?.(error);
   }
 
-  // Disable the web worker decoder pool; it appears to error because it can't find /worker.js.
+  // The pool every COG on the page decodes through, workers and all - see src/lib/decoder.ts. Asked
+  // for through a method of its own so a test can hand this previewer a pool instead.
   // See: https://developmentseed.org/deck.gl-raster/api/geotiff/type-aliases/DecoderPoolOptions/
-  // See also: https://github.com/developmentseed/deck.gl-raster/issues/364
   protected createDecoderPool(): DecoderPool {
-    return new DecoderPool({ createWorker: undefined });
+    return decoderPool();
   }
 
   // The record's own bounding box when it has one, since that needs no waiting. Otherwise the COG's,
