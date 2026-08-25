@@ -73,8 +73,25 @@ export class TransformedGeoTIFFSource implements Source {
         throw new SourceError(`ETag conflict ${this.url.href} ${range} expected: ${this.metadata.eTag} got: ${metadata.eTag}`, 409, this);
       }
 
+      const body = await response.arrayBuffer();
+
+      // A server with no Range support answers a range read with the whole file and a 200, and that is
+      // a failure that hides. The bytes still parse as a TIFF header, since that is what the start of
+      // the file is, so the COG opens and reports its size and extent correctly; only the tiles are
+      // wrong, and a decoder handed a file header where it expected a compressed tile reports a corrupt
+      // codec stream. The error then names the codec and says nothing about the server. Worth catching
+      // by hand because it is not exotic: Stencil's own dev server is one of these, so a COG served
+      // from `npm start` fails exactly this way.
+      //
+      // 206 is what a served range comes back with. A 200 is allowed to mean "the range was the whole
+      // file" - which is why the body is measured rather than the status trusted: only a body longer
+      // than the range asked for can be a range that wasn't honoured.
+      if (response.status !== 206 && length !== undefined && body.byteLength > length) {
+        throw new SourceError(`Asked ${this.url.href} for ${range} and got all ${body.byteLength} bytes of it, so this server does not support range requests`, 501, this);
+      }
+
       this.metadata ??= metadata;
-      return await response.arrayBuffer();
+      return body;
     } catch (error) {
       // Ours already names what happened and with which status. Anything else - a dropped connection, a
       // refused preflight - arrives as a bare TypeError, which the layers above can make nothing of.

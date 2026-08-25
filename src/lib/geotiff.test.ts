@@ -185,6 +185,32 @@ describe('TransformedGeoTIFFSource', () => {
       expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
 
+    // Every tile read would otherwise be handed the file header and fail inside a codec, which is
+    // where the error would appear to come from. Stencil's dev server does this, so it is what a COG
+    // served by `npm start` does.
+    it('refuses a whole file handed back for a range read, and says whose fault it is', async () => {
+      respondWith(new ArrayBuffer(4096), {}, true, 200);
+      const source = new TransformedGeoTIFFSource(COG_URL);
+
+      await expect(source.fetch(0, 512)).rejects.toThrow('does not support range requests');
+    });
+
+    it('accepts a range that was actually served', async () => {
+      respondWith(new ArrayBuffer(512), {}, true, 206);
+      const source = new TransformedGeoTIFFSource(COG_URL);
+
+      await expect(source.fetch(0, 512)).resolves.toHaveProperty('byteLength', 512);
+    });
+
+    // A range covering the whole of a small file is allowed to come back as a 200, so the body is what
+    // decides rather than the status: this one is no longer than what was asked for.
+    it('accepts a 200 no longer than the range it asked for', async () => {
+      respondWith(new ArrayBuffer(300), {}, true, 200);
+      const source = new TransformedGeoTIFFSource(COG_URL);
+
+      await expect(source.fetch(0, 512)).resolves.toHaveProperty('byteLength', 300);
+    });
+
     // The file was replaced between reads, so the bytes already held describe a different image
     it('refuses to mix reads of a file that changed underneath it', async () => {
       const fetchSpy = respondWith(new ArrayBuffer(64), { etag: '"first"' });
