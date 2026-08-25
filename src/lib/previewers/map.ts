@@ -4,6 +4,7 @@ import type Resource from '../resources/resource';
 
 import Previewer from './previewer';
 import { isLayerDrawn, resolveLayerState, type LayerState, type Layer, type PreviewStyleLayer } from '../layers';
+import type { LegendEntry } from '../legend';
 import { type MapLibreStyle } from '../themes/maplibre';
 
 // MapLibre doesn't bundle the id with the source, but we need to
@@ -68,6 +69,14 @@ export default abstract class MapPreviewer extends Previewer {
   // to satisfy would be called broken while it draws, and one exempted by mistake goes back to
   // failing silently. See <ogm-map>'s startLoadDeadline.
   readonly reportsDrawing: boolean = false;
+
+  // Named colors this preview needs explained on the map. Most previews draw one ordinary data
+  // color, which needs no key; a preview whose colors carry distinct meanings overrides this.
+  // Answered after attach because the colors belong to the active light/dark theme and may be
+  // replaced by CSS custom properties. A getter rather than stored data keeps a theme change fresh.
+  get legendEntries(): LegendEntry[] {
+    return [];
+  }
 
   // Stored state for added MapLibre sources and layers to allow for cleanup
   sourceIds: string[] = [];

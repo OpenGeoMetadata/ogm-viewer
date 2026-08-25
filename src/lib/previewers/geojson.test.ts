@@ -320,6 +320,25 @@ describe('OpenIndexMapPreviewer#preview', () => {
 
     expect([...map.layers.keys()]).toEqual(SUFFIXES.map(suffix => `princeton-fk4544658v-geojson-indexmap-${suffix}`));
   });
+
+  it('describes its availability and selection colors for a legend', async () => {
+    const { previewer } = await previewIndexMap();
+
+    expect(previewer.legendEntries).toEqual([
+      { label: 'Available map', color: style.dataColor },
+      { label: 'Unavailable map', color: style.invalidColor },
+      { label: 'Selected map', color: style.selectedColor },
+    ]);
+  });
+
+  it('has no legend before it is drawn or after its layer is hidden', async () => {
+    const undrawn = new OpenIndexMapPreviewer(new OpenIndexMapResource('princeton-fk4544658v', GEOJSON_URL));
+    expect(undrawn.legendEntries).toEqual([]);
+
+    const { previewer } = await previewIndexMap();
+    previewer.applyLayerState(new Map([[INDEX_ROW_ID, { visible: false, opacity: style.boundsOpacity }]]));
+    expect(previewer.legendEntries).toEqual([]);
+  });
 });
 
 const INDEX_ROW_ID = 'princeton-fk4544658v-geojson-indexmap';

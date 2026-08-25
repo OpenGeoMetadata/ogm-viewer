@@ -1,6 +1,7 @@
 import { Component, h, Host, Prop, State } from '@stencil/core';
 
 import { colormapSprite, formatValue, rampGradient } from '../../lib/colormap';
+import type { LegendEntry } from '../../lib/legend';
 import { rampedLayers, type LayerControl } from '../../lib/layers';
 
 // Reads a color ramp's ends for whichever drawn layers have one - a single-band COG of floats or
@@ -27,6 +28,10 @@ export class OgmLegend {
   // them are rampable, and which of those are actually drawn right now, is this component's own
   // question to answer, the same way ogm-layers decides for itself which row gets a ramp picker.
   @Prop() layers: LayerControl[] = [];
+  // Discrete, named colors supplied by a previewer whose colors carry meaning of their own. Kept as
+  // data rather than inferred here so this presentation component need not know what an index map is
+  // or where its active theme colors came from.
+  @Prop() entries: LegendEntry[] = [];
 
   // The sprite every entry's gradient bar is drawn from. See ogm-layers.tsx's own sprite field for
   // why this is loaded in componentWillLoad rather than read synchronously, and why a decode
@@ -43,20 +48,30 @@ export class OgmLegend {
   }
 
   render() {
-    const entries = rampedLayers(this.layers);
-    if (!entries.length) return null;
+    const ramps = rampedLayers(this.layers);
+    if (!this.entries.length && !ramps.length) return null;
 
     return (
       <Host class={this.theme && `wa-${this.theme}`}>
         <div class="panel" role="group" aria-label="Legend">
-          {entries.map(layer => {
-            // Checked in `entries` above; asserted here rather than re-checked, since this is the
+          {this.entries.length > 0 && (
+            <div class="swatches">
+              {this.entries.map(entry => (
+                <div class="swatch-entry" key={entry.label}>
+                  <span class="swatch" style={{ backgroundColor: entry.color }} aria-hidden="true"></span>
+                  <span>{entry.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {ramps.map(layer => {
+            // Checked in `ramps` above; asserted here rather than re-checked, since this is the
             // one place their absence would otherwise be a type error rather than a filtered row.
             const [min, max] = layer.colorRampRange!;
             const step = max - min;
 
             return (
-              <div class="entry" key={layer.id}>
+              <div class="entry ramp-entry" key={layer.id}>
                 <span class="title" title={layer.title}>
                   {layer.title}
                 </span>

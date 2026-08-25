@@ -655,16 +655,19 @@ export class OgmMap {
   // The legend is shown independently of the panel, unlike layersPanelOpen below: it exists to be
   // read while looking at the map, which is exactly when the panel that would have opened it is
   // closed. But it is gated the same way the panel is - mounted only when there's something for it
-  // to show, via rampedLayers(this.layerControls) rather than unconditionally with the component
-  // left to render null on its own. Both would look right to a reader; only one of them is - see
-  // the note on this at the top of ogm-legend.tsx.
+  // to show, via rampedLayers(this.layerControls) and the previewer's own named entries rather than
+  // unconditionally with the component left to render null on its own. Both would look right to a
+  // reader; only one of them is - see the note on this at the top of ogm-legend.tsx.
   render() {
+    const legendEntries = this.previewer?.legendEntries ?? [];
+    const hasLegend = legendEntries.length > 0 || rampedLayers(this.layerControls).length > 0;
+
     return (
       <Host class={waScope(this.theme)}>
         <div class={`container ${waScope(this.theme)}`}>
           <div id="map"></div>
           {this.layersPanelOpen && <ogm-layers theme={this.theme} layers={this.layerControls}></ogm-layers>}
-          {rampedLayers(this.layerControls).length > 0 && <ogm-legend theme={this.theme} layers={this.layerControls}></ogm-legend>}
+          {hasLegend && <ogm-legend theme={this.theme} layers={this.layerControls} entries={legendEntries}></ogm-legend>}
         </div>
       </Host>
     );

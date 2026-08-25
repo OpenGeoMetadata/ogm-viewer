@@ -25,6 +25,35 @@
   padding-top: var(--wa-space-2xs);
 }
 
+.swatches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wa-space-xs);
+}
+
+.swatch-entry {
+  align-items: center;
+  display: flex;
+  gap: var(--wa-space-xs);
+}
+
+/* The swatch color itself is supplied inline from the MapLibre theme. Its outline stays a panel
+   color rather than a derivative of the fill, so even a very pale configured color has an edge. */
+.swatch {
+  border: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+  border-radius: var(--wa-border-radius-s, 0.125rem);
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  height: var(--wa-space-m, 1rem);
+  width: var(--wa-space-m, 1rem);
+}
+
+.swatches + .ramp-entry {
+  border-top: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+  margin-top: var(--wa-space-2xs);
+  padding-top: var(--wa-space-2xs);
+}
+
 .title {
   display: block;
   overflow: hidden;
