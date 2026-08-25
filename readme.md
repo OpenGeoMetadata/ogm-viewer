@@ -242,10 +242,16 @@ document.querySelector('ogm-overview').addEventListener('boundsChange', event =>
 });
 ```
 
-Set `bounds` to the area a search is currently filtered to. It's drawn as a box and the camera frames it. It will accept an `ENVELOPE` string, or anything else MapLibre reads as bounds — and being a string, it can come from an attribute:
+Set `search-bounds` to the area a search is currently filtered to. It's drawn as a box and the camera frames it, with the same gap everything else on the map gets. It will accept an `ENVELOPE` string, or anything else MapLibre reads as bounds — and being a string, it can come from an attribute:
 
 ```html
-<ogm-overview bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-overview>
+<ogm-overview search-bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-overview>
+```
+
+Set `view-bounds` to where the map should open in place of the whole world, when there's no active search and no results of its own to frame - a catalog's home page, say. Given in the same form as `search-bounds`:
+
+```html
+<ogm-overview view-bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-overview>
 ```
 
 ### Content Security Policy

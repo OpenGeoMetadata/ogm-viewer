@@ -114,10 +114,6 @@ export namespace Components {
      */
     interface OgmOverview {
         /**
-          * The area a search is currently filtered to, drawn as a box and framed by the camera. Given as the west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an attribute, so a page rendered by a server can say what its map is filtered to without any JavaScript at all.  It goes on holding: whenever what is drawn changes, the camera returns here rather than re-framing itself around the new set of results. Leave it unset for a map that should look at whatever it has been given.
-         */
-        "bounds"?: maplibregl.LngLatBoundsLike | string;
-        /**
           * Whether a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through `boundsChange`; nothing here answers it, because what a new area means is the embedding page's to say. The help text is a prop because GeoBlacklight runs the strings for the control this replaces through Rails I18n.
           * @default false
          */
@@ -129,6 +125,10 @@ export namespace Components {
         "previewers"?: (LocationPreviewer | undefined)[];
         "records"?: OgmRecord[];
         /**
+          * The area a search is currently filtered to, drawn as a box and framed by the camera. Given as the west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an attribute, so a page rendered by a server can say what its map is filtered to without any JavaScript at all.  It goes on holding: whenever what is drawn changes, the camera returns here rather than re-framing itself around the new set of results. Wins over `viewBounds` when both are given, an active filter being the stronger statement - though in practice a page states one or the other, never both. Leave it unset for a map that should look at whatever it has been given; see `viewBounds` for a default to open on instead of the whole world.
+         */
+        "searchBounds"?: maplibregl.LngLatBoundsLike | string;
+        /**
           * @default 'Shift + drag to search an area'
          */
         "searchHelpText": string;
@@ -136,6 +136,10 @@ export namespace Components {
           * @default initialTheme(this.el)
          */
         "theme": 'light' | 'dark';
+        /**
+          * Where to point the camera when there is nothing else to look at - no active search, no results - in place of the whole world. Given in the same form as `searchBounds` and read the same way, but nothing about it is drawn: no box, no marker, nothing on the map says it is there.  Framed exactly, with no padding and no ceiling on how far in the camera can zoom - unlike `searchBounds` and the extent of a set of results, which both keep the theme's gap because neither one is a promise about what should fill the frame. This one is: a page that sets it has already chosen the exact box the map should show, so nothing here second-guesses that choice.
+         */
+        "viewBounds"?: maplibregl.LngLatBoundsLike | string;
     }
     interface OgmPreview {
         "previewer": AnyPreviewer;
@@ -505,10 +509,6 @@ declare namespace LocalJSX {
      */
     interface OgmOverview {
         /**
-          * The area a search is currently filtered to, drawn as a box and framed by the camera. Given as the west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an attribute, so a page rendered by a server can say what its map is filtered to without any JavaScript at all.  It goes on holding: whenever what is drawn changes, the camera returns here rather than re-framing itself around the new set of results. Leave it unset for a map that should look at whatever it has been given.
-         */
-        "bounds"?: maplibregl.LngLatBoundsLike | string;
-        /**
           * Whether a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through `boundsChange`; nothing here answers it, because what a new area means is the embedding page's to say. The help text is a prop because GeoBlacklight runs the strings for the control this replaces through Rails I18n.
           * @default false
          */
@@ -525,6 +525,10 @@ declare namespace LocalJSX {
         "previewers"?: (LocationPreviewer | undefined)[];
         "records"?: OgmRecord[];
         /**
+          * The area a search is currently filtered to, drawn as a box and framed by the camera. Given as the west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an attribute, so a page rendered by a server can say what its map is filtered to without any JavaScript at all.  It goes on holding: whenever what is drawn changes, the camera returns here rather than re-framing itself around the new set of results. Wins over `viewBounds` when both are given, an active filter being the stronger statement - though in practice a page states one or the other, never both. Leave it unset for a map that should look at whatever it has been given; see `viewBounds` for a default to open on instead of the whole world.
+         */
+        "searchBounds"?: maplibregl.LngLatBoundsLike | string;
+        /**
           * @default 'Shift + drag to search an area'
          */
         "searchHelpText"?: string;
@@ -532,6 +536,10 @@ declare namespace LocalJSX {
           * @default initialTheme(this.el)
          */
         "theme"?: 'light' | 'dark';
+        /**
+          * Where to point the camera when there is nothing else to look at - no active search, no results - in place of the whole world. Given in the same form as `searchBounds` and read the same way, but nothing about it is drawn: no box, no marker, nothing on the map says it is there.  Framed exactly, with no padding and no ceiling on how far in the camera can zoom - unlike `searchBounds` and the extent of a set of results, which both keep the theme's gap because neither one is a promise about what should fill the frame. This one is: a page that sets it has already chosen the exact box the map should show, so nothing here second-guesses that choice.
+         */
+        "viewBounds"?: maplibregl.LngLatBoundsLike | string;
     }
     interface OgmPreview {
         "previewer"?: AnyPreviewer;
@@ -611,7 +619,8 @@ declare namespace LocalJSX {
         "highlighted": string;
         "geosearch": boolean;
         "searchHelpText": string;
-        "bounds": maplibregl.LngLatBoundsLike | string;
+        "searchBounds": maplibregl.LngLatBoundsLike | string;
+        "viewBounds": maplibregl.LngLatBoundsLike | string;
     }
     interface OgmPreviewAttributes {
         "theme": 'light' | 'dark';
