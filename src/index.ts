@@ -96,7 +96,7 @@ export { default as WmtsPreviewer } from './lib/previewers/wmts';
 
 // What a preview is drawn with, and what a failed one reports
 export { default as Theme } from './lib/themes/theme';
-export { default as MapLibreTheme, darkBasemapStyle, lightBasemapStyle, type MapLibreStyle } from './lib/themes/maplibre';
+export { default as MapLibreTheme, darkBasemapStyle, lightBasemapStyle, resolveBasemapStyle, type MapLibreStyle } from './lib/themes/maplibre';
 export { isLayerDrawn, resolveLayerState, type Layer, type LayerControl, type LayerState, type PreviewStyleLayer } from './lib/layers';
 export type { LegendEntry } from './lib/legend';
 

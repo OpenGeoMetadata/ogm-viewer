@@ -1,7 +1,7 @@
 import { describe, it, expect } from '@stencil/vitest';
 
 import { atLightness, contrastColor, shiftLightness } from './color';
-import MapLibreTheme, { darkBasemapStyle, lightBasemapStyle } from './maplibre';
+import MapLibreTheme, { darkBasemapStyle, lightBasemapStyle, resolveBasemapStyle } from './maplibre';
 
 // A theme reading from an element carrying the given custom properties.
 //
@@ -9,11 +9,11 @@ import MapLibreTheme, { darkBasemapStyle, lightBasemapStyle } from './maplibre';
 // custom property declared on the element itself but does not inherit one down the tree. Reaching in
 // from an ancestor - which is how an embedding app actually sets these - is CSS inheritance doing its
 // job, so it belongs in a browser rather than here.
-const themed = (theme: 'light' | 'dark' | undefined, tokens: Record<string, string> = {}) => {
+const themed = (theme: 'light' | 'dark' | undefined, tokens: Record<string, string> = {}, basemaps?: { darkBasemap?: string; lightBasemap?: string }) => {
   const el = document.createElement('div');
   Object.entries(tokens).forEach(([name, value]) => el.style.setProperty(name, value));
   document.body.appendChild(el);
-  return new MapLibreTheme(el, theme);
+  return new MapLibreTheme(el, theme, basemaps);
 };
 
 describe('MapLibreTheme', () => {
@@ -243,6 +243,36 @@ describe('MapLibreTheme', () => {
 
       expect(new MapLibreTheme(el).getBaseMapStyle()).toBe(darkBasemapStyle);
       expect(new MapLibreTheme(document.createElement('div')).getBaseMapStyle()).toBe(lightBasemapStyle);
+    });
+
+    // GeoBlacklight hands over its own basemap this way - a CARTO name for convenience, or a URL to
+    // any style document. Each mode takes its override independently, the same as an --ogm-* color.
+    it('prefers an app’s own basemap for the mode it named one for', () => {
+      const custom = themed('dark', {}, { darkBasemap: 'voyager', lightBasemap: 'https://example.com/light.json' });
+      expect(custom.getBaseMapStyle()).toBe('https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json');
+
+      custom.theme = 'light';
+      expect(custom.getBaseMapStyle()).toBe('https://example.com/light.json');
+    });
+
+    it('falls back to our own default for a mode nothing was named for', () => {
+      const custom = themed('dark', {}, { lightBasemap: 'voyager' });
+
+      expect(custom.getBaseMapStyle()).toBe(darkBasemapStyle);
+    });
+  });
+
+  describe('resolveBasemapStyle', () => {
+    it('expands a bare CARTO name to that style’s URL', () => {
+      expect(resolveBasemapStyle('voyager')).toBe('https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json');
+      expect(resolveBasemapStyle('dark-matter-nolabels')).toBe('https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json');
+    });
+
+    // A caller who already has a URL - CARTO's own or anyone else's - gets it back untouched, rather
+    // than having it read as a name and rewritten into something else.
+    it('passes a URL through untouched', () => {
+      expect(resolveBasemapStyle(lightBasemapStyle)).toBe(lightBasemapStyle);
+      expect(resolveBasemapStyle('https://api.maptiler.com/maps/basic-v2/style.json?key=abc123')).toBe('https://api.maptiler.com/maps/basic-v2/style.json?key=abc123');
     });
   });
 });

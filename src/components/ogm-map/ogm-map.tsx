@@ -32,6 +32,10 @@ export class OgmMap {
   @Element() el!: HTMLElement;
   @Prop() previewer: MapPreviewer;
   @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
+  // A caller's own basemap for each mode, as a CARTO name (e.g. 'positron') or a URL to a MapLibre
+  // style document; see MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default.
+  @Prop() darkBasemap?: string;
+  @Prop() lightBasemap?: string;
   @Prop() padding: number = 0;
   @Event() mapIdle: EventEmitter<void>;
   @Event() mapLoading: EventEmitter<void>;
@@ -86,7 +90,7 @@ export class OgmMap {
     // for why the host has no colors on it to read. Everything MapLibre draws is inside this element,
     // so an --ogm-* override set on the host or on the embedding page still reaches it by inheritance.
     const scope = getElement(this.el, '.container');
-    this.mapTheme = new MapLibreTheme(scope, this.theme);
+    this.mapTheme = new MapLibreTheme(scope, this.theme, { darkBasemap: this.darkBasemap, lightBasemap: this.lightBasemap });
 
     // Keep attributes outside Stencil render pipeline so that MapLibre can
     // use the HTML directly for the popup content
@@ -262,11 +266,15 @@ export class OgmMap {
     }
   }
 
-  // When the theme changes, swap the basemap to match.
+  // When the theme or a basemap prop changes, swap the basemap to match.
   @Watch('theme')
+  @Watch('darkBasemap')
+  @Watch('lightBasemap')
   async onThemeChange() {
     if (!this.map) return;
     this.mapTheme.theme = this.theme;
+    this.mapTheme.darkBasemap = this.darkBasemap;
+    this.mapTheme.lightBasemap = this.lightBasemap;
     // The popup reads from sources setStyle is about to drop, so it goes first
     this.destroyPopup();
     // The panel is still on screen over the window this opens, and a layer can't be styled inside it
