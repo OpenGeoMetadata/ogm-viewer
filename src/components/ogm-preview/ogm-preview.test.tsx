@@ -58,6 +58,21 @@ describe('ogm-preview', () => {
     expect(shadowRoot.querySelector('ogm-map')).toBeNull();
   });
 
+  it('passes cooperative gestures on to the map, on by default', async () => {
+    const el = await renderPreview(mapPreviewer());
+    const map = (el.shadowRoot as ShadowRoot).querySelector('ogm-map') as HTMLElement & { cooperativeGestures: boolean };
+    expect(map.cooperativeGestures).toBe(true);
+  });
+
+  it('turns the map’s cooperative gestures off when asked to', async () => {
+    const el = await renderPreview(mapPreviewer());
+    (el as unknown as { cooperativeGestures: boolean }).cooperativeGestures = false;
+    await flush();
+
+    const map = (el.shadowRoot as ShadowRoot).querySelector('ogm-map') as HTMLElement & { cooperativeGestures: boolean };
+    expect(map.cooperativeGestures).toBe(false);
+  });
+
   it('shows the error over the preview when a previewError is reported', async () => {
     const el = await renderPreview(mapPreviewer());
     const error = referenceError(new TypeError('Failed to fetch'), 'GeoJSON', 'http://example.com/data.json');

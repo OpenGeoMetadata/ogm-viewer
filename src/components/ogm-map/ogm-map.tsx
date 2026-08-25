@@ -37,6 +37,15 @@ export class OgmMap {
   @Prop() darkBasemap?: string;
   @Prop() lightBasemap?: string;
   @Prop() padding: number = 0;
+
+  /**
+   * Whether a wheel needs the command key, and a touch drag needs a second finger, before either
+   * reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map
+   * embedded in a page must not eat the scroll a reader meant for the page around it. A page that
+   * gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+   */
+  @Prop() cooperativeGestures: boolean = true;
+
   @Event() mapIdle: EventEmitter<void>;
   @Event() mapLoading: EventEmitter<void>;
   @Event() previewError: EventEmitter<PreviewError>;
@@ -107,7 +116,7 @@ export class OgmMap {
 
     this.map = createMap(container, this.mapTheme, {
       minZoom: 1,
-      cooperativeGestures: true,
+      cooperativeGestures: this.cooperativeGestures,
       // Read fresh on every request rather than captured once, so it always reflects whichever
       // previewer is currently attached - including across onPreviewerChange, with no watcher of
       // our own needed. Applies to the basemap's own style/glyphs/sprites too, not just this
@@ -282,6 +291,15 @@ export class OgmMap {
     await setBasemap(this.map, this.mapTheme);
     // The same preview, drawn again into the style document the swap just emptied
     await this.loadPreview();
+  }
+
+  // A reader gets the changed answer from here on; the handler needs nothing rebuilt to give it, so
+  // there's no draw or frame to redo the way a theme swap needs.
+  @Watch('cooperativeGestures')
+  onCooperativeGesturesChange() {
+    if (!this.map) return;
+    if (this.cooperativeGestures) this.map.cooperativeGestures.enable();
+    else this.map.cooperativeGestures.disable();
   }
 
   // Surface MapLibre errors tied to the current preview, skipping the noise from basemap/glyph/

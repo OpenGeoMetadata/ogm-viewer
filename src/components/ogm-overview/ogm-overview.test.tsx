@@ -37,6 +37,9 @@ class FakeMap {
   // Enough of the box-zoom handler to be switched on and off, and to have been caught mid-gesture
   boxZoom = { enable: vi.fn(), disable: vi.fn(), isEnabled: vi.fn(() => true), isActive: vi.fn(() => false), reset: vi.fn() };
 
+  // Enough of the cooperative-gestures handler to be switched on and off
+  cooperativeGestures = { enable: vi.fn(), disable: vi.fn() };
+
   // Written and read back, rather than recorded: which projection the map is in is what decides
   // whether the camera clamps, and the globe button's own state is read straight off it
   projection: { type: string } | undefined = undefined;
@@ -177,6 +180,7 @@ type Overview = HTMLElement & {
   viewBounds?: number[] | string;
   geosearch: boolean;
   searchHelpText: string;
+  cooperativeGestures: boolean;
   addControls: () => void;
   followPointer: () => void;
   handleStyleLoad: () => Promise<void>;
@@ -192,6 +196,7 @@ type Overview = HTMLElement & {
   onHighlightedChange: () => void;
   onGeosearchChange: () => void;
   onSearchHelpTextChange: () => void;
+  onCooperativeGesturesChange: () => void;
   onThemeChange: () => Promise<void>;
   componentDidLoad: () => Promise<void>;
 };
@@ -1268,6 +1273,29 @@ describe('ogm-overview geosearch', () => {
     expect(areas).toEqual([]);
     expect(consoleWarn).toHaveBeenCalled();
     consoleWarn.mockRestore();
+  });
+});
+
+describe('ogm-overview cooperative gestures', () => {
+  it('is on by default', async () => {
+    const { el } = await renderOverview();
+    expect(el.cooperativeGestures).toBe(true);
+  });
+
+  it('answers a wheel or a single touch right away only once turned off', async () => {
+    const { el, map } = await renderOverview();
+    el.cooperativeGestures = false;
+    el.onCooperativeGesturesChange();
+
+    expect(map.cooperativeGestures.disable).toHaveBeenCalled();
+    expect(map.cooperativeGestures.enable).not.toHaveBeenCalled();
+
+    map.cooperativeGestures.disable.mockClear();
+    el.cooperativeGestures = true;
+    el.onCooperativeGesturesChange();
+
+    expect(map.cooperativeGestures.enable).toHaveBeenCalled();
+    expect(map.cooperativeGestures.disable).not.toHaveBeenCalled();
   });
 });
 

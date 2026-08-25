@@ -107,6 +107,14 @@ export class OgmOverview {
    */
   @Prop() viewBounds?: maplibregl.LngLatBoundsLike | string;
 
+  /**
+   * Whether a wheel needs the command key, and a touch drag needs a second finger, before either
+   * reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map
+   * embedded in a page must not eat the scroll a reader meant for the page around it. A page that
+   * gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+   */
+  @Prop() cooperativeGestures: boolean = true;
+
   // Where the reader has asked to search, as the west, south, east, north degrees a query states -
   // see boundsToBbox. Nothing here answers it: what a new area means is the embedding page's to say.
   @Event() boundsChange: EventEmitter<[number, number, number, number]>;
@@ -185,6 +193,7 @@ export class OgmOverview {
 
     this.map = createMap(container, this.mapTheme, {
       ...LOCATION_MAP,
+      cooperativeGestures: this.cooperativeGestures,
       boxZoom: { boxZoomEnd: (_map, start, end) => this.search(start, end) },
       minZoom: 1,
       ...openingLocation(container, this.mapTheme, this.target(), this.projection === 'globe', this.camera()),
@@ -441,6 +450,15 @@ export class OgmOverview {
     await setBasemap(this.map, this.mapTheme);
     // style.load has already fired by the time this resolves, and it draws - so there is nothing
     // to do here but let it. Kept as an await so a caller can wait for the swap to finish.
+  }
+
+  // A reader gets the changed answer from here on; the handler needs nothing rebuilt to give it, so
+  // there's no draw or frame to redo the way a theme swap needs.
+  @Watch('cooperativeGestures')
+  protected onCooperativeGesturesChange() {
+    if (!this.map) return;
+    if (this.cooperativeGestures) this.map.cooperativeGestures.enable();
+    else this.map.cooperativeGestures.disable();
   }
 
   // Everything, in the order it has to happen: what area is being searched, where the results are,

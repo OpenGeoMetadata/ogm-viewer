@@ -43,6 +43,14 @@ export class OgmLocator {
   // A URL to fetch an Aardvark record from - the same one <ogm-viewer> takes. Sets `record`.
   @Prop() recordUrl?: string;
 
+  /**
+   * Whether a wheel needs the command key, and a touch drag needs a second finger, before either
+   * reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map
+   * embedded in a page must not eat the scroll a reader meant for the page around it. A page that
+   * gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+   */
+  @Prop() cooperativeGestures: boolean = true;
+
   private map: maplibregl.Map;
   private mapTheme: MapLibreTheme;
 
@@ -79,6 +87,7 @@ export class OgmLocator {
     this.mapTheme = new MapLibreTheme(container, this.theme, { darkBasemap: this.darkBasemap, lightBasemap: this.lightBasemap });
     this.map = createMap(container, this.mapTheme, {
       ...LOCATION_MAP,
+      cooperativeGestures: this.cooperativeGestures,
       // We handle this on our own so we can start it collapsed
       attributionControl: false,
       // Already looking at the record, rather than at the world
@@ -181,6 +190,15 @@ export class OgmLocator {
     await setBasemap(this.map, this.mapTheme);
     // style.load has already fired by the time this resolves, and it draws - so there is nothing
     // to do here but let it. Kept as an await so a caller can wait for the swap to finish.
+  }
+
+  // A reader gets the changed answer from here on; the handler needs nothing rebuilt to give it, so
+  // there's no draw or frame to redo the way a theme swap needs.
+  @Watch('cooperativeGestures')
+  protected onCooperativeGesturesChange() {
+    if (!this.map) return;
+    if (this.cooperativeGestures) this.map.cooperativeGestures.enable();
+    else this.map.cooperativeGestures.disable();
   }
 
   // Put the record's location on the map, and point the map at it
