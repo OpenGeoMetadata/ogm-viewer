@@ -4,7 +4,7 @@ import maplibregl from 'maplibre-gl';
 import { closestAcrossShadows, findElement, getElement } from '../../lib/elements';
 import { referenceError, TimeoutError, type PreviewError } from '../../lib/errors';
 import GlobeControl from '../../lib/globe-control';
-import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
+import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import { dedupeFeatures } from '../../lib/features';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
 import { createMap, fitBounds, openingCamera, setBasemap, whenSized } from '../../lib/maps';
@@ -74,6 +74,11 @@ export class OgmMap {
   protected attributesEl: HTMLOgmAttributesElement;
   protected hoveredFeature: maplibregl.MapGeoJSONFeature | undefined = undefined;
   protected selectedFeature: maplibregl.MapGeoJSONFeature | undefined = undefined;
+
+  // Before the first frame, so nothing paints unstyled
+  componentWillLoad() {
+    adoptWebAwesomeTheme(this.el);
+  }
 
   // Set up the mapLibre map and event bindings on load
   async componentDidLoad() {
@@ -628,14 +633,14 @@ export class OgmMap {
   // fighting it for the same DOM - the reason ogm-attributes has to be built by hand.
   //
   // Everything is wrapped in .container because that is where the Web Awesome scope has to go: the
-  // classes waScope() applies are matched by the stylesheet linked above, and a plain class selector
-  // in a shadow root's stylesheet never matches the host of that root. On the Host alone they would
-  // establish nothing, which is what a bare <ogm-map> used to draw with - every color empty. The
-  // panel needs them as much as the map does, and it isn't inside #map, so the scope goes above both.
+  // classes waScope() applies are matched by the theme adopted into this root, and a plain class
+  // selector in a shadow root's stylesheet never matches the host of that root. On the Host alone
+  // they would establish nothing, which is what a bare <ogm-map> used to draw with - every color
+  // empty. The panel needs them as much as the map does, and it isn't inside #map, so the scope goes
+  // above both.
   render() {
     return (
       <Host class={waScope(this.theme)}>
-        <link rel="stylesheet" href={webAwesomeStylesheet()} />
         <div class={`container ${waScope(this.theme)}`}>
           <div id="map"></div>
           {this.layersPanelOpen && <ogm-layers theme={this.theme} layers={this.layerControls}></ogm-layers>}

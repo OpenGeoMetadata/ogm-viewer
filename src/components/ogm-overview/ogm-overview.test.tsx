@@ -9,6 +9,7 @@ import { render as stencilRender } from '@stencil/core';
 import { LngLat, Point } from 'maplibre-gl';
 
 import { boundsToBbox } from '../../lib/geometry';
+import { adoptWebAwesomeTheme } from '../../lib/init';
 import LocationPreviewer from '../../lib/previewers/location';
 import OgmRecord, { type GeoBlacklightSchemaAardvark } from '../../lib/record';
 import LocationResource from '../../lib/resources/location';
@@ -218,6 +219,21 @@ const renderOverview = async () => {
   const map = new FakeMap();
   Object.assign(el, { map, mapTheme: new MapLibreTheme(el, 'light'), mapStyleLoaded: true });
   return { el, map };
+};
+
+// One stylesheet's rules as text, which is how a sheet a component adopted can be compared with one
+// this file built: the component came out of the built bundle, so its copy of the library is not the
+// one this file's own imports name - see frameOf below for the same story told about a LngLatBounds.
+const cssOf = (sheet: CSSStyleSheet): string =>
+  Array.from(sheet.cssRules)
+    .map(rule => rule.cssText)
+    .join('\n');
+
+// The Web Awesome theme as a component that took it should carry it
+const webAwesomeTheme = (): string => {
+  const root = document.createElement('div').attachShadow({ mode: 'open' });
+  adoptWebAwesomeTheme(root.host);
+  return cssOf(root.adoptedStyleSheets[0]);
 };
 
 const MARKER_LAYERS = [RESULT_MARKERS];
@@ -495,7 +511,7 @@ describe('ogm-overview', () => {
     const { el } = await renderOverview();
 
     expect(el.className).toContain('wa-palette-default');
-    expect((el.shadowRoot as ShadowRoot).querySelector('link[rel="stylesheet"]')).toBeTruthy();
+    expect((el.shadowRoot as ShadowRoot).adoptedStyleSheets.map(cssOf)).toContain(webAwesomeTheme());
   });
 
   it('takes its map down with it once it is sure the disconnect is not a relocation', async () => {
@@ -1175,10 +1191,10 @@ describe('ogm-overview theme', () => {
   });
 });
 
-// componentDidLoad waits on the palette's stylesheet, which lands in a later task than the one that
-// rendered - so there is a window in which the overview can be taken off the page while it is still
-// waiting. Nothing may start observing the container after that: whenSized gives up only once the
-// container has a box, and a detached one never gets one, so the observer would outlive the component.
+// componentDidLoad waits for its container to have a box, which lands in a later task than the one
+// that rendered - so there is a window in which the overview can be taken off the page while it is
+// still waiting. Nothing may start observing the container after that: whenSized gives up only once
+// the container has a box, and a detached one never gets one, so the observer would outlive the component.
 describe('ogm-overview taken off the page while it waits', () => {
   // Mounted without being handed a map, so componentDidLoad is left where it really parks
   const mount = async () => {
@@ -1189,7 +1205,7 @@ describe('ogm-overview taken off the page while it waits', () => {
     const el = container.firstElementChild as Overview & { componentOnReady?: () => Promise<unknown> };
     await el.componentOnReady?.();
     consoleError.mockClear();
-    return { container, el, link: (el.shadowRoot as ShadowRoot).querySelector('link') as HTMLLinkElement };
+    return { container, el };
   };
 
   // Counts what gets observed, since that is the thing that outlives the component
@@ -1205,30 +1221,29 @@ describe('ogm-overview taken off the page while it waits', () => {
     return { built, restore: () => (globalThis.ResizeObserver = real) };
   };
 
-  // Driven by hand rather than by whatever the environment does with the stylesheet, so which of the
-  // two arrives first is not left to chance
-  const paletteArrives = async (link: HTMLLinkElement, el: Overview) => {
+  // Driven by hand rather than by whatever the environment does with a lifecycle method, so where it
+  // has got to when the overview comes off the page is not left to chance
+  const didLoad = async (el: Overview) => {
     void el.componentDidLoad();
-    link.dispatchEvent(new Event('load'));
     await new Promise(resolve => setTimeout(resolve, 0));
   };
 
-  it('waits for a box of its own once its palette has arrived', async () => {
-    const { el, link } = await mount();
+  it('waits for a box of its own', async () => {
+    const { el } = await mount();
 
     const observers = countObservers();
-    await paletteArrives(link, el);
+    await didLoad(el);
     observers.restore();
 
     expect(observers.built.length).toBeGreaterThan(0);
   });
 
   it('observes nothing once it has been taken off the page', async () => {
-    const { container, el, link } = await mount();
+    const { container, el } = await mount();
     container.remove();
 
     const observers = countObservers();
-    await paletteArrives(link, el);
+    await didLoad(el);
     observers.restore();
 
     expect(observers.built).toEqual([]);

@@ -25,6 +25,8 @@ Then add it to your entrypoint file:
 import 'ogm-viewer';
 ```
 
+That one import is all of it, whichever way you installed it: the theme and the icons the viewer's own chrome is drawn with are part of the bundle, so there is no stylesheet to import beside it, nothing to copy into your app's assets, and no bundler configuration to add.
+
 ## Usage
 
 Once installed, the viewer can be used in your HTML as a web component:
@@ -251,6 +253,10 @@ Set `bounds` to the area a search is currently filtered to. It's drawn as a box 
 The viewer runs work off the main thread in web workers: MapLibre's own, and one pool that decodes Cloud Optimized GeoTIFF tiles. Both are built from source the bundle carries rather than from files of their own, so a page that sets a Content-Security-Policy needs `blob:` in `worker-src` - or in whichever of `child-src`, `script-src` or `default-src` it falls back to. In a document with an opaque origin, such as a sandboxed iframe, the decoder uses a `data:` URL instead, which a policy would have to allow in the same place.
 
 Without either, the map cannot be drawn at all, and COG tiles are decoded on the main thread: slower, but still drawn.
+
+Decoding those tiles needs `'wasm-unsafe-eval'` in `script-src` as well, wherever it happens: the LZW decoder is a WebAssembly module, and a policy that won't instantiate one fails the preview rather than slowing it down - the alert in place of the map quotes the directive that stopped it.
+
+The icons the viewer's chrome is drawn with are carried the same way, as data URLs, and Web Awesome draws an icon by fetching whichever URL it is handed - so `connect-src` needs `data:` as well, or every icon comes out blank. The theme asks for nothing: it is adopted as a constructed stylesheet, which no CSP directive covers.
 
 ## Development
 

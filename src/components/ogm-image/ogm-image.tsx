@@ -6,7 +6,7 @@ import '@awesome.me/webawesome/dist/components/icon/icon.js';
 
 import { getElement, findElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
-import { initialTheme, waScope, webAwesomeStylesheet } from '../../lib/init';
+import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import type ImagePreviewer from '../../lib/previewers/image';
 import Theme from '../../lib/themes/theme';
 
@@ -32,6 +32,11 @@ export class OgmImage {
 
   // Guards against reporting more than one error per load attempt
   private errorReported: boolean = false;
+
+  // Before the first frame, so nothing paints unstyled
+  componentWillLoad() {
+    adoptWebAwesomeTheme(this.el);
+  }
 
   // Set up OpenSeadragon viewer on load
   async componentDidLoad() {
@@ -135,7 +140,6 @@ export class OgmImage {
   render() {
     return (
       <Host class={waScope(this.theme)}>
-        <link rel="stylesheet" href={webAwesomeStylesheet()} />
         <div id="openseadragon" class={waScope(this.theme)}>
           <div class="controls">
             <wa-button class="zoom-in" size="s" appearance="filled-outlined" pill>

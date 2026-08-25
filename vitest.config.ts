@@ -20,13 +20,6 @@ export default defineVitestConfig({
           name: 'component',
           include: ['src/**/*.test.tsx'],
           environment: 'happy-dom',
-          environmentOptions: {
-            happyDOM: {
-              settings: {
-                fetch: { virtualServers: [{ url: /^https?:\/\/[^/]+\/.*\/assets(?=\/)/, directory: './dist/components/assets' }] },
-              },
-            },
-          },
           setupFiles: ['./vitest-setup.ts'],
         },
       },
@@ -41,13 +34,6 @@ export default defineVitestConfig({
           name: 'www',
           include: ['src/**/*.www.test.ts'],
           environment: 'happy-dom',
-          environmentOptions: {
-            happyDOM: {
-              settings: {
-                fetch: { virtualServers: [{ url: /^https?:\/\/[^/]+\/.*\/assets(?=\/)/, directory: './www/build/assets' }] },
-              },
-            },
-          },
           setupFiles: ['./vitest-setup-dom.ts'],
         },
       },
