@@ -13,6 +13,7 @@
 "Stanford Farm (EPSG:4326 COG)","https://gist.githubusercontent.com/thatbudakguy/d75a2a5916328be3f1597cab89fa79b4/raw/aad202cf8a31dca8c803191902d493b5edc50e7d/cog.json"
 "Groundwater Elevation (Float COG, Color Ramp)","https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/8f9ce62bdc4b60f821c80199aa6061d5bc4793fd/metadata-aardvark/xp/137/nw/4166/geoblacklight.json"
 "Finland 2G Coverage (COG, Restricted)","./build/assets/records/restricted-cog.json"
+"Nelson Elevation (LERC COG, Float32)","./build/assets/records/lerc-cog.json"
 "Ag Districts (TMS)","https://raw.githubusercontent.com/geoblacklight/geoblacklight/9f7dbb4c36dc0b8e88fb9be5282d7b1663858829/spec/fixtures/solr_documents/tms.json"
 "Faults (XYZ Tiles)","https://raw.githubusercontent.com/geoblacklight/geoblacklight/9f7dbb4c36dc0b8e88fb9be5282d7b1663858829/spec/fixtures/solr_documents/xyz.json"
 "Wien Orthophoto (WMTS)","https://raw.githubusercontent.com/geoblacklight/geoblacklight/refs/heads/main/spec/fixtures/solr_documents/wmts-multiple.json"

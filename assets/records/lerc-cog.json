@@ -1,0 +1,19 @@
+{
+  "id": "nz-elevation-nelson-bp27-10000-0403",
+  "dct_title_s": "Nelson LiDAR 1m Digital Elevation Model, 2021",
+  "dct_description_sm": [
+    "One tile of Toitū Te Whenua Land Information New Zealand's 1 m LiDAR-derived DEM for the Nelson region, read straight from the nz-elevation bucket on the AWS Registry of Open Data. Here because it is a real LERC-compressed Cloud Optimized GeoTIFF: LERC is what Esri publishes most of its raster data as, and decoding it needs a WebAssembly module that has to be compiled into the bundle deliberately - see src/lib/lerc.ts. Single-band Float32 in EPSG:2193, so it is drawn through the colour-ramp pipeline in src/lib/previewers/cog-pipeline.ts and reprojected on the fly."
+  ],
+  "dct_accessRights_s": "Public",
+  "dct_format_s": "GeoTIFF",
+  "dct_license_sm": [
+    "https://creativecommons.org/licenses/by/4.0/"
+  ],
+  "schema_provider_s": "Toitū Te Whenua Land Information New Zealand",
+  "gbl_resourceClass_sm": [
+    "Imagery"
+  ],
+  "dcat_bbox": "ENVELOPE(173.542548, 173.600245, -41.042066, -41.107205)",
+  "dct_references_s": "{\"https://github.com/cogeotiff/cog-spec\":\"https://nz-elevation.s3.ap-southeast-2.amazonaws.com/nelson/nelson_2021/dem_1m/2193/BP27_10000_0403.tiff\"}",
+  "gbl_mdVersion_s": "Aardvark"
+}
