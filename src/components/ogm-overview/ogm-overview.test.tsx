@@ -171,7 +171,8 @@ type Overview = HTMLElement & {
   projection: 'globe' | 'mercator';
   extents: unknown[];
   highlighted?: number | string;
-  bounds?: number[] | string;
+  searchBounds?: number[] | string;
+  viewBounds?: number[] | string;
   geosearch: boolean;
   searchHelpText: string;
   addControls: () => void;
@@ -184,7 +185,8 @@ type Overview = HTMLElement & {
   declaredExtents: () => unknown[];
   search: (start: Point, end: Point) => void;
   onRecordsChange: () => Promise<void>;
-  onBoundsChange: () => Promise<void>;
+  onSearchBoundsChange: () => Promise<void>;
+  onViewBoundsChange: () => Promise<void>;
   onHighlightedChange: () => void;
   onGeosearchChange: () => void;
   onSearchHelpTextChange: () => void;
@@ -545,8 +547,8 @@ describe('ogm-overview search filter', () => {
     el.records = [record('one', { dcat_bbox: ICELAND })];
     await el.load();
 
-    el.bounds = CALIFORNIA;
-    await el.onBoundsChange();
+    el.searchBounds = CALIFORNIA;
+    await el.onSearchBoundsChange();
 
     expect(frameOf(map)).toEqual([-124.41, 32.53, -114.13, 42.01]);
     // Only the view of it changed; the results are still on the map, still numbered
@@ -556,7 +558,7 @@ describe('ogm-overview search filter', () => {
   it('draws the area being searched as a box under everything else', async () => {
     const { el, map } = await renderOverview();
     el.records = [record('one', { dcat_bbox: ICELAND })];
-    el.bounds = CALIFORNIA;
+    el.searchBounds = CALIFORNIA;
     await el.load();
 
     expect(layerIds(map)).toEqual(ALL_LAYERS);
@@ -565,11 +567,11 @@ describe('ogm-overview search filter', () => {
 
   it('takes the box away when the search filter is withdrawn', async () => {
     const { el, map } = await renderOverview();
-    el.bounds = CALIFORNIA;
+    el.searchBounds = CALIFORNIA;
     await el.load();
 
-    el.bounds = undefined;
-    await el.onBoundsChange();
+    el.searchBounds = undefined;
+    await el.onSearchBoundsChange();
 
     expect(drawnBox(map, SEARCH_BOUNDS)).toBe(false);
   });
@@ -578,7 +580,7 @@ describe('ogm-overview search filter', () => {
   // who searched one street shouldn't come back to a view of the city, so no zoom limit
   it('gives a search filter the same room it gives everything else', async () => {
     const { el, map } = await renderOverview();
-    el.bounds = CALIFORNIA;
+    el.searchBounds = CALIFORNIA;
     await el.load();
 
     const [, options] = framed(map);
@@ -588,7 +590,7 @@ describe('ogm-overview search filter', () => {
 
   it('returns to the search filter when what is drawn changes', async () => {
     const { el, map } = await renderOverview();
-    el.bounds = CALIFORNIA;
+    el.searchBounds = CALIFORNIA;
     el.records = [record('one', { dcat_bbox: ICELAND })];
     await el.load();
 
@@ -601,11 +603,11 @@ describe('ogm-overview search filter', () => {
   it('goes back to framing what it drew when the filter is withdrawn', async () => {
     const { el, map } = await renderOverview();
     el.records = [record('one', { dcat_bbox: ICELAND })];
-    el.bounds = CALIFORNIA;
+    el.searchBounds = CALIFORNIA;
     await el.load();
 
-    el.bounds = undefined;
-    await el.onBoundsChange();
+    el.searchBounds = undefined;
+    await el.onSearchBoundsChange();
 
     expect(frameOf(map)).toEqual([-24.55, 63.39, -13.49, 66.57]);
     expect(framed(map)[1].maxZoom).toEqual(12);
@@ -614,10 +616,10 @@ describe('ogm-overview search filter', () => {
   // Which is how a page rendered by a server says what its map is filtered to, without any JavaScript
   it('takes a filter from an attribute', async () => {
     const { el, map } = await renderOverview();
-    el.setAttribute('bounds', CALIFORNIA);
+    el.setAttribute('search-bounds', CALIFORNIA);
 
-    expect(el.bounds).toEqual(CALIFORNIA);
-    await el.onBoundsChange();
+    expect(el.searchBounds).toEqual(CALIFORNIA);
+    await el.onSearchBoundsChange();
 
     expect(frameOf(map)).toEqual([-124.41, 32.53, -114.13, 42.01]);
     expect(drawnBox(map, SEARCH_BOUNDS)).toBe(true);
@@ -627,15 +629,113 @@ describe('ogm-overview search filter', () => {
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { el, map } = await renderOverview();
     el.records = [record('one', { dcat_bbox: ICELAND })];
-    el.bounds = 'somewhere nice';
+    el.searchBounds = 'somewhere nice';
     // Whatever the watcher said about it on the way in; what is under test is the load below
     consoleWarn.mockClear();
     await el.load();
 
-    expect(consoleWarn).toHaveBeenCalledWith('Could not read bounds:', 'somewhere nice');
+    expect(consoleWarn).toHaveBeenCalledWith('Could not read searchBounds:', 'somewhere nice');
     // Once per load, rather than once for the box and again for the camera
     expect(consoleWarn).toHaveBeenCalledTimes(1);
     expect(frameOf(map)).toEqual([-24.55, 63.39, -13.49, 66.57]);
+    consoleWarn.mockRestore();
+  });
+});
+
+describe('ogm-overview default view', () => {
+  it('points the camera there when there is nothing else to look at', async () => {
+    const { el, map } = await renderOverview();
+    el.viewBounds = CALIFORNIA;
+    await el.load();
+
+    expect(frameOf(map)).toEqual([-124.41, 32.53, -114.13, 42.01]);
+  });
+
+  // The whole point of it: a page states where the map should open, not what it should say is there
+  it('draws nothing for it', async () => {
+    const { el, map } = await renderOverview();
+    el.viewBounds = CALIFORNIA;
+    await el.load();
+
+    expect(drawnBox(map, SEARCH_BOUNDS)).toBe(false);
+    expect(layerIds(map)).toEqual(ALL_LAYERS);
+  });
+
+  // An active filter is a stronger statement than a default opening point - though in practice a
+  // page never states both at once
+  it('loses to a search filter when both are given', async () => {
+    const { el, map } = await renderOverview();
+    el.searchBounds = ICELAND;
+    el.viewBounds = CALIFORNIA;
+    await el.load();
+
+    expect(frameOf(map)).toEqual([-24.55, 63.39, -13.49, 66.57]);
+  });
+
+  it('loses to what it drew when both are given', async () => {
+    const { el, map } = await renderOverview();
+    el.records = [record('one', { dcat_bbox: ICELAND })];
+    el.viewBounds = CALIFORNIA;
+    await el.load();
+
+    expect(frameOf(map)).toEqual([-24.55, 63.39, -13.49, 66.57]);
+  });
+
+  // Unlike everything else this frames: a page that set this has already chosen the exact box the
+  // map should show, so nothing here pads it or holds it back from zooming in past city scale
+  it('is framed exactly, with no gap and no ceiling on how far in it can zoom', async () => {
+    const { el, map } = await renderOverview();
+    el.viewBounds = CALIFORNIA;
+    await el.load();
+
+    const [, options] = framed(map);
+    expect(options.padding).toEqual(0);
+    expect(options.maxZoom).toBeUndefined();
+  });
+
+  it('moves the camera when it changes', async () => {
+    const { el, map } = await renderOverview();
+    await el.load();
+
+    el.viewBounds = CALIFORNIA;
+    await el.onViewBoundsChange();
+
+    expect(frameOf(map)).toEqual([-124.41, 32.53, -114.13, 42.01]);
+  });
+
+  it('goes back to the whole world when it is withdrawn and there is nothing else to show', async () => {
+    const { el, map } = await renderOverview();
+    el.viewBounds = CALIFORNIA;
+    await el.load();
+
+    el.viewBounds = undefined;
+    await el.onViewBoundsChange();
+
+    expect(frameOf(map)).toEqual([-90, -85, 90, 85]);
+  });
+
+  // Which is how a page rendered by a server says where its map should default to, without any
+  // JavaScript at all
+  it('is read from an attribute', async () => {
+    const { el, map } = await renderOverview();
+    el.setAttribute('view-bounds', CALIFORNIA);
+
+    expect(el.viewBounds).toEqual(CALIFORNIA);
+    await el.onViewBoundsChange();
+
+    expect(frameOf(map)).toEqual([-124.41, 32.53, -114.13, 42.01]);
+  });
+
+  it('says so, and opens on the whole world, when it cannot read the default it was given', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { el, map } = await renderOverview();
+    el.viewBounds = 'somewhere nice';
+    consoleWarn.mockClear();
+    await el.load();
+
+    expect(consoleWarn).toHaveBeenCalledWith('Could not read viewBounds:', 'somewhere nice');
+    expect(consoleWarn).toHaveBeenCalledTimes(1);
+    expect(frameOf(map)).toEqual([-90, -85, 90, 85]);
     consoleWarn.mockRestore();
   });
 });

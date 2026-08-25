@@ -308,7 +308,7 @@
 
         const setFilter = bounds => {
           filter = bounds;
-          overview.bounds = bounds;
+          overview.searchBounds = bounds;
           boundsOut.textContent = bounds ? bounds.map(degrees => degrees.toFixed(3)).join(' ') : '';
           applyFilter();
         };

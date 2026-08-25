@@ -84,10 +84,24 @@ export class OgmOverview {
    * JavaScript at all.
    *
    * It goes on holding: whenever what is drawn changes, the camera returns here rather than
-   * re-framing itself around the new set of results. Leave it unset for a map that should look at
-   * whatever it has been given.
+   * re-framing itself around the new set of results. Wins over `viewBounds` when both are given,
+   * an active filter being the stronger statement - though in practice a page states one or the
+   * other, never both. Leave it unset for a map that should look at whatever it has been given; see
+   * `viewBounds` for a default to open on instead of the whole world.
    */
-  @Prop() bounds?: maplibregl.LngLatBoundsLike | string;
+  @Prop() searchBounds?: maplibregl.LngLatBoundsLike | string;
+
+  /**
+   * Where to point the camera when there is nothing else to look at - no active search, no results -
+   * in place of the whole world. Given in the same form as `searchBounds` and read the same way, but
+   * nothing about it is drawn: no box, no marker, nothing on the map says it is there.
+   *
+   * Framed exactly, with no padding and no ceiling on how far in the camera can zoom - unlike
+   * `searchBounds` and the extent of a set of results, which both keep the theme's gap because
+   * neither one is a promise about what should fill the frame. This one is: a page that sets it has
+   * already chosen the exact box the map should show, so nothing here second-guesses that choice.
+   */
+  @Prop() viewBounds?: maplibregl.LngLatBoundsLike | string;
 
   // Where the reader has asked to search, as the west, south, east, north degrees a query states -
   // see boundsToBbox. Nothing here answers it: what a new area means is the embedding page's to say.
@@ -130,6 +144,11 @@ export class OgmOverview {
   // twice would report an unreadable one twice as well.
   private searchFilter?: maplibregl.LngLatBounds;
 
+  // Where to open when nothing else says where to look, as this map can read it. Held for the same
+  // reason searchFilter is, even though nothing here draws it: reading it twice would warn about an
+  // unreadable one twice as well.
+  private viewFilter?: maplibregl.LngLatBounds;
+
   // Which result the reader's pointer is over, as its place in the list counted from one. Ours rather
   // than the page's: nothing outside can see a pointer land on a number drawn inside this shadow root.
   private hovered?: number;
@@ -157,6 +176,7 @@ export class OgmOverview {
 
     // What the camera should be looking at, worked out before there is a camera
     this.readSearchFilter();
+    this.readViewFilter();
     this.extents = this.declaredExtents();
 
     this.map = createMap(container, this.mapTheme, {
@@ -372,10 +392,19 @@ export class OgmOverview {
 
   // The area being searched has changed. The box that says where it is changes with it, but nothing
   // about the results has moved, so nobody is asked for their extent a second time.
-  @Watch('bounds')
-  protected async onBoundsChange() {
+  @Watch('searchBounds')
+  protected async onSearchBoundsChange() {
     this.readSearchFilter();
     this.draw();
+    await this.frame();
+  }
+
+  // Where to open by default has changed. Nothing is drawn for it, so there is nothing to redraw -
+  // only the camera has anywhere new to go, and only when nothing stronger (an active search, a set
+  // of results) is already holding it elsewhere.
+  @Watch('viewBounds')
+  protected async onViewBoundsChange() {
+    this.readViewFilter();
     await this.frame();
   }
 
@@ -410,6 +439,7 @@ export class OgmOverview {
   // what goes on the map, and then where the camera looks.
   private async load() {
     this.readSearchFilter();
+    this.readViewFilter();
     await this.measure();
     this.draw();
     await this.frame();
@@ -418,8 +448,15 @@ export class OgmOverview {
   // The area a search is filtered to, if this map can read what it was given. Read once per load
   // rather than at each of the two places that want it, so an unreadable one is reported once.
   private readSearchFilter() {
-    this.searchFilter = this.bounds === undefined ? undefined : readBounds(this.bounds);
-    if (this.bounds !== undefined && !this.searchFilter) console.warn('Could not read bounds:', this.bounds);
+    this.searchFilter = this.searchBounds === undefined ? undefined : readBounds(this.searchBounds);
+    if (this.searchBounds !== undefined && !this.searchFilter) console.warn('Could not read searchBounds:', this.searchBounds);
+  }
+
+  // Where to open by default, if this map can read what it was given. Read alongside
+  // readSearchFilter, and for the same reason: once per load rather than at each place that wants it.
+  private readViewFilter() {
+    this.viewFilter = this.viewBounds === undefined ? undefined : readBounds(this.viewBounds);
+    if (this.viewBounds !== undefined && !this.viewFilter) console.warn('Could not read viewBounds:', this.viewBounds);
   }
 
   // Where every result is, and what each of them is called.
@@ -471,9 +508,10 @@ export class OgmOverview {
     await frameLocation(this.map, this.mapTheme, this.target(), this.globe(), this.camera());
   }
 
-  // Where to point: the area a search is filtered to, or everywhere the results cover
+  // Where to point: the area a search is filtered to, or everywhere the results cover, or the
+  // default a page opened on in place of the whole world
   private target(): maplibregl.LngLatBoundsLike {
-    return this.searchFilter ?? unionBounds(this.extents) ?? WORLD;
+    return this.searchFilter ?? unionBounds(this.extents) ?? this.viewFilter ?? WORLD;
   }
 
   // Whether the camera is pointing at a sphere, which is what decides whether what it is pointed at
@@ -490,12 +528,18 @@ export class OgmOverview {
   // a page of results any closer by. An area a search is filtered to gets none: a reader who searched
   // a single street shouldn't come back to a view of the city.
   //
+  // A default view gets neither the limit nor frameLocation's own gap: a page that set one has
+  // already chosen the exact box the map should show, and asking for padding of zero here is what
+  // overrides the gap frameLocation would otherwise fill in around it.
+  //
   // Animated here, unlike the plain fitBounds an <ogm-map> drives: this camera moves itself, in
   // response to a search or a highlighted row, while a reader's attention is elsewhere on the page,
   // so a cut would be a jump they didn't ask for. An <ogm-map> only refits when told to by a caller
   // who's watching the map already.
   private camera(): maplibregl.FitBoundsOptions {
-    return this.searchFilter ? { animate: true } : { animate: true, maxZoom: LOCATION_MAX_ZOOM };
+    if (this.searchFilter) return { animate: true };
+    if (!unionBounds(this.extents) && this.viewFilter) return { animate: true, padding: 0 };
+    return { animate: true, maxZoom: LOCATION_MAX_ZOOM };
   }
 
   // Every result to draw as highlighted, counted from one: the one the page named and the one the
