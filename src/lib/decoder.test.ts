@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
 
+import { DECODER_REGISTRY } from '@developmentseed/geotiff';
+
 import { createDecoderPool, decoderPool } from './decoder';
 
 // Enough of a Worker for DecoderPool, which only ever adds a message listener, posts a job and
@@ -51,6 +53,11 @@ const tile = () => new Uint8Array([1, 2, 3, 4]).buffer;
 // The bundled worker, as stencil.config.ts inlines it. Never run: every test here stubs Worker.
 const SOURCE = 'self.addEventListener("message", () => {})';
 
+// LERC's TIFF compression tag, and whatever upstream had registered against it before this file
+// built a pool - read now, because building one is what replaces it.
+const LERC_COMPRESSION = 34887;
+const UPSTREAM_LERC_CODEC = DECODER_REGISTRY.get(LERC_COMPRESSION);
+
 const withWorkers = (size = 2) => {
   vi.stubGlobal('Worker', StubWorker);
   return createDecoderPool(SOURCE, size);
@@ -81,6 +88,20 @@ describe('createDecoderPool', () => {
 
     expect(StubWorker.built[0].url).toMatch(/^blob:/);
     expect(StubWorker.built[0].type).toEqual('module');
+  });
+
+  // lerc looks for its own wasm beside whichever chunk it was bundled into, which is nowhere; the
+  // pool is what tells it otherwise, for its own thread as much as for its workers. Read as "not the
+  // loader upstream registered" rather than by calling it, because calling it would instantiate a
+  // WebAssembly module - and captured at import time, since the first pool any test builds is what
+  // replaces it. See locateLercWasm in ./lerc.
+  it('tells lerc where its wasm is, so a LERC tile can be decoded here too', () => {
+    vi.stubGlobal('Worker', StubWorker);
+
+    createDecoderPool(SOURCE, 1);
+
+    expect(DECODER_REGISTRY.get(LERC_COMPRESSION)).not.toBe(UPSTREAM_LERC_CODEC);
+    expect(DECODER_REGISTRY.get(LERC_COMPRESSION)).toBeInstanceOf(Function);
   });
 
   it('decodes on the main thread when the build inlined no worker', () => {

@@ -1,6 +1,7 @@
 import { DecoderPool, type DecodedPixels, type DecoderPoolOptions } from '@developmentseed/geotiff';
 
 import { DECODER_WORKER_SOURCE } from './decoder-worker-source';
+import { locateLercWasm } from './lerc';
 
 // How many workers decode tiles. deck.gl asks for a viewport's worth at once, so more than one is
 // worth having, but it also throttles itself to six tile requests at a time - so a pool much bigger
@@ -142,6 +143,12 @@ class FallbackDecoderPool extends DecoderPool {
 // an environment with no Worker at all (Node, and happy-dom - so the tests that load the built
 // output don't try to start one either).
 export function createDecoderPool(source: string = DECODER_WORKER_SOURCE, size: number = POOL_SIZE): DecoderPool {
+  // The main thread's own copy of the decoders needs telling where lerc's wasm is just as much as a
+  // worker does - it is what a pool with no workers decodes through, and what FallbackDecoderPool
+  // falls back to. Here rather than at module scope because it is only ever needed by a pool, and a
+  // pool is only built when there is a COG to draw.
+  locateLercWasm();
+
   if (!source || typeof Worker === 'undefined') return new DecoderPool({ createWorker: undefined });
 
   // Rejects as soon as any worker reports it can't run, which is what takes the pool's workers out

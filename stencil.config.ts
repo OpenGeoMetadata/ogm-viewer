@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+
 import { Config } from '@stencil/core';
 
 // The worker that decodes COG tiles off the main thread, and the module its bundled source is
@@ -25,7 +27,31 @@ const UPSTREAM_POOL_MODULE = '@developmentseed/geotiff/dist/pool/pool.js';
 const UPSTREAM_WORKER_FACTORY = 'createWorker: () => new Worker(new URL("./worker.js", import.meta.url), { type: "module" })';
 const MISSING_WORKER_URL = './worker.js';
 
+// lerc ships two builds of itself, and left alone Rollup takes the wrong one. Its package.json names
+// the CommonJS build in both `main` and `browser`, and its exports map's `default` condition is that
+// same file - so unless the `import` condition is asked for, a bare `lerc` resolves there. Converted
+// back into an ES module, that build carries a static `import "url"` out of the branch it takes under
+// Node, and no browser can resolve a bare `url`: the chunk it lands in throws the moment anything
+// imports it, which is every attempt to decode a LERC tile on the main thread, and it puts a Node
+// builtin into published output where a consumer's bundler has to deal with it too. The ES build is
+// the same library with none of that. Only the main-thread bundles need this; the decoder worker is
+// bundled by Rolldown, which asks for `import` and gets the right file on its own.
+//
+// Not every copy in the tree is that package, though: geotiff.js carries a lerc 3 of its own, which
+// is one plain UMD file and has no ES build to be sent to. Whether the sibling is there is the test,
+// rather than which copy it looks like - the answer is the same either way, and only one of them
+// needs asking.
+const LERC_MODULE = 'lerc';
+const LERC_COMMONJS = 'LercDecode.js';
+const LERC_MODULE_BUILD = 'LercDecode.es.js';
+
 const normalize = (id: string) => id.replace(/\\/g, '/');
+
+// The sliver of Rollup's plugin context the plugin below needs. Declared rather than imported: Rollup
+// is not a dependency of this package, since Stencil carries its own copy.
+type Resolver = {
+  resolve(source: string, importer: string | undefined, options: { skipSelf: boolean }): Promise<{ id: string } | null>;
+};
 
 // Bundled once per process and reused: every output target runs its own Rollup build, and there is
 // nothing in the worker to rebuild between them. A watch session that edits WORKER_ENTRY itself
@@ -73,6 +99,34 @@ const inlineDecoderWorker = () => ({
   },
 });
 
+// Sends `lerc` to its ES build rather than the CommonJS one Rollup would otherwise pick; see
+// LERC_MODULE above for why. Resolution is left to whoever would have done it and the answer
+// redirected, so nothing here has to know where the package was installed.
+const resolveLercAsModule = () => ({
+  name: 'ogm-resolve-lerc-as-module',
+  async resolveId(this: Resolver, source: string, importer: string | undefined, options: { skipSelf: boolean }) {
+    if (source !== LERC_MODULE) return null;
+
+    const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
+    if (!resolved) return null;
+
+    // Already there - a newer lerc whose exports map answers `browser` with the ES build, say - and
+    // this plugin has nothing left to do.
+    if (normalize(resolved.id).endsWith(`/${LERC_MODULE_BUILD}`)) return resolved;
+
+    // Loudly rather than quietly, as with the worker factory above: a package laid out differently
+    // must not be left on a build that cannot load in a browser without anyone noticing.
+    if (!normalize(resolved.id).endsWith(`/${LERC_COMMONJS}`)) {
+      throw new Error(
+        `Expected \`${LERC_MODULE}\` to resolve to ${LERC_COMMONJS} or ${LERC_MODULE_BUILD}, and it resolved to ${resolved.id}. Check what it ships now, and update stencil.config.ts.`,
+      );
+    }
+
+    const moduleBuild = `${resolved.id.slice(0, -LERC_COMMONJS.length)}${LERC_MODULE_BUILD}`;
+    return existsSync(moduleBuild) ? { ...resolved, id: moduleBuild } : resolved;
+  },
+});
+
 // Takes upstream's worker URL out of the bundle; see UPSTREAM_POOL_MODULE above for why
 const stripUpstreamDecoderWorker = () => ({
   name: 'ogm-strip-upstream-decoder-worker',
@@ -107,7 +161,7 @@ const verifyNoMissingWorker = () => ({
 export const config: Config = {
   namespace: 'ogm-viewer',
   rollupPlugins: {
-    before: [inlineDecoderWorker(), stripUpstreamDecoderWorker(), verifyNoMissingWorker()],
+    before: [resolveLercAsModule(), inlineDecoderWorker(), stripUpstreamDecoderWorker(), verifyNoMissingWorker()],
   },
   // Off because the check wants package.json's `module`/`types` pointed at dist/components/index.js,
   // and for this output target that file is the Stencil runtime, not a barrel - importing it defines

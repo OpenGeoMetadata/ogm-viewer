@@ -1,3 +1,8 @@
+// Where lerc's wasm module lives, told to the decoder registry before anything can be asked to
+// decode a tile through it. First, and as an import rather than a statement, so that it is in place
+// before the handler below adds its message listener - see the file itself for why that matters.
+import './decoder-worker-lerc';
+
 // What runs inside a COG decoder worker: upstream's own handler, which answers the message protocol
 // its DecoderPool speaks - so the two can never drift out of step, as a copy of the protocol here
 // would. Its only export is that side effect, which is why the bundle that inlines this file has to

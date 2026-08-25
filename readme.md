@@ -254,9 +254,9 @@ The viewer runs work off the main thread in web workers: MapLibre's own, and one
 
 Without either, the map cannot be drawn at all, and COG tiles are decoded on the main thread: slower, but still drawn.
 
-Decoding those tiles needs `'wasm-unsafe-eval'` in `script-src` as well, wherever it happens: the LZW decoder is a WebAssembly module, and a policy that won't instantiate one fails the preview rather than slowing it down - the alert in place of the map quotes the directive that stopped it.
+Decoding those tiles needs `'wasm-unsafe-eval'` in `script-src` as well, wherever it happens: the LZW and LERC decoders are WebAssembly modules, and a policy that won't instantiate one fails the preview rather than slowing it down - the alert in place of the map quotes the directive that stopped it.
 
-The icons the viewer's chrome is drawn with are carried the same way, as data URLs, and Web Awesome draws an icon by fetching whichever URL it is handed - so `connect-src` needs `data:` as well, or every icon comes out blank. The theme asks for nothing: it is adopted as a constructed stylesheet, which no CSP directive covers.
+The icons the viewer's chrome is drawn with are carried the same way, as data URLs, and Web Awesome draws an icon by fetching whichever URL it is handed - so `connect-src` needs `data:` as well, or every icon comes out blank. LERC's WebAssembly module is compiled in as a data URL for the same reason and reached the same way, so it needs nothing further. The theme asks for nothing at all: it is adopted as a constructed stylesheet, which no CSP directive covers.
 
 ## Development
 
