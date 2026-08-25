@@ -64,6 +64,11 @@ const FAKE_GEOTIFF = { crs: 'EPSG:4326' };
 // the real previewer
 class TestDeckCogPreviewer extends DeckCogPreviewer {
   overlay = new FakeOverlay();
+
+  get pool() {
+    return this.decoderPool;
+  }
+
   opened: string[] = [];
   refusal: Error | undefined;
 
@@ -189,6 +194,15 @@ describe('DeckCogPreviewer', () => {
       const ids = previewer.overlay.props.flatMap(p => (p.layers ?? []).map((l: any) => l.id));
       expect(new Set(ids).size).toEqual(1);
     });
+  });
+
+  // Every COG on the page decodes through the same workers: a pool each would put a multiple of the
+  // pool size in workers on a results page of overview maps. See src/lib/decoder.ts.
+  it('decodes through the pool shared with every other COG', () => {
+    const { previewer } = previewFor();
+    const { previewer: other } = previewFor();
+
+    expect(previewer.pool).toBe(other.pool);
   });
 
   // deck.gl's TileLayer has no getBoundingVolume for a globe view and logs an error for every frame

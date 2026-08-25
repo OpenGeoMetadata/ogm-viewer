@@ -246,6 +246,12 @@ Set `bounds` to the area a search is currently filtered to. It's drawn as a box 
 <ogm-overview bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-overview>
 ```
 
+### Content Security Policy
+
+The viewer runs work off the main thread in web workers: MapLibre's own, and one pool that decodes Cloud Optimized GeoTIFF tiles. Both are built from source the bundle carries rather than from files of their own, so a page that sets a Content-Security-Policy needs `blob:` in `worker-src` - or in whichever of `child-src`, `script-src` or `default-src` it falls back to. In a document with an opaque origin, such as a sandboxed iframe, the decoder uses a `data:` URL instead, which a policy would have to allow in the same place.
+
+Without either, the map cannot be drawn at all, and COG tiles are decoded on the main thread: slower, but still drawn.
+
 ## Development
 
 After cloning the repository, install dependencies:
