@@ -11,6 +11,7 @@ import { ResourceKind } from "./lib/resources/resource";
 import { RequestTransform } from "./lib/request";
 import { LayerControl } from "./lib/layers";
 import { ColorRampName } from "./lib/colormap";
+import { LegendEntry } from "./lib/legend";
 import { AnyPreviewer } from "./lib/previewers/factory";
 export { PreviewError } from "./lib/errors";
 export { MapGeoJSONFeature } from "maplibre-gl";
@@ -18,6 +19,7 @@ export { ResourceKind } from "./lib/resources/resource";
 export { RequestTransform } from "./lib/request";
 export { LayerControl } from "./lib/layers";
 export { ColorRampName } from "./lib/colormap";
+export { LegendEntry } from "./lib/legend";
 export { AnyPreviewer } from "./lib/previewers/factory";
 export namespace Components {
     interface OgmAlerts {
@@ -54,6 +56,10 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmLegend {
+        /**
+          * @default []
+         */
+        "entries": LegendEntry[];
         /**
           * @default []
          */
@@ -438,6 +444,10 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface OgmLegend {
+        /**
+          * @default []
+         */
+        "entries"?: LegendEntry[];
         /**
           * @default []
          */

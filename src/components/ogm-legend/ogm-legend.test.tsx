@@ -1,14 +1,15 @@
 import { render, describe, it, expect, h } from '@stencil/vitest';
 
 import type { LayerControl } from '../../lib/layers';
+import type { LegendEntry } from '../../lib/legend';
 
 const item = (id: string, title: string, overrides: Partial<LayerControl> = {}): LayerControl => ({ id, title, visible: true, opacity: 1, ...overrides });
 
 const RAMPED = item('elevation', 'Groundwater Elevation', { colorRamp: 'viridis', colorRampRange: [-184.48, 607.27] });
 const VECTOR = item('districts', 'Districts');
 
-const renderLegend = async (layers: LayerControl[]) => {
-  const { root } = await render(<ogm-legend layers={layers}></ogm-legend>);
+const renderLegend = async (layers: LayerControl[] = [], entries: LegendEntry[] = []) => {
+  const { root } = await render(<ogm-legend layers={layers} entries={entries}></ogm-legend>);
   return root.shadowRoot as ShadowRoot;
 };
 
@@ -20,6 +21,23 @@ describe('ogm-legend', () => {
 
   it('shows nothing for an empty layer list', async () => {
     const shadowRoot = await renderLegend([]);
+    expect(shadowRoot.querySelector('.panel')).toBeNull();
+  });
+
+  it('shows named color swatches without a ramped layer', async () => {
+    const entries = [
+      { label: 'Available map', color: '#123456' },
+      { label: 'Unavailable map', color: '#abcdef' },
+      { label: 'Selected map', color: '#fedcba' },
+    ];
+    const shadowRoot = await renderLegend([], entries);
+
+    expect(Array.from(shadowRoot.querySelectorAll('.swatch-entry')).map(el => el.textContent?.trim())).toEqual(entries.map(entry => entry.label));
+    expect(Array.from(shadowRoot.querySelectorAll<HTMLElement>('.swatch')).map(el => el.style.backgroundColor)).toEqual(entries.map(entry => entry.color));
+  });
+
+  it('shows nothing without either named colors or a ramp', async () => {
+    const shadowRoot = await renderLegend();
     expect(shadowRoot.querySelector('.panel')).toBeNull();
   });
 

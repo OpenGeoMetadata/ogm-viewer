@@ -74,6 +74,13 @@ ogm-legend {
   background-color: var(--wa-color-surface-default);
 }
 
+/* Popups live inside #map while the legend is its absolutely positioned sibling at z-index 3.
+   MapLibre gives popup containers no z-index of their own, so lift the whole container - content
+   and tip together - over the legend whenever the two overlap. */
+.maplibregl-popup {
+  z-index: 4;
+}
+
 /* Inspection popups. Vertical scrolling (when content is too tall) is handled by the
    <wa-scroller> inside ogm-attributes, not here - that's what gives it the fading shadow cue. */
 .maplibregl-popup-content {

@@ -98,6 +98,7 @@ export { default as WmtsPreviewer } from './lib/previewers/wmts';
 export { default as Theme } from './lib/themes/theme';
 export { default as MapLibreTheme, darkBasemapStyle, lightBasemapStyle, type MapLibreStyle } from './lib/themes/maplibre';
 export { isLayerDrawn, resolveLayerState, type Layer, type LayerControl, type LayerState, type PreviewStyleLayer } from './lib/layers';
+export type { LegendEntry } from './lib/legend';
 
 // Where to point a camera to see a record, or a set of them, at once. `clampToHemisphere` is the
 // one that isn't obvious: a globe camera has no answer for a box wider than the half of the world
