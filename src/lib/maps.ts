@@ -240,14 +240,15 @@ const cameraForBounds = (map: maplibregl.Map, bounds: maplibregl.LngLatBoundsLik
  *
  * Both of them take exactly this - a locator's one record and an overview's several - so a reader can
  * pan and zoom and nothing else. These maps are read at a glance, and one that has been turned or
- * tilted can't be compared with the next one, so neither is offered. Cooperative gestures because a
- * small map inside a page must not eat the page's scroll, which is also why both of them carry zoom
- * buttons: a wheel needs the command key once this is on. And below createMap's own floor of 2,
- * because one record can cover the world, and an extent that wide framed with a gap around it inside
- * a container this small wants a camera further out than a map of data ever does.
+ * tilted can't be compared with the next one, so neither is offered. And below createMap's own floor
+ * of 2, because one record can cover the world, and an extent that wide framed with a gap around it
+ * inside a container this small wants a camera further out than a map of data ever does.
+ *
+ * Cooperative gestures isn't in here even though both callers want it on by default: each of them
+ * offers it as a prop, so each has to be able to pass its own answer through rather than have this
+ * override it.
  */
 export const LOCATION_MAP: MapExtras = {
-  cooperativeGestures: true,
   dragRotate: false,
   touchPitch: false,
   minZoom: 1,

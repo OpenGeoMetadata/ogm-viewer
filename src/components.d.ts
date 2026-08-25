@@ -67,6 +67,11 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmLocator {
+        /**
+          * Whether a wheel needs the command key, and a touch drag needs a second finger, before either reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map embedded in a page must not eat the scroll a reader meant for the page around it. A page that gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+          * @default true
+         */
+        "cooperativeGestures": boolean;
         "darkBasemap"?: string;
         "lightBasemap"?: string;
         "previewer"?: LocationPreviewer;
@@ -78,6 +83,11 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmMap {
+        /**
+          * Whether a wheel needs the command key, and a touch drag needs a second finger, before either reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map embedded in a page must not eat the scroll a reader meant for the page around it. A page that gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+          * @default true
+         */
+        "cooperativeGestures": boolean;
         "darkBasemap"?: string;
         "easeMapTo": (options: maplibregl.EaseToOptions) => Promise<maplibregl.Map>;
         "lightBasemap"?: string;
@@ -117,6 +127,11 @@ export namespace Components {
      * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
      */
     interface OgmOverview {
+        /**
+          * Whether a wheel needs the command key, and a touch drag needs a second finger, before either reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map embedded in a page must not eat the scroll a reader meant for the page around it. A page that gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+          * @default true
+         */
+        "cooperativeGestures": boolean;
         "darkBasemap"?: string;
         /**
           * Whether a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through `boundsChange`; nothing here answers it, because what a new area means is the embedding page's to say. The help text is a prop because GeoBlacklight runs the strings for the control this replaces through Rails I18n.
@@ -148,6 +163,10 @@ export namespace Components {
         "viewBounds"?: maplibregl.LngLatBoundsLike | string;
     }
     interface OgmPreview {
+        /**
+          * @default true
+         */
+        "cooperativeGestures": boolean;
         "darkBasemap"?: string;
         "lightBasemap"?: string;
         "previewer": AnyPreviewer;
@@ -471,6 +490,11 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface OgmLocator {
+        /**
+          * Whether a wheel needs the command key, and a touch drag needs a second finger, before either reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map embedded in a page must not eat the scroll a reader meant for the page around it. A page that gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+          * @default true
+         */
+        "cooperativeGestures"?: boolean;
         "darkBasemap"?: string;
         "lightBasemap"?: string;
         "previewer"?: LocationPreviewer;
@@ -482,6 +506,11 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface OgmMap {
+        /**
+          * Whether a wheel needs the command key, and a touch drag needs a second finger, before either reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map embedded in a page must not eat the scroll a reader meant for the page around it. A page that gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+          * @default true
+         */
+        "cooperativeGestures"?: boolean;
         "darkBasemap"?: string;
         "lightBasemap"?: string;
         "onMapIdle"?: (event: OgmMapCustomEvent<void>) => void;
@@ -524,6 +553,11 @@ declare namespace LocalJSX {
      * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
      */
     interface OgmOverview {
+        /**
+          * Whether a wheel needs the command key, and a touch drag needs a second finger, before either reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map embedded in a page must not eat the scroll a reader meant for the page around it. A page that gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+          * @default true
+         */
+        "cooperativeGestures"?: boolean;
         "darkBasemap"?: string;
         /**
           * Whether a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through `boundsChange`; nothing here answers it, because what a new area means is the embedding page's to say. The help text is a prop because GeoBlacklight runs the strings for the control this replaces through Rails I18n.
@@ -560,6 +594,10 @@ declare namespace LocalJSX {
         "viewBounds"?: maplibregl.LngLatBoundsLike | string;
     }
     interface OgmPreview {
+        /**
+          * @default true
+         */
+        "cooperativeGestures"?: boolean;
         "darkBasemap"?: string;
         "lightBasemap"?: string;
         "previewer"?: AnyPreviewer;
@@ -627,12 +665,14 @@ declare namespace LocalJSX {
         "darkBasemap": string;
         "lightBasemap": string;
         "recordUrl": string;
+        "cooperativeGestures": boolean;
     }
     interface OgmMapAttributes {
         "theme": 'light' | 'dark';
         "darkBasemap": string;
         "lightBasemap": string;
         "padding": number;
+        "cooperativeGestures": boolean;
     }
     interface OgmMenubarAttributes {
         "theme": 'light' | 'dark';
@@ -651,12 +691,14 @@ declare namespace LocalJSX {
         "searchHelpText": string;
         "searchBounds": maplibregl.LngLatBoundsLike | string;
         "viewBounds": maplibregl.LngLatBoundsLike | string;
+        "cooperativeGestures": boolean;
     }
     interface OgmPreviewAttributes {
         "theme": 'light' | 'dark';
         "darkBasemap": string;
         "lightBasemap": string;
         "sidebarPadding": number;
+        "cooperativeGestures": boolean;
     }
     interface OgmPreviewsAttributes {
         "theme": 'light' | 'dark';

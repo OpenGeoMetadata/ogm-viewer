@@ -20,6 +20,7 @@ export class OgmPreview {
   @Prop() lightBasemap?: string;
   @Prop() previewer: AnyPreviewer;
   @Prop() sidebarPadding: number;
+  @Prop() cooperativeGestures: boolean = true;
   @State() error?: PreviewError;
 
   // Before the first frame, so nothing paints unstyled
@@ -45,7 +46,16 @@ export class OgmPreview {
     if (this.previewer.renderer === 'image') {
       return <ogm-image theme={this.theme} previewer={this.previewer} padding={this.sidebarPadding}></ogm-image>;
     }
-    return <ogm-map theme={this.theme} darkBasemap={this.darkBasemap} lightBasemap={this.lightBasemap} previewer={this.previewer} padding={this.sidebarPadding}></ogm-map>;
+    return (
+      <ogm-map
+        theme={this.theme}
+        darkBasemap={this.darkBasemap}
+        lightBasemap={this.lightBasemap}
+        previewer={this.previewer}
+        padding={this.sidebarPadding}
+        cooperativeGestures={this.cooperativeGestures}
+      ></ogm-map>
+    );
   }
 
   // No scope on an element of our own, unlike the components below: nothing we draw reads a color -

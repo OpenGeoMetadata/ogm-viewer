@@ -193,6 +193,14 @@ document.querySelector('ogm-previews').previewers = [new GeoJsonPreviewer(geoJso
 
 `record` and `previewers` are DOM properties too. Neither component has an intrinsic size, so the embedding page should set it via CSS.
 
+#### Cooperative gestures
+
+`<ogm-preview>`, `<ogm-locator>`, and `<ogm-overview>` all require a reader to hold Ctrl (⌘ on a Mac) to zoom the map with the scroll wheel, and a second finger to pan it on a touchscreen, so that a map sitting inside a page doesn't steal the scroll a reader meant for the page around it. Set `cooperative-gestures` to `false` on any of them to turn this off and answer to the wheel and a single touch right away:
+
+```html
+<ogm-locator record-url="https://example.com/record.json" cooperative-gestures="false"></ogm-locator>
+```
+
 #### Locator maps
 
 To show where a single record is on earth, you can use the `<ogm-locator>` component. Give it a `record-url` and it fetches and draws that record's full geometry (`locn_geometry`) or its bounding box (`dcat_bbox`) if there's no geometry available - the same URL and format `<ogm-viewer>` takes:

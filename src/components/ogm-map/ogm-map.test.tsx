@@ -267,4 +267,29 @@ describe('ogm-map', () => {
 
     expect(consoleError).not.toHaveBeenCalled();
   });
+
+  it('holds cooperative gestures on by default', async () => {
+    const { el } = await renderMap();
+    expect((el as unknown as { cooperativeGestures: boolean }).cooperativeGestures).toBe(true);
+  });
+
+  it('answers a wheel or a single touch right away only once turned off', async () => {
+    const { el } = await renderMap();
+    const map = { cooperativeGestures: { enable: vi.fn(), disable: vi.fn() }, remove: vi.fn() };
+    Object.assign(el, { map });
+    const withCooperativeGestures = el as unknown as { cooperativeGestures: boolean; onCooperativeGesturesChange: () => void };
+
+    withCooperativeGestures.cooperativeGestures = false;
+    withCooperativeGestures.onCooperativeGesturesChange();
+
+    expect(map.cooperativeGestures.disable).toHaveBeenCalled();
+    expect(map.cooperativeGestures.enable).not.toHaveBeenCalled();
+
+    map.cooperativeGestures.disable.mockClear();
+    withCooperativeGestures.cooperativeGestures = true;
+    withCooperativeGestures.onCooperativeGesturesChange();
+
+    expect(map.cooperativeGestures.enable).toHaveBeenCalled();
+    expect(map.cooperativeGestures.disable).not.toHaveBeenCalled();
+  });
 });
