@@ -7,6 +7,7 @@ const item = (id: string, title: string, overrides: Partial<LayerControl> = {}):
 
 const ONE = [item('districts', 'Districts', { opacity: 0.8 })];
 const TWO = [item('districts', 'Districts'), item('places', 'Places')];
+const RAMPED = [item('elevation', 'Groundwater Elevation', { colorRamp: 'viridis', colorRampRange: [-184.48, 607.27] })];
 
 const renderLayers = async (layers: LayerControl[]) => {
   const { root } = await render(<ogm-layers layers={layers}></ogm-layers>);
@@ -100,5 +101,74 @@ describe('ogm-layers', () => {
     expect(shadowRoot.querySelector('.panel')?.getAttribute('aria-label')).toEqual('Layer controls');
     expect(shadowRoot.querySelector('.layer .visibility')?.getAttribute('aria-label')).toEqual('Districts');
     expect(shadowRoot.querySelector('.opacity')?.getAttribute('aria-label')).toEqual('Opacity of Districts');
+  });
+
+  // A ramp picker is one more row in a layer's own <li>, not a control of its own - see
+  // src/lib/previewers/cog-pipeline.ts for what actually makes a layer rampable.
+  describe('a rampable layer', () => {
+    it('shows no ramp picker for an ordinary layer', async () => {
+      const shadowRoot = await renderLayers(ONE);
+      expect(shadowRoot.querySelector('.ramps')).toBeNull();
+    });
+
+    it('shows a swatch for every offered ramp', async () => {
+      const shadowRoot = await renderLayers(RAMPED);
+      // One label wrapping one radio input per ramp - see COLOR_RAMPS in src/lib/colormap.ts
+      expect(shadowRoot.querySelectorAll('.swatch')).toHaveLength(12);
+      expect(shadowRoot.querySelectorAll('.swatch input[type="radio"]')).toHaveLength(12);
+    });
+
+    it("marks the layer's current ramp as the checked swatch, and no other", async () => {
+      const shadowRoot = await renderLayers(RAMPED);
+      const checked = Array.from(shadowRoot.querySelectorAll<HTMLInputElement>('.swatch input')).filter(input => input.checked);
+
+      expect(checked).toHaveLength(1);
+      expect(checked[0].value).toEqual('viridis');
+    });
+
+    it('groups the swatches as one radio group per layer, not shared across layers', async () => {
+      const shadowRoot = await renderLayers([...RAMPED, item('other-cog', 'Other', { colorRamp: 'magma' })]);
+      const names = new Set(Array.from(shadowRoot.querySelectorAll<HTMLInputElement>('.swatch input')).map(input => input.name));
+
+      expect(names.size).toEqual(2);
+    });
+
+    it('reports when the user picks a different ramp', async () => {
+      const { root, waitForChanges } = await render(<ogm-layers layers={RAMPED}></ogm-layers>);
+      const changes: { id: string; colorRamp: string }[] = [];
+      root.addEventListener('layerColorRampChange', (event: Event) => changes.push((event as CustomEvent<{ id: string; colorRamp: string }>).detail));
+
+      const swatches = root.shadowRoot!.querySelectorAll<HTMLInputElement>('.swatch input');
+      const magma = Array.from(swatches).find(input => input.value === 'magma')!;
+      magma.checked = true;
+      magma.dispatchEvent(new Event('change', { bubbles: true }));
+      await waitForChanges();
+
+      expect(changes).toEqual([{ id: 'elevation', colorRamp: 'magma' }]);
+    });
+
+    // happy-dom, which this test renders into, has neither createImageBitmap nor OffscreenCanvas -
+    // decodeColormapSprite needs both, so componentWillLoad's sprite fetch genuinely fails here,
+    // exercising the same try/catch a real browser would only hit over a truly broken sprite. The
+    // gradient itself - what a *successful* decode draws each swatch in - is colormap.ts's own
+    // rampGradient(), already covered directly in colormap.test.ts with no DOM involved at all.
+    // What's worth proving here is narrower: that a decode failure costs the picker its gradients
+    // and nothing else.
+    it('still renders every swatch, without a gradient, when the sprite fails to decode', async () => {
+      const shadowRoot = await renderLayers(RAMPED);
+      const swatches = shadowRoot.querySelectorAll<HTMLElement>('.swatch');
+
+      expect(swatches).toHaveLength(12);
+      expect(Array.from(swatches).every(swatch => swatch.style.background === '')).toBe(true);
+      // Still fully working as a picker, sprite or no sprite
+      expect(shadowRoot.querySelector<HTMLInputElement>('.swatch input[value="viridis"]')?.checked).toBe(true);
+    });
+
+    it('names the picker and each swatch for assistive technology', async () => {
+      const shadowRoot = await renderLayers(RAMPED);
+
+      expect(shadowRoot.querySelector('.ramps')?.getAttribute('aria-label')).toEqual('Color ramp for Groundwater Elevation');
+      expect(shadowRoot.querySelector('.swatch input[value="viridis"]')?.getAttribute('aria-label')).toEqual('Viridis');
+    });
   });
 });

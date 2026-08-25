@@ -8,7 +8,7 @@ import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import { dedupeFeatures } from '../../lib/features';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
 import { createMap, fitBounds, openingCamera, setBasemap, whenSized } from '../../lib/maps';
-import { isLayerDrawn, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
+import { isLayerDrawn, rampedLayers, resolveLayerState, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
 import LayersControl from '../../lib/layers-control';
 import InspectableRasterPreviewer from '../../lib/previewers/inspectable-raster';
 import type MapPreviewer from '../../lib/previewers/map';
@@ -396,6 +396,12 @@ export class OgmMap {
     this.setLayerState(event.detail.id, { opacity: event.detail.opacity });
   }
 
+  @Listen('layerColorRampChange')
+  handleLayerColorRampChange(event: CustomEvent<{ id: string; colorRamp: LayerState['colorRamp'] }>) {
+    event.stopPropagation();
+    this.setLayerState(event.detail.id, { colorRamp: event.detail.colorRamp });
+  }
+
   // Used when the user toggles the summary checkbox to show/hide all layers at once
   @Listen('allLayersVisibilityChange')
   handleAllLayersVisibilityChange(event: CustomEvent<boolean>) {
@@ -418,10 +424,16 @@ export class OgmMap {
 
   // Update the layer state for a layer; return true if it just changed
   // to hidden so we can clear popups/highlights
+  //
+  // The starting point for `current` has to be resolveLayerState's own, not a copy of the same two
+  // fields written out here by hand: that copy is how a ramp choice, once LayerState grew one,
+  // would have gone missing on the very next opacity change - `{...current, ...change}` merges the
+  // rest of `current` forward untouched, but only if `current` already had every field a layer
+  // might carry, which a hand-written `{ visible, opacity }` never will once a third one exists.
   private recordLayerState(id: string, change: Partial<LayerState>): boolean {
     const layer = this.previewer?.previewLayers.find(previewLayer => previewLayer.id === id);
     if (!layer) return false;
-    const current = this.layerState.get(id) ?? { visible: true, opacity: layer.defaultOpacity };
+    const current = this.layerState.get(id) ?? resolveLayerState(layer, this.layerState);
     const next = { ...current, ...change };
     this.layerState.set(id, next);
     return isLayerDrawn(current) && !isLayerDrawn(next);
@@ -628,22 +640,31 @@ export class OgmMap {
     return this.previewer?.visibleLayerIds || [];
   }
 
-  // The layer panel is a sibling of #map rather than a MapLibre control, even though the button that
-  // opens it is one. MapLibre owns the children of #map, so anything Stencil renders in there is
-  // fighting it for the same DOM - the reason ogm-attributes has to be built by hand.
+  // The layer panel and the legend are siblings of #map rather than MapLibre controls, even though
+  // the button that opens the panel is one. MapLibre owns the children of #map, so anything Stencil
+  // renders in there is fighting it for the same DOM - the reason ogm-attributes has to be built by
+  // hand.
   //
   // Everything is wrapped in .container because that is where the Web Awesome scope has to go: the
   // classes waScope() applies are matched by the theme adopted into this root, and a plain class
   // selector in a shadow root's stylesheet never matches the host of that root. On the Host alone
   // they would establish nothing, which is what a bare <ogm-map> used to draw with - every color
-  // empty. The panel needs them as much as the map does, and it isn't inside #map, so the scope goes
-  // above both.
+  // empty. The panel and the legend need them as much as the map does, and neither is inside #map,
+  // so the scope goes above all three.
+  //
+  // The legend is shown independently of the panel, unlike layersPanelOpen below: it exists to be
+  // read while looking at the map, which is exactly when the panel that would have opened it is
+  // closed. But it is gated the same way the panel is - mounted only when there's something for it
+  // to show, via rampedLayers(this.layerControls) rather than unconditionally with the component
+  // left to render null on its own. Both would look right to a reader; only one of them is - see
+  // the note on this at the top of ogm-legend.tsx.
   render() {
     return (
       <Host class={waScope(this.theme)}>
         <div class={`container ${waScope(this.theme)}`}>
           <div id="map"></div>
           {this.layersPanelOpen && <ogm-layers theme={this.theme} layers={this.layerControls}></ogm-layers>}
+          {rampedLayers(this.layerControls).length > 0 && <ogm-legend theme={this.theme} layers={this.layerControls}></ogm-legend>}
         </div>
       </Host>
     );

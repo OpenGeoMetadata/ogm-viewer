@@ -10,12 +10,14 @@ import { MapGeoJSONFeature } from "maplibre-gl";
 import { ResourceKind } from "./lib/resources/resource";
 import { RequestTransform } from "./lib/request";
 import { LayerControl } from "./lib/layers";
+import { ColorRampName } from "./lib/colormap";
 import { AnyPreviewer } from "./lib/previewers/factory";
 export { PreviewError } from "./lib/errors";
 export { MapGeoJSONFeature } from "maplibre-gl";
 export { ResourceKind } from "./lib/resources/resource";
 export { RequestTransform } from "./lib/request";
 export { LayerControl } from "./lib/layers";
+export { ColorRampName } from "./lib/colormap";
 export { AnyPreviewer } from "./lib/previewers/factory";
 export namespace Components {
     interface OgmAlerts {
@@ -45,6 +47,13 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmLayers {
+        /**
+          * @default []
+         */
+        "layers": LayerControl[];
+        "theme": 'light' | 'dark';
+    }
+    interface OgmLegend {
         /**
           * @default []
          */
@@ -236,6 +245,7 @@ declare global {
     interface HTMLOgmLayersElementEventMap {
         "layerVisibilityChange": { id: string; visible: boolean };
         "layerOpacityChange": { id: string; opacity: number };
+        "layerColorRampChange": { id: string; colorRamp: ColorRampName };
         "allLayersVisibilityChange": boolean;
     }
     interface HTMLOgmLayersElement extends Components.OgmLayers, HTMLStencilElement {
@@ -251,6 +261,12 @@ declare global {
     var HTMLOgmLayersElement: {
         prototype: HTMLOgmLayersElement;
         new (): HTMLOgmLayersElement;
+    };
+    interface HTMLOgmLegendElement extends Components.OgmLegend, HTMLStencilElement {
+    }
+    var HTMLOgmLegendElement: {
+        prototype: HTMLOgmLegendElement;
+        new (): HTMLOgmLegendElement;
     };
     interface HTMLOgmLocatorElement extends Components.OgmLocator, HTMLStencilElement {
     }
@@ -367,6 +383,7 @@ declare global {
         "ogm-attributes": HTMLOgmAttributesElement;
         "ogm-image": HTMLOgmImageElement;
         "ogm-layers": HTMLOgmLayersElement;
+        "ogm-legend": HTMLOgmLegendElement;
         "ogm-locator": HTMLOgmLocatorElement;
         "ogm-map": HTMLOgmMapElement;
         "ogm-menubar": HTMLOgmMenubarElement;
@@ -415,8 +432,16 @@ declare namespace LocalJSX {
          */
         "layers"?: LayerControl[];
         "onAllLayersVisibilityChange"?: (event: OgmLayersCustomEvent<boolean>) => void;
+        "onLayerColorRampChange"?: (event: OgmLayersCustomEvent<{ id: string; colorRamp: ColorRampName }>) => void;
         "onLayerOpacityChange"?: (event: OgmLayersCustomEvent<{ id: string; opacity: number }>) => void;
         "onLayerVisibilityChange"?: (event: OgmLayersCustomEvent<{ id: string; visible: boolean }>) => void;
+        "theme"?: 'light' | 'dark';
+    }
+    interface OgmLegend {
+        /**
+          * @default []
+         */
+        "layers"?: LayerControl[];
         "theme"?: 'light' | 'dark';
     }
     interface OgmLocator {
@@ -552,6 +577,9 @@ declare namespace LocalJSX {
     interface OgmLayersAttributes {
         "theme": 'light' | 'dark';
     }
+    interface OgmLegendAttributes {
+        "theme": 'light' | 'dark';
+    }
     interface OgmLocatorAttributes {
         "theme": 'light' | 'dark';
         "recordUrl": string;
@@ -598,6 +626,7 @@ declare namespace LocalJSX {
         "ogm-attributes": Omit<OgmAttributes, keyof OgmAttributesAttributes> & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes]?: OgmAttributes[K] } & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes as `attr:${K}`]?: OgmAttributesAttributes[K] } & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes as `prop:${K}`]?: OgmAttributes[K] };
         "ogm-image": Omit<OgmImage, keyof OgmImageAttributes> & { [K in keyof OgmImage & keyof OgmImageAttributes]?: OgmImage[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `attr:${K}`]?: OgmImageAttributes[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `prop:${K}`]?: OgmImage[K] };
         "ogm-layers": Omit<OgmLayers, keyof OgmLayersAttributes> & { [K in keyof OgmLayers & keyof OgmLayersAttributes]?: OgmLayers[K] } & { [K in keyof OgmLayers & keyof OgmLayersAttributes as `attr:${K}`]?: OgmLayersAttributes[K] } & { [K in keyof OgmLayers & keyof OgmLayersAttributes as `prop:${K}`]?: OgmLayers[K] };
+        "ogm-legend": Omit<OgmLegend, keyof OgmLegendAttributes> & { [K in keyof OgmLegend & keyof OgmLegendAttributes]?: OgmLegend[K] } & { [K in keyof OgmLegend & keyof OgmLegendAttributes as `attr:${K}`]?: OgmLegendAttributes[K] } & { [K in keyof OgmLegend & keyof OgmLegendAttributes as `prop:${K}`]?: OgmLegend[K] };
         "ogm-locator": Omit<OgmLocator, keyof OgmLocatorAttributes> & { [K in keyof OgmLocator & keyof OgmLocatorAttributes]?: OgmLocator[K] } & { [K in keyof OgmLocator & keyof OgmLocatorAttributes as `attr:${K}`]?: OgmLocatorAttributes[K] } & { [K in keyof OgmLocator & keyof OgmLocatorAttributes as `prop:${K}`]?: OgmLocator[K] };
         "ogm-map": Omit<OgmMap, keyof OgmMapAttributes> & { [K in keyof OgmMap & keyof OgmMapAttributes]?: OgmMap[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `attr:${K}`]?: OgmMapAttributes[K] } & { [K in keyof OgmMap & keyof OgmMapAttributes as `prop:${K}`]?: OgmMap[K] };
         "ogm-menubar": Omit<OgmMenubar, keyof OgmMenubarAttributes> & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes]?: OgmMenubar[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `attr:${K}`]?: OgmMenubarAttributes[K] } & { [K in keyof OgmMenubar & keyof OgmMenubarAttributes as `prop:${K}`]?: OgmMenubar[K] };
@@ -617,6 +646,7 @@ declare module "@stencil/core" {
             "ogm-attributes": LocalJSX.IntrinsicElements["ogm-attributes"] & JSXBase.HTMLAttributes<HTMLOgmAttributesElement>;
             "ogm-image": LocalJSX.IntrinsicElements["ogm-image"] & JSXBase.HTMLAttributes<HTMLOgmImageElement>;
             "ogm-layers": LocalJSX.IntrinsicElements["ogm-layers"] & JSXBase.HTMLAttributes<HTMLOgmLayersElement>;
+            "ogm-legend": LocalJSX.IntrinsicElements["ogm-legend"] & JSXBase.HTMLAttributes<HTMLOgmLegendElement>;
             "ogm-locator": LocalJSX.IntrinsicElements["ogm-locator"] & JSXBase.HTMLAttributes<HTMLOgmLocatorElement>;
             "ogm-map": LocalJSX.IntrinsicElements["ogm-map"] & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
             "ogm-menubar": LocalJSX.IntrinsicElements["ogm-menubar"] & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;

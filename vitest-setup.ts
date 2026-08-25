@@ -8,6 +8,7 @@ import './dist/components/ogm-alerts.js';
 import './dist/components/ogm-attributes.js';
 import './dist/components/ogm-image.js';
 import './dist/components/ogm-layers.js';
+import './dist/components/ogm-legend.js';
 import './dist/components/ogm-locator.js';
 import './dist/components/ogm-map.js';
 import './dist/components/ogm-menubar.js';
