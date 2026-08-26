@@ -176,20 +176,23 @@ describe('ogm-map', () => {
     expect(scope.querySelector('#map')).toBeTruthy();
   });
 
-  // GeoBlacklight hands over its own basemap this way - a CARTO name for convenience, or a URL to
-  // any style document - and componentDidLoad runs far enough to build the theme even though it never
-  // gets as far as a map here; see the note on renderMap above.
+  // GeoBlacklight hands over its own basemap this way - a URL to a style document for each mode -
+  // and componentDidLoad runs far enough to build the theme even though it never gets as far as a
+  // map here; see the note on renderMap above.
   it('builds its theme with the caller’s own basemaps', async () => {
     const container = document.createElement('div');
     containers.push(container);
     document.body.appendChild(container);
-    await stencilRender(<ogm-map darkBasemap="voyager" lightBasemap="https://example.com/style.json"></ogm-map>, container);
-    const el = container.firstElementChild as HTMLElement & { componentOnReady?: () => Promise<unknown>; mapTheme?: { darkBasemap?: string; lightBasemap?: string } };
+    await stencilRender(<ogm-map darkBasemap="https://example.com/dark.json" lightBasemap="https://example.com/light.json"></ogm-map>, container);
+    const el = container.firstElementChild as HTMLElement & {
+      componentOnReady?: () => Promise<unknown>;
+      mapTheme?: { darkBasemap?: string; lightBasemap?: string };
+    };
     await el.componentOnReady?.();
     consoleError.mockClear();
 
-    expect(el.mapTheme?.darkBasemap).toBe('voyager');
-    expect(el.mapTheme?.lightBasemap).toBe('https://example.com/style.json');
+    expect(el.mapTheme?.darkBasemap).toBe('https://example.com/dark.json');
+    expect(el.mapTheme?.lightBasemap).toBe('https://example.com/light.json');
   });
 
   // Left to itself MapLibre fits bounds to the very edges of the canvas, which puts a record's own

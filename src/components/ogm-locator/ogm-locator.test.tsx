@@ -12,7 +12,7 @@ import { adoptWebAwesomeTheme } from '../../lib/init';
 import LocationPreviewer from '../../lib/previewers/location';
 import OgmRecord, { type GeoBlacklightSchemaAardvark } from '../../lib/record';
 import LocationResource from '../../lib/resources/location';
-import MapLibreTheme, { darkBasemapStyle, resolveBasemapStyle } from '../../lib/themes/maplibre';
+import MapLibreTheme, { darkBasemapStyle } from '../../lib/themes/maplibre';
 
 // Enough of a MapLibre map to draw one location on, to be pointed at it, and to hang the three
 // controls off. MapLibre's own controls read a good deal of this as they are added - the titles to
@@ -439,18 +439,18 @@ describe('ogm-locator', () => {
     expect(drawn(map)).toEqual(['one-location-fill', 'one-location-outline']);
   });
 
-  // GeoBlacklight hands over its own basemap this way - a CARTO name for convenience, or a URL to any
-  // style document - and each mode's override is independent of the other's.
+  // GeoBlacklight hands over its own basemap this way - a URL to any style document - and each
+  // mode's override is independent of the other's.
   it('swaps in a caller’s own basemap for the mode it names one for', async () => {
     const { el, map } = await renderLocator();
 
     el.theme = 'dark';
-    el.darkBasemap = 'voyager';
+    el.darkBasemap = 'https://example.com/dark.json';
     const swapped = el.onThemeChange();
     map.fire('style.load');
     await swapped;
 
-    expect(map.setStyle).toHaveBeenCalledWith(resolveBasemapStyle('voyager'));
+    expect(map.setStyle).toHaveBeenCalledWith('https://example.com/dark.json');
   });
 
   it('takes its map down with it', async () => {

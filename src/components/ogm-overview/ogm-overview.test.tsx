@@ -14,7 +14,7 @@ import LocationPreviewer from '../../lib/previewers/location';
 import OgmRecord, { type GeoBlacklightSchemaAardvark } from '../../lib/record';
 import LocationResource from '../../lib/resources/location';
 import { HIGHLIGHT_BOUNDS, markerImageId, RESULT_MARKERS, RESULT_NUMBERS, SEARCH_BOUNDS } from '../../lib/results';
-import MapLibreTheme, { darkBasemapStyle, resolveBasemapStyle } from '../../lib/themes/maplibre';
+import MapLibreTheme, { darkBasemapStyle } from '../../lib/themes/maplibre';
 
 // Enough of a MapLibre map to draw numbered results on, to be pointed at them, and to hang the
 // controls off. MapLibre's own controls read a good deal of this as they are added - the titles to
@@ -1320,18 +1320,18 @@ describe('ogm-overview theme', () => {
     expect(layerIds(map)).toEqual(ALL_LAYERS);
   });
 
-  // GeoBlacklight hands over its own basemap this way - a CARTO name for convenience, or a URL to any
-  // style document - and each mode's override is independent of the other's.
+  // GeoBlacklight hands over its own basemap this way - a URL to any style document - and each
+  // mode's override is independent of the other's.
   it('swaps in a caller’s own basemap for the mode it names one for', async () => {
     const { el, map } = await renderOverview();
 
     el.theme = 'dark';
-    el.darkBasemap = 'voyager';
+    el.darkBasemap = 'https://example.com/dark.json';
     const swapped = el.onThemeChange();
     map.fire('style.load');
     await swapped;
 
-    expect(map.setStyle).toHaveBeenCalledWith(resolveBasemapStyle('voyager'));
+    expect(map.setStyle).toHaveBeenCalledWith('https://example.com/dark.json');
   });
 });
 
