@@ -58,17 +58,23 @@ To programmatically control dark mode, you can use the `theme` attribute with a 
 
 ### Basemaps
 
-By default, the viewer draws on one of [CARTO](https://carto.com/basemaps)'s basemaps: Dark Matter in dark mode, Positron in light mode. To use a different one for either mode, set `dark-basemap` and/or `light-basemap` to one of CARTO's own style names (`positron`, `dark-matter`, `voyager`, or any of those with `-nolabels`):
-
-```html
-<ogm-viewer record-url="https://example.com/record.json" dark-basemap="voyager" light-basemap="voyager"></ogm-viewer>
-```
-
-Or set either to a URL, for a basemap of your own from CARTO or anywhere else that serves a [MapLibre style document](https://maplibre.org/maplibre-style-spec/):
+By default, the viewer draws on one of [CARTO](https://carto.com/basemaps)'s basemaps: Dark Matter in dark mode, Positron in light mode. To use a different one for either mode, set `dark-basemap` and/or `light-basemap` to a URL for a [MapLibre style document](https://maplibre.org/maplibre-style-spec/), from CARTO or anywhere else:
 
 ```html
 <ogm-viewer record-url="https://example.com/record.json" light-basemap="https://api.maptiler.com/maps/basic-v2/style.json?key=your-key"></ogm-viewer>
 ```
+
+CARTO watermarks a basemap requested without an API key. If you have [your own CARTO API key](https://carto.com/basemaps/apikey/), build the full style URL yourself and pass that:
+
+```html
+<ogm-viewer
+  record-url="https://example.com/record.json"
+  dark-basemap="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json?key=your-key"
+  light-basemap="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json?key=your-key"
+></ogm-viewer>
+```
+
+You can find basemaps that don't require an API key to use offered by [OpenFreeMap](https://openfreemap.org/quick_start/).
 
 Both attributes are also DOM properties, so they can be set from JavaScript the same way `theme` can. They're supported everywhere `theme` is - `<ogm-viewer>`, `<ogm-preview>`, `<ogm-previews>`, `<ogm-map>`, `<ogm-locator>`, and `<ogm-overview>` - and GeoBlacklight uses them to let a site configure its own basemaps.
 

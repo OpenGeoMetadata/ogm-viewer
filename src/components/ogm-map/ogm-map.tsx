@@ -32,8 +32,8 @@ export class OgmMap {
   @Element() el!: HTMLElement;
   @Prop() previewer: MapPreviewer;
   @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
-  // A caller's own basemap for each mode, as a CARTO name (e.g. 'positron') or a URL to a MapLibre
-  // style document; see MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default.
+  // A caller's own basemap for each mode, as a URL to a MapLibre style document; see
+  // MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default.
   @Prop() darkBasemap?: string;
   @Prop() lightBasemap?: string;
   @Prop() padding: number = 0;

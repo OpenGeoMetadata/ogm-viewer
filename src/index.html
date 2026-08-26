@@ -44,6 +44,7 @@
       }
 
       #recordUrl,
+      #basemapUrl,
       select {
         max-width: 300px;
       }
@@ -244,6 +245,24 @@
           await loadRecords([]);
         });
 
+        // Basemap URL override. Each mode remembers its own choice - matching dark-basemap/
+        // light-basemap themselves - so switching theme below shows whichever URL this mode was
+        // last given, and an empty box means this mode is still drawing the library's own default.
+        const basemapUrlInput = document.getElementById('basemapUrl');
+        const loadBasemapButton = document.getElementById('loadBasemap');
+        const basemapPerTheme = { light: undefined, dark: undefined };
+        const applyBasemaps = () => {
+          [viewer, overview, locator].forEach(el => {
+            el.lightBasemap = basemapPerTheme.light;
+            el.darkBasemap = basemapPerTheme.dark;
+          });
+        };
+
+        loadBasemapButton.addEventListener('click', () => {
+          basemapPerTheme[viewer.theme] = basemapUrlInput.value.trim() || undefined;
+          applyBasemaps();
+        });
+
         // Toggle theme button
         const toggleThemeButton = document.getElementById('toggleTheme');
         toggleThemeButton.addEventListener('click', () => {
@@ -251,6 +270,7 @@
           viewer.theme = theme;
           overview.theme = theme;
           locator.theme = theme;
+          basemapUrlInput.value = basemapPerTheme[theme] ?? '';
         });
 
         // Hide title checkbox
@@ -371,7 +391,6 @@
         <button id="clearRecord">Clear</button>
       </div>
       <div class="props">
-        <button id="toggleTheme">Toggle Theme</button>
         <button id="switch-overview">Switch to overview</button>
         <button id="switch-locator">Switch to locator</button>
         <button id="switch-viewer" style="display: none">Switch to viewer</button>
@@ -382,6 +401,11 @@
           <code id="boundsOut"></code>
           <button id="clearFilter">Clear filter</button>
         </span>
+      </div>
+      <div class="props">
+        <button id="toggleTheme">Toggle Theme</button>
+        <input type="text" id="basemapUrl" size="45" placeholder="Enter a MapLibre style document URL" />
+        <button id="loadBasemap">Load Basemap</button>
       </div>
     </div>
 

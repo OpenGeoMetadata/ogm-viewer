@@ -37,27 +37,9 @@ export type MapLibreStyle = {
   overviewPadding: number;
 };
 
-// A CARTO basemap name ('positron', 'dark-matter', 'voyager', or either with '-nolabels'), turned
-// into the GL style URL it's short for.
-const cartoBasemapStyle = (name: string): string => `https://basemaps.cartocdn.com/gl/${name}-gl-style/style.json`;
-
 // URLs to MapLibre style documents for our own default basemaps
-export const darkBasemapStyle = cartoBasemapStyle('dark-matter');
-export const lightBasemapStyle = cartoBasemapStyle('positron');
-
-// A bare basemap name looks like this - lowercase letters and hyphens, none of what a URL would
-// have to have: a scheme, a slash, a dot. See resolveBasemapStyle.
-const CARTO_NAME = /^[a-z][a-z-]*$/;
-
-/**
- * What an app handed us for a basemap - one of CARTO's own style names, or a URL to any MapLibre
- * style document - turned into whatever a map's `style` can be set to.
- *
- * Only something that reads as a bare name is expanded; anything else, including a URL that happens
- * to point at one of CARTO's own styles, is passed through untouched. A caller who already has the
- * full URL - CARTO's or anyone else's - never has it rewritten under them.
- */
-export const resolveBasemapStyle = (basemap: string): string => (CARTO_NAME.test(basemap) ? cartoBasemapStyle(basemap) : basemap);
+export const darkBasemapStyle = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+export const lightBasemapStyle = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
 // What a result's number is drawn in when neither an app nor the palette has said. A CSS font stack,
 // unlike the glyph name below: the numbers are drawn into an image of our own rather than handed to
@@ -101,10 +83,9 @@ const textColorLight = '#101219';
 
 // Style properties common to all MapLibre-based previewers
 export default class MapLibreTheme extends Theme {
-  // An app's own basemap for this mode - a CARTO name or a URL, read the same way resolveBasemapStyle
-  // reads them - or undefined to keep this library's own CARTO default. Mutable for the same reason
-  // `theme` is: a component whose basemap prop changes writes straight back in, rather than
-  // rebuilding the theme from scratch.
+  // An app's own basemap for this mode - a URL to a MapLibre style document - or undefined to keep
+  // this library's own CARTO default. Mutable for the same reason `theme` is: a component whose
+  // basemap prop changes writes straight back in, rather than rebuilding the theme from scratch.
   darkBasemap?: string;
   lightBasemap?: string;
 
@@ -170,12 +151,11 @@ export default class MapLibreTheme extends Theme {
     return this.readCssNumber('--ogm-overview-padding', defaultOverviewPadding);
   }
 
-  // The basemap style URL for the current mode: an app's own, if it named one for this mode - see
-  // resolveBasemapStyle - or our own CARTO default.
+  // The basemap style URL for the current mode: an app's own, if it named one for this mode, or our
+  // own CARTO default.
   getBaseMapStyle(): string {
     const darkMode = this.darkMode();
-    const override = darkMode ? this.darkBasemap : this.lightBasemap;
-    return override ? resolveBasemapStyle(override) : darkMode ? darkBasemapStyle : lightBasemapStyle;
+    return (darkMode ? this.darkBasemap : this.lightBasemap) ?? (darkMode ? darkBasemapStyle : lightBasemapStyle);
   }
 
   // The outline for a color, unless an app named one. Derived rather than themed, because the

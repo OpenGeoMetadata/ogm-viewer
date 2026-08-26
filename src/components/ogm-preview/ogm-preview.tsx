@@ -13,9 +13,9 @@ import type { PreviewError } from '../../lib/errors';
 export class OgmPreview {
   @Element() el!: HTMLElement;
   @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
-  // A caller's own basemap for each mode, as a CARTO name (e.g. 'positron') or a URL to a MapLibre
-  // style document; see MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default.
-  // Only reaches the map preview below - an image preview has no basemap to apply it to.
+  // A caller's own basemap for each mode, as a URL to a MapLibre style document; see
+  // MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default. Only reaches the map
+  // preview below - an image preview has no basemap to apply it to.
   @Prop() darkBasemap?: string;
   @Prop() lightBasemap?: string;
   @Prop() previewer: AnyPreviewer;
