@@ -19,3 +19,12 @@
   flex-direction: column;
   gap: 0.5rem;
 }
+
+.content-search-highlight {
+  box-sizing: border-box;
+  border: 3px solid var(--ogm-selected-color, #ff8c00);
+  border-radius: 0.2rem;
+  background: color-mix(in srgb, var(--ogm-selected-color, #ff8c00) 18%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--wa-color-surface-default) 80%, transparent);
+  pointer-events: none;
+}

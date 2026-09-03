@@ -24,6 +24,22 @@ export { References, REFERENCE_URIS, type LabelledLinks, type ReferenceName, typ
 // map, to MapLibre's own tile and style requests too. Pass one to a Resource's constructor, to
 // `resourcesFor`, or to <ogm-viewer>'s `requestTransform` property.
 export { resolveRequest, type RequestResourceType, type RequestTransform, type TransformedRequest } from './lib/request';
+export {
+  annotationEvidence,
+  annotationText,
+  contentSearchRequestUrl,
+  fetchContentSearch,
+  fetchContentSearchPage,
+  matchingEntities,
+  pixelRegionFor,
+  type ContentSearchAnnotation,
+  type ContentSearchEntityMatch,
+  type ContentSearchEvidence,
+  type ContentSearchPage,
+  type ContentSearchSelector,
+  type ContentSearchTarget,
+  type PixelRegion,
+} from './lib/content-search';
 
 // How a COG is read, so that a restricted one reaches deck.gl with whatever the transform asks for.
 // Only needed if you are opening a COG yourself; DeckCogPreviewer does this for you.

@@ -1,8 +1,15 @@
-import { Component, Element, Host, Listen, Prop, State, Watch, h } from '@stencil/core';
+import { Component, Element, Host, Listen, Method, Prop, State, Watch, h } from '@stencil/core';
 
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import type { AnyPreviewer } from '../../lib/previewers/factory';
 import type { PreviewError } from '../../lib/errors';
+import { findElement } from '../../lib/elements';
+import type { ContentSearchAnnotation } from '../../lib/content-search';
+
+type AnnotationImage = HTMLElement & {
+  componentOnReady?(): Promise<unknown>;
+  focusAnnotation(annotation: ContentSearchAnnotation): Promise<boolean>;
+};
 
 // Wraps a single preview and surfaces error(s) during it.
 @Component({
@@ -39,6 +46,15 @@ export class OgmPreview {
   handlePreviewError(event: CustomEvent<PreviewError>) {
     event.stopPropagation();
     this.error = event.detail;
+  }
+
+  /** Focus a IIIF Content Search annotation when this is an image preview. */
+  @Method()
+  async focusAnnotation(annotation: ContentSearchAnnotation): Promise<boolean> {
+    const image = findElement(this.el, 'ogm-image') as AnnotationImage | undefined;
+    if (!image) return false;
+    await image.componentOnReady?.();
+    return image.focusAnnotation(annotation);
   }
 
   private renderPreview() {

@@ -1,4 +1,4 @@
-import { Component, Element, h, Host, Watch, Prop, Event, EventEmitter } from '@stencil/core';
+import { Component, Element, h, Host, Watch, Prop, Event, EventEmitter, Method } from '@stencil/core';
 import { Viewer } from 'openseadragon';
 
 import '@awesome.me/webawesome/dist/components/button/button.js';
@@ -9,6 +9,7 @@ import { referenceError, type PreviewError } from '../../lib/errors';
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import type ImagePreviewer from '../../lib/previewers/image';
 import Theme from '../../lib/themes/theme';
+import { pixelRegionFor, type ContentSearchAnnotation, type PixelRegion } from '../../lib/content-search';
 
 @Component({
   tag: 'ogm-image',
@@ -32,6 +33,11 @@ export class OgmImage {
 
   // Guards against reporting more than one error per load attempt
   private errorReported: boolean = false;
+
+  // A Content Search result stays selected while its image is opening. OpenSeadragon can only
+  // convert image pixels once the tile source is ready, so an early click is applied on `open`.
+  private pendingRegion?: PixelRegion;
+  private searchHighlight?: HTMLElement;
 
   // Before the first frame, so nothing paints unstyled
   componentWillLoad() {
@@ -65,7 +71,10 @@ export class OgmImage {
     });
 
     // Clear loading state whether we succeeded or failed
-    this.viewer.addHandler('open', () => this.imageLoaded.emit());
+    this.viewer.addHandler('open', () => {
+      this.imageLoaded.emit();
+      this.showPendingRegion();
+    });
 
     // Surface OpenSeaDragon decode errors here
     this.viewer.addHandler('open-failed', event => {
@@ -79,6 +88,7 @@ export class OgmImage {
 
   // Destroy the viewer when we are removed from the DOM
   disconnectedCallback() {
+    this.removeSearchHighlight();
     this.viewer?.destroy();
   }
 
@@ -86,7 +96,19 @@ export class OgmImage {
   @Watch('previewer')
   async onPreviewerChange(_previewer: ImagePreviewer, previous?: ImagePreviewer) {
     if (previous) await previous.clearPreview();
+    this.pendingRegion = undefined;
+    this.removeSearchHighlight();
     await this.loadPreview();
+  }
+
+  /** Focus the image-pixel selector carried by a IIIF Content Search annotation. */
+  @Method()
+  async focusAnnotation(annotation: ContentSearchAnnotation): Promise<boolean> {
+    const region = pixelRegionFor(annotation);
+    if (!region) return false;
+    this.pendingRegion = region;
+    if (this.viewer?.world?.getItemCount()) this.showPendingRegion();
+    return true;
   }
 
   @Watch('padding')
@@ -132,6 +154,28 @@ export class OgmImage {
     if (this.errorReported || !this.previewer) return;
     this.errorReported = true;
     this.previewError.emit(referenceError(error, this.previewer.label(), this.previewer.url));
+  }
+
+  private showPendingRegion() {
+    if (!this.pendingRegion || !this.viewer) return;
+    this.removeSearchHighlight();
+
+    const { x, y, width, height } = this.pendingRegion;
+    const bounds = this.viewer.viewport.imageToViewportRectangle(x, y, width, height);
+    const highlight = document.createElement('div');
+    highlight.className = 'content-search-highlight';
+    highlight.setAttribute('role', 'img');
+    highlight.setAttribute('aria-label', 'Selected search result');
+    this.viewer.addOverlay({ element: highlight, location: bounds });
+    this.viewer.viewport.fitBounds(bounds, true);
+    this.searchHighlight = highlight;
+  }
+
+  private removeSearchHighlight() {
+    if (!this.searchHighlight) return;
+    this.viewer?.removeOverlay(this.searchHighlight);
+    this.searchHighlight.remove();
+    this.searchHighlight = undefined;
   }
 
   // The scope goes on #openseadragon as well as on the Host: the palette is established by plain

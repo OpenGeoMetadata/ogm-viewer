@@ -46,6 +46,18 @@ viewer.recordUrl = 'https://example.com/record.json';
 
 When the record URL changes, the viewer will automatically fetch and display the record data.
 
+### Search within a scanned map
+
+Point `search-url` at a [IIIF Content Search 2](https://iiif.io/api/search/2.0/) endpoint for the record to add a search tab. Results containing a `FragmentSelector` (`xywh`) or polygon `SvgSelector` can be selected to open the image preview, zoom to the matching text, and highlight it.
+
+```html
+<ogm-viewer record-url="https://example.com/records/map-1.json" search-url="https://example.com/v1/resources/map-1/iiif/search"></ogm-viewer>
+```
+
+The core contract is standard IIIF. A service can optionally attach richer evidence to an annotation under `myrdal:evidence`; when present, the search panel explains whether the result matched OCR text or a Gazetteer entity and shows the linked place names and review state. Other IIIF Content Search services work without that extension.
+
+`searchUrl` is also a DOM property. Search requests use the viewer's `requestTransform`, so the same URL-scoped cookie or authorization policy used for restricted records can cover the search API. Do not place a private bearer token in HTML or in the URL; prefer a same-origin proxy, cookies, or a browser-safe read credential.
+
 ### Dark mode support
 
 The viewer supports dark mode. If your system preference is set to prefer dark mode, the viewer will automatically apply dark styles.

@@ -16,6 +16,7 @@ import './dist/components/ogm-metadata.js';
 import './dist/components/ogm-overview.js';
 import './dist/components/ogm-preview.js';
 import './dist/components/ogm-previews.js';
+import './dist/components/ogm-search.js';
 
 // Stand in for the mark that bootstrapLazy() would have set. Dev builds compile in Stencil's
 // profiling hooks, and appDidLoad measures against "st:app:start" - but only the lazy loader ever

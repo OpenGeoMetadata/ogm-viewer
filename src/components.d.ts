@@ -9,6 +9,7 @@ import { PreviewError } from "./lib/errors";
 import { MapGeoJSONFeature } from "maplibre-gl";
 import { ResourceKind } from "./lib/resources/resource";
 import { RequestTransform } from "./lib/request";
+import { ContentSearchAnnotation } from "./lib/content-search";
 import { LayerControl } from "./lib/layers";
 import { ColorRampName } from "./lib/colormap";
 import { LegendEntry } from "./lib/legend";
@@ -17,6 +18,7 @@ export { PreviewError } from "./lib/errors";
 export { MapGeoJSONFeature } from "maplibre-gl";
 export { ResourceKind } from "./lib/resources/resource";
 export { RequestTransform } from "./lib/request";
+export { ContentSearchAnnotation } from "./lib/content-search";
 export { LayerControl } from "./lib/layers";
 export { ColorRampName } from "./lib/colormap";
 export { LegendEntry } from "./lib/legend";
@@ -38,6 +40,10 @@ export namespace Components {
         "requestTransform"?: RequestTransform;
     }
     interface OgmImage {
+        /**
+          * Focus the image-pixel selector carried by a IIIF Content Search annotation.
+         */
+        "focusAnnotation": (annotation: ContentSearchAnnotation) => Promise<boolean>;
         /**
           * @default 0
          */
@@ -168,6 +174,10 @@ export namespace Components {
          */
         "cooperativeGestures": boolean;
         "darkBasemap"?: string;
+        /**
+          * Focus a IIIF Content Search annotation when this is an image preview.
+         */
+        "focusAnnotation": (annotation: ContentSearchAnnotation) => Promise<boolean>;
         "lightBasemap"?: string;
         "previewer": AnyPreviewer;
         "sidebarPadding": number;
@@ -178,11 +188,23 @@ export namespace Components {
     }
     interface OgmPreviews {
         "darkBasemap"?: string;
+        /**
+          * Open the image preview and focus a IIIF Content Search annotation in it.
+         */
+        "focusAnnotation": (annotation: ContentSearchAnnotation) => Promise<boolean>;
         "lightBasemap"?: string;
         "previewers"?: AnyPreviewer[];
         "record"?: OgmRecord;
         "requestTransform"?: RequestTransform;
         "sidebarPadding": number;
+        /**
+          * @default initialTheme(this.el)
+         */
+        "theme": 'light' | 'dark';
+    }
+    interface OgmSearch {
+        "requestTransform"?: RequestTransform;
+        "searchUrl": string;
         /**
           * @default initialTheme(this.el)
          */
@@ -194,6 +216,8 @@ export namespace Components {
          */
         "open": boolean;
         "record": OgmRecord;
+        "requestTransform"?: RequestTransform;
+        "searchUrl"?: string;
         "theme": 'light' | 'dark';
     }
     interface OgmViewer {
@@ -206,6 +230,7 @@ export namespace Components {
         "loadRecord": (record: OgmRecord) => Promise<void>;
         "recordUrl": string;
         "requestTransform"?: RequestTransform;
+        "searchUrl"?: string;
         /**
           * @default initialTheme(this.el)
          */
@@ -239,6 +264,10 @@ export interface OgmOverviewCustomEvent<T> extends CustomEvent<T> {
 export interface OgmPreviewsCustomEvent<T> extends CustomEvent<T> {
     detail: T;
     target: HTMLOgmPreviewsElement;
+}
+export interface OgmSearchCustomEvent<T> extends CustomEvent<T> {
+    detail: T;
+    target: HTMLOgmSearchElement;
 }
 declare global {
     interface HTMLOgmAlertsElement extends Components.OgmAlerts, HTMLStencilElement {
@@ -407,6 +436,23 @@ declare global {
         prototype: HTMLOgmPreviewsElement;
         new (): HTMLOgmPreviewsElement;
     };
+    interface HTMLOgmSearchElementEventMap {
+        "contentSearchResultSelected": ContentSearchAnnotation;
+    }
+    interface HTMLOgmSearchElement extends Components.OgmSearch, HTMLStencilElement {
+        addEventListener<K extends keyof HTMLOgmSearchElementEventMap>(type: K, listener: (this: HTMLOgmSearchElement, ev: OgmSearchCustomEvent<HTMLOgmSearchElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLOgmSearchElementEventMap>(type: K, listener: (this: HTMLOgmSearchElement, ev: OgmSearchCustomEvent<HTMLOgmSearchElementEventMap[K]>) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
+    }
+    var HTMLOgmSearchElement: {
+        prototype: HTMLOgmSearchElement;
+        new (): HTMLOgmSearchElement;
+    };
     interface HTMLOgmSidebarElement extends Components.OgmSidebar, HTMLStencilElement {
     }
     var HTMLOgmSidebarElement: {
@@ -432,11 +478,14 @@ declare global {
         "ogm-overview": HTMLOgmOverviewElement;
         "ogm-preview": HTMLOgmPreviewElement;
         "ogm-previews": HTMLOgmPreviewsElement;
+        "ogm-search": HTMLOgmSearchElement;
         "ogm-sidebar": HTMLOgmSidebarElement;
         "ogm-viewer": HTMLOgmViewerElement;
     }
 }
 declare namespace LocalJSX {
+    type OneOf<K extends string, PropT, AttrT = PropT> = { [P in K]: PropT } & { [P in `attr:${K}` | `prop:${K}`]?: never } | { [P in `attr:${K}`]: AttrT } & { [P in K | `prop:${K}`]?: never } | { [P in `prop:${K}`]: PropT } & { [P in K | `attr:${K}`]?: never };
+
     interface OgmAlerts {
         "error"?: PreviewError;
         /**
@@ -621,12 +670,23 @@ declare namespace LocalJSX {
          */
         "theme"?: 'light' | 'dark';
     }
+    interface OgmSearch {
+        "onContentSearchResultSelected"?: (event: OgmSearchCustomEvent<ContentSearchAnnotation>) => void;
+        "requestTransform"?: RequestTransform;
+        "searchUrl": string;
+        /**
+          * @default initialTheme(this.el)
+         */
+        "theme"?: 'light' | 'dark';
+    }
     interface OgmSidebar {
         /**
           * @default false
          */
         "open"?: boolean;
         "record"?: OgmRecord;
+        "requestTransform"?: RequestTransform;
+        "searchUrl"?: string;
         "theme"?: 'light' | 'dark';
     }
     interface OgmViewer {
@@ -638,6 +698,7 @@ declare namespace LocalJSX {
         "lightBasemap"?: string;
         "recordUrl"?: string;
         "requestTransform"?: RequestTransform;
+        "searchUrl"?: string;
         /**
           * @default initialTheme(this.el)
          */
@@ -706,9 +767,14 @@ declare namespace LocalJSX {
         "lightBasemap": string;
         "sidebarPadding": number;
     }
+    interface OgmSearchAttributes {
+        "searchUrl": string;
+        "theme": 'light' | 'dark';
+    }
     interface OgmSidebarAttributes {
         "theme": 'light' | 'dark';
         "open": boolean;
+        "searchUrl": string;
     }
     interface OgmViewerAttributes {
         "recordUrl": string;
@@ -716,6 +782,7 @@ declare namespace LocalJSX {
         "darkBasemap": string;
         "lightBasemap": string;
         "hideTitle": boolean;
+        "searchUrl": string;
     }
 
     interface IntrinsicElements {
@@ -731,6 +798,7 @@ declare namespace LocalJSX {
         "ogm-overview": Omit<OgmOverview, keyof OgmOverviewAttributes> & { [K in keyof OgmOverview & keyof OgmOverviewAttributes]?: OgmOverview[K] } & { [K in keyof OgmOverview & keyof OgmOverviewAttributes as `attr:${K}`]?: OgmOverviewAttributes[K] } & { [K in keyof OgmOverview & keyof OgmOverviewAttributes as `prop:${K}`]?: OgmOverview[K] };
         "ogm-preview": Omit<OgmPreview, keyof OgmPreviewAttributes> & { [K in keyof OgmPreview & keyof OgmPreviewAttributes]?: OgmPreview[K] } & { [K in keyof OgmPreview & keyof OgmPreviewAttributes as `attr:${K}`]?: OgmPreviewAttributes[K] } & { [K in keyof OgmPreview & keyof OgmPreviewAttributes as `prop:${K}`]?: OgmPreview[K] };
         "ogm-previews": Omit<OgmPreviews, keyof OgmPreviewsAttributes> & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes]?: OgmPreviews[K] } & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes as `attr:${K}`]?: OgmPreviewsAttributes[K] } & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes as `prop:${K}`]?: OgmPreviews[K] };
+        "ogm-search": Omit<OgmSearch, keyof OgmSearchAttributes> & { [K in keyof OgmSearch & keyof OgmSearchAttributes]?: OgmSearch[K] } & { [K in keyof OgmSearch & keyof OgmSearchAttributes as `attr:${K}`]?: OgmSearchAttributes[K] } & { [K in keyof OgmSearch & keyof OgmSearchAttributes as `prop:${K}`]?: OgmSearch[K] } & OneOf<"searchUrl", OgmSearch["searchUrl"], OgmSearchAttributes["searchUrl"]>;
         "ogm-sidebar": Omit<OgmSidebar, keyof OgmSidebarAttributes> & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes]?: OgmSidebar[K] } & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes as `attr:${K}`]?: OgmSidebarAttributes[K] } & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes as `prop:${K}`]?: OgmSidebar[K] };
         "ogm-viewer": Omit<OgmViewer, keyof OgmViewerAttributes> & { [K in keyof OgmViewer & keyof OgmViewerAttributes]?: OgmViewer[K] } & { [K in keyof OgmViewer & keyof OgmViewerAttributes as `attr:${K}`]?: OgmViewerAttributes[K] } & { [K in keyof OgmViewer & keyof OgmViewerAttributes as `prop:${K}`]?: OgmViewer[K] };
     }
@@ -759,6 +827,7 @@ declare module "@stencil/core" {
             "ogm-overview": LocalJSX.IntrinsicElements["ogm-overview"] & JSXBase.HTMLAttributes<HTMLOgmOverviewElement>;
             "ogm-preview": LocalJSX.IntrinsicElements["ogm-preview"] & JSXBase.HTMLAttributes<HTMLOgmPreviewElement>;
             "ogm-previews": LocalJSX.IntrinsicElements["ogm-previews"] & JSXBase.HTMLAttributes<HTMLOgmPreviewsElement>;
+            "ogm-search": LocalJSX.IntrinsicElements["ogm-search"] & JSXBase.HTMLAttributes<HTMLOgmSearchElement>;
             "ogm-sidebar": LocalJSX.IntrinsicElements["ogm-sidebar"] & JSXBase.HTMLAttributes<HTMLOgmSidebarElement>;
             "ogm-viewer": LocalJSX.IntrinsicElements["ogm-viewer"] & JSXBase.HTMLAttributes<HTMLOgmViewerElement>;
         }

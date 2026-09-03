@@ -1,14 +1,22 @@
-import { Component, Element, Event, EventEmitter, Host, Prop, State, Watch, h } from '@stencil/core';
+import { Component, Element, Event, EventEmitter, Host, Method, Prop, State, Watch, h } from '@stencil/core';
 
 import '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
 import '@awesome.me/webawesome/dist/components/tab-panel/tab-panel.js';
 import '@awesome.me/webawesome/dist/components/tab/tab.js';
 
 import type OgmRecord from '../../lib/record';
+import { findElement } from '../../lib/elements';
+import type { ContentSearchAnnotation } from '../../lib/content-search';
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import { resourcesFor } from '../../lib/resources/factory';
 import { previewersForResources, type AnyPreviewer } from '../../lib/previewers/factory';
 import type { RequestTransform } from '../../lib/request';
+import type WaTabGroup from '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
+
+type AnnotationPreview = HTMLElement & {
+  componentOnReady?(): Promise<unknown>;
+  focusAnnotation(annotation: ContentSearchAnnotation): Promise<boolean>;
+};
 
 @Component({
   tag: 'ogm-previews',
@@ -77,6 +85,23 @@ export class OgmPreviews {
       // Always paired with the emit above, even when superseded: ogm-viewer counts these
       this.previewsLoaded.emit();
     }
+  }
+
+  /** Open the image preview and focus a IIIF Content Search annotation in it. */
+  @Method()
+  async focusAnnotation(annotation: ContentSearchAnnotation): Promise<boolean> {
+    const index = this.tabs.findIndex(previewer => previewer.renderer === 'image');
+    if (index < 0) return false;
+
+    const group = findElement(this.el, 'wa-tab-group') as WaTabGroup | undefined;
+    if (!group) return false;
+    group.active = this.tabs[index].previewId;
+
+    const previews = Array.from(this.el.shadowRoot?.querySelectorAll('ogm-preview') ?? []) as unknown as AnnotationPreview[];
+    const preview = previews[index];
+    if (!preview) return false;
+    await preview.componentOnReady?.();
+    return preview.focusAnnotation(annotation);
   }
 
   // Render as tabs for switching between previews.

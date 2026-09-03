@@ -4,6 +4,7 @@ import OgmRecord from '../../lib/record';
 import { fetchOrThrow, recordError, type PreviewError } from '../../lib/errors';
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import { resolveRequest, type RequestTransform } from '../../lib/request';
+import type { ContentSearchAnnotation } from '../../lib/content-search';
 
 @Component({
   tag: 'ogm-viewer',
@@ -19,6 +20,9 @@ export class OgmViewer {
   @Prop() darkBasemap?: string;
   @Prop() lightBasemap?: string;
   @Prop() hideTitle: boolean = false;
+  // A IIIF Content Search 2 endpoint for this record. When present, the sidebar offers search and
+  // selecting a result focuses its image-pixel selector in the image preview.
+  @Prop() searchUrl?: string;
   // Applied to the record fetch itself, and passed down to every resource built from it - see
   // Resource.requestTransform. A DOM property, like previewer on <ogm-preview>: set it before or
   // alongside recordUrl, since changing it alone doesn't refetch an already-loaded record.
@@ -30,6 +34,7 @@ export class OgmViewer {
 
   private loadingCount: number = 0;
   private sidebarPadding: number = 0;
+  private previews?: HTMLOgmPreviewsElement;
 
   // Prior to rendering, take the theme and fetch the record if a URL is provided
   async componentWillLoad() {
@@ -83,6 +88,11 @@ export class OgmViewer {
     this.loading = false;
   }
 
+  @Listen('contentSearchResultSelected')
+  async focusContentSearchResult(event: CustomEvent<ContentSearchAnnotation>) {
+    await this.previews?.focusAnnotation(event.detail);
+  }
+
   // Fetch a record by URL and parse it into an OgmRecord instance.
   private async fetchRecord(recordUrl: string): Promise<OgmRecord | undefined> {
     this.error = undefined;
@@ -104,11 +114,12 @@ export class OgmViewer {
         <div class={`container ${waScope(this.theme)}`}>
           <ogm-menubar theme={this.theme} record={this.record} loading={this.loading} hideTitle={this.hideTitle}></ogm-menubar>
           <div class="main-container">
-            <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen}></ogm-sidebar>
+            <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen} searchUrl={this.searchUrl} requestTransform={this.requestTransform}></ogm-sidebar>
             {this.error ? (
               <ogm-alerts theme={this.theme} error={this.error}></ogm-alerts>
             ) : (
               <ogm-previews
+                ref={element => (this.previews = element)}
                 theme={this.theme}
                 darkBasemap={this.darkBasemap}
                 lightBasemap={this.lightBasemap}

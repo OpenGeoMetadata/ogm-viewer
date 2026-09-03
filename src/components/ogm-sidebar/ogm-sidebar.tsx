@@ -7,6 +7,7 @@ import '@awesome.me/webawesome/dist/components/tab/tab.js';
 
 import { getElement } from '../../lib/elements';
 import type OgmRecord from '../../lib/record';
+import type { RequestTransform } from '../../lib/request';
 import type WaTabGroup from '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
 
 @Component({
@@ -19,6 +20,8 @@ export class OgmSidebar {
   @Prop() record: OgmRecord;
   @Prop() theme: 'light' | 'dark';
   @Prop() open: boolean = false;
+  @Prop() searchUrl?: string;
+  @Prop() requestTransform?: RequestTransform;
 
   private tabs: WaTabGroup;
 
@@ -43,6 +46,11 @@ export class OgmSidebar {
         {/* Contained sliding panel; wa-drawer always renders as a full-viewport modal, which doesn't suit an embeddable widget */}
         <div class={`sidebar ${this.open ? 'open' : ''}`} role="region" aria-label="Sidebar" aria-hidden={this.open ? 'false' : 'true'}>
           <wa-tab-group placement="start">
+            {this.searchUrl && (
+              <wa-tab slot="nav" panel="search">
+                <wa-icon name="search" label="Search within this map" canvas="auto"></wa-icon>
+              </wa-tab>
+            )}
             <wa-tab slot="nav" panel="information">
               <wa-icon name="info-circle-fill" label="Information" canvas="auto"></wa-icon>
             </wa-tab>
@@ -55,6 +63,14 @@ export class OgmSidebar {
             <wa-tab slot="nav" panel="record">
               <wa-icon name="braces" label="Record" canvas="auto"></wa-icon>
             </wa-tab>
+            {this.searchUrl && (
+              <wa-tab-panel name="search">
+                <div class="panel-header">Search within this map</div>
+                <div class="panel-content">
+                  <ogm-search searchUrl={this.searchUrl} requestTransform={this.requestTransform} theme={this.theme}></ogm-search>
+                </div>
+              </wa-tab-panel>
+            )}
             <wa-tab-panel name="information">
               <div class="panel-header">About this item</div>
               <div class="panel-content">
