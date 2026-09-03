@@ -61,42 +61,91 @@ button:disabled {
 
 .results {
   display: grid;
+  gap: var(--wa-space-s);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.entity-result {
+  padding: var(--wa-space-s);
+  border: var(--wa-form-control-border-width) solid var(--wa-color-neutral-border-normal);
+  border-radius: var(--wa-border-radius-m);
+  background: var(--wa-color-surface-default);
+}
+
+.entity-heading {
+  margin-bottom: var(--wa-space-s);
+}
+
+.entity-label {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--wa-font-size-m);
+  font-weight: var(--wa-font-weight-semibold);
+}
+
+.entity-metadata {
+  margin: 0.15rem 0 0;
+  color: var(--wa-color-text-quiet);
+  font-size: var(--wa-font-size-xs);
+}
+
+.occurrences {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--wa-space-xs);
   padding: 0;
   margin: 0;
   list-style: none;
 }
 
-.result {
+.crop-result {
+  position: relative;
   display: grid;
-  grid-template-columns: 1.7rem 6rem minmax(0, 1fr);
-  gap: var(--wa-space-xs);
+  gap: 0.2rem;
   width: 100%;
-  padding: var(--wa-space-s);
-  border-radius: var(--wa-border-radius-m);
+  height: 100%;
+  padding: 0.2rem;
+  overflow: hidden;
+  border-radius: var(--wa-border-radius-s);
   text-align: left;
   cursor: pointer;
 }
 
 .crop-thumbnail {
-  width: 6rem;
-  height: 4rem;
-  border-radius: var(--wa-border-radius-s);
+  display: block;
+  width: 100%;
+  height: 5rem;
+  border-radius: calc(var(--wa-border-radius-s) - 0.1rem);
   object-fit: contain;
   background: var(--wa-color-neutral-fill-quiet);
 }
 
-.result:hover {
+.crop-placeholder {
+  display: grid;
+  place-items: center;
+  height: 5rem;
+  color: var(--wa-color-text-quiet);
+  background: var(--wa-color-neutral-fill-quiet);
+  font-size: var(--wa-font-size-xs);
+}
+
+.crop-result:hover {
   border-color: var(--wa-color-brand-border-normal);
   background: var(--wa-color-brand-fill-quiet);
 }
 
 .result-number {
+  position: absolute;
+  z-index: 1;
+  top: 0.4rem;
+  left: 0.4rem;
   display: grid;
   place-items: center;
-  align-self: start;
   width: 1.6rem;
   height: 1.6rem;
+  box-shadow: var(--wa-shadow-s);
   border-radius: 50%;
   color: var(--wa-color-neutral-on-normal);
   background: var(--ogm-marker-color, var(--wa-color-neutral-fill-normal));
@@ -104,27 +153,11 @@ button:disabled {
   font-weight: var(--wa-font-weight-bold);
 }
 
-.result-detail {
-  display: grid;
-  gap: 0.25rem;
-  min-width: 0;
-}
-
-.entity-label {
+.ocr-text {
+  padding: 0 0.15rem 0.1rem;
   overflow-wrap: anywhere;
-  font-weight: var(--wa-font-weight-semibold);
-}
-
-.provenance,
-.ocr-text,
-.confidence {
   color: var(--wa-color-text-quiet);
   font-size: var(--wa-font-size-xs);
-}
-
-.ocr-text {
-  color: var(--wa-color-text-normal);
-  font-style: italic;
 }
 
 .pagination {

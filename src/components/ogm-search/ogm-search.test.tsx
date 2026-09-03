@@ -5,7 +5,7 @@ const response = {
   '@context': 'http://iiif.io/api/search/2/context.json',
   'id': 'https://example.org/search?q=Market',
   'type': 'AnnotationPage',
-  'partOf': { id: 'https://example.org/search', type: 'AnnotationCollection', total: 1 },
+  'partOf': { id: 'https://example.org/search', type: 'AnnotationCollection', total: 2 },
   'items': [
     {
       'id': 'https://example.org/annotations/1',
@@ -25,9 +25,29 @@ const response = {
           label: 'Market Street',
           outcome: 'confirmed',
           query_match: true,
-          properties: { source: 'gnis', canonical_feature_group: 'road' },
+          properties: { source: 'gnis', canonical_entity_id: 'road:market', canonical_feature_group: 'road' },
         },
         entity_matches: [{ id: 'place:1', label: 'Market Street', outcome: 'confirmed', query_match: true }],
+      },
+    },
+    {
+      'id': 'https://example.org/annotations/2',
+      'type': 'Annotation',
+      'body': { type: 'TextualBody', value: 'Market Street' },
+      'thumbnail': [{ id: 'https://example.org/crop-2.jpg', type: 'Image', format: 'image/jpeg' }],
+      'target': {
+        source: 'https://example.org/canvas/1',
+        selector: { type: 'FragmentSelector', value: 'xywh=120,20,100,30' },
+      },
+      'myrdal:evidence': {
+        matched_by: 'gazetteer_entity',
+        ocr_text: 'MARKET STREET',
+        primary_entity: {
+          id: 'place:2',
+          label: 'Market Street',
+          query_match: true,
+          properties: { source: 'overture', canonical_entity_id: 'road:market', canonical_feature_group: 'road' },
+        },
       },
     },
   ],
@@ -52,16 +72,19 @@ describe('ogm-search', () => {
     const searchRequests = fetch.mock.calls.map(call => call[0]).filter(url => url.startsWith('https://example.org/search'));
     expect(searchRequests).toHaveLength(1);
     expect(new URL(searchRequests[0]).searchParams.get('q')).toBe('Market');
-    expect(shadowRoot.textContent).toContain('1 gazetteer-linked occurrence for “Market”');
-    expect(shadowRoot.textContent).toContain('Gazetteer entity · GNIS · road');
-    expect(shadowRoot.textContent).toContain('Map reads “Market St.”');
-    const thumbnail = shadowRoot.querySelector('.crop-thumbnail') as HTMLImageElement;
-    expect(thumbnail.src).toBe('https://example.org/crop.jpg');
-    expect(thumbnail.alt).toBe('Map crop containing Market Street');
+    expect(shadowRoot.textContent).toContain('2 map occurrences for “Market” · grouped by gazetteer entity');
+    expect(shadowRoot.querySelectorAll('.entity-result')).toHaveLength(1);
+    expect(shadowRoot.querySelectorAll('.entity-label')).toHaveLength(1);
+    expect(shadowRoot.querySelector('.entity-metadata')?.textContent).toBe('GNIS · road · 2 map occurrences');
+    expect(shadowRoot.textContent).toContain('OCR: “Market St.”');
+    expect(shadowRoot.textContent).not.toContain('candidate');
+    const thumbnails = shadowRoot.querySelectorAll('.crop-thumbnail');
+    expect(thumbnails).toHaveLength(2);
+    expect((thumbnails[0] as HTMLImageElement).src).toBe('https://example.org/crop.jpg');
 
     const selected = vi.fn();
     root.addEventListener('contentSearchResultSelected', selected);
-    (shadowRoot.querySelector('.result') as HTMLButtonElement).click();
+    (shadowRoot.querySelector('.crop-result') as HTMLButtonElement).click();
 
     expect(selected).toHaveBeenCalledOnce();
     expect(selected.mock.calls[0][0].detail.id).toBe('https://example.org/annotations/1');

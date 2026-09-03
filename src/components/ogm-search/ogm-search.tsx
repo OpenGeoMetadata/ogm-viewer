@@ -3,7 +3,6 @@ import { Component, Element, Event, EventEmitter, Host, Prop, State, Watch, h } 
 import '@awesome.me/webawesome/dist/components/icon/icon.js';
 
 import {
-  annotationEvidence,
   annotationOcrText,
   annotationText,
   annotationThumbnail,
@@ -15,6 +14,13 @@ import {
 } from '../../lib/content-search';
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import type { RequestTransform } from '../../lib/request';
+
+type SearchResultGroup = {
+  key: string;
+  label: string;
+  entity?: ContentSearchEntityMatch;
+  occurrences: Array<{ annotation: ContentSearchAnnotation; index: number }>;
+};
 
 @Component({
   tag: 'ogm-search',
@@ -108,37 +114,48 @@ export class OgmSearch {
       );
     if (!this.submittedQuery) return <p class="status">Find printed words and matched places inside this map.</p>;
     if (!this.results.length) return <p class="status">No matches for “{this.submittedQuery}”.</p>;
-    const gazetteerResults = this.results.filter(result => annotationEvidence(result)?.matched_by === 'gazetteer_entity').length;
+    const groupedByEntity = this.results.some(result => primaryEntity(result));
     return (
       <p class="status" aria-live="polite">
-        {this.total.toLocaleString()} {gazetteerResults > 0 ? 'gazetteer-linked ' : ''}
-        {this.total === 1 ? 'occurrence' : 'occurrences'} for “{this.submittedQuery}”
+        {this.total.toLocaleString()} map {this.total === 1 ? 'occurrence' : 'occurrences'} for “{this.submittedQuery}”{groupedByEntity ? ' · grouped by gazetteer entity' : ''}
       </p>
     );
   }
 
-  private renderResult(annotation: ContentSearchAnnotation, index: number) {
-    const evidence = annotationEvidence(annotation);
-    const entity = primaryEntity(annotation);
+  private renderOccurrence(annotation: ContentSearchAnnotation, index: number, entityLabel: string) {
     const thumbnail = annotationThumbnail(annotation);
     const ocrText = annotationOcrText(annotation);
-    const confidence = typeof evidence?.confidence === 'number' ? `${Math.round(evidence.confidence * 100)}% OCR confidence` : undefined;
-    const resultLabel = entity?.label ?? annotationText(annotation);
-    const source = entitySource(entity);
-    const featureType = entityFeatureType(entity);
+    const showOcrText = ocrText && normalized(ocrText) !== normalized(entityLabel);
 
     return (
-      <li key={annotation.id ?? `${this.page}-${index}`}>
-        <button type="button" class="result" onClick={() => this.contentSearchResultSelected.emit(annotation)}>
+      <li key={annotation.id ?? `${this.page}-${index}`} class="occurrence">
+        <button
+          type="button"
+          class="crop-result"
+          aria-label={`View map occurrence ${this.startIndex + index + 1} for ${entityLabel}`}
+          onClick={() => this.contentSearchResultSelected.emit(annotation)}
+        >
           <span class="result-number">{this.startIndex + index + 1}</span>
-          {thumbnail && <img class="crop-thumbnail" src={thumbnail} alt={`Map crop containing ${resultLabel}`} loading="lazy" />}
-          <span class="result-detail">
-            <span class="entity-label">{resultLabel}</span>
-            <span class="provenance">{entity ? ['Gazetteer entity', source, featureType].filter(Boolean).join(' · ') : 'OCR text match'}</span>
-            {ocrText && <span class="ocr-text">Map reads “{ocrText}”</span>}
-            {confidence && <span class="confidence">{confidence}</span>}
-          </span>
+          {thumbnail ? <img class="crop-thumbnail" src={thumbnail} alt="" loading="lazy" /> : <span class="crop-placeholder">No crop</span>}
+          {showOcrText && <span class="ocr-text">OCR: “{ocrText}”</span>}
         </button>
+      </li>
+    );
+  }
+
+  private renderGroup(group: SearchResultGroup) {
+    const source = entitySource(group.entity);
+    const featureType = entityFeatureType(group.entity);
+    const count = group.occurrences.length;
+    const metadata = [source, featureType, `${count.toLocaleString()} map ${count === 1 ? 'occurrence' : 'occurrences'}`].filter(Boolean).join(' · ');
+
+    return (
+      <li key={group.key} class="entity-result">
+        <header class="entity-heading">
+          <h3 class="entity-label">{group.label}</h3>
+          <p class="entity-metadata">{metadata}</p>
+        </header>
+        <ol class="occurrences">{group.occurrences.map(occurrence => this.renderOccurrence(occurrence.annotation, occurrence.index, group.label))}</ol>
       </li>
     );
   }
@@ -156,7 +173,7 @@ export class OgmSearch {
           </div>
         </form>
         {this.renderStatus()}
-        {this.results.length > 0 && <ol class="results">{this.results.map((result, index) => this.renderResult(result, index))}</ol>}
+        {this.results.length > 0 && <ol class="results">{groupSearchResults(this.results).map(group => this.renderGroup(group))}</ol>}
         {(this.previousPageUrl || this.nextPageUrl) && (
           <nav class="pagination" aria-label="Search result pages">
             <button type="button" disabled={this.loading || !this.previousPageUrl} onClick={() => void this.search(this.submittedQuery, this.page - 1, this.previousPageUrl)}>
@@ -188,4 +205,27 @@ function entityFeatureType(entity?: ContentSearchEntityMatch): string | undefine
   const feature = entity?.properties?.canonical_feature_group ?? entity?.properties?.feature_code;
   if (typeof feature !== 'string' || !feature) return undefined;
   return feature.replaceAll('_', ' ');
+}
+
+function groupSearchResults(results: ContentSearchAnnotation[]): SearchResultGroup[] {
+  const groups = new Map<string, SearchResultGroup>();
+  results.forEach((annotation, index) => {
+    const entity = primaryEntity(annotation);
+    const label = entity?.label ?? annotationText(annotation);
+    const key = entity ? entityGroupKey(entity) : (annotation.id ?? `ocr-result:${index}`);
+    const group = groups.get(key) ?? { key, label, entity, occurrences: [] };
+    group.occurrences.push({ annotation, index });
+    groups.set(key, group);
+  });
+  return [...groups.values()];
+}
+
+function entityGroupKey(entity: ContentSearchEntityMatch): string {
+  const canonicalId = entity.properties?.canonical_entity_id;
+  if (typeof canonicalId === 'string' && canonicalId) return `canonical:${canonicalId}`;
+  return entity.id ? `entity:${entity.id}` : `label:${normalized(entity.label ?? '')}`;
+}
+
+function normalized(value: string): string {
+  return value.trim().toLocaleLowerCase().replaceAll(/\s+/g, ' ');
 }
