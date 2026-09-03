@@ -38,16 +38,28 @@ export type ContentSearchEntityMatch = {
 export type ContentSearchEvidence = {
   confidence?: number;
   matched_by?: 'ocr_text' | 'gazetteer_entity' | string;
+  primary_entity?: ContentSearchEntityMatch;
   entity_matches?: ContentSearchEntityMatch[];
+  ocr_text?: string;
   coordinate_authority?: string;
   [key: string]: unknown;
 };
+
+export type ContentSearchThumbnail =
+  | string
+  | {
+      'id'?: string;
+      '@id'?: string;
+      'type'?: string;
+      'format'?: string;
+    };
 
 export type ContentSearchAnnotation = {
   'id'?: string;
   'type'?: string;
   'body'?: ContentSearchBody | ContentSearchBody[];
   'target'?: ContentSearchTarget | ContentSearchTarget[];
+  'thumbnail'?: ContentSearchThumbnail | ContentSearchThumbnail[];
   'myrdal:evidence'?: ContentSearchEvidence;
   [key: string]: unknown;
 };
@@ -116,6 +128,30 @@ export function matchingEntities(annotation: ContentSearchAnnotation): ContentSe
   const entities = annotationEvidence(annotation)?.entity_matches;
   if (!Array.isArray(entities)) return [];
   return entities.filter(entity => entity && typeof entity === 'object' && Boolean(entity.label));
+}
+
+export function primaryEntity(annotation: ContentSearchAnnotation): ContentSearchEntityMatch | undefined {
+  const evidence = annotationEvidence(annotation);
+  if (evidence?.primary_entity?.label) return evidence.primary_entity;
+  const entities = matchingEntities(annotation);
+  return entities.find(entity => entity.query_match) ?? entities[0];
+}
+
+export function annotationOcrText(annotation: ContentSearchAnnotation): string | undefined {
+  const text = annotationEvidence(annotation)?.ocr_text;
+  return typeof text === 'string' && text.trim() ? text : undefined;
+}
+
+export function annotationThumbnail(annotation: ContentSearchAnnotation): string | undefined {
+  const thumbnails = Array.isArray(annotation.thumbnail) ? annotation.thumbnail : [annotation.thumbnail];
+  for (const thumbnail of thumbnails) {
+    if (typeof thumbnail === 'string' && thumbnail) return thumbnail;
+    if (thumbnail && typeof thumbnail === 'object') {
+      const id = thumbnail.id ?? thumbnail['@id'];
+      if (id) return id;
+    }
+  }
+  return undefined;
 }
 
 export function pixelRegionFor(annotation: ContentSearchAnnotation): PixelRegion | undefined {

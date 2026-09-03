@@ -1,13 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
-import { annotationText, contentSearchRequestUrl, matchingEntities, pixelRegionFor, type ContentSearchAnnotation } from './content-search';
+import {
+  annotationOcrText,
+  annotationText,
+  annotationThumbnail,
+  contentSearchRequestUrl,
+  matchingEntities,
+  pixelRegionFor,
+  primaryEntity,
+  type ContentSearchAnnotation,
+} from './content-search';
 
 const result = (selector: { type: string; value: string }): ContentSearchAnnotation => ({
   'type': 'Annotation',
   'body': { type: 'TextualBody', value: 'Market St.' },
+  'thumbnail': [{ id: 'https://example.org/image/10,20,100,30/!320,160/0/default.jpg', type: 'Image' }],
   'target': { source: 'https://example.org/canvas/1', selector },
   'myrdal:evidence': {
     matched_by: 'gazetteer_entity',
+    ocr_text: 'Market St.',
+    primary_entity: { id: 'place:1', label: 'Market Street', outcome: 'confirmed' },
     entity_matches: [{ id: 'place:1', label: 'Market Street', outcome: 'confirmed' }],
   },
 });
@@ -24,6 +36,9 @@ describe('IIIF content search', () => {
     const annotation = result({ type: 'FragmentSelector', value: 'xywh=10,20,100,30' });
 
     expect(annotationText(annotation)).toBe('Market St.');
+    expect(annotationOcrText(annotation)).toBe('Market St.');
+    expect(primaryEntity(annotation)?.label).toBe('Market Street');
+    expect(annotationThumbnail(annotation)).toBe('https://example.org/image/10,20,100,30/!320,160/0/default.jpg');
     expect(matchingEntities(annotation)).toEqual([{ id: 'place:1', label: 'Market Street', outcome: 'confirmed' }]);
   });
 

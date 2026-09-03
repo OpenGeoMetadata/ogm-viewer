@@ -11,6 +11,7 @@ const response = {
       'id': 'https://example.org/annotations/1',
       'type': 'Annotation',
       'body': { type: 'TextualBody', value: 'Market St.' },
+      'thumbnail': [{ id: 'https://example.org/crop.jpg', type: 'Image', format: 'image/jpeg' }],
       'target': {
         source: 'https://example.org/canvas/1',
         selector: { type: 'FragmentSelector', value: 'xywh=10,20,100,30' },
@@ -18,6 +19,14 @@ const response = {
       'myrdal:evidence': {
         confidence: 0.94,
         matched_by: 'gazetteer_entity',
+        ocr_text: 'Market St.',
+        primary_entity: {
+          id: 'place:1',
+          label: 'Market Street',
+          outcome: 'confirmed',
+          query_match: true,
+          properties: { source: 'gnis', canonical_feature_group: 'road' },
+        },
         entity_matches: [{ id: 'place:1', label: 'Market Street', outcome: 'confirmed', query_match: true }],
       },
     },
@@ -43,9 +52,12 @@ describe('ogm-search', () => {
     const searchRequests = fetch.mock.calls.map(call => call[0]).filter(url => url.startsWith('https://example.org/search'));
     expect(searchRequests).toHaveLength(1);
     expect(new URL(searchRequests[0]).searchParams.get('q')).toBe('Market');
-    expect(shadowRoot.textContent).toContain('1 match for “Market”');
-    expect(shadowRoot.textContent).toContain('Matched through the gazetteer');
-    expect(shadowRoot.textContent).toContain('Market Street · confirmed');
+    expect(shadowRoot.textContent).toContain('1 gazetteer-linked occurrence for “Market”');
+    expect(shadowRoot.textContent).toContain('Gazetteer entity · GNIS · road');
+    expect(shadowRoot.textContent).toContain('Map reads “Market St.”');
+    const thumbnail = shadowRoot.querySelector('.crop-thumbnail') as HTMLImageElement;
+    expect(thumbnail.src).toBe('https://example.org/crop.jpg');
+    expect(thumbnail.alt).toBe('Map crop containing Market Street');
 
     const selected = vi.fn();
     root.addEventListener('contentSearchResultSelected', selected);

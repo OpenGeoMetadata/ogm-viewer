@@ -2,7 +2,17 @@ import { Component, Element, Event, EventEmitter, Host, Prop, State, Watch, h } 
 
 import '@awesome.me/webawesome/dist/components/icon/icon.js';
 
-import { annotationEvidence, annotationText, fetchContentSearch, fetchContentSearchPage, matchingEntities, type ContentSearchAnnotation } from '../../lib/content-search';
+import {
+  annotationEvidence,
+  annotationOcrText,
+  annotationText,
+  annotationThumbnail,
+  fetchContentSearch,
+  fetchContentSearchPage,
+  primaryEntity,
+  type ContentSearchAnnotation,
+  type ContentSearchEntityMatch,
+} from '../../lib/content-search';
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import type { RequestTransform } from '../../lib/request';
 
@@ -98,37 +108,34 @@ export class OgmSearch {
       );
     if (!this.submittedQuery) return <p class="status">Find printed words and matched places inside this map.</p>;
     if (!this.results.length) return <p class="status">No matches for “{this.submittedQuery}”.</p>;
+    const gazetteerResults = this.results.filter(result => annotationEvidence(result)?.matched_by === 'gazetteer_entity').length;
     return (
       <p class="status" aria-live="polite">
-        {this.total.toLocaleString()} {this.total === 1 ? 'match' : 'matches'} for “{this.submittedQuery}”
+        {this.total.toLocaleString()} {gazetteerResults > 0 ? 'gazetteer-linked ' : ''}
+        {this.total === 1 ? 'occurrence' : 'occurrences'} for “{this.submittedQuery}”
       </p>
     );
   }
 
   private renderResult(annotation: ContentSearchAnnotation, index: number) {
     const evidence = annotationEvidence(annotation);
-    const entities = matchingEntities(annotation);
-    const matchedEntities = entities.filter(entity => entity.query_match);
-    const visibleEntities = (matchedEntities.length ? matchedEntities : entities).slice(0, 3);
+    const entity = primaryEntity(annotation);
+    const thumbnail = annotationThumbnail(annotation);
+    const ocrText = annotationOcrText(annotation);
     const confidence = typeof evidence?.confidence === 'number' ? `${Math.round(evidence.confidence * 100)}% OCR confidence` : undefined;
+    const resultLabel = entity?.label ?? annotationText(annotation);
+    const source = entitySource(entity);
+    const featureType = entityFeatureType(entity);
 
     return (
       <li key={annotation.id ?? `${this.page}-${index}`}>
         <button type="button" class="result" onClick={() => this.contentSearchResultSelected.emit(annotation)}>
           <span class="result-number">{this.startIndex + index + 1}</span>
+          {thumbnail && <img class="crop-thumbnail" src={thumbnail} alt={`Map crop containing ${resultLabel}`} loading="lazy" />}
           <span class="result-detail">
-            <span class="transcription">{annotationText(annotation)}</span>
-            <span class="provenance">{evidence?.matched_by === 'gazetteer_entity' ? 'Matched through the gazetteer' : 'Matched in OCR text'}</span>
-            {visibleEntities.length > 0 && (
-              <span class="entities">
-                {visibleEntities.map(entity => (
-                  <span key={entity.id ?? entity.label} class={`entity ${entity.outcome === 'confirmed' ? 'confirmed' : ''}`}>
-                    {entity.label}
-                    {entity.outcome ? ` · ${entity.outcome}` : ''}
-                  </span>
-                ))}
-              </span>
-            )}
+            <span class="entity-label">{resultLabel}</span>
+            <span class="provenance">{entity ? ['Gazetteer entity', source, featureType].filter(Boolean).join(' · ') : 'OCR text match'}</span>
+            {ocrText && <span class="ocr-text">Map reads “{ocrText}”</span>}
             {confidence && <span class="confidence">{confidence}</span>}
           </span>
         </button>
@@ -168,4 +175,17 @@ export class OgmSearch {
 
 function linkId(link?: string | { id?: string }): string | undefined {
   return typeof link === 'string' ? link : link?.id;
+}
+
+function entitySource(entity?: ContentSearchEntityMatch): string | undefined {
+  const source = entity?.properties?.source;
+  if (typeof source !== 'string' || !source) return undefined;
+  const knownSources: Record<string, string> = { geonames: 'GeoNames', gnis: 'GNIS', overture: 'Overture', wof: "Who's On First" };
+  return knownSources[source.toLowerCase()] ?? source.replaceAll('_', ' ');
+}
+
+function entityFeatureType(entity?: ContentSearchEntityMatch): string | undefined {
+  const feature = entity?.properties?.canonical_feature_group ?? entity?.properties?.feature_code;
+  if (typeof feature !== 'string' || !feature) return undefined;
+  return feature.replaceAll('_', ' ');
 }
