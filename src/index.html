@@ -188,6 +188,8 @@
         const overview = document.querySelector('ogm-overview');
         const recordInput = document.getElementById('recordUrl');
         const loadRecordButton = document.getElementById('loadRecord');
+        const searchInput = document.getElementById('searchUrl');
+        const loadSearchButton = document.getElementById('loadSearch');
         const locator = document.querySelector('ogm-locator');
         const switchOverviewButton = document.getElementById('switch-overview');
         const switchViewerButton = document.getElementById('switch-viewer');
@@ -231,6 +233,7 @@
           const record = new OgmRecord(recordJson);
 
           if (recordUrl) viewer.recordUrl = recordUrl;
+          viewer.searchUrl = searchInput.value.trim() || undefined;
           if (record) locator.record = record;
           if (record) await loadRecords([record]);
         });
@@ -240,9 +243,15 @@
         clearRecordButton.addEventListener('click', async () => {
           recordInput.value = '';
           recordSelector.value = '';
+          searchInput.value = '';
+          viewer.searchUrl = undefined;
           viewer.loadRecord(null);
           locator.record = undefined;
           await loadRecords([]);
+        });
+
+        loadSearchButton.addEventListener('click', () => {
+          viewer.searchUrl = searchInput.value.trim() || undefined;
         });
 
         // Basemap URL override. Each mode remembers its own choice - matching dark-basemap/
@@ -389,6 +398,10 @@
         <input type="text" id="recordUrl" size="80" placeholder="Enter an OpenGeoMetadata record URL" />
         <button id="loadRecord">Load</button>
         <button id="clearRecord">Clear</button>
+      </div>
+      <div class="props">
+        <input type="text" id="searchUrl" size="65" placeholder="Enter an IIIF Content Search 2 endpoint URL" />
+        <button id="loadSearch">Set search endpoint</button>
       </div>
       <div class="props">
         <button id="switch-overview">Switch to overview</button>
