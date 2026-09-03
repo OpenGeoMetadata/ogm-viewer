@@ -230,7 +230,7 @@
           const recordJson = await recordContents.json();
           const record = new OgmRecord(recordJson);
 
-          if (recordUrl) viewer.recordUrl = recordUrl;
+          if (record) await viewer.loadRecord(record);
           if (record) locator.record = record;
           if (record) await loadRecords([record]);
         });
