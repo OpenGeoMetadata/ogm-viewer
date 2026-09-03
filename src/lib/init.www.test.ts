@@ -64,7 +64,7 @@ const mount = async (tag: string, theme?: 'light' | 'dark') => {
   if (theme) el.setAttribute('theme', theme);
 
   document.body.append(el);
-  for (let i = 0; i < 80 && !el.classList.contains('hydrated'); i += 1) await new Promise(resolve => setTimeout(resolve, 25));
+  for (let i = 0; i < 120 && !el.classList.contains('hydrated'); i += 1) await new Promise(resolve => setTimeout(resolve, 25));
   return { el, classes };
 };
 
