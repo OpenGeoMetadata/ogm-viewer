@@ -48,13 +48,42 @@ When the record URL changes, the viewer will automatically fetch and display the
 
 ### Search within a scanned map
 
-Point `search-url` at a [IIIF Content Search 2](https://iiif.io/api/search/2.0/) endpoint for the record to add a search tab. Results containing a `FragmentSelector` (`xywh`) or polygon `SvgSelector` can be selected to open the image preview, zoom to the matching text, and highlight it.
+The viewer automatically adds a search tab when the record's `dct_references_s`
+advertises a [IIIF Content Search 2](https://iiif.io/api/search/2.0/)
+endpoint under the reference URI `http://iiif.io/api/search`:
+
+```json
+{
+  "dct_references_s": "{\"http://iiif.io/api/presentation#manifest\":\"https://example.com/map/manifest.json\",\"http://iiif.io/api/search\":\"https://example.com/v1/resources/map-1/iiif/search\"}"
+}
+```
+
+That makes the Aardvark record URL the only per-record configuration the
+embedding page needs:
+
+```html
+<ogm-viewer record-url="https://example.com/records/map-1.json"></ogm-viewer>
+```
+
+Results containing a `FragmentSelector` (`xywh`) or polygon `SvgSelector` can
+be selected to open the image preview, zoom to the matching text, and highlight
+it. When several image occurrences resolve to the same Gazetteer entity, the
+panel groups their crops beneath that place instead of presenting the entity
+match repeatedly.
+
+`http://iiif.io/api/search` is an OGM reference-key proposal used by this fork;
+it is not currently listed in the official OpenGeoMetadata Reference URIs
+registry. It follows the registry's existing convention of using a stable API
+URI as the key and the record-specific service endpoint as the value.
+
+`search-url` remains available as an explicit override, including for records
+that do not advertise the service themselves:
 
 ```html
 <ogm-viewer record-url="https://example.com/records/map-1.json" search-url="https://example.com/v1/resources/map-1/iiif/search"></ogm-viewer>
 ```
 
-The core contract is standard IIIF. A service can optionally attach richer evidence to an annotation under `myrdal:evidence`; when present, the search panel explains whether the result matched OCR text or a Gazetteer entity and shows the linked place names and review state. Other IIIF Content Search services work without that extension.
+The core contract is standard IIIF. A service can optionally attach richer evidence to an annotation under `myrdal:evidence`; when present, the search panel treats the Gazetteer entity as the primary result, keeps OCR as supporting evidence, and shows image crops for each occurrence. Other IIIF Content Search services work without that extension.
 
 `searchUrl` is also a DOM property. Search requests use the viewer's `requestTransform`, so the same URL-scoped cookie or authorization policy used for restricted records can cover the search API. Do not place a private bearer token in HTML or in the URL; prefer a same-origin proxy, cookies, or a browser-safe read credential.
 
