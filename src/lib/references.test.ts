@@ -87,6 +87,12 @@ describe('References', () => {
       const references = new References(JSON.stringify(contents));
       expect(references.iiifManifestUrl).toBe('http://example.com/manifest.json');
     });
+
+    it('should fetch IIIF Content Search URL', () => {
+      const contents = { 'http://iiif.io/api/search': 'http://example.com/iiif/search' };
+      const references = new References(JSON.stringify(contents));
+      expect(references.iiifSearchUrl).toBe('http://example.com/iiif/search');
+    });
   });
 
   describe('downloads', () => {

@@ -7,6 +7,8 @@ export const REFERENCE_URIS = {
   'http://schema.org/url': 'Layer description',
   'http://iiif.io/api/image': 'IIIF image',
   'http://iiif.io/api/presentation#manifest': 'IIIF manifest',
+  // Proposed OGM key; the version-neutral URI resolves to the stable IIIF Search API.
+  'http://iiif.io/api/search': 'IIIF content search',
   'https://iiif.io/api/extension/georef/1/context.json': 'IIIF georeference annotation',
   'http://www.opengis.net/cat/csw/csdgm': 'FGDC metadata',
   'http://www.w3.org/1999/xhtml': 'HTML metadata',
@@ -119,6 +121,11 @@ export class References {
   // The IIIF manifest URL, if any
   get iiifManifestUrl() {
     return this.references['http://iiif.io/api/presentation#manifest'];
+  }
+
+  // The IIIF Content Search service URL, if any
+  get iiifSearchUrl() {
+    return this.references['http://iiif.io/api/search'];
   }
 
   // A standalone IIIF Georeference Annotation, if the record points at one. A manifest can also
