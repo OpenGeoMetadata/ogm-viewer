@@ -67,9 +67,8 @@ embedding page needs:
 
 Results containing a `FragmentSelector` (`xywh`) or polygon `SvgSelector` can
 be selected to open the image preview, zoom to the matching text, and highlight
-it. When several image occurrences resolve to the same Gazetteer entity, the
-panel groups their crops beneath that place instead of presenting the entity
-match repeatedly.
+it. The panel presents each Gazetteer entity once with its strongest available
+OCR crop, rather than exposing multiple extraction candidates to the reader.
 
 `http://iiif.io/api/search` is an OGM reference-key proposal used by this fork;
 it is not currently listed in the official OpenGeoMetadata Reference URIs
@@ -83,7 +82,7 @@ that do not advertise the service themselves:
 <ogm-viewer record-url="https://example.com/records/map-1.json" search-url="https://example.com/v1/resources/map-1/iiif/search"></ogm-viewer>
 ```
 
-The core contract is standard IIIF. A service can optionally attach richer evidence to an annotation under `myrdal:evidence`; when present, the search panel treats the Gazetteer entity as the primary result, keeps OCR as supporting evidence, and shows image crops for each occurrence. Other IIIF Content Search services work without that extension.
+The core contract is standard IIIF. A service can optionally attach richer evidence to an annotation under `myrdal:evidence`; when present, the search panel treats the Gazetteer entity as the primary result, keeps OCR as supporting evidence, and shows the best available image crop for that entity. Other IIIF Content Search services work without that extension.
 
 `searchUrl` is also a DOM property. Search requests use the viewer's `requestTransform`, so the same URL-scoped cookie or authorization policy used for restricted records can cover the search API. Do not place a private bearer token in HTML or in the URL; prefer a same-origin proxy, cookies, or a browser-safe read credential.
 
