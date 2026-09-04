@@ -1,0 +1,27 @@
+/* Field definitions, laid out like the metadata panel's own fields - see ogm-metadata.css - so the
+   two read as one sidebar rather than two. The names come out of somebody's shapefile, so they get
+   the same monospace the attribute table gives them. */
+.field-definitions {
+  line-height: var(--wa-line-height-condensed);
+  margin: 0;
+  word-wrap: break-word;
+}
+
+.field-definitions .field + .field {
+  margin: var(--wa-space-m) 0 0 0;
+}
+
+.field-definitions dt {
+  font-family: var(--wa-font-family-code);
+  font-size: var(--wa-font-size-s);
+  font-weight: var(--wa-font-weight-bold);
+}
+
+.field-definitions dd {
+  margin: var(--wa-space-xs) 0 0 0;
+}
+
+.field-definitions dd.coded {
+  color: var(--wa-color-text-quiet);
+  font-size: var(--wa-font-size-s);
+}

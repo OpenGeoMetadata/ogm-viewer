@@ -1,6 +1,8 @@
 import { render, describe, it, expect, h, vi, afterEach } from '@stencil/vitest';
 import type { MapGeoJSONFeature } from 'maplibre-gl';
 
+import type { References } from '../../lib/references';
+
 // A WMS GetFeatureInfo response, where attributes that don't apply to the feature come back null
 const feature = {
   type: 'Feature',
@@ -60,6 +62,17 @@ const showing = (root: HTMLElement) =>
   Array.from(shadow(root).querySelectorAll<HTMLElement & { active: boolean }>('wa-tab-panel'))
     .filter(panel => panel.active)
     .map(panel => panel.getAttribute('name'));
+
+// The tooltip a documented field's name is wired to. Wiring is what can be checked here - happy-dom
+// delivers no real hover, and the hovering itself is Web Awesome's to get right (see `show` below).
+const definitionFor = (root: HTMLElement, key: string) => {
+  const anchor = Array.from(shadow(root).querySelectorAll('tbody .key .defined')).find(span => span.textContent === key);
+  // wa-tooltip resolves the `for` it was given into an aria-labelledby on the anchor pointing at an
+  // id of its own, so the wiring to follow is that one rather than the attribute handed in
+  const labelledBy = anchor?.getAttribute('aria-labelledby');
+  if (!labelledBy) return undefined;
+  return shadow(root).getElementById(labelledBy)?.textContent;
+};
 
 // The one link in the row named by the given key, if it has one
 const cellLink = (root: HTMLElement, key: string) => {
@@ -199,6 +212,92 @@ describe('ogm-attributes', () => {
 
   // An index map's sheets carry properties with names of their own, which is more than a table of raw
   // keys can say about them
+  // A record can point at an FGDC or ISO 19110 document describing what its fields hold. Reading it
+  // is field-definitions.ts's own concern and tested there; what matters here is what a table does
+  // with the answer, and what it does without one.
+  describe("naming fields from the record's own metadata", () => {
+    // All this component does with References is hand it to fieldDefinitions, which reads these two
+    // getters off it; the fetch below is what decides the answer. Each test names a document of its
+    // own, because one read per URL is held for the life of the page.
+    const referencesFor = (url: string) => ({ fgdcUrl: url, iso19110Url: undefined }) as unknown as References;
+
+    const FGDC = `<metadata><eainfo><detailed>
+      <attr><attrlabl>REGION</attrlabl><attrdef>The DEC region where the station is located.</attrdef></attr>
+      <attr>
+        <attrlabl>OZONE</attrlabl>
+        <attrdef>Whether the station measures ozone.</attrdef>
+        <attrdomv><edom><edomv>Y</edomv><edomvd>Ozone is measured here</edomvd></edom></attrdomv>
+      </attr>
+    </detailed></eainfo></metadata>`;
+
+    // A document read is a tick further off than a thumbnail: the fetch, its text, the parse, and
+    // then the state that schedules the render. `settle` is built for the shorter of the two.
+    const settleDefinitions = async (waitForChanges: () => Promise<void>) => {
+      for (let tick = 0; tick < 4; tick++) await waitForChanges();
+    };
+
+    const respondWithFgdc = () =>
+      vi.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/xml' : null) },
+        text: async () => FGDC,
+      } as unknown as Response);
+
+    it('explains a field the metadata defines, and leaves the rest as they came', async () => {
+      respondWithFgdc();
+      const { root, waitForChanges } = await render(<ogm-attributes features={[feature]} kind="wms" references={referencesFor('https://example.com/explains.xml')} />);
+      await settleDefinitions(waitForChanges);
+
+      expect(definitionFor(root, 'region')).toEqual('The DEC region where the station is located.');
+      // stat_name is in the response but not in the document, so it keeps a plain name
+      expect(definitionFor(root, 'stat_name')).toBeUndefined();
+      expect(keys(root)).toEqual(['region', 'stat_name', 'ozone', 'pm_2_5']);
+    });
+
+    it('reads a coded value as what it means, keeping the code beside it', async () => {
+      respondWithFgdc();
+      const { root, waitForChanges } = await render(<ogm-attributes features={[feature]} kind="wms" references={referencesFor('https://example.com/coded.xml')} />);
+      await settleDefinitions(waitForChanges);
+
+      expect(rows(root)).toContainEqual(['ozone', 'Ozone is measured here (Y)']);
+    });
+
+    it('leaves a value the metadata has no code for alone', async () => {
+      respondWithFgdc();
+      const { root, waitForChanges } = await render(<ogm-attributes features={[feature]} kind="wms" references={referencesFor('https://example.com/uncoded.xml')} />);
+      await settleDefinitions(waitForChanges);
+
+      // REGION is defined but its values aren't coded, so 5 is still 5
+      expect(rows(root)).toContainEqual(['region', '5']);
+    });
+
+    // The common case by a wide margin: most records point at no such document, or at one no
+    // browser can read
+    it('shows exactly what it always did for a record with no metadata to read', async () => {
+      const { root, waitForChanges } = await render(<ogm-attributes features={[feature]} kind="wms" />);
+      await settleDefinitions(waitForChanges);
+
+      expect(rows(root)).toEqual([
+        ['region', '5'],
+        ['stat_name', 'EMN - WHITEFACE MT. SMT'],
+        ['ozone', 'Y'],
+        ['pm_2_5', ''],
+      ]);
+      expect(shadow(root).querySelectorAll('wa-tooltip')).toHaveLength(0);
+    });
+
+    it('says nothing extra when the document cannot be read', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 403, statusText: 'Forbidden', headers: { get: () => null } } as unknown as Response);
+      const { root, waitForChanges } = await render(<ogm-attributes features={[feature]} kind="wms" references={referencesFor('https://example.com/refused.xml')} />);
+      await settleDefinitions(waitForChanges);
+
+      expect(rows(root)).toContainEqual(['ozone', 'Y']);
+      expect(shadow(root).querySelectorAll('wa-tooltip')).toHaveLength(0);
+    });
+  });
+
   describe('describing an index map sheet', () => {
     afterEach(() => vi.restoreAllMocks());
 

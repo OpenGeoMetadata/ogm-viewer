@@ -162,3 +162,20 @@ wa-scroller {
     word-wrap: anywhere;
   }
 }
+
+/* Styling for attributes with info coming from metadata documents */
+.attribute-table .key .defined {
+  cursor: help;
+  text-decoration: underline dashed;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.attribute-table .key .defined:hover,
+.attribute-table .key .defined:focus-visible {
+  text-decoration-style: solid;
+}
+
+.attribute-table .value .code {
+  color: var(--wa-color-text-quiet);
+}

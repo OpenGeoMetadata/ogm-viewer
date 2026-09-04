@@ -31,12 +31,39 @@ registerIconLibrary('default', {
 // throws instead of styling anything.
 const themeSheets = new WeakMap<Document, CSSStyleSheet>();
 
+/**
+ * Our own corrections to Web Awesome's defaults, adopted alongside its theme so that one definition
+ * covers every component that shows one of these elements rather than each stylesheet repeating it.
+ *
+ * wa-tooltip inverts itself: its background is --wa-color-text-normal and its text is the surface,
+ * so it comes out light on dark in dark mode and dark on light in light mode. That is a fair
+ * convention for a tooltip on a page, but every tooltip here sits inside the viewer - over a map
+ * popup, beside panels that all use the surface colors - where inverting reads as not having been
+ * themed at all. Pointed at the raised surface instead. The border has to be named too: it defaults
+ * to the background color, which would leave the tooltip edgeless once the two surfaces match.
+ *
+ * On the scope classes rather than on `wa-tooltip` itself, and that is the whole trick: a rule only
+ * styles elements in the roots that adopt the sheet it came from, and the tooltips are in roots that
+ * adopt nothing - <ogm-attributes>' and <ogm-menubar>'s. Custom properties do cross a shadow
+ * boundary, so declaring them where waScope() puts its class hands them to every tooltip below it,
+ * whichever root it lives in. Declared after Web Awesome's own block, which sets these same
+ * properties on the same classes, so this one wins on order.
+ */
+const WEB_AWESOME_OVERRIDES = `
+  .wa-light,
+  .wa-dark {
+    --wa-tooltip-background-color: var(--wa-color-surface-raised, var(--wa-color-surface-default));
+    --wa-tooltip-border-color: var(--wa-color-surface-border);
+    --wa-tooltip-content-color: var(--wa-color-text-normal);
+  }
+`;
+
 const themeSheet = (doc: Document): CSSStyleSheet => {
   const built = themeSheets.get(doc);
   if (built) return built;
 
   const sheet = new (doc.defaultView ?? window).CSSStyleSheet();
-  sheet.replaceSync(webAwesomeThemeCss);
+  sheet.replaceSync(`${webAwesomeThemeCss}\n${WEB_AWESOME_OVERRIDES}`);
   themeSheets.set(doc, sheet);
   return sheet;
 };

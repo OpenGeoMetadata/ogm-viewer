@@ -104,7 +104,7 @@ export class OgmViewer {
         <div class={`container ${waScope(this.theme)}`}>
           <ogm-menubar theme={this.theme} record={this.record} loading={this.loading} hideTitle={this.hideTitle}></ogm-menubar>
           <div class="main-container">
-            <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen}></ogm-sidebar>
+            <ogm-sidebar theme={this.theme} record={this.record} open={this.sidebarOpen} requestTransform={this.requestTransform}></ogm-sidebar>
             {this.error ? (
               <ogm-alerts theme={this.theme} error={this.error}></ogm-alerts>
             ) : (

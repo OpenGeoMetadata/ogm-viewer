@@ -170,6 +170,16 @@ export class References {
     return this.references['urn:x-esri:serviceType:ArcGIS#TiledMapLayer'];
   }
 
+  // The FGDC metadata document, if any
+  get fgdcUrl() {
+    return this.references['http://www.opengis.net/cat/csw/csdgm'];
+  }
+
+  // The ISO 19110 feature catalogue, if any
+  get iso19110Url() {
+    return this.references['http://www.isotc211.org/schemas/2005/gco'];
+  }
+
   // List of download links with URL and label, if using multiple downloads
   get downloadLinks(): LabelledLinks {
     const fieldContents = this.references['http://schema.org/downloadUrl'];
