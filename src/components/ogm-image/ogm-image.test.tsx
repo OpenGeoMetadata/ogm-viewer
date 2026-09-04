@@ -69,12 +69,14 @@ describe('ogm-image', () => {
 
     expect(marginsOf(el)).toHaveBeenCalledWith({ top: 50, bottom: 50, right: 50, left: 450 });
   });
-  it('fullscreens the shadow host without asking OpenSeadragon to detach it from the document', async () => {
+  it('fullscreens its containing viewer without asking OpenSeadragon to detach the image', async () => {
     const { el } = await renderImage();
+    const target = document.createElement('ogm-viewer');
     const requestFullscreen = vi.fn().mockResolvedValue(undefined);
     const exitFullscreen = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(el, 'requestFullscreen', { configurable: true, value: requestFullscreen });
+    Object.defineProperty(target, 'requestFullscreen', { configurable: true, value: requestFullscreen });
     Object.defineProperty(document, 'exitFullscreen', { configurable: true, value: exitFullscreen });
+    Object.assign(el, { fullscreenTarget: () => target });
 
     await toggleFullscreen(el);
 
@@ -88,15 +90,19 @@ describe('ogm-image', () => {
 
   it('uses and exits an in-place fallback when native fullscreen is unavailable', async () => {
     const { el } = await renderImage();
-    Object.defineProperty(el, 'requestFullscreen', {
+    const target = document.createElement('ogm-viewer');
+    Object.defineProperty(target, 'requestFullscreen', {
       configurable: true,
       value: vi.fn().mockRejectedValue(new Error('Fullscreen unavailable')),
     });
+    Object.assign(el, { fullscreenTarget: () => target });
 
     await toggleFullscreen(el);
     expect((el as unknown as { fullscreenFallback: boolean }).fullscreenFallback).toBe(true);
+    expect(target.hasAttribute('data-ogm-fullscreen-fallback')).toBe(true);
 
     await toggleFullscreen(el);
     expect((el as unknown as { fullscreenFallback: boolean }).fullscreenFallback).toBe(false);
+    expect(target.hasAttribute('data-ogm-fullscreen-fallback')).toBe(false);
   });
 });

@@ -1,3 +1,29 @@
+:host(:fullscreen) .container,
+:host([data-ogm-fullscreen-fallback]) .container {
+  box-sizing: border-box;
+  width: 100vw;
+  height: 100vh;
+  min-height: 0;
+  border: 0;
+  background-color: var(--wa-color-surface-raised);
+}
+
+:host([data-ogm-fullscreen-fallback]) {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  width: 100vw;
+  height: 100vh;
+}
+
+:host(:fullscreen) .main-container,
+:host([data-ogm-fullscreen-fallback]) .main-container {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
 .container {
   /* Defined here rather than on :host because it resolves a Web Awesome token, which is only
      available on .container (where the palette/theme stylesheet is activated by the
