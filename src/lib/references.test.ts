@@ -124,7 +124,60 @@ describe('References', () => {
     });
   });
 
+  // Publishers spell the same URI both ways - Stanford without the trailing slash, Wisconsin,
+  // Berkeley and UT Austin with one - and before keys were canonicalized only the slashed spelling
+  // was recognized, so every Stanford ISO reference was invisible.
+  describe('trailing slashes in reference keys', () => {
+    it('finds a reference whichever way the record spells the URI', () => {
+      const bare = new References(JSON.stringify({ 'http://www.isotc211.org/schemas/2005/gmd': 'http://example.com/iso.xml' }));
+      const slashed = new References(JSON.stringify({ 'http://www.isotc211.org/schemas/2005/gmd/': 'http://example.com/iso.xml' }));
+
+      expect(bare.metadataLinks).toEqual([{ url: 'http://example.com/iso.xml', label: 'ISO 19139 metadata' }]);
+      expect(slashed.metadataLinks).toEqual(bare.metadataLinks);
+    });
+
+    // Not just the metadata keys: any of them can arrive either way
+    it('tolerates a slash on a previewable reference too', () => {
+      const references = new References(JSON.stringify({ 'http://www.opengis.net/def/serviceType/ogc/wms/': 'http://example.com/wms' }));
+
+      expect(references.wmsUrl).toEqual('http://example.com/wms');
+      expect(references.mapPreviewable).toBe(true);
+    });
+
+    it('keeps the first value when a record carries both spellings', () => {
+      const references = new References(
+        JSON.stringify({
+          'http://www.isotc211.org/schemas/2005/gmd': 'http://example.com/first.xml',
+          'http://www.isotc211.org/schemas/2005/gmd/': 'http://example.com/second.xml',
+        }),
+      );
+
+      expect(references.metadataLinks).toEqual([{ url: 'http://example.com/first.xml', label: 'ISO 19139 metadata' }]);
+    });
+
+    // Valid JSON that isn't an object has no keys to canonicalize, and null would throw on the way
+    it('treats references that are not an object as no references at all', () => {
+      expect(new References(JSON.stringify('http://example.com/iso.xml')).metadataLinks).toEqual([]);
+      expect(new References(JSON.stringify(null)).previewable).toBe(false);
+    });
+  });
+
   describe('metadata links', () => {
+    // OGM publishes an ISO 19110 feature catalogue under the gco namespace rather than gfc; see
+    // the note on the key in references.ts.
+    it('labels an ISO 19110 feature catalogue', () => {
+      const contents = {
+        'http://www.isotc211.org/schemas/2005/gmd': 'http://example.com/iso19139.xml',
+        'http://www.isotc211.org/schemas/2005/gco': 'http://example.com/iso19110.xml',
+      };
+      const references = new References(JSON.stringify(contents));
+
+      expect(references.metadataLinks).toEqual([
+        { url: 'http://example.com/iso19139.xml', label: 'ISO 19139 metadata' },
+        { url: 'http://example.com/iso19110.xml', label: 'ISO 19110 metadata' },
+      ]);
+    });
+
     it('returns labelled links to metadata', () => {
       const contents = {
         'http://schema.org/downloadUrl': 'http://example.com/file.csv',
