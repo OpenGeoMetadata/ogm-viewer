@@ -1,4 +1,4 @@
-import { Component, Element, h, Host, Watch, Prop, Event, EventEmitter } from '@stencil/core';
+import { Component, Element, h, Host, Watch, Prop, Event, EventEmitter, State } from '@stencil/core';
 import { Viewer } from 'openseadragon';
 
 import '@awesome.me/webawesome/dist/components/button/button.js';
@@ -38,6 +38,9 @@ export class OgmImage {
     adoptWebAwesomeTheme(this.el);
   }
 
+  @State() fullscreen: boolean = false;
+  @State() fullscreenFallback: boolean = false;
+
   // Set up OpenSeadragon viewer on load
   async componentDidLoad() {
     // #openseadragon rather than the host for the same reason <ogm-map> reads from its container: it
@@ -59,10 +62,16 @@ export class OgmImage {
       zoomInButton: getElement(this.el, '.zoom-in'),
       zoomOutButton: getElement(this.el, '.zoom-out'),
       homeButton: getElement(this.el, '.home'),
-      fullPageButton: getElement(this.el, '.full-page'),
       nextButton: getElement(this.el, '.next'),
       previousButton: getElement(this.el, '.prev'),
     });
+
+    // OpenSeadragon's full-page implementation temporarily removes every child from <body>. A
+    // viewer mounted in this component's shadow root then disappears from document.getElementById,
+    // so OpenSeadragon throws before it can put the image back. Keep the shadow tree together and
+    // ask the browser to fullscreen its host instead.
+    document.addEventListener('fullscreenchange', this.onFullscreenChange);
+    document.addEventListener('keydown', this.onFullscreenKeydown);
 
     // Clear loading state whether we succeeded or failed
     this.viewer.addHandler('open', () => this.imageLoaded.emit());
@@ -79,6 +88,8 @@ export class OgmImage {
 
   // Destroy the viewer when we are removed from the DOM
   disconnectedCallback() {
+    document.removeEventListener('fullscreenchange', this.onFullscreenChange);
+    document.removeEventListener('keydown', this.onFullscreenKeydown);
     this.viewer?.destroy();
   }
 
@@ -134,12 +145,50 @@ export class OgmImage {
     this.previewError.emit(referenceError(error, this.previewer.label(), this.previewer.url));
   }
 
+  private onFullscreenChange = () => {
+    this.fullscreen = this.el.matches(':fullscreen') || this.fullscreenFallback;
+  };
+
+  private onFullscreenKeydown = (event: KeyboardEvent) => {
+    if (event.key === 'Escape' && this.fullscreenFallback) this.exitFullscreenFallback();
+  };
+
+  private exitFullscreenFallback() {
+    this.fullscreenFallback = false;
+    this.fullscreen = false;
+  }
+
+  private async toggleFullscreen() {
+    if (this.fullscreenFallback) {
+      this.exitFullscreenFallback();
+      return;
+    }
+
+    // document.fullscreenElement may be retargeted to an outer shadow host. Our state is updated
+    // from the element's :fullscreen match instead, so the same button remains a reliable exit.
+    if (this.fullscreen) {
+      await document.exitFullscreen();
+      this.fullscreen = false;
+      return;
+    }
+
+    try {
+      await this.el.requestFullscreen();
+      this.fullscreen = true;
+    } catch {
+      // Fullscreen may be unavailable in an embedding context. A fixed-position host preserves the
+      // same useful full-window view without moving the OpenSeadragon node out of its shadow root.
+      this.fullscreenFallback = true;
+      this.fullscreen = true;
+    }
+  }
+
   // The scope goes on #openseadragon as well as on the Host: the palette is established by plain
   // class selectors, which the stylesheet linked here can't match against its own shadow host. The
   // controls below and the viewer's own background read from it.
   render() {
     return (
-      <Host class={waScope(this.theme)}>
+      <Host class={`${waScope(this.theme)}${this.fullscreenFallback ? ' fullscreen-fallback' : ''}`}>
         <div id="openseadragon" class={waScope(this.theme)}>
           <div class="controls">
             <wa-button class="zoom-in" size="s" appearance="filled-outlined" pill>
@@ -151,8 +200,8 @@ export class OgmImage {
             <wa-button class="home" size="s" appearance="filled-outlined" pill>
               <wa-icon name="house" label="Reset View" canvas="auto"></wa-icon>
             </wa-button>
-            <wa-button class="full-page" size="s" appearance="filled-outlined" pill>
-              <wa-icon name="arrows-fullscreen" label="Full Screen" canvas="auto"></wa-icon>
+            <wa-button class="full-page" size="s" appearance="filled-outlined" pill onClick={() => this.toggleFullscreen()}>
+              <wa-icon name="arrows-fullscreen" label={this.fullscreen ? 'Exit Full Screen' : 'Full Screen'} canvas="auto"></wa-icon>
             </wa-button>
             <wa-button class="next" size="s" appearance="filled-outlined" pill>
               <wa-icon name="arrow-right" label="Next" canvas="auto"></wa-icon>
