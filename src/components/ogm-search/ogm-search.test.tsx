@@ -5,7 +5,7 @@ const response = {
   '@context': 'http://iiif.io/api/search/2/context.json',
   'id': 'https://example.org/search?q=Market',
   'type': 'AnnotationPage',
-  'partOf': { id: 'https://example.org/search', type: 'AnnotationCollection', total: 2 },
+  'partOf': { id: 'https://example.org/search', type: 'AnnotationCollection', total: 1 },
   'items': [
     {
       'id': 'https://example.org/annotations/1',
@@ -56,7 +56,7 @@ const response = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('ogm-search', () => {
-  it('searches a IIIF service, explains the match, and emits the selected annotation', async () => {
+  it('shows the best crop per entity and emits the selected annotation', async () => {
     const fetch = vi.fn(async (_url: string) => new Response(JSON.stringify(response), { status: 200 }));
     vi.stubGlobal('fetch', fetch);
     const { root, waitForChanges } = await render(<ogm-search searchUrl="https://example.org/search"></ogm-search>);
@@ -72,21 +72,20 @@ describe('ogm-search', () => {
     const searchRequests = fetch.mock.calls.map(call => call[0]).filter(url => url.startsWith('https://example.org/search'));
     expect(searchRequests).toHaveLength(1);
     expect(new URL(searchRequests[0]).searchParams.get('q')).toBe('Market');
-    expect(shadowRoot.textContent).toContain('2 map occurrences for “Market” · grouped by gazetteer entity');
+    expect(shadowRoot.textContent).toContain('1 result for “Market” · gazetteer matches');
     expect(shadowRoot.querySelectorAll('.entity-result')).toHaveLength(1);
     expect(shadowRoot.querySelectorAll('.entity-label')).toHaveLength(1);
-    expect(shadowRoot.querySelector('.entity-metadata')?.textContent).toBe('GNIS · road · 2 map occurrences');
-    expect(shadowRoot.textContent).toContain('OCR: “Market St.”');
+    expect(shadowRoot.querySelector('.entity-metadata')?.textContent).toBe('Overture · road');
     expect(shadowRoot.textContent).not.toContain('candidate');
     const thumbnails = shadowRoot.querySelectorAll('.crop-thumbnail');
-    expect(thumbnails).toHaveLength(2);
-    expect((thumbnails[0] as HTMLImageElement).src).toBe('https://example.org/crop.jpg');
+    expect(thumbnails).toHaveLength(1);
+    expect((thumbnails[0] as HTMLImageElement).src).toBe('https://example.org/crop-2.jpg');
 
     const selected = vi.fn();
     root.addEventListener('contentSearchResultSelected', selected);
     (shadowRoot.querySelector('.crop-result') as HTMLButtonElement).click();
 
     expect(selected).toHaveBeenCalledOnce();
-    expect(selected.mock.calls[0][0].detail.id).toBe('https://example.org/annotations/1');
+    expect(selected.mock.calls[0][0].detail.id).toBe('https://example.org/annotations/2');
   });
 });
