@@ -3,6 +3,7 @@ import { Component, Element, Host, Listen, Prop, State, Watch, h } from '@stenci
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import type { AnyPreviewer } from '../../lib/previewers/factory';
 import type { PreviewError } from '../../lib/errors';
+import type { References } from '../../lib/references';
 
 // Wraps a single preview and surfaces error(s) during it.
 @Component({
@@ -21,6 +22,7 @@ export class OgmPreview {
   @Prop() previewer: AnyPreviewer;
   @Prop() sidebarPadding: number;
   @Prop() cooperativeGestures: boolean = true;
+  @Prop() references?: References;
   @State() error?: PreviewError;
 
   // Before the first frame, so nothing paints unstyled
@@ -54,6 +56,7 @@ export class OgmPreview {
         previewer={this.previewer}
         padding={this.sidebarPadding}
         cooperativeGestures={this.cooperativeGestures}
+        references={this.references}
       ></ogm-map>
     );
   }

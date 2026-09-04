@@ -112,6 +112,7 @@ export class OgmPreviews {
                 lightBasemap={this.lightBasemap}
                 previewer={previewer}
                 sidebar-padding={this.sidebarPadding}
+                references={this.record?.references}
               ></ogm-preview>
             </wa-tab-panel>
           ))}

@@ -199,6 +199,14 @@ document.querySelector('ogm-previews').previewers = [new GeoJsonPreviewer(geoJso
 
 `record` and `previewers` are DOM properties too. Neither component has an intrinsic size, so the embedding page should set it via CSS.
 
+#### Field definitions
+
+When a record has a reference to an FGDC or ISO 19110 metadata document describing its data's fields, the
+attribute table names each field from it and reads coded values as what they stand for - so a road
+whose `access` is `1` reads "Unrestricted public access (1)", and hovering or tabbing to the field's
+name explains what the field itself holds. The sidebar also gets a "Fields" tab listing every documented
+field.
+
 #### Cooperative gestures
 
 `<ogm-preview>`, `<ogm-locator>`, and `<ogm-overview>` all require a reader to hold Ctrl (⌘ on a Mac) to zoom the map with the scroll wheel, and a second finger to pan it on a touchscreen, so that a map sitting inside a page doesn't steal the scroll a reader meant for the page around it. Set `cooperative-gestures` to `false` on any of them to turn this off and answer to the wheel and a single touch right away:

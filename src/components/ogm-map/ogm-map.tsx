@@ -12,6 +12,7 @@ import { isLayerDrawn, rampedLayers, resolveLayerState, toLayerControlItems as g
 import LayersControl from '../../lib/layers-control';
 import InspectableRasterPreviewer from '../../lib/previewers/inspectable-raster';
 import type MapPreviewer from '../../lib/previewers/map';
+import type { References } from '../../lib/references';
 import { ourResourceType, toMapLibreRequest } from '../../lib/request';
 import MapLibreTheme from '../../lib/themes/maplibre';
 
@@ -45,6 +46,7 @@ export class OgmMap {
    * gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
    */
   @Prop() cooperativeGestures: boolean = true;
+  @Prop() references?: References;
 
   @Event() mapIdle: EventEmitter<void>;
   @Event() mapLoading: EventEmitter<void>;
@@ -531,6 +533,7 @@ export class OgmMap {
     // paints a table of raw keys for something it could have named properly.
     this.attributesEl.kind = this.previewer?.kind;
     this.attributesEl.requestTransform = this.previewer?.requestTransform;
+    this.attributesEl.references = this.references;
     this.attributesEl.features = features;
     this.createPopup(event.lngLat);
     this.selectFeature(features[0]);
