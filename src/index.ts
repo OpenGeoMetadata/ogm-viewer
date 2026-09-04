@@ -20,6 +20,11 @@ export type * from './components.d.ts';
 export { default as OgmRecord, OGM_FIELD_NAMES, type GeoBlacklightSchemaAardvark } from './lib/record';
 export { References, REFERENCE_URIS, type LabelledLinks, type ReferenceName, type ReferencesRecord, type ReferenceURI } from './lib/references';
 
+// What a record's own metadata says its fields hold - read from the FGDC or ISO 19110 document it
+// points at, where it points at one that a browser can actually read. Used by the attribute table
+// to name a clicked feature's fields and decode its coded values.
+export { fieldDefinitions, type FieldDefinition, type FieldDefinitions } from './lib/field-definitions';
+
 // Applied to every request a Resource makes on its own - and, once its previewer attaches to a
 // map, to MapLibre's own tile and style requests too. Pass one to a Resource's constructor, to
 // `resourcesFor`, or to <ogm-viewer>'s `requestTransform` property.
