@@ -4,7 +4,7 @@ import { Viewer } from 'openseadragon';
 import '@awesome.me/webawesome/dist/components/button/button.js';
 import '@awesome.me/webawesome/dist/components/icon/icon.js';
 
-import { getElement, findElement } from '../../lib/elements';
+import { closestAcrossShadows, getElement, findElement } from '../../lib/elements';
 import { referenceError, type PreviewError } from '../../lib/errors';
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import type ImagePreviewer from '../../lib/previewers/image';
@@ -45,7 +45,8 @@ export class OgmImage {
   }
 
   @State() fullscreen: boolean = false;
-  @State() fullscreenFallback: boolean = false;
+  private fullscreenFallback: boolean = false;
+  private fullscreenFallbackElement?: HTMLElement;
 
   // Set up OpenSeadragon viewer on load
   async componentDidLoad() {
@@ -99,6 +100,7 @@ export class OgmImage {
   disconnectedCallback() {
     document.removeEventListener('fullscreenchange', this.onFullscreenChange);
     document.removeEventListener('keydown', this.onFullscreenKeydown);
+    this.exitFullscreenFallback();
     this.removeSearchHighlight();
     this.viewer?.destroy();
   }
@@ -190,7 +192,7 @@ export class OgmImage {
   }
 
   private onFullscreenChange = () => {
-    this.fullscreen = this.el.matches(':fullscreen') || this.fullscreenFallback;
+    this.fullscreen = this.fullscreenTarget().matches(':fullscreen') || this.fullscreenFallback;
   };
 
   private onFullscreenKeydown = (event: KeyboardEvent) => {
@@ -198,8 +200,17 @@ export class OgmImage {
   };
 
   private exitFullscreenFallback() {
+    this.fullscreenFallbackElement?.removeAttribute('data-ogm-fullscreen-fallback');
+    this.fullscreenFallbackElement = undefined;
     this.fullscreenFallback = false;
     this.fullscreen = false;
+  }
+
+  // Fullscreen the complete viewer when one contains this image. The menubar owns the hamburger and
+  // the sidebar owns search, metadata, rights, links and the raw record; targeting only <ogm-image>
+  // necessarily hides all of them. A standalone image still fullscreens itself.
+  private fullscreenTarget(): HTMLElement {
+    return closestAcrossShadows(this.el, 'ogm-viewer') ?? this.el;
   }
 
   private async toggleFullscreen() {
@@ -217,11 +228,13 @@ export class OgmImage {
     }
 
     try {
-      await this.el.requestFullscreen();
+      await this.fullscreenTarget().requestFullscreen();
       this.fullscreen = true;
     } catch {
       // Fullscreen may be unavailable in an embedding context. A fixed-position host preserves the
       // same useful full-window view without moving the OpenSeadragon node out of its shadow root.
+      this.fullscreenFallbackElement = this.fullscreenTarget();
+      this.fullscreenFallbackElement.setAttribute('data-ogm-fullscreen-fallback', '');
       this.fullscreenFallback = true;
       this.fullscreen = true;
     }
@@ -232,7 +245,7 @@ export class OgmImage {
   // controls below and the viewer's own background read from it.
   render() {
     return (
-      <Host class={`${waScope(this.theme)}${this.fullscreenFallback ? ' fullscreen-fallback' : ''}`}>
+      <Host class={waScope(this.theme)}>
         <div id="openseadragon" class={waScope(this.theme)}>
           <div class="controls">
             <wa-button class="zoom-in" size="s" appearance="filled-outlined" pill>
