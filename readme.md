@@ -90,28 +90,28 @@ ogm-viewer {
 
 Here are the supported properties and what they apply to:
 
-| Property                       | Applies to                                           |
-| ------------------------------ | ---------------------------------------------------- |
-| `--ogm-data-color`             | Polygon fill, line geometry, and circle fill         |
-| `--ogm-highlight-color`        | The same, for a hovered feature                      |
-| `--ogm-selected-color`         | The same, for the feature whose attributes are shown |
-| `--ogm-invalid-color`          | The same, for a feature marked unavailable           |
-| `--ogm-marker-color`           | Disc a numbered result's marker is drawn on          |
-| `--ogm-marker-highlight-color` | The same, for the highlighted result                 |
-| `--ogm-stroke-color`           | Polygon outlines and circle borders                  |
-| `--ogm-stroke-highlight-color` | Outline of a hovered feature                         |
-| `--ogm-stroke-selected-color`  | Outline of the selected feature                      |
-| `--ogm-stroke-invalid-color`   | Outline of a feature marked unavailable              |
-| `--ogm-text-color`             | Feature label text color                             |
-| `--ogm-text-halo-color`        | Feature label text outline color                     |
-| `--ogm-text-size`              | Feature label font size, in pixels                   |
-| `--ogm-font-family`            | Feature label font name (e.g. `"Noto Sans Regular"`) |
-| `--ogm-marker-font`            | CSS font stack for a numbered marker's numeral       |
-| `--ogm-data-opacity`           | Initial opacity of drawn data                        |
-| `--ogm-highlight-opacity`      | Opacity of a highlighted feature                     |
-| `--ogm-bounds-opacity`         | Initial opacity of a bounding box or index map       |
-| `--ogm-padding`                | Gap kept between the data and the view edge (pixels) |
-| `--ogm-overview-padding`       | Gap for locator and overview maps (pixels)           |
+| Property                       | Applies to                                              |
+| ------------------------------ | ------------------------------------------------------- |
+| `--ogm-data-color`             | Polygon fill, line geometry, and circle fill            |
+| `--ogm-highlight-color`        | The same, for a hovered feature                         |
+| `--ogm-selected-color`         | The same, for the feature whose attributes are shown    |
+| `--ogm-invalid-color`          | The same, for a feature marked unavailable              |
+| `--ogm-marker-color`           | Disc a numbered result's marker is drawn on             |
+| `--ogm-marker-highlight-color` | The same, for the highlighted result                    |
+| `--ogm-stroke-color`           | Polygon outlines and circle borders                     |
+| `--ogm-stroke-highlight-color` | Outline of a hovered feature                            |
+| `--ogm-stroke-selected-color`  | Outline of the selected feature                         |
+| `--ogm-stroke-invalid-color`   | Outline of a feature marked unavailable                 |
+| `--ogm-text-color`             | Feature label text color                                |
+| `--ogm-text-halo-color`        | Feature label text outline color                        |
+| `--ogm-text-size`              | Feature label font size, in pixels                      |
+| `--ogm-font-family`            | Feature label font name (e.g. `"Noto Sans Regular"`)    |
+| `--ogm-marker-font`            | CSS font stack for a numbered marker's numeral          |
+| `--ogm-data-opacity`           | Initial opacity of drawn data                           |
+| `--ogm-highlight-opacity`      | Opacity of a highlighted feature                        |
+| `--ogm-bounds-opacity`         | Initial opacity of a bounding box or index map geometry |
+| `--ogm-padding`                | Gap kept between the data and the view edge (pixels)    |
+| `--ogm-overview-padding`       | Gap for locator and overview maps (pixels)              |
 
 By default, the viewer uses styles from [Web Awesome](https://webawesome.com/) that match the current mode (dark or light).
 
