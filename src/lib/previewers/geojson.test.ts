@@ -149,12 +149,6 @@ describe('GeoJsonPreviewer#previewLayers', () => {
 
     expect(previewer.previewLayers[0].styleLayers.map(styleLayer => styleLayer.type)).toEqual(['fill', 'line', 'line', 'circle', 'symbol', 'symbol', 'symbol']);
   });
-
-  it('names an index map after the resource, not the layer id we invented for it', async () => {
-    const { previewer } = await previewIndexMap();
-
-    expect(previewer.previewLayers.map(layer => layer.title)).toEqual(['Index Map']);
-  });
 });
 
 // A feature's availability is static data already on the GeoJSON, not feature-state, so it reads
@@ -342,7 +336,10 @@ describe('OpenIndexMapPreviewer#preview', () => {
 });
 
 const INDEX_ROW_ID = 'princeton-fk4544658v-geojson-indexmap';
+const LABELS_ROW_ID = `${INDEX_ROW_ID}-labels`;
 const indexLayerId = (suffix: string) => `${INDEX_ROW_ID}-${suffix}`;
+const GEOMETRY_SUFFIXES = ['polygons', 'polygon-outlines', 'lines', 'points'];
+const LABEL_SUFFIXES = ['polygon-labels', 'line-labels', 'point-labels'];
 
 // An index map's polygons are sheet boundaries: where to find the scans rather than data anyone came
 // to read, and they tile the whole extent, so drawn at the strength of real geometry there is no
@@ -369,14 +366,19 @@ describe('OpenIndexMapPreviewer#opacity', () => {
     expect(map.layers.get(indexLayerId('points')).paint['circle-opacity']).toEqual(faded);
     expect(map.layers.get(indexLayerId('points')).paint['circle-stroke-opacity']).toEqual(style.boundsOpacity);
     ['polygon-outlines', 'lines'].forEach(suffix => expect(map.layers.get(indexLayerId(suffix)).paint['line-opacity']).toEqual(style.boundsOpacity));
-    ['polygon-labels', 'line-labels', 'point-labels'].forEach(suffix => expect(map.layers.get(indexLayerId(suffix)).paint['text-opacity']).toEqual(style.boundsOpacity));
+    LABEL_SUFFIXES.forEach(suffix => expect(map.layers.get(indexLayerId(suffix)).paint['text-opacity']).toEqual(style.opacity));
   });
 
   it('reproduces the authored paint exactly at its own default, so re-applying is a no-op', async () => {
     const { map, previewer } = await previewIndexMap();
     const authored = SUFFIXES.map(suffix => structuredClone(map.layers.get(indexLayerId(suffix)).paint));
 
-    previewer.applyLayerState(new Map([[INDEX_ROW_ID, { visible: true, opacity: style.boundsOpacity }]]));
+    previewer.applyLayerState(
+      new Map([
+        [INDEX_ROW_ID, { visible: true, opacity: style.boundsOpacity }],
+        [LABELS_ROW_ID, { visible: true, opacity: style.opacity }],
+      ]),
+    );
 
     SUFFIXES.forEach((suffix, index) => expect(map.layers.get(indexLayerId(suffix)).paint).toEqual(authored[index]));
   });
@@ -389,6 +391,83 @@ describe('OpenIndexMapPreviewer#opacity', () => {
     previewer.applyLayerState(new Map([[INDEX_ROW_ID, { visible: true, opacity: 1 }]]));
 
     expect(map.layers.get(indexLayerId('polygons')).paint['fill-opacity']).toEqual(['case', SELECTED, 1, 1]);
-    expect(map.layers.get(indexLayerId('polygon-labels')).paint['text-opacity']).toEqual(1);
+  });
+});
+
+// Dense enough, over an index of any size, to be a page of sheet numbers laid over the boundaries
+// they name - so they're a row of their own: something a reader turns down or off without giving up
+// the boundaries, and without the faded start those boundaries take.
+describe('OpenIndexMapPreviewer#labels', () => {
+  it('offers the labels as a second row, painted over the boundaries', async () => {
+    const { previewer } = await previewIndexMap();
+
+    expect(previewer.previewLayers.map(layer => layer.id)).toEqual([INDEX_ROW_ID, LABELS_ROW_ID]);
+    // Neither row is called 'Index Map': that's the tab, and a row named after the whole preview
+    // would say nothing about which half of it the row draws
+    expect(previewer.previewLayers.map(layer => layer.title)).toEqual(['Geometry', 'Sheet labels']);
+  });
+
+  it('splits the style layers between the two rows, leaving none in both or neither', async () => {
+    const { previewer } = await previewIndexMap();
+    const [boundaries, labels] = previewer.previewLayers;
+
+    expect(boundaries.styleLayers.map(styleLayer => styleLayer.id)).toEqual(GEOMETRY_SUFFIXES.map(indexLayerId));
+    expect(labels.styleLayers.map(styleLayer => styleLayer.id)).toEqual(LABEL_SUFFIXES.map(indexLayerId));
+  });
+
+  // A sheet number is the one part of an index map someone is here to read, so it doesn't take the
+  // reasoning that fades the boundaries: it starts where any other text on a preview starts.
+  it('starts the labels at the theme opacity, not the fainter one the boundaries take', async () => {
+    const { previewer } = await previewIndexMap();
+
+    expect(previewer.previewLayers[1].defaultOpacity).toEqual(style.opacity);
+    expect(style.boundsOpacity).toBeLessThan(style.opacity);
+  });
+
+  it('fades the labels without touching the boundaries, and the boundaries without touching the labels', async () => {
+    const { map, previewer } = await previewIndexMap();
+
+    previewer.applyLayerState(
+      new Map([
+        [INDEX_ROW_ID, { visible: true, opacity: 1 }],
+        [LABELS_ROW_ID, { visible: true, opacity: 0.25 }],
+      ]),
+    );
+
+    expect(map.layers.get(indexLayerId('polygons')).paint['fill-opacity']).toEqual(['case', SELECTED, 1, 1]);
+    LABEL_SUFFIXES.forEach(suffix => expect(map.layers.get(indexLayerId(suffix)).paint['text-opacity']).toEqual(0.25));
+  });
+
+  it('hides the labels while the boundaries stay drawn', async () => {
+    const { map, previewer } = await previewIndexMap();
+
+    previewer.applyLayerState(new Map([[LABELS_ROW_ID, { visible: false, opacity: style.opacity }]]));
+
+    LABEL_SUFFIXES.forEach(suffix => expect(map.layers.get(indexLayerId(suffix)).layout.visibility).toEqual('none'));
+    GEOMETRY_SUFFIXES.forEach(suffix => expect(map.layers.get(indexLayerId(suffix)).layout.visibility).toEqual('visible'));
+    expect(previewer.visibleLayerIds).toEqual(GEOMETRY_SUFFIXES.map(indexLayerId));
+  });
+
+  // The legend names the colors the sheet boundaries are drawn in. Labels are drawn in none of them,
+  // so a labels row left on after the boundaries are hidden is not something the legend speaks for.
+  it('drops the legend once the boundaries are hidden, however many labels are left', async () => {
+    const { previewer } = await previewIndexMap();
+
+    previewer.applyLayerState(
+      new Map([
+        [INDEX_ROW_ID, { visible: false, opacity: style.boundsOpacity }],
+        [LABELS_ROW_ID, { visible: true, opacity: style.opacity }],
+      ]),
+    );
+
+    expect(previewer.legendEntries).toEqual([]);
+  });
+
+  it('keeps the legend while the boundaries are drawn and only the labels are hidden', async () => {
+    const { previewer } = await previewIndexMap();
+
+    previewer.applyLayerState(new Map([[LABELS_ROW_ID, { visible: false, opacity: style.opacity }]]));
+
+    expect(previewer.legendEntries).toHaveLength(3);
   });
 });

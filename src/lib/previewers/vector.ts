@@ -9,11 +9,15 @@ import type {
   VectorSourceSpecification,
 } from 'maplibre-gl';
 
-import type { PreviewStyleLayer } from '../layers';
+import type { Layer, PreviewStyleLayer } from '../layers';
 import type VectorResource from '../resources/vector';
 
 // MapLibre doesn't bundle the id with the source, but we need to
 export type AddVectorSourceObject = VectorSourceSpecification & { id: string };
+
+// What a row in the layers panel records about the style layers it draws: an id to set properties
+// on, and the type that decides which property that is.
+export const previewStyleLayers = (layers: LayerSpecification[]): PreviewStyleLayer[] => layers.map(({ id, type }) => ({ id, type }));
 
 export default abstract class VectorPreviewer extends MapPreviewer {
   declare protected resource: VectorResource;
@@ -22,39 +26,43 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     return this.resource.id;
   }
 
-  // Where this layer's opacity slider starts, and the opacity the style layers below are authored at.
-  // Both, because they have to agree: applyLayerState re-derives every paint value from the state it
-  // resolves, so a layer authored at one opacity and defaulted to another is drawn twice, briefly, at
-  // two different strengths. The theme's own opacity for anything a reader came to look at; an index
-  // map overrides this, being a statement about where the sheets are rather than data in its own right.
   protected getDefaultOpacity(): number {
     return this.style.opacity;
+  }
+
+  protected getLabelOpacity(): number {
+    return this.getDefaultOpacity();
   }
 
   protected async createLayers(): Promise<LayerSpecification[]> {
     const layerIds = await this.resource.getVectorLayers();
     return layerIds.flatMap(layerId => {
-      const layers = [
-        this.createPolygonLayer(layerId),
-        this.createPolygonOutlineLayer(layerId),
-        this.createLineLayer(layerId),
-        this.createPointLayer(layerId),
-        this.createPolygonLabelLayer(layerId),
-        this.createLineLabelLayer(layerId),
-        this.createPointLabelLayer(layerId),
-      ];
+      const geometry = [this.createPolygonLayer(layerId), this.createPolygonOutlineLayer(layerId), this.createLineLayer(layerId), this.createPointLayer(layerId)];
+      const labels = [this.createPolygonLabelLayer(layerId), this.createLineLabelLayer(layerId), this.createPointLabelLayer(layerId)];
 
-      // Seven style layers, one row: geometry and its labels are how a vector layer is drawn, not
-      // seven things a user chose to put on the map
-      this.previewLayers.push({
-        id: `${this.getSourceId()}-${layerId}`,
+      this.previewLayers.push(...this.createPreviewLayers(layerId, geometry, labels));
+
+      return [...geometry, ...labels];
+    });
+  }
+
+  // How a layer's style layers are grouped into the rows a user sees in the panel.
+  protected createPreviewLayers(layerId: string, geometry: LayerSpecification[], labels: LayerSpecification[]): Layer[] {
+    return [
+      {
+        id: this.previewLayerId(layerId),
         title: this.previewLayerTitle(layerId),
         defaultOpacity: this.getDefaultOpacity(),
-        styleLayers: layers.map(layer => ({ id: layer.id, type: layer.type }) as PreviewStyleLayer),
-      });
+        styleLayers: previewStyleLayers([...geometry, ...labels]),
+      },
+    ];
+  }
 
-      return layers;
-    });
+  // What the row holding this layer is called on the map's own state, as opposed to in the panel.
+  // Built from the source id for the reason the style layer ids are: one record can reference the
+  // same data more than one way, and two rows under one id are one row to everything downstream.
+  protected previewLayerId(layerId: string): string {
+    return `${this.getSourceId()}-${layerId}`;
   }
 
   // What to call this layer in the control. A single-layer source names its one layer for our own
@@ -208,7 +216,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-color': this.style.textColor,
         'text-halo-color': this.style.textHaloColor,
         'text-halo-width': 1,
-        'text-opacity': this.getDefaultOpacity(),
+        'text-opacity': this.getLabelOpacity(),
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
     };
@@ -231,7 +239,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-color': this.style.textColor,
         'text-halo-color': this.style.textHaloColor,
         'text-halo-width': 1,
-        'text-opacity': this.getDefaultOpacity(),
+        'text-opacity': this.getLabelOpacity(),
       },
       filter: ['==', ['geometry-type'], 'LineString'] as const,
     };
@@ -254,7 +262,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-color': this.style.textColor,
         'text-halo-color': this.style.textHaloColor,
         'text-halo-width': 1,
-        'text-opacity': this.getDefaultOpacity(),
+        'text-opacity': this.getLabelOpacity(),
       },
       filter: ['==', ['geometry-type'], 'Point'] as const,
     };

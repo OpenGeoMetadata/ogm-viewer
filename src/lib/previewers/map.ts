@@ -238,6 +238,12 @@ export default abstract class MapPreviewer extends Previewer {
     }
   }
 
+  // Whether one row in particular is drawn (switched on, and not faded all the way out).
+  protected layerDrawn(id: string): boolean {
+    const layer = this.findPreviewLayer(id);
+    return layer !== undefined && isLayerDrawn(resolveLayerState(layer, this.layerState));
+  }
+
   protected findPreviewLayer(id: string): Layer | undefined {
     return this.previewLayers.find(layer => layer.id === id);
   }
