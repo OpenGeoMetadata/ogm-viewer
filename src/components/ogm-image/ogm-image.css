@@ -5,6 +5,19 @@
   position: relative;
 }
 
+:host(:fullscreen),
+:host(.fullscreen-fallback) {
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--wa-color-surface-raised);
+}
+
+:host(.fullscreen-fallback) {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+}
+
 #openseadragon {
   height: 100%;
   background-color: var(--wa-color-surface-raised);

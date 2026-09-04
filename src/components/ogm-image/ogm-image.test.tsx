@@ -44,6 +44,7 @@ const renderImage = async () => {
 
 const marginsOf = (el: HTMLElement) => (el as unknown as { viewer: ReturnType<typeof fakeViewer> }).viewer.viewport.setMargins;
 const applyPadding = (el: HTMLElement) => (el as unknown as { onPaddingChange: () => Promise<void> }).onPaddingChange();
+const toggleFullscreen = (el: HTMLElement) => (el as unknown as { toggleFullscreen: () => Promise<void> }).toggleFullscreen();
 
 // Set a property the theme reads, on the element it reads from - the scope inside the shadow root, not
 // the host. Same reason Theme's own tests declare them on the element under test: happy-dom resolves a
@@ -106,5 +107,36 @@ describe('ogm-image', () => {
       }),
     );
     expect(viewer.viewport.fitBounds).toHaveBeenCalledWith({ x: 10, y: 20, width: 100, height: 30 }, true);
+  });
+
+  it('fullscreens the shadow host without asking OpenSeadragon to detach it from the document', async () => {
+    const { el } = await renderImage();
+    const requestFullscreen = vi.fn().mockResolvedValue(undefined);
+    const exitFullscreen = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(el, 'requestFullscreen', { configurable: true, value: requestFullscreen });
+    Object.defineProperty(document, 'exitFullscreen', { configurable: true, value: exitFullscreen });
+
+    await toggleFullscreen(el);
+
+    expect(requestFullscreen).toHaveBeenCalledOnce();
+    expect((el as unknown as { fullscreen: boolean }).fullscreen).toBe(true);
+
+    await toggleFullscreen(el);
+    expect(exitFullscreen).toHaveBeenCalledOnce();
+    expect((el as unknown as { fullscreen: boolean }).fullscreen).toBe(false);
+  });
+
+  it('uses and exits an in-place fallback when native fullscreen is unavailable', async () => {
+    const { el } = await renderImage();
+    Object.defineProperty(el, 'requestFullscreen', {
+      configurable: true,
+      value: vi.fn().mockRejectedValue(new Error('Fullscreen unavailable')),
+    });
+
+    await toggleFullscreen(el);
+    expect((el as unknown as { fullscreenFallback: boolean }).fullscreenFallback).toBe(true);
+
+    await toggleFullscreen(el);
+    expect((el as unknown as { fullscreenFallback: boolean }).fullscreenFallback).toBe(false);
   });
 });
