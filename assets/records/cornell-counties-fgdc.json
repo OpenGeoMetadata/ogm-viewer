@@ -1,0 +1,18 @@
+{
+  "id": "cugir-007865",
+  "dct_title_s": "Counties with Demographics, New York State, 2000",
+  "dct_description_sm": [
+    "New York State counties with census demographics. Converted mechanically from CUGIR's GeoBlacklight 1.0 record (cugir-007865) to Aardvark so the viewer will load it. Its FGDC Entity and Attribute section defines 68 of 82 fields - the densest attribute documentation found anywhere in OpenGeoMetadata that also fetches with CORS."
+  ],
+  "dct_accessRights_s": "Public",
+  "dct_format_s": "Shapefile",
+  "dct_publisher_sm": ["United States. Census Bureau"],
+  "dct_spatial_sm": ["New York (State)"],
+  "dct_references_s": "{\"http://www.opengis.net/def/serviceType/ogc/wms\":\"https://cugir.library.cornell.edu/geoserver/cugir/wms\",\"http://www.opengis.net/cat/csw/csdgm\":\"https://cugir-data.s3.amazonaws.com/00/78/65/fgdc.xml\",\"http://www.w3.org/1999/xhtml\":\"https://cugir-data.s3.amazonaws.com/00/78/65/fgdc.html\",\"http://schema.org/downloadUrl\":\"https://cugir-data.s3.amazonaws.com/00/78/65/cugir-007865.zip\"}",
+  "dcat_bbox": "ENVELOPE(-79.762152, -71.856214, 45.01585, 40.496103)",
+  "gbl_mdVersion_s": "Aardvark",
+  "gbl_resourceClass_sm": ["Datasets"],
+  "gbl_resourceType_sm": ["Polygon data"],
+  "gbl_wxsIdentifier_s": "cugir007865",
+  "schema_provider_s": "Cornell"
+}
