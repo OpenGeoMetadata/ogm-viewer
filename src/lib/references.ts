@@ -10,7 +10,8 @@ export const REFERENCE_URIS = {
   'https://iiif.io/api/extension/georef/1/context.json': 'IIIF georeference annotation',
   'http://www.opengis.net/cat/csw/csdgm': 'FGDC metadata',
   'http://www.w3.org/1999/xhtml': 'HTML metadata',
-  'http://www.isotc211.org/schemas/2005/gmd/': 'ISO 19139 metadata',
+  'http://www.isotc211.org/schemas/2005/gmd': 'ISO 19139 metadata',
+  'http://www.isotc211.org/schemas/2005/gco': 'ISO 19110 metadata',
   'http://www.loc.gov/mods/v3': 'MODS metadata',
   'https://oembed.com': 'OEmbed',
   'https://openindexmaps.org': 'Index map',
@@ -37,11 +38,32 @@ const METADATA_REFERENCE_URIS = [
   'http://schema.org/url',
   'http://www.opengis.net/cat/csw/csdgm',
   'http://www.w3.org/1999/xhtml',
-  'http://www.isotc211.org/schemas/2005/gmd/',
+  'http://www.isotc211.org/schemas/2005/gmd',
+  'http://www.isotc211.org/schemas/2005/gco',
   'http://www.loc.gov/mods/v3',
   'http://lccn.loc.gov/sh85035852',
 ] as const;
-type MetadataReferenceURI = (typeof METADATA_REFERENCE_URIS)[number];
+
+// Reference keys are matched exactly, but some records include trailing slashes
+// and some don't in the wild. This lets us be tolerant of that.
+const canonicalUri = (uri: string): string => uri.replace(/\/+$/, '');
+
+// Not every parse gives back an object to read keys off: a record whose dct_references_s is valid
+// JSON but not a JSON object - a bare string, say - would otherwise be kept as-is and answer every
+// lookup with undefined, or throw here for null.
+function canonicalizeKeys(parsed: unknown): ReferencesRecord {
+  if (!parsed || typeof parsed !== 'object') return {};
+
+  const canonicalized: Record<string, unknown> = {};
+  for (const [uri, value] of Object.entries(parsed)) {
+    const key = canonicalUri(uri);
+    // A record carrying both spellings of one URI is pathological, but it costs a line to say which
+    // one wins: the first, so a later empty value can't displace a usable one.
+    if (!(key in canonicalized)) canonicalized[key] = value;
+  }
+
+  return canonicalized as ReferencesRecord;
+}
 
 // Special handling for download URLs, can be a single string or an array of objects
 export type LabelledLinks = { url: string; label: string }[];
@@ -59,7 +81,7 @@ export class References {
   // Create a new instance with the JSON string from a record
   constructor(dct_references_s: string) {
     try {
-      this.references = JSON.parse(dct_references_s);
+      this.references = canonicalizeKeys(JSON.parse(dct_references_s));
     } catch (error) {
       console.error('Failed to parse references:', error);
       this.references = {};
@@ -148,6 +170,16 @@ export class References {
     return this.references['urn:x-esri:serviceType:ArcGIS#TiledMapLayer'];
   }
 
+  // The FGDC metadata document, if any
+  get fgdcUrl() {
+    return this.references['http://www.opengis.net/cat/csw/csdgm'];
+  }
+
+  // The ISO 19110 feature catalogue, if any
+  get iso19110Url() {
+    return this.references['http://www.isotc211.org/schemas/2005/gco'];
+  }
+
   // List of download links with URL and label, if using multiple downloads
   get downloadLinks(): LabelledLinks {
     const fieldContents = this.references['http://schema.org/downloadUrl'];
@@ -163,14 +195,15 @@ export class References {
     return;
   }
 
-  // List of metadata links with URL and label
-  get metadataLinks() {
-    return (
-      Object.entries(this.references)
-        .filter(([uri]) => METADATA_REFERENCE_URIS.includes(uri as MetadataReferenceURI))
-        //@ts-ignore
-        .map(([uri, url]: [MetadataReferenceURI, string]) => ({ url, label: REFERENCE_URIS[uri] }))
-    );
+  // List of metadata links with URL and label. Walks the known metadata URIs rather than whatever
+  // the record happens to hold, so the order is ours rather than the JSON's and every entry is
+  // typed - the download key is the one metadata-shaped value that isn't a bare URL, and the string
+  // check below is what keeps its labelled-link array out.
+  get metadataLinks(): LabelledLinks {
+    return METADATA_REFERENCE_URIS.flatMap(uri => {
+      const url = this.references[uri];
+      return typeof url === 'string' ? [{ url, label: REFERENCE_URIS[uri] }] : [];
+    });
   }
 
   // True if the record has at least one reference that can be rendered for preview

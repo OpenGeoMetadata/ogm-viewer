@@ -9,6 +9,8 @@ import { PreviewError } from "./lib/errors";
 import { MapGeoJSONFeature } from "maplibre-gl";
 import { ResourceKind } from "./lib/resources/resource";
 import { RequestTransform } from "./lib/request";
+import { References } from "./lib/references";
+import { FieldDefinitions } from "./lib/field-definitions";
 import { LayerControl } from "./lib/layers";
 import { ColorRampName } from "./lib/colormap";
 import { LegendEntry } from "./lib/legend";
@@ -17,6 +19,8 @@ export { PreviewError } from "./lib/errors";
 export { MapGeoJSONFeature } from "maplibre-gl";
 export { ResourceKind } from "./lib/resources/resource";
 export { RequestTransform } from "./lib/request";
+export { References } from "./lib/references";
+export { FieldDefinitions } from "./lib/field-definitions";
 export { LayerControl } from "./lib/layers";
 export { ColorRampName } from "./lib/colormap";
 export { LegendEntry } from "./lib/legend";
@@ -35,7 +39,12 @@ export namespace Components {
          */
         "features": MapGeoJSONFeature[];
         "kind"?: ResourceKind;
+        "references"?: References;
         "requestTransform"?: RequestTransform;
+    }
+    interface OgmFields {
+        "definitions"?: FieldDefinitions;
+        "theme": 'light' | 'dark';
     }
     interface OgmImage {
         /**
@@ -96,6 +105,7 @@ export namespace Components {
          */
         "padding": number;
         "previewer": MapPreviewer;
+        "references"?: References;
         /**
           * @default initialTheme(this.el)
          */
@@ -170,6 +180,7 @@ export namespace Components {
         "darkBasemap"?: string;
         "lightBasemap"?: string;
         "previewer": AnyPreviewer;
+        "references"?: References;
         "sidebarPadding": number;
         /**
           * @default initialTheme(this.el)
@@ -194,6 +205,7 @@ export namespace Components {
          */
         "open": boolean;
         "record": OgmRecord;
+        "requestTransform"?: RequestTransform;
         "theme": 'light' | 'dark';
     }
     interface OgmViewer {
@@ -263,6 +275,12 @@ declare global {
     var HTMLOgmAttributesElement: {
         prototype: HTMLOgmAttributesElement;
         new (): HTMLOgmAttributesElement;
+    };
+    interface HTMLOgmFieldsElement extends Components.OgmFields, HTMLStencilElement {
+    }
+    var HTMLOgmFieldsElement: {
+        prototype: HTMLOgmFieldsElement;
+        new (): HTMLOgmFieldsElement;
     };
     interface HTMLOgmImageElementEventMap {
         "imageLoaded": void;
@@ -422,6 +440,7 @@ declare global {
     interface HTMLElementTagNameMap {
         "ogm-alerts": HTMLOgmAlertsElement;
         "ogm-attributes": HTMLOgmAttributesElement;
+        "ogm-fields": HTMLOgmFieldsElement;
         "ogm-image": HTMLOgmImageElement;
         "ogm-layers": HTMLOgmLayersElement;
         "ogm-legend": HTMLOgmLegendElement;
@@ -451,7 +470,12 @@ declare namespace LocalJSX {
         "features"?: MapGeoJSONFeature[];
         "kind"?: ResourceKind;
         "onFeatureSelected"?: (event: OgmAttributesCustomEvent<MapGeoJSONFeature>) => void;
+        "references"?: References;
         "requestTransform"?: RequestTransform;
+    }
+    interface OgmFields {
+        "definitions"?: FieldDefinitions;
+        "theme"?: 'light' | 'dark';
     }
     interface OgmImage {
         "onImageLoaded"?: (event: OgmImageCustomEvent<void>) => void;
@@ -521,6 +545,7 @@ declare namespace LocalJSX {
          */
         "padding"?: number;
         "previewer"?: MapPreviewer;
+        "references"?: References;
         /**
           * @default initialTheme(this.el)
          */
@@ -601,6 +626,7 @@ declare namespace LocalJSX {
         "darkBasemap"?: string;
         "lightBasemap"?: string;
         "previewer"?: AnyPreviewer;
+        "references"?: References;
         "sidebarPadding"?: number;
         /**
           * @default initialTheme(this.el)
@@ -627,6 +653,7 @@ declare namespace LocalJSX {
          */
         "open"?: boolean;
         "record"?: OgmRecord;
+        "requestTransform"?: RequestTransform;
         "theme"?: 'light' | 'dark';
     }
     interface OgmViewer {
@@ -649,6 +676,9 @@ declare namespace LocalJSX {
     }
     interface OgmAttributesAttributes {
         "kind": ResourceKind;
+    }
+    interface OgmFieldsAttributes {
+        "theme": 'light' | 'dark';
     }
     interface OgmImageAttributes {
         "theme": 'light' | 'dark';
@@ -721,6 +751,7 @@ declare namespace LocalJSX {
     interface IntrinsicElements {
         "ogm-alerts": Omit<OgmAlerts, keyof OgmAlertsAttributes> & { [K in keyof OgmAlerts & keyof OgmAlertsAttributes]?: OgmAlerts[K] } & { [K in keyof OgmAlerts & keyof OgmAlertsAttributes as `attr:${K}`]?: OgmAlertsAttributes[K] } & { [K in keyof OgmAlerts & keyof OgmAlertsAttributes as `prop:${K}`]?: OgmAlerts[K] };
         "ogm-attributes": Omit<OgmAttributes, keyof OgmAttributesAttributes> & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes]?: OgmAttributes[K] } & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes as `attr:${K}`]?: OgmAttributesAttributes[K] } & { [K in keyof OgmAttributes & keyof OgmAttributesAttributes as `prop:${K}`]?: OgmAttributes[K] };
+        "ogm-fields": Omit<OgmFields, keyof OgmFieldsAttributes> & { [K in keyof OgmFields & keyof OgmFieldsAttributes]?: OgmFields[K] } & { [K in keyof OgmFields & keyof OgmFieldsAttributes as `attr:${K}`]?: OgmFieldsAttributes[K] } & { [K in keyof OgmFields & keyof OgmFieldsAttributes as `prop:${K}`]?: OgmFields[K] };
         "ogm-image": Omit<OgmImage, keyof OgmImageAttributes> & { [K in keyof OgmImage & keyof OgmImageAttributes]?: OgmImage[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `attr:${K}`]?: OgmImageAttributes[K] } & { [K in keyof OgmImage & keyof OgmImageAttributes as `prop:${K}`]?: OgmImage[K] };
         "ogm-layers": Omit<OgmLayers, keyof OgmLayersAttributes> & { [K in keyof OgmLayers & keyof OgmLayersAttributes]?: OgmLayers[K] } & { [K in keyof OgmLayers & keyof OgmLayersAttributes as `attr:${K}`]?: OgmLayersAttributes[K] } & { [K in keyof OgmLayers & keyof OgmLayersAttributes as `prop:${K}`]?: OgmLayers[K] };
         "ogm-legend": Omit<OgmLegend, keyof OgmLegendAttributes> & { [K in keyof OgmLegend & keyof OgmLegendAttributes]?: OgmLegend[K] } & { [K in keyof OgmLegend & keyof OgmLegendAttributes as `attr:${K}`]?: OgmLegendAttributes[K] } & { [K in keyof OgmLegend & keyof OgmLegendAttributes as `prop:${K}`]?: OgmLegend[K] };
@@ -741,6 +772,7 @@ declare module "@stencil/core" {
         interface IntrinsicElements {
             "ogm-alerts": LocalJSX.IntrinsicElements["ogm-alerts"] & JSXBase.HTMLAttributes<HTMLOgmAlertsElement>;
             "ogm-attributes": LocalJSX.IntrinsicElements["ogm-attributes"] & JSXBase.HTMLAttributes<HTMLOgmAttributesElement>;
+            "ogm-fields": LocalJSX.IntrinsicElements["ogm-fields"] & JSXBase.HTMLAttributes<HTMLOgmFieldsElement>;
             "ogm-image": LocalJSX.IntrinsicElements["ogm-image"] & JSXBase.HTMLAttributes<HTMLOgmImageElement>;
             "ogm-layers": LocalJSX.IntrinsicElements["ogm-layers"] & JSXBase.HTMLAttributes<HTMLOgmLayersElement>;
             "ogm-legend": LocalJSX.IntrinsicElements["ogm-legend"] & JSXBase.HTMLAttributes<HTMLOgmLegendElement>;
