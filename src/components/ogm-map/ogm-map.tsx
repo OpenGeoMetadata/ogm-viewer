@@ -73,6 +73,11 @@ export class OgmMap {
   private loadDeadline: ReturnType<typeof setTimeout> | undefined = undefined;
   private previewDrawn: boolean = false;
 
+  // Whether tiles of the current preview are still arriving. Held as a flag rather than a count of
+  // tiles because it drives mapLoading/mapIdle, which <ogm-viewer> counts: every time this is set,
+  // exactly one clear has to follow, or the spinner is stuck on or turned off early.
+  private tilesLoading: boolean = false;
+
   // Resolves once the current attempt has an answer - the preview's first tile arrived, or the
   // deadline gave up on it - which is what the spinner is held up by. Starts resolved, since there
   // is nothing to wait for until a load is under way, and every path that ends an attempt resolves
@@ -138,6 +143,8 @@ export class OgmMap {
     this.map.on('click', this.handleClick.bind(this));
     this.map.on('error', this.handleMapError.bind(this));
     this.map.on('sourcedata', this.handleSourceData.bind(this));
+    this.map.on('sourcedataloading', this.handleSourceDataLoading.bind(this));
+    this.map.on('idle', this.settleTileLoading.bind(this));
     this.addControls();
 
     // Style as a globe with atmosphere once style is loaded and set the flag
@@ -155,6 +162,9 @@ export class OgmMap {
   disconnectedCallback() {
     this.clearLoadDeadline();
     this.destroyPopup();
+
+    // Nothing is going to arrive now, and the count this was added to outlives us
+    this.settleTileLoading();
     if (this.map) this.map.remove();
   }
 
@@ -319,6 +329,29 @@ export class OgmMap {
   protected handleSourceData(event: maplibregl.MapSourceDataEvent) {
     if (!event.tile || !this.previewer?.sourceIds.includes(event.sourceId)) return;
     this.markPreviewDrawn();
+  }
+
+  // A tile of the current preview has been asked for. The pair of events around loadPreview covers
+  // the first draw only; this covers every draw after it - a pan, or a zoom past the point where a
+  // tiled source starts cutting tiles - which is otherwise a silent wait while a service is queried
+  // one tile at a time.
+  //
+  // Filtered to the preview's own sources, so panning over a basemap that is still filling in
+  // doesn't claim the preview is loading. Only the first tile of a batch says so: what a reader
+  // waits for is the batch, and the events below say when it is done.
+  protected handleSourceDataLoading(event: maplibregl.MapSourceDataEvent) {
+    if (this.tilesLoading || !this.previewer?.sourceIds.includes(event.sourceId)) return;
+    this.tilesLoading = true;
+    this.mapLoading.emit();
+  }
+
+  // Everything the map was waiting for has arrived and been drawn. MapLibre fires 'idle' once no
+  // camera movement, tile request or fade is still outstanding, which is the honest moment to stop
+  // saying a view is loading - a tile that has landed but not yet been placed is not yet drawn.
+  private settleTileLoading() {
+    if (!this.tilesLoading) return;
+    this.tilesLoading = false;
+    this.mapIdle.emit();
   }
 
   // Something of the current preview is on the map. Reached from the map's own tile events above for
