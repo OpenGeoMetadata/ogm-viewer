@@ -76,15 +76,17 @@ describe('ogm-legend', () => {
     expect(Array.from(shadowRoot.querySelectorAll('.entry .title')).map(el => el.textContent)).toEqual(['Groundwater Elevation', 'Temperature Anomaly']);
   });
 
-  // happy-dom has neither createImageBitmap nor OffscreenCanvas, which decodeColormapSprite needs,
-  // so this exercises the same fallback componentWillLoad's try/catch exists for in a real browser
-  // asked to draw a genuinely broken sprite. The gradient itself is rampGradient()'s own concern,
-  // covered directly and without a DOM in colormap.test.ts.
-  it('still labels the range when the sprite fails to decode, just without a gradient', async () => {
+  // The sprite decodes here the way it does in a browser - happy-dom has no image pipeline of its
+  // own, so vitest-setup-dom.ts supplies one. What's worth checking is that the bar carries this
+  // layer's own ramp rather than just some gradient: a bar drawn from the wrong row of the sprite
+  // would read as a different pair of colors entirely. The stops in between are rampGradient()'s
+  // concern, covered without a DOM in colormap.test.ts; ogm-legend.no-sprite.test.tsx has what
+  // happens when the sprite won't decode at all.
+  it("draws the bar in the layer's own ramp", async () => {
     const shadowRoot = await renderLegend([RAMPED]);
 
-    expect(shadowRoot.querySelector<HTMLElement>('.bar')?.style.background).toEqual('');
-    expect(shadowRoot.querySelector('.min')?.textContent).toEqual('-184');
+    // Viridis, running from its dark purple end to its yellow one
+    expect(shadowRoot.querySelector<HTMLElement>('.bar')?.style.background).toMatch(/^linear-gradient\(90deg, rgb\(68 1 84\),.*, rgb\(253 231 36\)\)$/);
   });
 
   it('names the legend for assistive technology', async () => {
