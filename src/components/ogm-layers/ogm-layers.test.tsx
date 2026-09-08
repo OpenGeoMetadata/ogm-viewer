@@ -147,21 +147,19 @@ describe('ogm-layers', () => {
       expect(changes).toEqual([{ id: 'elevation', colorRamp: 'magma' }]);
     });
 
-    // happy-dom, which this test renders into, has neither createImageBitmap nor OffscreenCanvas -
-    // decodeColormapSprite needs both, so componentWillLoad's sprite fetch genuinely fails here,
-    // exercising the same try/catch a real browser would only hit over a truly broken sprite. The
-    // gradient itself - what a *successful* decode draws each swatch in - is colormap.ts's own
-    // rampGradient(), already covered directly in colormap.test.ts with no DOM involved at all.
-    // What's worth proving here is narrower: that a decode failure costs the picker its gradients
-    // and nothing else.
-    it('still renders every swatch, without a gradient, when the sprite fails to decode', async () => {
+    // The sprite decodes here the way it does in a browser - happy-dom has no image pipeline of its
+    // own, so vitest-setup-dom.ts supplies one. What's worth proving is that each swatch is drawn
+    // from its own row of the sprite rather than all twelve sharing one gradient: a swatch showing
+    // some other ramp's colors is a picker that lies about what it selects. The gradient itself is
+    // rampGradient()'s concern, covered without a DOM in colormap.test.ts, and
+    // ogm-layers.no-sprite.test.tsx has what happens when the sprite won't decode at all.
+    it('draws each swatch in the ramp it names', async () => {
       const shadowRoot = await renderLayers(RAMPED);
-      const swatches = shadowRoot.querySelectorAll<HTMLElement>('.swatch');
+      const swatchFor = (ramp: string) => shadowRoot.querySelector<HTMLInputElement>(`.swatch input[value="${ramp}"]`)?.closest<HTMLElement>('.swatch');
 
-      expect(swatches).toHaveLength(12);
-      expect(Array.from(swatches).every(swatch => swatch.style.background === '')).toBe(true);
-      // Still fully working as a picker, sprite or no sprite
-      expect(shadowRoot.querySelector<HTMLInputElement>('.swatch input[value="viridis"]')?.checked).toBe(true);
+      // Viridis runs dark purple to yellow, magma near-black to pale cream
+      expect(swatchFor('viridis')?.style.background).toMatch(/^linear-gradient\(90deg, rgb\(68 1 84\),.*, rgb\(253 231 36\)\)$/);
+      expect(swatchFor('magma')?.style.background).toMatch(/^linear-gradient\(90deg, rgb\(0 0 3\),.*, rgb\(251 252 191\)\)$/);
     });
 
     it('names the picker and each swatch for assistive technology', async () => {
