@@ -110,6 +110,13 @@ class TestResource extends EsriFeatureLayerResource {
   protected async getQuerySummary() {
     return this.size;
   }
+
+  // Stands in for a tile the service answered at its own per-request limit
+  capped?: number;
+
+  get cappedAtZoom() {
+    return this.capped;
+  }
 }
 
 let map: FakeMap;
@@ -259,6 +266,72 @@ describe('EsriTiledFeatureLayerPreviewer further out than its tiles', () => {
     await previewer.preview();
 
     expect(map.listenerCount('zoomend')).toEqual(1);
+  });
+});
+
+describe('EsriTiledFeatureLayerPreviewer when the service cuts a tile short', () => {
+  // One dense tile at the zoom a layer starts drawing at is ordinary - one of nine over downtown
+  // Columbus - and it stops being true the moment the reader goes further in
+  const noticeAt = async (zoom: number, capped: number) => {
+    const notice = vi.fn();
+    map = new FakeMap();
+    map.zoom = zoom;
+    resource = new TestResource('wi', LAYER);
+    resource.capped = capped;
+    previewer = new EsriTiledFeatureLayerPreviewer(resource).attach(map as unknown as maplibregl.Map, style);
+    previewer.onNotice = notice;
+    await previewer.preview();
+    return notice;
+  };
+
+  it('says so at the zoom it happened at', async () => {
+    expect(await noticeAt(14, 14)).toHaveBeenLastCalledWith(expect.stringContaining('left out'));
+  });
+
+  it('stops saying so once the reader is past it, where the tiles fit', async () => {
+    expect(await noticeAt(15, 14)).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it('still says so further out, where the tiles are no smaller', async () => {
+    expect(await noticeAt(13, 14)).toHaveBeenLastCalledWith(expect.stringContaining('left out'));
+  });
+
+  it('says nothing for a layer the service answers in full', async () => {
+    const notice = vi.fn();
+    map = new FakeMap();
+    map.zoom = 14;
+    previewer = new EsriTiledFeatureLayerPreviewer(new TestResource('wi', LAYER)).attach(map as unknown as maplibregl.Map, style);
+    previewer.onNotice = notice;
+    await previewer.preview();
+
+    expect(notice).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it('answers again once the tiles have landed, not only when the camera stops', async () => {
+    // Whether a tile came back short is only known after it comes back, which is after the zoom
+    // that asked for it ended - so the camera alone reports it a whole interaction late
+    const notice = vi.fn();
+    map = new FakeMap();
+    map.zoom = 14;
+    resource = new TestResource('wi', LAYER);
+    previewer = new EsriTiledFeatureLayerPreviewer(resource).attach(map as unknown as maplibregl.Map, style);
+    previewer.onNotice = notice;
+    await previewer.preview();
+    expect(notice).toHaveBeenLastCalledWith(undefined);
+
+    resource.capped = 14;
+    map.fire('idle');
+
+    expect(notice).toHaveBeenLastCalledWith(expect.stringContaining('left out'));
+  });
+
+  it('stops listening to the map settling when the preview comes down', async () => {
+    await build(WISCONSIN, undefined, 14);
+    expect(map.listenerCount('idle')).toEqual(1);
+
+    await previewer.clearPreview();
+
+    expect(map.listenerCount('idle')).toEqual(0);
   });
 });
 

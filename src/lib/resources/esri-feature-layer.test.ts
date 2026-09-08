@@ -446,12 +446,38 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
     await expect(resourceFor(POINTS).fetchTile(10, 257, 375)).rejects.toThrow('aborted');
   });
 
-  it('records that a tile came back short, so the view can say it is incomplete', async () => {
+  it('records the zoom a tile came back short at, so the view can say what is missing and when', async () => {
     stubPages({ type: 'FeatureCollection', features: [inMadison], properties: { exceededTransferLimit: true } });
     const resource = resourceFor(POINTS);
     await resource.fetchTile(10, 257, 375);
 
-    expect(resource.truncated).toEqual(true);
+    expect(resource.cappedAtZoom).toEqual(10);
+
+    // Not the whole-layer read's own flag: that one means a paged read stopped at MAX_FEATURES,
+    // which a tiled layer never does
+    expect(resource.truncated).toEqual(false);
+  });
+
+  it('keeps the deepest zoom it was cut short at, not the last one it tried', async () => {
+    const fetchMock = vi.fn();
+    const short = { type: 'FeatureCollection', features: [inMadison], properties: { exceededTransferLimit: true } };
+    [short, short].forEach(page => fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => page }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const resource = resourceFor(POINTS);
+    await resource.fetchTile(12, 1030, 1503);
+    await resource.fetchTile(10, 257, 375);
+
+    // Zooming back out after a deeper tile was cut short doesn't make the shallower one the answer
+    expect(resource.cappedAtZoom).toEqual(12);
+  });
+
+  it('has no capped zoom for a layer the service answers in full', async () => {
+    stubPages({ type: 'FeatureCollection', features: [inMadison] });
+    const resource = resourceFor(POINTS);
+    await resource.fetchTile(10, 257, 375);
+
+    expect(resource.cappedAtZoom).toBeUndefined();
   });
 });
 

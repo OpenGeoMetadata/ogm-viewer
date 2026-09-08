@@ -97,8 +97,16 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
   private featureCollection: GeoJSON.FeatureCollection;
 
   // Whether the read gave up before the whole layer. Settles during getData, so it only means
-  // anything once the features have been read.
+  // anything once the features have been read. The whole-layer read only - a tiled layer never
+  // makes one; see cappedZoom.
   private stoppedShort = false;
+
+  // The deepest zoom at which the service has cut a tile short, if it has. A tile comes back at the
+  // service's own per-request limit when its box holds more features than one answer will carry,
+  // and what was left out is invisible - a thinner scatter of points looks like a thinner scatter
+  // of points. Kept as a zoom rather than a flag because zooming in is the fix: tiles cover less
+  // ground the further in you go, so past this they fit, and the notice has to stop then.
+  private cappedZoom?: number;
 
   // A read already under way, so that several callers share one; see getData
   private pendingRead?: Promise<GeoJSON.FeatureCollection>;
@@ -127,6 +135,12 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
 
   get featuresRead(): number {
     return this.featureCollection?.features.length ?? 0;
+  }
+
+  // The deepest zoom whose tiles the service would not answer in full, so a caller can stop saying
+  // so once the reader is past it
+  get cappedAtZoom(): number | undefined {
+    return this.cappedZoom;
   }
 
   // The zooms the service publishes this layer to be drawn between, if it publishes any. Most
@@ -465,10 +479,13 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
       'tile',
     );
 
-    // A tile the service had to cut short is a view showing less than the layer. Said once per
-    // resource: at the zooms tiles are asked for this shouldn't happen, and when it does it is the
-    // whole view that is incomplete rather than the one tile.
-    if (response.exceededTransferLimit ?? response.properties?.exceededTransferLimit) this.stoppedShort = true;
+    // A tile the service had to cut short has features in it that never reached the map. Recorded
+    // against the zoom it happened at, not as a flag: one dense tile at the zoom a layer starts
+    // drawing at is normal - one of nine over downtown Columbus - and it stops being true as soon
+    // as the reader goes further in, so a flag would leave the notice on for good.
+    if (response.exceededTransferLimit ?? response.properties?.exceededTransferLimit) {
+      this.cappedZoom = Math.max(this.cappedZoom ?? z, z);
+    }
 
     if (geojson) return (response.features ?? []) as GeoJSON.Feature[];
     return esriQueryFeaturesToGeoJSON(response.features as EsriQueryFeature[], response.objectIdFieldName ?? esriObjectIdField(metadata));
