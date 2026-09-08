@@ -111,6 +111,10 @@ describe('the esri-features protocol', () => {
     return { response: await esriFeatureTile({ url }, controller), controller };
   };
 
+  // What MapLibre does with the buffer it is handed: postMessage transfers it to the worker rather
+  // than copying it, which detaches it here. Anything of ours still pointing at it is now unreadable.
+  const transfer = (data: ArrayBuffer) => structuredClone(data, { transfer: [data] });
+
   const tilerFor = (overrides: Partial<EsriFeatureTiler> = {}): EsriFeatureTiler & { calls: number[][]; signals: (AbortSignal | undefined)[] } => {
     const tiler = {
       calls: [] as number[][],
@@ -182,17 +186,35 @@ describe('the esri-features protocol', () => {
     expect(response.data.byteLength).toEqual(0);
   });
 
-  it('serves a cached tile as live bytes, not a buffer already given away', async () => {
-    // MapLibre transfers the buffer to its worker rather than copying it, which leaves ours
-    // detached - so a tile served twice out of the cache would be served empty the second time
+  it('serves a cached tile again after MapLibre has taken the first one away', async () => {
     const tiler = tilerFor();
     registerFeatureTiler('probe', tiler);
 
     const first = await request(`${ESRI_FEATURES_SCHEME}://probe/10/257/375`);
+    const size = first.response.data.byteLength;
+    transfer(first.response.data);
+
     const second = await request(`${ESRI_FEATURES_SCHEME}://probe/10/257/375`);
 
     expect(tiler.calls).toHaveLength(1);
-    expect(second.response.data.byteLength).toEqual(first.response.data.byteLength);
+    expect(second.response.data.byteLength).toEqual(size);
     expect(Object.keys(decode(second.response.data).layers)).toEqual(['esri']);
+  });
+
+  it('has an empty tile left for the next one after MapLibre has taken one away', async () => {
+    // One shared empty buffer would work exactly once and then throw for every tile of ocean after
+    registerFeatureTiler('probe', {
+      async fetchTile() {
+        return undefined;
+      },
+    });
+
+    const first = await request(`${ESRI_FEATURES_SCHEME}://probe/10/257/375`);
+    transfer(first.response.data);
+
+    const second = await request(`${ESRI_FEATURES_SCHEME}://probe/10/258/375`);
+
+    expect(second.response.data.byteLength).toEqual(0);
+    expect(() => second.response.data.slice(0)).not.toThrow();
   });
 });

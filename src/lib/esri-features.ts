@@ -41,7 +41,11 @@ const cache = new Map<string, Uint8Array>();
 
 // An empty vector tile. MapLibre reads a zero-length body as a tile with no layers in it, which is
 // what a tile of ocean is, and reports it as loaded rather than failed.
-const EMPTY_TILE = new ArrayBuffer(0);
+//
+// A fresh one every time, not one shared buffer: MapLibre transfers whatever it is handed to its
+// worker, and a transferred buffer is detached. One shared empty tile works exactly once and then
+// fails for every tile of ocean after it.
+const emptyTile = (): ArrayBuffer => new ArrayBuffer(0);
 
 // Distinct per source, and per copy of a source: two viewers of the same record on one page can
 // carry different request transforms, and a token is what tells their tiles apart.
@@ -111,14 +115,14 @@ export const esriFeatureTile = async (params: RequestParameters, abortController
   // flight - and a tile nobody is waiting for is not a failure worth alerting anyone about
   if (!parsed) {
     console.warn(`Could not read ${params.url} as a request for ArcGIS features.`);
-    return { data: EMPTY_TILE };
+    return { data: emptyTile() };
   }
 
   const { token, z, x, y } = parsed;
   const tiler = tilers.get(token);
   if (!tiler) {
     console.warn(`No ArcGIS feature layer is registered to draw ${params.url}.`);
-    return { data: EMPTY_TILE };
+    return { data: emptyTile() };
   }
 
   const key = `${token}/${z}/${x}/${y}`;
@@ -126,17 +130,20 @@ export const esriFeatureTile = async (params: RequestParameters, abortController
   if (cached) return { data: copyOf(cached) };
 
   const data = await tiler.fetchTile(z, x, y, abortController.signal);
-  if (!data) return { data: EMPTY_TILE };
+  if (!data) return { data: emptyTile() };
 
-  remember(key, new Uint8Array(data));
+  // The cache keeps its own bytes. A view onto the buffer being handed back would be a view onto a
+  // buffer MapLibre is about to transfer to its worker and detach, which is a cache entry that
+  // throws the moment anything reads it.
+  remember(key, new Uint8Array(data.slice(0)));
   return { data };
 };
 
 maplibregl.addProtocol(ESRI_FEATURES_SCHEME, esriFeatureTile);
 
-// A tile of its own bytes and nothing else. Every tile handed to MapLibre has to be one of these:
-// the buffer is transferred to the worker rather than copied, which leaves ours detached - so a
-// cached tile served twice would be served empty the second time.
+// A tile of its own bytes and nothing else. Every tile handed to MapLibre has to be one of these,
+// and nothing we keep may share a buffer with one: the buffer is transferred to the worker rather
+// than copied, and reading a detached one throws rather than coming back empty.
 const copyOf = (bytes: Uint8Array): ArrayBuffer => bytes.slice().buffer as ArrayBuffer;
 
 const remember = (key: string, bytes: Uint8Array) => {
