@@ -9,6 +9,7 @@ import DeckCogPreviewer from './cog-deck';
 import GeoreferencePreviewer from './georeference';
 import EsriDynamicMapLayerPreviewer from './esri-dynamic-map-layer';
 import EsriFeatureLayerPreviewer from './esri-feature-layer';
+import EsriTiledFeatureLayerPreviewer from './esri-tiled-feature-layer';
 import EsriImageMapLayerPreviewer from './esri-image-map-layer';
 import EsriTiledMapLayerPreviewer from './esri-tiled-map-layer';
 import GeoJsonPreviewer from './geojson';
@@ -57,6 +58,32 @@ describe('previewersFor', () => {
     // The exact class, not `instanceof`: half of these extend one of the others, and being handed
     // the parent is precisely the failure the old ordered ladder could produce
     expect(previewers[0].constructor).toBe(expected);
+  });
+
+  describe('an ArcGIS feature layer that could be too large to hold', () => {
+    it.each([
+      [348, EsriFeatureLayerPreviewer],
+      [318295, EsriTiledFeatureLayerPreviewer],
+    ] as const)('reads a layer of %s features and picks accordingly', async (count, expected) => {
+      const [previewer] = await previewersFor(resourceOfKind('esri-feature-layer', { tilesFeatures: async () => count > 2000 }));
+
+      expect(previewer.constructor).toBe(expected);
+    });
+
+    // Reading it whole is what the viewer has always done, and it fails - or doesn't - the same way
+    it('reads a layer it could not measure the way it always did', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const unmeasurable = resourceOfKind('esri-feature-layer', {
+        tilesFeatures: async () => {
+          throw new Error('offline');
+        },
+      });
+
+      const [previewer] = await previewersFor(unmeasurable);
+
+      expect(previewer.constructor).toBe(EsriFeatureLayerPreviewer);
+      expect(warn).toHaveBeenCalled();
+    });
   });
 
   // These were the ladder's only async branches, and the reason the whole list is built async

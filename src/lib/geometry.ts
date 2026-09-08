@@ -151,6 +151,46 @@ export const mercatorBbox = (coords: LngLatLike[]) => {
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)].join(',');
 };
 
+// A tile's own square of the Web Mercator plane, as minx,miny,maxx,maxy in meters.
+//
+// `bufferRatio` widens every edge by that fraction of the tile's own width, for a caller fetching
+// what will be drawn into a tile with a buffer of its own: a symbol or a polygon edge just outside
+// the tile still paints inside it, so a query cut exactly at the tile line comes back missing the
+// features that would have drawn there. Pass the tiler's own buffer divided by its extent and the
+// two boxes are the same box - see encodeFeatureTile.
+export const tileBbox3857 = (z: number, x: number, y: number, bufferRatio = 0): [number, number, number, number] => {
+  const span = (2 * MERCATOR_EXTENT) / 2 ** z;
+  const buffer = span * bufferRatio;
+
+  // The pyramid hangs from the northwest corner, so y counts southward from the top
+  const west = -MERCATOR_EXTENT + x * span;
+  const north = MERCATOR_EXTENT - y * span;
+
+  return [west - buffer, north - span - buffer, west + span + buffer, north + buffer];
+};
+
+// How many degrees of longitude a tile spans at the given zoom. Divided by a tile's extent, this is
+// the ground distance of one of its coordinate units - which is as much detail as a service needs
+// to send for a tile drawn at that zoom, and all a generalization tolerance has to be.
+export const tileLngLatSpan = (z: number): number => 360 / 2 ** z;
+
+// How many tiles of the given zoom it takes to cover these bounds - as a fraction rather than a
+// count, because what a caller wants it for is dividing a feature count by it to get a mean
+// density. Never less than one tile in either direction: an extent narrower than a tile still needs
+// one, and a zero would divide a count into infinity.
+export const tilesCovering = (bounds: LngLatBounds, zoom: number): number => {
+  const [[west, south], [east, north]] = bounds.toArray();
+  const [minX, minY] = lngLatToMercator([west, south]);
+  const [maxX, maxY] = lngLatToMercator([east, north]);
+
+  const world = 2 * MERCATOR_EXTENT;
+  const tiles = 2 ** zoom;
+  const across = Math.max(1, (Math.abs(maxX - minX) / world) * tiles);
+  const down = Math.max(1, (Math.abs(maxY - minY) / world) * tiles);
+
+  return across * down;
+};
+
 // The small square of the map we ask a service about when inspecting: a width x height grid of
 // pixels laid over an EPSG:3857 bbox, with x,y naming the pixel to ask about, counted from the top
 // left corner. The bbox and the grid describe each other, so a service can locate the pixel either

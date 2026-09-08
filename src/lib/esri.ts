@@ -2,7 +2,7 @@ import { LngLatBounds, type LngLatBoundsLike } from 'maplibre-gl';
 
 import { fetchOrThrow, HttpError } from './errors';
 import { mercatorToLngLat } from './geometry';
-import { resolveRequest, type RequestTransform } from './request';
+import { resolveRequest, type RequestResourceType, type RequestTransform } from './request';
 
 // ArcGIS identifies Web Mercator by its own well-known ID as often as by the EPSG code, and older
 // services still use the pre-EPSG variants; all four describe the grid MapLibre draws in.
@@ -36,6 +36,11 @@ export type EsriTileInfo = {
   spatialReference?: EsriSpatialReference;
   lods?: EsriLevelOfDetail[];
 };
+
+// What the one layer of an ArcGIS feature preview is called, whether it is drawn from a GeoJSON
+// source or from tiles of our own. A name of ours rather than a publisher's - a service has no say
+// in it - but it has to be the same name in the source, the style layers and the tiles.
+export const ESRI_VECTOR_LAYER = 'esri';
 
 // One column of a layer, as the layer describes itself
 export type EsriField = { name: string; type?: string; alias?: string };
@@ -263,11 +268,21 @@ export const throwOnEsriError = <T>(body: T, url: string): T => {
 };
 
 // Fetch the JSON description of an ArcGIS resource, raising both HTTP and ArcGIS-level failures
-export const fetchEsriJson = async <T = EsriMetadata>(url: string, params: Record<string, string> = {}, requestTransform?: RequestTransform, signal?: AbortSignal): Promise<T> => {
+export const fetchEsriJson = async <T = EsriMetadata>(
+  url: string,
+  params: Record<string, string> = {},
+  requestTransform?: RequestTransform,
+  signal?: AbortSignal,
+
+  // What a transform is told this request is for. A description of a layer is metadata; a query cut
+  // to one tile of it is the tile a reader is waiting for, and a transform that treats the two
+  // differently - attaching a credential to one and not the other - has to be told which it has.
+  kind: RequestResourceType = 'metadata',
+): Promise<T> => {
   const requestUrl = new URL(url);
   Object.entries({ f: 'json', ...params }).forEach(([key, value]) => requestUrl.searchParams.set(key, value));
 
-  const { url: resolvedUrl, init } = resolveRequest(requestUrl.toString(), 'metadata', requestTransform);
+  const { url: resolvedUrl, init } = resolveRequest(requestUrl.toString(), kind, requestTransform);
   const response = await fetchOrThrow(resolvedUrl, { ...init, ...(signal && { signal }) });
   return throwOnEsriError((await response.json()) as T, resolvedUrl);
 };
