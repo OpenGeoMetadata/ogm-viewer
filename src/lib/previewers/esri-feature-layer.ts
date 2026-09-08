@@ -13,6 +13,12 @@ const NO_FEATURES: GeoJSON.FeatureCollection = { type: 'FeatureCollection', feat
 export default class EsriFeatureLayerPreviewer extends GeoJsonPreviewer {
   declare protected resource: EsriFeatureLayerResource;
 
+  // Outside the layer's own scale window there is no visible style layer reading this source, so
+  // MapLibre never loads a tile of it and never reports one - and the load deadline would expire on
+  // a preview doing exactly what it was asked to. So this one answers for its own drawing, the way
+  // the previews that paint their own WebGL do. See syncData.
+  readonly reportsDrawing = true;
+
   // A record can point at the same ArcGIS service more than one way, so keep the sources distinct
   protected getSourceId(): string {
     return `${this.resource.id}-esri-feature-layer`;
@@ -133,8 +139,8 @@ export default class EsriFeatureLayerPreviewer extends GeoJsonPreviewer {
 
     // The same comparisons MapLibre makes against a style layer's own window, so the notice and the
     // drawing agree about which side of it the camera is on
-    if (minzoom !== undefined && zoom < minzoom) return this.onNotice?.('Zoom in to see this layer’s features.');
-    if (maxzoom !== undefined && zoom >= maxzoom) return this.onNotice?.('Zoom out to see this layer’s features.');
+    if (minzoom !== undefined && zoom < minzoom) return this.settle('Zoom in to see this layer’s features.');
+    if (maxzoom !== undefined && zoom >= maxzoom) return this.settle('Zoom out to see this layer’s features.');
 
     const data = await this.resource.getData();
 
@@ -145,5 +151,12 @@ export default class EsriFeatureLayerPreviewer extends GeoJsonPreviewer {
     source?.setData(data);
 
     this.onNotice?.(this.resource.truncated ? `Showing the first ${this.resource.featuresRead.toLocaleString()} features of this layer.` : undefined);
+  }
+
+  // Tell the reader why the map is empty, and whoever is drawing this that it is as drawn as it is
+  // going to get - drawing nothing is the whole of what the service asked for here
+  private settle(notice: string) {
+    this.onNotice?.(notice);
+    this.onDrawn?.();
   }
 }
