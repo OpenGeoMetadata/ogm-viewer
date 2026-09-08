@@ -1,0 +1,24 @@
+{
+  "gbl_mdVersion_s": "Aardvark",
+  "id": "d128aa1618744699be00be0e494d01de",
+  "dct_identifier_sm": ["d128aa1618744699be00be0e494d01de"],
+  "dct_title_s": "Address Points, Central Ohio",
+  "dct_description_sm": [
+    "This map layer shows the location of addressable structures in central Ohio. Addresses are included for all of Franklin County and a seven-mile radius beyond. This layer was created as part of the Location Based Response System (LBRS) initiative of the Ohio Geographically Referenced Information Program."
+  ],
+  "dct_subject_sm": ["Address", "Structures", "Zoning"],
+  "dct_accessRights_s": "Public",
+  "dct_license_sm": ["https://creativecommons.org/publicdomain/zero/1.0/"],
+  "schema_provider_s": "City of Columbus",
+  "dct_creator_sm": ["Mid-Ohio Regional Planning Commission", "City of Columbus", "Franklin County Auditor", "Franklin County Engineer"],
+  "dct_language_sm": ["English"],
+  "dct_spatial_sm": ["Central Ohio", "Franklin County", "Columbus"],
+  "dct_temporal_sm": ["2022-Present"],
+  "gbl_indexYear_im": [2026],
+  "gbl_mdModified_dt": "2026-09-08T06:46:13Z",
+  "gbl_resourceClass_sm": ["Datasets"],
+  "gbl_resourceType_sm": ["Point data"],
+  "dct_references_s": "{\"http://schema.org/url\":\"https://www.arcgis.com/home/item.html?id=d128aa1618744699be00be0e494d01de\",\"urn:x-esri:serviceType:ArcGIS#FeatureLayer\":\"https://services1.arcgis.com/9yy6msODkIBzkUXU/arcgis/rest/services/Address_Points/FeatureServer/0\"}",
+  "locn_geometry": "ENVELOPE(-83.395, -82.610, 40.268, 39.690)",
+  "dcat_bbox": "ENVELOPE(-83.395, -82.610, 40.268, 39.690)"
+}
