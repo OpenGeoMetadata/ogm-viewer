@@ -62,7 +62,7 @@ const drawablePreviewer = () => ({
   projection: 'mercator',
   maxPitch: 30,
   url: 'http://example.com/data.json',
-  sourceIds: [],
+  sourceIds: [] as string[],
   previewLayers: [],
   label: () => 'GeoJSON',
   attach: vi.fn(),
@@ -259,6 +259,74 @@ describe('ogm-map', () => {
 
     expect(map.setProjection).toHaveBeenCalledWith({ type: 'mercator' });
     expect(map.setMaxPitch).toHaveBeenCalledWith(30);
+  });
+
+  // <ogm-viewer> counts these in pairs, so an unmatched one either sticks the spinner on for good
+  // or turns it off while something else is still loading
+  describe('while tiles of the preview are arriving', () => {
+    const tileLoading = async () => {
+      const { el } = await renderMap();
+      const previewer = drawablePreviewer();
+      previewer.sourceIds = ['a-preview'];
+      Object.assign(el, { previewer });
+
+      const said: string[] = [];
+      el.addEventListener('mapLoading', () => said.push('start'));
+      el.addEventListener('mapIdle', () => said.push('stop'));
+
+      const map = el as unknown as {
+        handleSourceDataLoading: (event: { sourceId: string }) => void;
+        settleTileLoading: () => void;
+        tilesLoading: boolean;
+      };
+      return { el, map, said };
+    };
+
+    it('says the map is loading, and says so once for the batch rather than once per tile', async () => {
+      const { map, said } = await tileLoading();
+
+      map.handleSourceDataLoading({ sourceId: 'a-preview' });
+      map.handleSourceDataLoading({ sourceId: 'a-preview' });
+
+      expect(said).toEqual(['start']);
+    });
+
+    it('says it is done once the map has nothing left to draw', async () => {
+      const { map, said } = await tileLoading();
+
+      map.handleSourceDataLoading({ sourceId: 'a-preview' });
+      map.settleTileLoading();
+
+      expect(said).toEqual(['start', 'stop']);
+      expect(map.tilesLoading).toEqual(false);
+    });
+
+    it('stays quiet about a basemap filling in under a preview that is already drawn', async () => {
+      const { map, said } = await tileLoading();
+
+      map.handleSourceDataLoading({ sourceId: 'carto' });
+
+      expect(said).toEqual([]);
+    });
+
+    it('says nothing twice when the map settles again with nothing outstanding', async () => {
+      const { map, said } = await tileLoading();
+
+      map.handleSourceDataLoading({ sourceId: 'a-preview' });
+      map.settleTileLoading();
+      map.settleTileLoading();
+
+      expect(said).toEqual(['start', 'stop']);
+    });
+
+    it('settles on the way out, so the count it was added to does not keep the spinner up', async () => {
+      const { el, map, said } = await tileLoading();
+      map.handleSourceDataLoading({ sourceId: 'a-preview' });
+
+      (el as unknown as { disconnectedCallback: () => void }).disconnectedCallback();
+
+      expect(said).toEqual(['start', 'stop']);
+    });
   });
 
   // The popup is built by hand rather than rendered, so it outlives the component's own markup
