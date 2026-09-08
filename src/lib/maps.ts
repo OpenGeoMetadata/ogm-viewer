@@ -235,6 +235,18 @@ const cameraForBounds = (map: maplibregl.Map, bounds: maplibregl.LngLatBoundsLik
 };
 
 /**
+ * How far in a map would have to be to frame these bounds, or nothing if no camera would - see
+ * cameraForBounds above for when that happens.
+ *
+ * Worked out without moving the camera, and without the gap fitBounds leaves around what it frames,
+ * so it lands a shade further in than where the camera really settles - by well under a zoom. What
+ * it is for is deciding whether some floor a caller is considering would cost a reader the view of
+ * a whole record, and that is a question about which side of a whole zoom the fit falls on. See
+ * MapPreviewer.minZoom.
+ */
+export const zoomToFit = (map: maplibregl.Map, bounds: maplibregl.LngLatBoundsLike): number | undefined => cameraForBounds(map, bounds, {})?.zoom;
+
+/**
  * What a map that says where records are is allowed to do.
  *
  * Both of them take exactly this - a locator's one record and an overview's several - so a reader can

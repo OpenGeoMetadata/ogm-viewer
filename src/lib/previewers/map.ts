@@ -38,6 +38,20 @@ export default abstract class MapPreviewer extends Previewer {
   // limit of ours to keep in step with theirs.
   readonly maxPitch?: number;
 
+  // How far out this preview can be zoomed, for one that has nothing to draw past a point. A layer
+  // published with a scale dependency is the case: below its minScale the service means for it not
+  // to be drawn at all, so a reader zoomed out past that is looking at an empty map.
+  //
+  // Set only when the whole of what is being previewed still fits on screen at that floor -
+  // otherwise the floor costs the reader the one view that shows what the record covers, which is
+  // worth more than sparing them an empty map they can zoom back out of. Undefined leaves the map's
+  // own floor alone, the same way maxPitch leaves its own tilt limit alone.
+  //
+  // Not readonly, unlike the constraints above it: what a service publishes isn't known until its
+  // description has been read, which is inside preview(). <ogm-map> reads this again once preview()
+  // has resolved, and before it fits the camera - see applyViewConstraints.
+  minZoom?: number;
+
   // Only what every preview on a map needs, which is somewhere to point: not MapResource, because
   // not everything drawn on a map is a tile source. A georeferenced scan is a IIIF manifest with
   // control points, with no tile URL or vector/raster distinction to offer. Subclasses that do want
@@ -63,6 +77,13 @@ export default abstract class MapPreviewer extends Previewer {
   // either, so the news that they are really on the map has to come from them. Everything MapLibre
   // draws is watched through the map's own tile events instead. Set by whoever draws this preview.
   onDrawn?: () => void;
+
+  // Where a preview says something about the view it is being asked to draw in: that the layer is
+  // published for closer views than this one, or that what is on the map is only part of it. Not a
+  // failure - nothing went wrong, and the alert a failure raises fills the pane and replaces the
+  // preview it is reporting on, which would leave a reader who only needs to zoom in with nothing
+  // to zoom. Undefined clears whatever was last said. Set by whoever draws this preview.
+  onNotice?: (notice: string | undefined) => void;
 
   // Whether this preview answers for its own drawing through onDrawn. Read rather than assumed,
   // because the alternative is worse in both directions: a preview held to a deadline it has no way

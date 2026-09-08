@@ -34,15 +34,26 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     return this.getDefaultOpacity();
   }
 
+  // The window of zooms these layers should be drawn in, for a resource whose service publishes
+  // one. Nothing by default, which is every zoom - what every vector preview has always had.
+  protected async zoomRange(): Promise<{ minzoom?: number; maxzoom?: number }> {
+    return {};
+  }
+
   protected async createLayers(): Promise<LayerSpecification[]> {
     const layerIds = await this.resource.getVectorLayers();
+    const range = await this.zoomRange();
+
     return layerIds.flatMap(layerId => {
       const geometry = [this.createPolygonLayer(layerId), this.createPolygonOutlineLayer(layerId), this.createLineLayer(layerId), this.createPointLayer(layerId)];
       const labels = [this.createPolygonLabelLayer(layerId), this.createLineLabelLayer(layerId), this.createPointLabelLayer(layerId)];
 
       this.previewLayers.push(...this.createPreviewLayers(layerId, geometry, labels));
 
-      return [...geometry, ...labels];
+      // Written over the finished specs rather than into each of the seven builders, and after the
+      // panel rows have been taken from them, which read only an id and a type. An empty range
+      // leaves each layer exactly as its builder made it.
+      return [...geometry, ...labels].map(layer => Object.assign(layer, range));
     });
   }
 

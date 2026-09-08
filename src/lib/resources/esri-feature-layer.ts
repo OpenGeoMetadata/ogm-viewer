@@ -3,7 +3,7 @@ import type { LngLatBoundsLike } from 'maplibre-gl';
 
 import GeoJsonResource from './geojson';
 import type { ResourceKind } from './resource';
-import { esriExtentToBounds, esriQueryFeaturesToGeoJSON, fetchEsriJson, type EsriMetadata, type EsriQueryFeature } from '../esri';
+import { esriExtentToBounds, esriQueryFeaturesToGeoJSON, esriZoomRange, fetchEsriJson, type EsriMetadata, type EsriQueryFeature } from '../esri';
 import type { RequestTransform } from '../request';
 
 // How many features to ask for at once when the service doesn't say. ArcGIS caps this itself, and
@@ -13,6 +13,11 @@ const DEFAULT_PAGE_SIZE = 1000;
 // Where to stop paging. A viewer can't usefully draw more than this at once, and a browser handed
 // the whole of a national parcel layer would stall trying, so truncate and say so rather than hang.
 const MAX_FEATURES = 10000;
+
+// How long any one request has to answer. The read runs inside preview(), which <ogm-map> awaits
+// before starting the deadline that catches a preview which never draws - so a service that accepts
+// the connection and then says nothing would otherwise leave the spinner up for good.
+const QUERY_TIMEOUT = 20_000;
 
 // One page of a /query response, in either of the two formats a service may answer in
 type EsriQueryResponse = {
@@ -36,6 +41,13 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
   // Memoized features, assembled from however many pages it took to read them
   private featureCollection: GeoJSON.FeatureCollection;
 
+  // Whether the read gave up before the whole layer. Settles during getData, so it only means
+  // anything once the features have been read.
+  private stoppedShort = false;
+
+  // A read already under way, so that several callers share one; see getData
+  private pendingRead?: Promise<GeoJSON.FeatureCollection>;
+
   constructor(id: string, url: string, bounds?: LngLatBoundsLike, requestTransform?: RequestTransform) {
     super(id, url, bounds, requestTransform);
     this.layerUrl = url.replace(/\/+$/, '');
@@ -43,6 +55,22 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
 
   label() {
     return 'ArcGIS Feature Layer';
+  }
+
+  // Whether what was read is less than the whole layer, and how much of it there was. A preview
+  // that quietly leaves features out should be able to tell the reader, not just the console.
+  get truncated(): boolean {
+    return this.stoppedShort;
+  }
+
+  get featuresRead(): number {
+    return this.featureCollection?.features.length ?? 0;
+  }
+
+  // The zooms the service publishes this layer to be drawn between, if it publishes any. Most
+  // don't, so most layers get an empty range and are drawn wherever they always were.
+  async getZoomRange(): Promise<{ minzoom?: number; maxzoom?: number }> {
+    return esriZoomRange(await this.getMetadata());
   }
 
   // Distinguish the layer name from plain GeoJSON, since a record can carry both
@@ -56,6 +84,16 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
   async getData(): Promise<GeoJSON.FeatureCollection> {
     if (this.featureCollection) return this.featureCollection;
 
+    // One read however many callers ask for it. A preview can be asked to draw again while the
+    // first read is still going - a theme change, a camera crossing back into the layer's scale
+    // window - and each of those would otherwise start a whole layer's worth of requests of its
+    // own. Cleared either way, so a read that failed can be tried again rather than handing every
+    // later caller the same rejection for the life of the resource.
+    this.pendingRead ??= this.readFeatures().finally(() => (this.pendingRead = undefined));
+    return await this.pendingRead;
+  }
+
+  private async readFeatures(): Promise<GeoJSON.FeatureCollection> {
     const features: GeoJSON.Feature[] = [];
     const pageSize = await this.getPageSize();
     const paged = await this.supportsPaging();
@@ -72,7 +110,8 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
 
     // Either we stopped while the service still had more to give, or the last page carried us past
     // the cap; a preview that quietly leaves features out should say so
-    if (more || features.length > MAX_FEATURES) {
+    this.stoppedShort = more || features.length > MAX_FEATURES;
+    if (this.stoppedShort) {
       console.warn(`${this.layerUrl} has more than ${MAX_FEATURES} features; only the first ${MAX_FEATURES} will be previewed.`);
     }
 
@@ -98,7 +137,7 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
 
   // Fetch and memoize the layer description
   protected async getMetadata(): Promise<EsriMetadata> {
-    if (!this.metadata) this.metadata = await fetchEsriJson(this.layerUrl, {}, this.requestTransform);
+    if (!this.metadata) this.metadata = await fetchEsriJson(this.layerUrl, {}, this.requestTransform, AbortSignal.timeout(QUERY_TIMEOUT));
     return this.metadata;
   }
 
@@ -121,6 +160,7 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
         f: geojson ? 'geojson' : 'json',
       },
       this.requestTransform,
+      AbortSignal.timeout(QUERY_TIMEOUT),
     );
 
     // The flag appears at the top level of an Esri JSON response and in either place in a GeoJSON
