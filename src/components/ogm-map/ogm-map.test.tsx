@@ -62,6 +62,7 @@ const fakeLayersControl = () => ({ setPressed: vi.fn() });
 const drawablePreviewer = () => ({
   projection: 'mercator',
   maxPitch: 30,
+  inspectable: true,
   minZoom: undefined as number | undefined,
   onNotice: undefined as ((notice: string | undefined) => void) | undefined,
   url: 'http://example.com/data.json',
@@ -73,6 +74,7 @@ const drawablePreviewer = () => ({
   applyLayerState: vi.fn(),
   clearPreview: vi.fn(async () => {}),
   getBounds: vi.fn(async () => bounds),
+  expandFeatures: vi.fn(async (features: MapGeoJSONFeature[]) => features),
 });
 
 // Stencil doesn't await a watcher, so let what the previewer's own started finish
@@ -358,6 +360,24 @@ describe('ogm-map', () => {
     await styleLoads(el, map);
 
     expect(map.setMinZoom).toHaveBeenLastCalledWith(1);
+  });
+
+  // A slim vector preview has the rest of its attributes a request away, and a click is when that
+  // request is worth making - see MapPreviewer.expandFeatures
+  it('lets the preview fill in what its drawn features do not carry', async () => {
+    const { el } = await renderMap();
+    const previewer = drawablePreviewer();
+    const expanded = { ...feature, properties: { label: 'SB 24', everything: 'else' } } as unknown as MapGeoJSONFeature;
+    previewer.expandFeatures = vi.fn(async () => [expanded]);
+    Object.assign(el, {
+      map: { queryRenderedFeatures: vi.fn(() => [feature]), remove: vi.fn() },
+      previewer,
+    });
+
+    const inspected = await (el as unknown as { handleInspection: (point: unknown) => Promise<MapGeoJSONFeature[]> }).handleInspection({ x: 1, y: 1 });
+
+    expect(previewer.expandFeatures).toHaveBeenCalledWith([feature]);
+    expect(inspected).toEqual([expanded]);
   });
 
   it('shows what a preview has to say about the view it was asked to draw in', async () => {

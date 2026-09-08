@@ -1,4 +1,4 @@
-import type { GeoJSONSource } from 'maplibre-gl';
+import type { GeoJSONSource, MapGeoJSONFeature } from 'maplibre-gl';
 
 import GeoJsonPreviewer from './geojson';
 import type { AddGeoJsonSourceObject } from './geojson';
@@ -93,6 +93,35 @@ export default class EsriFeatureLayerPreviewer extends GeoJsonPreviewer {
   private handleCameraChange = () => {
     void this.syncData();
   };
+
+  // Fetch the attributes the features were read without. A layer small enough to hold whole was
+  // read with all of them and needs no request; a larger one carries only what the map draws with,
+  // which is a twelfth of the bytes and everything a reader wants to see once they click.
+  //
+  // A failure leaves the features as they came, so the popup opens on the ObjectID rather than not
+  // opening: <ogm-map> already treats a failed inspection as one unanswered click.
+  async expandFeatures(features: MapGeoJSONFeature[]): Promise<MapGeoJSONFeature[]> {
+    if (features.length === 0 || (await this.resource.readsAllFields())) return features;
+
+    const ids = features.map(feature => feature.id).filter((id): id is string | number => id !== undefined);
+    const attributes = await this.resource.getAttributes(ids).catch(error => {
+      console.warn(`Could not read the attributes of a feature of ${this.resource.url}:`, error);
+      return new Map<string | number, GeoJSON.GeoJsonProperties>();
+    });
+
+    return features.map(feature => {
+      const found = feature.id === undefined ? undefined : attributes.get(feature.id);
+      if (!found) return feature;
+
+      // A copy that keeps its prototype, and written to rather than the original. A rendered
+      // feature holds its coordinates in _geometry behind a getter, so a plain spread of one comes
+      // out with no geometry at all; and the properties object it carries is the one MapLibre's own
+      // tile cache is holding, so assigning into that would be assigning into the cache.
+      const expanded = Object.assign(Object.create(Object.getPrototypeOf(feature)) as MapGeoJSONFeature, feature);
+      expanded.properties = found;
+      return expanded;
+    });
+  }
 
   // Draw the features if the camera is somewhere they belong, and say why not if it isn't. The
   // resource memoizes them, so crossing back into the window costs nothing.

@@ -85,6 +85,18 @@ export default abstract class MapPreviewer extends Previewer {
   // to zoom. Undefined clears whatever was last said. Set by whoever draws this preview.
   onNotice?: (notice: string | undefined) => void;
 
+  // Fill in whatever the drawn features don't carry, for the popup a click opens. A preview whose
+  // data holds every attribute has nothing to add and answers with what it was given; one that asks
+  // its service for only the fields it draws with has the rest a request away, and a click is when
+  // that request is worth making - see EsriFeatureLayerPreviewer.
+  //
+  // The features come from queryRenderedFeatures, so whatever comes back has to keep its source,
+  // sourceLayer and id: that triple is what setFeatureState highlights and what dedupeFeatures
+  // tells one feature from another by.
+  async expandFeatures(features: maplibregl.MapGeoJSONFeature[]): Promise<maplibregl.MapGeoJSONFeature[]> {
+    return features;
+  }
+
   // Whether this preview answers for its own drawing through onDrawn. Read rather than assumed,
   // because the alternative is worse in both directions: a preview held to a deadline it has no way
   // to satisfy would be called broken while it draws, and one exempted by mistake goes back to

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
 import { LngLatBounds } from 'maplibre-gl';
 
 import EsriFeatureLayerResource from './esri-feature-layer';
-import type { EsriMetadata } from '../esri';
+import type { EsriExtent, EsriMetadata } from '../esri';
 
 const LAYER = 'https://example.org/arcgis/rest/services/Landscape_Trees/FeatureServer/0';
 
@@ -15,18 +15,39 @@ const QUERYABLE: EsriMetadata = {
   advancedQueryCapabilities: { supportsPagination: true },
 };
 
-// Reads a hand-built layer description instead of fetching one
+// Reads a hand-built layer description and size instead of fetching either, so what a test queues
+// a response for is the read itself. A size of undefined lets the real probe run.
 class TestResource extends EsriFeatureLayerResource {
   stub: EsriMetadata = {};
+  size: { count?: number; extent?: EsriExtent } | undefined = { count: 1_000_000 };
 
   protected async getMetadata() {
     return this.stub;
   }
+
+  protected async getQuerySummary() {
+    return this.size ?? (await super.getQuerySummary());
+  }
+
+  // Reached through the fields a query asks for everywhere else; named here for the one test that
+  // is about the choice rather than the request
+  async outFields() {
+    return await this.getOutFields();
+  }
 }
 
-const resourceFor = (stub: EsriMetadata = QUERYABLE, bounds?: LngLatBounds) => {
+const resourceFor = (stub: EsriMetadata = QUERYABLE, bounds?: LngLatBounds, size: { count?: number; extent?: EsriExtent } | undefined = { count: 1_000_000 }) => {
   const resource = new TestResource('trees', LAYER, bounds);
   resource.stub = stub;
+  resource.size = size;
+  return resource;
+};
+
+// One that really asks the service how big the layer is, rather than being told. A separate helper
+// because passing undefined for `size` above would take the default instead.
+const probingResourceFor = (stub: EsriMetadata = QUERYABLE) => {
+  const resource = resourceFor(stub);
+  resource.size = undefined;
   return resource;
 };
 
@@ -58,13 +79,12 @@ describe('EsriFeatureLayerResource#getData', () => {
     expect(data.features).toHaveLength(1);
   });
 
-  it('asks for every field, the geometry, and degrees rather than the layer own projection', async () => {
+  it('asks for the geometry, and degrees rather than the layer own projection', async () => {
     const fetchMock = stubPages({ type: 'FeatureCollection', features: [tree(1)] });
     await resourceFor().getData();
 
     const params = new URL(fetchMock.mock.calls[0][0]).searchParams;
     expect(params.get('where')).toEqual('1=1');
-    expect(params.get('outFields')).toEqual('*');
     expect(params.get('returnGeometry')).toEqual('true');
     expect(params.get('outSR')).toEqual('4326');
     expect(params.get('f')).toEqual('geojson');
@@ -163,6 +183,142 @@ describe('EsriFeatureLayerResource#getData', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('only the first 10000'));
 
     warn.mockRestore();
+  });
+});
+
+describe('EsriFeatureLayerResource fields', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('reads a layer small enough to hold with every field it has', async () => {
+    const fetchMock = stubPages({ type: 'FeatureCollection', features: [tree(1)] });
+    await resourceFor(QUERYABLE, undefined, { count: 348 }).getData();
+
+    expect(new URL(fetchMock.mock.calls[0][0]).searchParams.get('outFields')).toEqual('*');
+  });
+
+  it('reads a layer too large to hold with only the field that identifies a feature', async () => {
+    // The attributes are the payload on a layer this size: 1,749 bytes a feature against 138 for a
+    // geometry and an ObjectID. A click fetches the rest - see getAttributes.
+    const fetchMock = stubPages({ type: 'FeatureCollection', features: [tree(1)] });
+    await resourceFor(QUERYABLE, undefined, { count: 318_295 }).getData();
+
+    expect(new URL(fetchMock.mock.calls[0][0]).searchParams.get('outFields')).toEqual('FID');
+  });
+
+  it('reads a layer that will not say how big it is slim, rather than in full', async () => {
+    const fetchMock = stubPages({ type: 'FeatureCollection', features: [tree(1)] });
+    await resourceFor(QUERYABLE, undefined, {}).getData();
+
+    expect(new URL(fetchMock.mock.calls[0][0]).searchParams.get('outFields')).toEqual('FID');
+  });
+
+  it('asks as well for the fields the style layers draw with, where the layer has them', async () => {
+    const stub = { ...QUERYABLE, fields: [{ name: 'FID', type: 'esriFieldTypeOID' }, { name: 'label' }, { name: 'available' }, { name: 'Spp_Code' }] };
+
+    expect(await resourceFor(stub).outFields()).toEqual('FID,label,available');
+  });
+
+  it('asks for no style field the layer does not have, which a service would reject the query for', async () => {
+    expect(await resourceFor({ ...QUERYABLE, fields: [{ name: 'FID', type: 'esriFieldTypeOID' }] }).outFields()).toEqual('FID');
+  });
+
+  it('says whether a click still has anything to ask the service for', async () => {
+    expect(await resourceFor(QUERYABLE, undefined, { count: 348 }).readsAllFields()).toEqual(true);
+    expect(await resourceFor(QUERYABLE, undefined, { count: 318_295 }).readsAllFields()).toEqual(false);
+  });
+});
+
+describe('EsriFeatureLayerResource#getPaging', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('asks for a standard page where the service will answer with one, and says so', async () => {
+    // 16,000 rather than 2,000 is the difference between one round trip and eight
+    const stub = { ...QUERYABLE, standardMaxRecordCount: 16000, advancedQueryCapabilities: { supportsPagination: true, supportsQueryWithResultType: true } };
+    const fetchMock = stubPages({ type: 'FeatureCollection', features: [tree(1)] });
+    await resourceFor(stub).getData();
+
+    const params = new URL(fetchMock.mock.calls[0][0]).searchParams;
+    expect(params.get('resultType')).toEqual('standard');
+
+    // Never more than the read is going to keep: a bigger page is bytes spent on features that get
+    // sliced off again
+    expect(params.get('resultRecordCount')).toEqual('10000');
+  });
+
+  it('leaves the result type off for a service that has not said it understands one', async () => {
+    const stub = { ...QUERYABLE, standardMaxRecordCount: 16000, advancedQueryCapabilities: { supportsQueryWithResultType: false } };
+    const fetchMock = stubPages({ type: 'FeatureCollection', features: [tree(1)] });
+    await resourceFor(stub).getData();
+
+    const params = new URL(fetchMock.mock.calls[0][0]).searchParams;
+    expect(params.get('resultType')).toBeNull();
+    expect(params.get('resultRecordCount')).toEqual('2');
+  });
+});
+
+describe('EsriFeatureLayerResource#getQuerySummary', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('asks how much there is and where it is in one request, in degrees', async () => {
+    const fetchMock = stubPages(
+      { count: 318295, extent: { xmin: -92.9, ymin: 42.4, xmax: -86.7, ymax: 47.1, spatialReference: { wkid: 4326 } } },
+      {
+        type: 'FeatureCollection',
+        features: [tree(1)],
+      },
+    );
+
+    await probingResourceFor().getData();
+
+    const params = new URL(fetchMock.mock.calls[0][0]).searchParams;
+    expect(params.get('returnCountOnly')).toEqual('true');
+    expect(params.get('returnExtentOnly')).toEqual('true');
+    expect(params.get('outSR')).toEqual('4326');
+  });
+
+  it('asks once however many times it is read', async () => {
+    const fetchMock = stubPages({ count: 318295 }, { type: 'FeatureCollection', features: [tree(1)] });
+    const resource = probingResourceFor();
+
+    await resource.getData();
+    await resource.readsAllFields();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads a layer it could not measure at all, rather than failing the preview', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Server Error' });
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ type: 'FeatureCollection', features: [tree(1)] }) });
+    vi.stubGlobal('fetch', fetchMock);
+
+    expect((await probingResourceFor().getData()).features).toHaveLength(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('Could not measure'), expect.anything());
+
+    warn.mockRestore();
+  });
+});
+
+describe('EsriFeatureLayerResource#getAttributes', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('asks the service about the features by id, for every field and no geometry', async () => {
+    const fetchMock = stubPages({ objectIdFieldName: 'FID', features: [{ attributes: { FID: 9, Spp_Code: 'ACRU' } }] });
+    const attributes = await resourceFor().getAttributes([9, 12]);
+
+    const params = new URL(fetchMock.mock.calls[0][0]).searchParams;
+    expect(params.get('objectIds')).toEqual('9,12');
+    expect(params.get('outFields')).toEqual('*');
+    expect(params.get('returnGeometry')).toEqual('false');
+    expect(attributes.get(9)).toEqual({ FID: 9, Spp_Code: 'ACRU' });
+  });
+
+  it('asks nothing about no features', async () => {
+    const fetchMock = stubPages();
+
+    expect((await resourceFor().getAttributes([])).size).toEqual(0);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
