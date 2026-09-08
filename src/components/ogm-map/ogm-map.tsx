@@ -1,6 +1,8 @@
 import { Component, Element, Event, EventEmitter, h, Host, Listen, Method, Prop, State, Watch } from '@stencil/core';
 import maplibregl from 'maplibre-gl';
 
+import '@awesome.me/webawesome/dist/components/callout/callout.js';
+
 import { closestAcrossShadows, findElement, getElement } from '../../lib/elements';
 import { referenceError, TimeoutError, type PreviewError, isWebGLError, WebGLUnavailableError } from '../../lib/errors';
 import GlobeControl from '../../lib/globe-control';
@@ -22,6 +24,12 @@ import MapLibreTheme from '../../lib/themes/maplibre';
 // around the click rather than the whole viewport, which keeps that assumption true to within a
 // fraction of a pixel. Odd-numbered so the clicked pixel is the exact center of the window.
 const QUERY_WINDOW = 51;
+
+// How far out this map can be zoomed when no preview asks for anything closer. Named because
+// applyViewConstraints has to put it back: MapLibre reads an absent floor as its own default of -2,
+// not as the one this map was built with, so a preview with nothing to ask for would otherwise take
+// the map further out than any preview is drawn at.
+const MIN_ZOOM = 1;
 
 // A component for rendering an interactive data preview on a map
 @Component({
@@ -55,6 +63,10 @@ export class OgmMap {
   // Layer control panel state tracking
   @State() layerControls: LayerControl[] = [];
   @State() layersPanelOpen: boolean = false;
+
+  // What the current preview has to say about the view it is being drawn in - see
+  // MapPreviewer.onNotice. Not an error: it sits over the map rather than in place of it.
+  @State() notice?: string;
   protected layersControl: LayersControl;
   private layerState = new Map<string, LayerState>();
 
@@ -125,7 +137,7 @@ export class OgmMap {
     // Display that nicely as an error; re-raise for anything else.
     try {
       this.map = createMap(container, this.mapTheme, {
-        minZoom: 1,
+        minZoom: MIN_ZOOM,
         cooperativeGestures: this.cooperativeGestures,
         // Read fresh on every request rather than captured once, so it always reflects whichever
         // previewer is currently attached - including across onPreviewerChange, with no watcher of
@@ -231,6 +243,7 @@ export class OgmMap {
     this.errorReported = false;
     this.clearLoadDeadline();
     this.previewDrawn = false;
+    this.notice = undefined;
 
     // Indicate loading state so we can show the spinner
     this.mapLoading.emit();
@@ -262,12 +275,21 @@ export class OgmMap {
     previewer.onDrawn = () => {
       if (this.previewer === previewer) this.markPreviewDrawn();
     };
+    previewer.onNotice = notice => {
+      if (this.previewer === previewer) this.notice = notice;
+    };
 
     try {
       // The style is only known now: it comes out of the theme, and the theme can change under a
       // preview that is already on screen
       this.previewer.attach(this.map, this.mapTheme.getStyle());
       await this.previewer.preview();
+
+      // Again, for the one constraint a preview can't answer until it has read its own service:
+      // MapPreviewer.minZoom settles inside preview(). Here rather than after the camera is fitted
+      // below, because a floor that clamps the current zoom fires a whole move of its own, and
+      // fitMapBounds is waiting on a moveend that isn't its own to arrive.
+      this.applyViewConstraints();
 
       // The map has been told what to draw, so this is where the wait for it to actually appear
       // begins. Started before the bounds are fitted rather than after, because the tiles the
@@ -422,17 +444,23 @@ export class OgmMap {
   }
 
   // Draw the map the way the current preview needs it drawn: on a globe unless the preview can't be
-  // shown on one, and tilted no further than it can be drawn tilted. See MapPreviewer.projection and
-  // maxPitch. The globe control goes with the projection, since a preview that needs a flat map would
-  // only be drawn wrong in whatever else that button could offer; the pitch needs no such handling,
-  // because setMaxPitch is what the drag gestures and the compass are already bounded by. Undefined is
-  // MapLibre's own default, so there's no limit of ours to keep in step with theirs.
+  // shown on one, tilted no further than it can be drawn tilted, and held no further out than it has
+  // anything to draw at. See MapPreviewer.projection, maxPitch and minZoom. The globe control goes
+  // with the projection, since a preview that needs a flat map would only be drawn wrong in whatever
+  // else that button could offer; the pitch needs no such handling, because setMaxPitch is what the
+  // drag gestures and the compass are already bounded by.
+  //
+  // Every limit is set on every call, including back to nothing, so that the preview being replaced
+  // can't leave one of its own behind on a map now showing something else. For the pitch, nothing is
+  // MapLibre's own default and there is no limit of ours to keep in step with theirs; the zoom floor
+  // is the exception, because this map opens with one - see MIN_ZOOM.
   protected applyViewConstraints() {
     if (!this.map) return;
     const projection = this.previewer?.projection ?? 'globe';
     this.map.setProjection({ type: projection });
     this.globeControl.setHidden(projection !== 'globe');
     this.map.setMaxPitch(this.previewer?.maxPitch);
+    this.map.setMinZoom(Math.max(MIN_ZOOM, this.previewer?.minZoom ?? MIN_ZOOM));
   }
 
   // Fit the map to the given bounds; resolve once the move finishes. What the sidebar covers is the
@@ -738,6 +766,11 @@ export class OgmMap {
       <Host class={waScope(this.theme)}>
         <div class={`container ${waScope(this.theme)}`}>
           <div id="map"></div>
+          {this.notice && (
+            <wa-callout class="notice" variant="neutral" size="small">
+              {this.notice}
+            </wa-callout>
+          )}
           {this.layersPanelOpen && <ogm-layers theme={this.theme} layers={this.layerControls}></ogm-layers>}
           {hasLegend && <ogm-legend theme={this.theme} layers={this.layerControls} entries={legendEntries}></ogm-legend>}
         </div>

@@ -1,18 +1,41 @@
-import { describe, it, expect, beforeEach } from '@stencil/vitest';
+import { describe, it, expect, beforeEach, vi } from '@stencil/vitest';
 
 import EsriFeatureLayerPreviewer from './esri-feature-layer';
+import type { EsriMetadata } from '../esri';
 import EsriFeatureLayerResource from '../resources/esri-feature-layer';
 import type { MapLibreStyle } from '../themes/maplibre';
 
-// Just enough of a MapLibre map to record what the previewer adds and draws
-class FakeMap {
-  sources = new Map<string, { type: string; data?: GeoJSON.GeoJSON | string }>();
-  layers = new Map<string, { 'id': string; 'type': string; 'source': string; 'source-layer'?: string }>();
+type FakeSource = { type: string; data?: GeoJSON.GeoJSON | string };
+type FakeLayer = { 'id': string; 'type': string; 'source': string; 'source-layer'?: string; 'minzoom'?: number; 'maxzoom'?: number };
 
-  getSource(id: string) {
-    return this.sources.get(id);
+// Just enough of a MapLibre map to record what the previewer adds and draws, answer where the
+// camera is, and hand back the camera events it listens for
+class FakeMap {
+  sources = new Map<string, FakeSource>();
+  layers = new Map<string, FakeLayer>();
+  listeners = new Map<string, Set<() => void>>();
+
+  zoom = 12;
+
+  // What a camera fitted to the previewed bounds would settle on; see MapPreviewer.minZoom
+  fitZoom: number | undefined = 12;
+
+  getZoom() {
+    return this.zoom;
   }
-  addSource(id: string, spec: { type: string; data?: GeoJSON.GeoJSON | string }) {
+
+  cameraForBounds() {
+    return this.fitZoom === undefined ? undefined : { zoom: this.fitZoom };
+  }
+
+  // A fresh handle each time, over the one stored record, so an assertion on sources still reads
+  // whatever setData last wrote
+  getSource(id: string) {
+    const stored = this.sources.get(id);
+    if (!stored) return undefined;
+    return { ...stored, setData: (data: GeoJSON.GeoJSON) => (stored.data = data) };
+  }
+  addSource(id: string, spec: FakeSource) {
     this.sources.set(id, { ...spec });
   }
   removeSource(id: string) {
@@ -21,12 +44,31 @@ class FakeMap {
   getLayer(id: string) {
     return this.layers.get(id);
   }
-  addLayer(layer: { id: string; type: string; source: string }) {
+  addLayer(layer: FakeLayer) {
     if (!this.sources.has(layer.source)) throw new Error(`No source ${layer.source} for layer ${layer.id}`);
     this.layers.set(layer.id, layer);
   }
   removeLayer(id: string) {
     this.layers.delete(id);
+  }
+
+  on(type: string, listener: () => void) {
+    if (!this.listeners.has(type)) this.listeners.set(type, new Set());
+    this.listeners.get(type)?.add(listener);
+    return this;
+  }
+  once(type: string, listener: () => void) {
+    return this.on(type, listener);
+  }
+  off(type: string, listener: () => void) {
+    this.listeners.get(type)?.delete(listener);
+    return this;
+  }
+  fire(type: string) {
+    [...(this.listeners.get(type) ?? [])].forEach(listener => listener());
+  }
+  listenerCount(type: string) {
+    return this.listeners.get(type)?.size ?? 0;
   }
 }
 
@@ -51,20 +93,51 @@ const FEATURES: GeoJSON.FeatureCollection = {
   features: [{ type: 'Feature', id: 1, geometry: { type: 'Point', coordinates: [-82.44, 35.61] }, properties: { Spp_Code: 'ULPU' } }],
 };
 
-// Hands over features it already has instead of querying the service for them
+// The scales this library's own fixture layer publishes: level 10 and level 20 of the standard
+// ArcGIS table, which are MapLibre zooms 9 and 19. See scaleToZoom.
+const SCALED: EsriMetadata = {
+  minScale: 577790.554289,
+  maxScale: 564.248588,
+  extent: { xmin: -92.9, ymin: 42.4, xmax: -86.6, ymax: 47.1, spatialReference: { wkid: 4326 } },
+};
+
+// Hands over features and a layer description it already has, rather than querying a service
 class TestResource extends EsriFeatureLayerResource {
+  reads = 0;
+
+  constructor(
+    id: string,
+    url: string,
+    private description: EsriMetadata = {},
+  ) {
+    super(id, url);
+  }
+
   async getData() {
+    this.reads += 1;
     return FEATURES;
+  }
+
+  protected async getMetadata() {
+    return this.description;
   }
 }
 
 let map: FakeMap;
+let resource: TestResource;
 let previewer: EsriFeatureLayerPreviewer;
 
-beforeEach(async () => {
+// Draw a preview of a layer described the given way, with the camera wherever the caller wants it
+const build = async (description: EsriMetadata = {}, camera: { zoom?: number; fitZoom?: number } = {}) => {
   map = new FakeMap();
-  previewer = new EsriFeatureLayerPreviewer(new TestResource('trees', LAYER)).attach(map as unknown as maplibregl.Map, style);
+  Object.assign(map, camera);
+  resource = new TestResource('trees', LAYER, description);
+  previewer = new EsriFeatureLayerPreviewer(resource).attach(map as unknown as maplibregl.Map, style);
   await previewer.preview();
+};
+
+beforeEach(async () => {
+  await build();
 });
 
 describe('EsriFeatureLayerPreviewer#preview', () => {
@@ -95,6 +168,97 @@ describe('EsriFeatureLayerPreviewer#preview', () => {
       expect(layer['source-layer']).toBeUndefined();
     });
   });
+
+  it('draws a layer with no published scales at every zoom, the way it always did', () => {
+    map.layers.forEach(layer => {
+      expect(layer.minzoom).toBeUndefined();
+      expect(layer.maxzoom).toBeUndefined();
+    });
+  });
+});
+
+describe('EsriFeatureLayerPreviewer with a published scale window', () => {
+  it('holds every style layer to the window the service published', async () => {
+    await build(SCALED);
+
+    // maxzoom is a zoom above what maxScale converts to: ArcGIS still draws a layer at its
+    // maxScale, where MapLibre has already hidden a style layer at its maxzoom
+    map.layers.forEach(layer => {
+      expect(layer.minzoom).toEqual(9);
+      expect(layer.maxzoom).toEqual(20);
+    });
+  });
+
+  it('reads nothing while the camera is further out than the layer is published for', async () => {
+    await build(SCALED, { zoom: 5 });
+
+    expect(resource.reads).toEqual(0);
+    expect(map.sources.get('trees-esri-feature-layer')?.data).toEqual({ type: 'FeatureCollection', features: [] });
+  });
+
+  it('says to zoom in while the camera is further out than the layer is published for', async () => {
+    const notice = vi.fn();
+    map = new FakeMap();
+    map.zoom = 5;
+    previewer = new EsriFeatureLayerPreviewer(new TestResource('trees', LAYER, SCALED)).attach(map as unknown as maplibregl.Map, style);
+    previewer.onNotice = notice;
+    await previewer.preview();
+
+    expect(notice).toHaveBeenCalledWith(expect.stringContaining('Zoom in'));
+  });
+
+  it('says to zoom out while the camera is closer than the layer is published for', async () => {
+    const notice = vi.fn();
+    map = new FakeMap();
+    map.zoom = 21;
+    previewer = new EsriFeatureLayerPreviewer(new TestResource('trees', LAYER, SCALED)).attach(map as unknown as maplibregl.Map, style);
+    previewer.onNotice = notice;
+    await previewer.preview();
+
+    expect(notice).toHaveBeenCalledWith(expect.stringContaining('Zoom out'));
+  });
+
+  it('reads the features once the camera reaches the window', async () => {
+    await build(SCALED, { zoom: 5 });
+    expect(resource.reads).toEqual(0);
+
+    map.zoom = 11;
+    map.fire('zoomend');
+    await vi.waitFor(() => expect(resource.reads).toEqual(1));
+
+    expect(map.sources.get('trees-esri-feature-layer')?.data).toBe(FEATURES);
+  });
+
+  it('leaves one camera listener behind after a theme change draws the same preview again', async () => {
+    await build(SCALED, { zoom: 5 });
+    expect(map.listenerCount('zoomend')).toEqual(1);
+
+    // What a basemap swap does: the same previewer draws itself into a rebuilt style document,
+    // with no clearPreview in between
+    await previewer.preview();
+
+    expect(map.listenerCount('zoomend')).toEqual(1);
+  });
+});
+
+describe('EsriFeatureLayerPreviewer#minZoom', () => {
+  it('holds the map to the published floor when the whole layer still fits there', async () => {
+    await build(SCALED, { zoom: 10, fitZoom: 11 });
+
+    expect(previewer.minZoom).toEqual(9);
+  });
+
+  it('asks for no floor when the layer is wider than its own floor would show', async () => {
+    // Wisconsin needs a camera around zoom 5 to fit, and is published from zoom 9 in: a floor here
+    // would cost the reader the only view that shows what the record covers
+    await build(SCALED, { zoom: 5, fitZoom: 5.5 });
+
+    expect(previewer.minZoom).toBeUndefined();
+  });
+
+  it('asks for no floor when the service publishes no scales', async () => {
+    expect(previewer.minZoom).toBeUndefined();
+  });
 });
 
 describe('EsriFeatureLayerPreviewer#clearPreview', () => {
@@ -103,5 +267,12 @@ describe('EsriFeatureLayerPreviewer#clearPreview', () => {
 
     expect(map.sources.size).toEqual(0);
     expect(map.layers.size).toEqual(0);
+  });
+
+  it('stops listening for the camera', async () => {
+    await build(SCALED, { zoom: 5 });
+    await previewer.clearPreview();
+
+    expect(map.listenerCount('zoomend')).toEqual(0);
   });
 });

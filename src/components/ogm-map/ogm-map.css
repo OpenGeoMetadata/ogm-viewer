@@ -169,3 +169,17 @@ ogm-legend {
     background-color: rgb(255 255 255 / 10%);
   }
 }
+
+/* What a preview has to say about the view it is being drawn in - see MapPreviewer.onNotice. Over
+   the map rather than in place of it, unlike <ogm-alerts>: a reader told to zoom in still needs the
+   map to zoom. Bottom center, which is the one edge nothing else claims - the layers panel takes the
+   top, the legend the bottom left, and MapLibre's own controls the right. */
+wa-callout.notice {
+  position: absolute;
+  inset-block-end: var(--ogm-control-inset);
+  inset-inline-start: 50%;
+  translate: -50%;
+  z-index: 3;
+  max-width: calc(100% - 2 * var(--ogm-control-inset));
+  box-shadow: var(--wa-shadow-m);
+}

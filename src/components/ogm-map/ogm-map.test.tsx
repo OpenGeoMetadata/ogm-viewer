@@ -49,6 +49,7 @@ const loadingMap = () => {
       if (!map.styleLoaded) throw new Error('Style is not done loading.');
     }),
     setMaxPitch: vi.fn(),
+    setMinZoom: vi.fn(),
   };
   return map;
 };
@@ -61,6 +62,8 @@ const fakeLayersControl = () => ({ setPressed: vi.fn() });
 const drawablePreviewer = () => ({
   projection: 'mercator',
   maxPitch: 30,
+  minZoom: undefined as number | undefined,
+  onNotice: undefined as ((notice: string | undefined) => void) | undefined,
   url: 'http://example.com/data.json',
   sourceIds: [] as string[],
   previewLayers: [],
@@ -327,6 +330,47 @@ describe('ogm-map', () => {
 
       expect(said).toEqual(['start', 'stop']);
     });
+  });
+
+  // A preview only knows how far out it has anything to draw once it has read its own service, so
+  // this is the one constraint that has to be applied again after preview() rather than only before
+  it('holds the map to a floor the preview asked for once it has drawn', async () => {
+    const { el } = await renderMap();
+    const map = loadingMap();
+    const previewer = drawablePreviewer();
+    previewer.preview = vi.fn(async () => {
+      previewer.minZoom = 9;
+    });
+    Object.assign(el, { map, layersControl: fakeLayersControl(), previewer });
+
+    await styleLoads(el, map);
+
+    expect(map.setMinZoom).toHaveBeenLastCalledWith(9);
+  });
+
+  // MapLibre reads an absent floor as its own default of -2, which is further out than this map has
+  // ever opened, so a preview asking for nothing has to be given the map's own floor back
+  it('puts its own floor back for a preview that asks for none', async () => {
+    const { el } = await renderMap();
+    const map = loadingMap();
+    Object.assign(el, { map, layersControl: fakeLayersControl(), previewer: drawablePreviewer() });
+
+    await styleLoads(el, map);
+
+    expect(map.setMinZoom).toHaveBeenLastCalledWith(1);
+  });
+
+  it('shows what a preview has to say about the view it was asked to draw in', async () => {
+    const { el } = await renderMap();
+    const map = loadingMap();
+    const previewer = drawablePreviewer();
+    Object.assign(el, { map, layersControl: fakeLayersControl(), previewer });
+
+    await styleLoads(el, map);
+    previewer.onNotice?.('Zoom in to see this layer’s features.');
+    await settle();
+
+    expect(el.shadowRoot?.querySelector('wa-callout.notice')?.textContent).toContain('Zoom in');
   });
 
   // The popup is built by hand rather than rendered, so it outlives the component's own markup

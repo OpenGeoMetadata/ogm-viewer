@@ -6,11 +6,14 @@ import {
   esriExtentToSourceBounds,
   esriGeometryToGeoJSON,
   esriIdentifyResultsToFeatures,
+  esriObjectIdField,
   esriQueryFeaturesToGeoJSON,
+  esriZoomRange,
   fetchEsriJson,
   hasCapability,
   isGeographic,
   isWebMercator,
+  scaleToZoom,
   splitEsriLayerUrl,
   throwOnEsriError,
 } from './esri';
@@ -213,6 +216,79 @@ describe('esriQueryFeaturesToGeoJSON', () => {
   it('falls back to numbering the features when the ID field is missing', () => {
     const features = esriQueryFeaturesToGeoJSON([{ attributes: { Species: 'ULPU' } }, { attributes: { Species: 'ACRU' } }]);
     expect(features.map(feature => feature.id)).toEqual([0, 1]);
+  });
+});
+
+// Scales from the two layers of this library's own oversized fixture service, which publish levels
+// 10, 11 and 20 of the standard ArcGIS table
+describe('scaleToZoom', () => {
+  it('reads a published scale as the MapLibre zoom that draws at it', () => {
+    // Not levels 10, 11 and 20: ArcGIS's table is the one for 256-pixel tiles, and MapLibre draws
+    // 512 of them, so the same ground resolution arrives a zoom earlier. Getting this wrong by one
+    // draws the layer at four times the density its publisher asked for.
+    expect(scaleToZoom(577790.554289)).toEqual(9);
+    expect(scaleToZoom(288895.277144)).toEqual(10);
+    expect(scaleToZoom(564.248588)).toEqual(19);
+  });
+
+  it('reads no limit as no zoom', () => {
+    // Zero is how ArcGIS writes a layer with no scale dependency, which most layers are
+    expect(scaleToZoom(0)).toBeUndefined();
+    expect(scaleToZoom(undefined)).toBeUndefined();
+    expect(scaleToZoom(-1)).toBeUndefined();
+    expect(scaleToZoom(Number.NaN)).toBeUndefined();
+  });
+
+  it('leaves a scale that is not a level of the standard table where it falls', () => {
+    // Only a scale within a thousandth of a level is snapped to it; a round number a publisher
+    // typed themselves is a real fraction of a zoom and stays one
+    expect(scaleToZoom(250000)).toBeCloseTo(10.2086, 4);
+  });
+
+  it('holds a scale past what a style layer can be asked for to what it can', () => {
+    expect(scaleToZoom(Number.MIN_VALUE)).toEqual(24);
+    expect(scaleToZoom(Number.MAX_VALUE)).toEqual(0);
+  });
+});
+
+describe('esriZoomRange', () => {
+  it('turns a published scale window into the zooms a style layer is drawn between', () => {
+    // The ceiling is a zoom above what maxScale converts to: ArcGIS still draws a layer at its
+    // maxScale, where MapLibre has already hidden a style layer at its maxzoom
+    expect(esriZoomRange({ minScale: 577790.554289, maxScale: 564.248588 })).toEqual({ minzoom: 9, maxzoom: 20 });
+  });
+
+  it('leaves out whichever end the service did not publish', () => {
+    expect(esriZoomRange({ minScale: 577790.554289 })).toEqual({ minzoom: 9 });
+    expect(esriZoomRange({ maxScale: 564.248588 })).toEqual({ maxzoom: 20 });
+    expect(esriZoomRange({ minScale: 0, maxScale: 0 })).toEqual({});
+    expect(esriZoomRange({})).toEqual({});
+  });
+});
+
+describe('esriObjectIdField', () => {
+  it('takes the name the layer gives it', () => {
+    expect(esriObjectIdField({ objectIdField: 'FID' })).toEqual('FID');
+  });
+
+  it('takes the name a query response gives it when the layer gave none', () => {
+    expect(esriObjectIdField({ objectIdFieldName: 'esri_oid' })).toEqual('esri_oid');
+  });
+
+  it('finds it among the fields when it is named nowhere else', () => {
+    expect(
+      esriObjectIdField({
+        fields: [
+          { name: 'Spp_Code', type: 'esriFieldTypeString' },
+          { name: 'ROWID', type: 'esriFieldTypeOID' },
+        ],
+      }),
+    ).toEqual('ROWID');
+  });
+
+  it('falls back to the name ArcGIS uses unless told otherwise', () => {
+    expect(esriObjectIdField({})).toEqual('OBJECTID');
+    expect(esriObjectIdField({ fields: [{ name: 'Spp_Code', type: 'esriFieldTypeString' }] })).toEqual('OBJECTID');
   });
 });
 

@@ -37,6 +37,9 @@ export type EsriTileInfo = {
   lods?: EsriLevelOfDetail[];
 };
 
+// One column of a layer, as the layer describes itself
+export type EsriField = { name: string; type?: string; alias?: string };
+
 // The parts of a service or layer description we read. ArcGIS returns a great deal more.
 export type EsriMetadata = {
   name?: string;
@@ -46,10 +49,32 @@ export type EsriMetadata = {
   spatialReference?: EsriSpatialReference;
   singleFusedMapCache?: boolean;
   tileInfo?: EsriTileInfo;
+  geometryType?: string;
+  displayField?: string;
+  fields?: EsriField[];
+
+  // The scales a layer is published to be drawn between; see scaleToZoom. Zero means no limit.
+  minScale?: number;
+  maxScale?: number;
+
+  // How many features the service will answer one query with. The plain limit applies to an
+  // ordinary query; the other two are what asking for a tile's worth or a standard page raises it
+  // to, and the factor multiplies whichever is in play. See EsriFeatureLayerResource.
   maxRecordCount?: number;
+  tileMaxRecordCount?: number;
+  standardMaxRecordCount?: number;
+  maxRecordCountFactor?: number;
+
+  supportsCoordinatesQuantization?: boolean;
+  objectIdField?: string;
   objectIdFieldName?: string;
   supportedQueryFormats?: string;
-  advancedQueryCapabilities?: { supportsPagination?: boolean };
+  advancedQueryCapabilities?: {
+    supportsPagination?: boolean;
+    supportsQueryWithResultType?: boolean;
+    supportsReturningQueryExtent?: boolean;
+    supportsMaxRecordCountFactor?: boolean;
+  };
 };
 
 // Esri JSON geometry: which key is present tells you the geometry type
@@ -114,6 +139,50 @@ export const esriExtentToBounds = (extent?: EsriExtent): LngLatBoundsLike | unde
 
   return new LngLatBounds(clampLatitude(southWest), clampLatitude(northEast));
 };
+
+// ArcGIS's standard Web Mercator scale table is the one for 256-pixel tiles at 96 dpi, where level
+// zero is 1:591,657,527.591555. MapLibre's transform is fixed at 512 CSS pixels per tile - its
+// worldSize is tileSize times 2^zoom - so reaching the same ground resolution takes one zoom fewer:
+// 512 * 2^z equals 256 * 2^L when L is z + 1. Halving the table once is that offset, and it is the
+// difference between drawing a layer where its publisher asked and drawing it four times as dense.
+const SCALE_AT_ZOOM_0 = 591657527.591555 / 2;
+
+// Published scales are floating point, and a publisher who picked a level off the standard table
+// didn't mean a fraction of a zoom, so a scale within a thousandth of a level is that level. The
+// same allowance the cached-pyramid comparisons make in esri-tiled-map-layer.
+const ZOOM_TOLERANCE = 0.001;
+
+// As far in as a MapLibre style layer can be asked to draw
+const MAX_ZOOM = 24;
+
+// The zoom at which a MapLibre map draws at the given ArcGIS scale denominator. ArcGIS writes "no
+// limit" as zero, which is not a scale and so not a zoom either; neither is a negative or a NaN.
+export const scaleToZoom = (scale?: number): number | undefined => {
+  if (!scale || !Number.isFinite(scale) || scale <= 0) return undefined;
+
+  const zoom = Math.log2(SCALE_AT_ZOOM_0 / scale);
+  const level = Math.round(zoom);
+  return Math.max(0, Math.min(MAX_ZOOM, Math.abs(zoom - level) < ZOOM_TOLERANCE ? level : zoom));
+};
+
+// The window of zooms a layer's own scale dependency says it should be drawn in, as MapLibre style
+// layers express one. ArcGIS still draws a layer at its maxScale, where a style layer is already
+// hidden at its maxzoom, so the ceiling is a zoom above what the scale converts to.
+export const esriZoomRange = (metadata: EsriMetadata): { minzoom?: number; maxzoom?: number } => {
+  const minzoom = scaleToZoom(metadata.minScale);
+  const maxzoom = scaleToZoom(metadata.maxScale);
+
+  return {
+    ...(minzoom !== undefined && { minzoom }),
+    ...(maxzoom !== undefined && { maxzoom: Math.min(MAX_ZOOM, maxzoom + 1) }),
+  };
+};
+
+// Which field holds a feature's own identifier. A layer description names it one way, a query
+// response another, and a layer that does neither still lists it among its fields under the type
+// ArcGIS reserves for it. Failing all three, the name ArcGIS uses unless told otherwise.
+export const esriObjectIdField = (metadata: EsriMetadata): string =>
+  metadata.objectIdField ?? metadata.objectIdFieldName ?? metadata.fields?.find(field => field.type === 'esriFieldTypeOID')?.name ?? 'OBJECTID';
 
 // Bounds as the flat west,south,east,north array a MapLibre source takes to limit its requests
 export const esriExtentToSourceBounds = (extent?: EsriExtent): [number, number, number, number] | undefined => {
@@ -194,12 +263,12 @@ export const throwOnEsriError = <T>(body: T, url: string): T => {
 };
 
 // Fetch the JSON description of an ArcGIS resource, raising both HTTP and ArcGIS-level failures
-export const fetchEsriJson = async <T = EsriMetadata>(url: string, params: Record<string, string> = {}, requestTransform?: RequestTransform): Promise<T> => {
+export const fetchEsriJson = async <T = EsriMetadata>(url: string, params: Record<string, string> = {}, requestTransform?: RequestTransform, signal?: AbortSignal): Promise<T> => {
   const requestUrl = new URL(url);
   Object.entries({ f: 'json', ...params }).forEach(([key, value]) => requestUrl.searchParams.set(key, value));
 
   const { url: resolvedUrl, init } = resolveRequest(requestUrl.toString(), 'metadata', requestTransform);
-  const response = await fetchOrThrow(resolvedUrl, init);
+  const response = await fetchOrThrow(resolvedUrl, { ...init, ...(signal && { signal }) });
   return throwOnEsriError((await response.json()) as T, resolvedUrl);
 };
 
