@@ -111,6 +111,13 @@ export default class EsriTiledFeatureLayerPreviewer extends TiledVectorPreviewer
   protected watchCamera() {
     this.map.off('zoomend', this.handleCameraChange);
     this.map.on('zoomend', this.handleCameraChange);
+
+    // Whether a tile came back short is only known once it has come back, which is after the zoom
+    // that asked for it ended - so the camera alone would say it a whole interaction late, and go
+    // on saying it after the reader has zoomed past the point where it was true
+    this.map.off('idle', this.handleCameraChange);
+    this.map.on('idle', this.handleCameraChange);
+
     this.map.off('remove', this.stopWatching);
     this.map.once('remove', this.stopWatching);
   }
@@ -118,6 +125,7 @@ export default class EsriTiledFeatureLayerPreviewer extends TiledVectorPreviewer
   private stopWatching = () => {
     if (!this.map) return;
     this.map.off('zoomend', this.handleCameraChange);
+    this.map.off('idle', this.handleCameraChange);
     this.map.off('remove', this.stopWatching);
   };
 
@@ -135,7 +143,10 @@ export default class EsriTiledFeatureLayerPreviewer extends TiledVectorPreviewer
       return;
     }
 
-    this.onNotice?.(this.resource.truncated ? 'Zoom in — this view is showing part of this layer.' : undefined);
+    // Only while the reader is still at or outside a zoom the service would not answer in full.
+    // Further in, the tiles fit and there is nothing left out to warn about.
+    const capped = this.resource.cappedAtZoom;
+    this.onNotice?.(capped !== undefined && this.map.getZoom() <= capped ? 'Zoom in — some features are left out at this zoom.' : undefined);
   }
 
   protected get extentSourceId(): string {
