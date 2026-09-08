@@ -1,18 +1,23 @@
 import geojsonExtent from '@mapbox/geojson-extent';
-import type { LngLatBoundsLike } from 'maplibre-gl';
+import type { LngLatBoundsLike, MapGeoJSONFeature } from 'maplibre-gl';
 
 import GeoJsonResource from './geojson';
 import type { ResourceKind } from './resource';
+import { encodeFeatureTile, featureTileUrl, TILE_BUFFER_RATIO, TILE_EXTENT } from '../esri-features';
 import {
+  ESRI_VECTOR_LAYER,
   esriExtentToBounds,
+  esriExtentToSourceBounds,
   esriObjectIdField,
   esriQueryFeaturesToGeoJSON,
   esriZoomRange,
   fetchEsriJson,
+  scaleToZoom,
   type EsriExtent,
   type EsriMetadata,
   type EsriQueryFeature,
 } from '../esri';
+import { readBounds, tileBbox3857, tileLngLatSpan, tilesCovering } from '../geometry';
 import type { RequestTransform } from '../request';
 
 // How many features to ask for at once when the service doesn't say. ArcGIS caps this itself, and
@@ -36,6 +41,19 @@ const STYLE_FIELDS = ['label', 'id', 'available'];
 // an ObjectID - and are better fetched for the one feature a reader actually clicks.
 const ALL_FIELDS_MAX_FEATURES = 2000;
 
+// Above this many features a layer is drawn from tiles of its own rather than read whole. The same
+// number as the field threshold above, for the same reason: one page of features with everything
+// the service knows about them is as much as a browser should be handed in one go.
+const TILED_MIN_FEATURES = ALL_FIELDS_MAX_FEATURES;
+
+// How many features a tile should hold before the zoom it was cut at is too coarse to draw at all
+const TILE_FEATURE_BUDGET = 2000;
+
+// The deepest zoom tiles are cut for. Past this MapLibre scales up the deepest tile it has, and
+// keeps recomputing symbol layout and circle radii per zoom as it does, so the drawing stays right
+// while the requests stop. A tile's 4,096 units at this zoom are about 15cm of ground each.
+const TILE_MAXZOOM = 16;
+
 // How many features one click can ask the service about. A click lands on a handful even where the
 // data is dense, and the ids travel in the query string.
 const MAX_INSPECTED = 25;
@@ -44,6 +62,14 @@ const MAX_INSPECTED = 25;
 // before starting the deadline that catches a preview which never draws - so a service that accepts
 // the connection and then says nothing would otherwise leave the spinner up for good.
 const QUERY_TIMEOUT = 20_000;
+
+// What a MapLibre vector source needs to draw this layer from tiles of our own
+export type EsriVectorSourceSpec = {
+  tiles: string[];
+  minzoom: number;
+  maxzoom: number;
+  bounds?: [number, number, number, number];
+};
 
 // How one page of a read is asked for; see getPaging
 type Paging = { pageSize: number; resultType?: string };
@@ -80,6 +106,10 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
   // Memoized answer to how much of this layer there is and where; see getQuerySummary
   private summary?: Promise<{ count?: number; extent?: EsriExtent }>;
 
+  // Whether any tile has come back at all, and whether we have said that one didn't; see fetchTile
+  private tileDrawn = false;
+  private tileFailureReported = false;
+
   constructor(id: string, url: string, bounds?: LngLatBoundsLike, requestTransform?: RequestTransform) {
     super(id, url, bounds, requestTransform);
     this.layerUrl = url.replace(/\/+$/, '');
@@ -107,7 +137,69 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
 
   // Distinguish the layer name from plain GeoJSON, since a record can carry both
   async getVectorLayers() {
-    return ['esri'];
+    return [ESRI_VECTOR_LAYER];
+  }
+
+  // How many features the layer holds, if the service will say. Free once the size probe has run,
+  // which it has by the time anything is drawn.
+  async getFeatureCount(): Promise<number | undefined> {
+    return (await this.getQuerySummary()).count;
+  }
+
+  // Whether this layer is too much to read whole, and should be drawn from tiles cut on demand
+  // instead. A layer that won't say how big it is is tiled: an empty tile and a warning is a better
+  // failure than a stalled browser, and the layer whose size is a surprise is the one to be careful
+  // with. See EsriTiledFeatureLayerPreviewer.
+  async tilesFeatures(): Promise<boolean> {
+    const { count } = await this.getQuerySummary();
+    return count === undefined || count > TILED_MIN_FEATURES;
+  }
+
+  // What a MapLibre vector source needs to ask us for this layer's tiles. The token is how the
+  // protocol handler finds its way back to this resource; see esri-features.
+  async getVectorSourceSpec(token: string): Promise<EsriVectorSourceSpec> {
+    const metadata = await this.getMetadata();
+
+    // Tiles are only asked for where the layer is both published to be drawn and coarse enough to
+    // draw: whichever of the two floors is higher wins
+    const published = scaleToZoom(metadata.minScale) ?? 0;
+    const drawable = await this.getDensityFloor();
+
+    // The query's own extent for preference: a layer publishes its own in whatever coordinate
+    // system it is stored in, and this one always comes back in degrees. Either way it stops
+    // MapLibre asking for a tile of somewhere the layer isn't, which is most tiles.
+    const bounds = esriExtentToSourceBounds((await this.getQuerySummary()).extent) ?? esriExtentToSourceBounds(metadata.extent);
+
+    return {
+      tiles: [featureTileUrl(token)],
+      minzoom: Math.min(TILE_MAXZOOM, Math.max(published, drawable)),
+      maxzoom: Math.min(TILE_MAXZOOM, scaleToZoom(metadata.maxScale) ?? TILE_MAXZOOM),
+      ...(bounds && { bounds }),
+    };
+  }
+
+  // One tile's features, encoded as the vector tile MapLibre asked for, or nothing for a tile of
+  // ocean. Answers for its own failures rather than throwing them at the map: a tiled layer makes
+  // tens of these, and one that went wrong after something has already drawn is worth a line in the
+  // console rather than an alert over a preview a reader is looking at.
+  async fetchTile(z: number, x: number, y: number, signal?: AbortSignal): Promise<ArrayBuffer | undefined> {
+    try {
+      const features = await this.queryTile(z, x, y, signal);
+      this.tileDrawn = true;
+      return encodeFeatureTile(features, z, x, y, esriObjectIdField(await this.getMetadata()));
+    } catch (error) {
+      // Whoever asked for this tile has stopped waiting for it; that is not a failure of anyone's
+      if ((error as Error)?.name === 'AbortError') throw error;
+
+      // Nothing has drawn yet, so this is the failure that explains an empty map
+      if (!this.tileDrawn) throw error;
+
+      if (!this.tileFailureReported) {
+        this.tileFailureReported = true;
+        console.warn(`Could not read a tile of ${this.layerUrl}:`, error);
+      }
+      return undefined;
+    }
   }
 
   // The features, read out of the service a page at a time. MapLibre can't fetch these itself the
@@ -158,6 +250,15 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
 
     const extent = esriExtentToBounds((await this.getMetadata()).extent);
     if (extent) return extent;
+
+    // The one the query reports, which is in degrees whatever the layer is stored in
+    const measured = esriExtentToBounds((await this.getQuerySummary()).extent);
+    if (measured) return measured;
+
+    // Measuring the features is the last resort, and only for a layer small enough to read: a
+    // tiled one has no whole collection to measure, and asking for one to answer a question about
+    // where to point the camera is the read this all exists to avoid.
+    if (await this.tilesFeatures()) return undefined;
 
     const bbox = geojsonExtent(await this.getData());
     if (!bbox) return undefined;
@@ -243,6 +344,35 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
     return attributes;
   }
 
+  // Fetch the attributes the features were read without. A layer small enough to hold whole was
+  // read with all of them and needs no request; a larger one carries only what the map draws with,
+  // which is a twelfth of the bytes and everything a reader wants to see once they click.
+  //
+  // A failure leaves the features as they came, so the popup opens on the ObjectID rather than not
+  // opening: <ogm-map> already treats a failed inspection as one unanswered click.
+  async expandFeatures(features: MapGeoJSONFeature[]): Promise<MapGeoJSONFeature[]> {
+    if (features.length === 0 || (await this.readsAllFields())) return features;
+
+    const ids = features.map(feature => feature.id).filter((id): id is string | number => id !== undefined);
+    const attributes = await this.getAttributes(ids).catch(error => {
+      console.warn(`Could not read the attributes of a feature of ${this.layerUrl}:`, error);
+      return new Map<string | number, GeoJSON.GeoJsonProperties>();
+    });
+
+    return features.map(feature => {
+      const found = feature.id === undefined ? undefined : attributes.get(feature.id);
+      if (!found) return feature;
+
+      // A copy that keeps its prototype, and written to rather than the original. A rendered
+      // feature holds its coordinates in _geometry behind a getter, so a plain spread of one comes
+      // out with no geometry at all; and the properties object it carries is the one MapLibre's own
+      // tile cache is holding, so assigning into that would be assigning into the cache.
+      const expanded = Object.assign(Object.create(Object.getPrototypeOf(feature)) as MapGeoJSONFeature, feature);
+      expanded.properties = found;
+      return expanded;
+    });
+  }
+
   // Fetch and memoize the layer description
   protected async getMetadata(): Promise<EsriMetadata> {
     if (!this.metadata) this.metadata = await fetchEsriJson(this.layerUrl, {}, this.requestTransform, AbortSignal.timeout(QUERY_TIMEOUT));
@@ -294,6 +424,86 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
     const cap = (standard ? standardMaxRecordCount : maxRecordCount) || DEFAULT_PAGE_SIZE;
 
     return { pageSize: Math.min(MAX_FEATURES, cap), ...(standard && { resultType: 'standard' }) };
+  }
+
+  // One tile's worth of features, in whichever format the service can answer in
+  private async queryTile(z: number, x: number, y: number, signal?: AbortSignal): Promise<GeoJSON.Feature[]> {
+    const metadata = await this.getMetadata();
+    const geojson = await this.supportsGeoJson();
+    const cap = metadata.tileMaxRecordCount || metadata.maxRecordCount || DEFAULT_PAGE_SIZE;
+
+    // Generalizing costs nothing to ask for and saves a great deal on a polygon layer, where an
+    // ungeneralized county boundary is most of the tile. Read in outSR's units, so degrees here,
+    // and asked for as one of the tile's own coordinate units - the finest detail it can draw.
+    // Left off for points, which have no detail to throw away.
+    const offset: Record<string, string> = metadata.geometryType === 'esriGeometryPoint' ? {} : { maxAllowableOffset: String(tileLngLatSpan(z) / TILE_EXTENT) };
+
+    const response = await fetchEsriJson<EsriQueryResponse>(
+      `${this.layerUrl}/query`,
+      {
+        where: '1=1',
+
+        // A comma envelope in the grid MapLibre draws in, so nothing has to be reprojected on the
+        // way out and the URL stays short enough for a browser to cache
+        geometry: tileBbox3857(z, x, y, TILE_BUFFER_RATIO).join(','),
+        geometryType: 'esriGeometryEnvelope',
+        inSR: '3857',
+
+        // Intersects rather than the looser envelope test: it still includes a polygon that
+        // swallows the whole tile, and it returns nothing the tiler would only clip away again
+        spatialRel: 'esriSpatialRelIntersects',
+        outSR: '4326',
+        outFields: await this.getOutFields(),
+        returnGeometry: 'true',
+        resultRecordCount: String(cap),
+        ...(await this.tileResultType()),
+        ...offset,
+        f: geojson ? 'geojson' : 'json',
+      },
+      this.requestTransform,
+      signal ?? AbortSignal.timeout(QUERY_TIMEOUT),
+      'tile',
+    );
+
+    // A tile the service had to cut short is a view showing less than the layer. Said once per
+    // resource: at the zooms tiles are asked for this shouldn't happen, and when it does it is the
+    // whole view that is incomplete rather than the one tile.
+    if (response.exceededTransferLimit ?? response.properties?.exceededTransferLimit) this.stoppedShort = true;
+
+    if (geojson) return (response.features ?? []) as GeoJSON.Feature[];
+    return esriQueryFeaturesToGeoJSON(response.features as EsriQueryFeature[], response.objectIdFieldName ?? esriObjectIdField(metadata));
+  }
+
+  // Asking for a tile's worth raises what one answer may hold - 8,000 rather than 2,000 on the
+  // layer this was written for. A service that hasn't said it understands the parameter is sent the
+  // factor instead, which does the same job the older way.
+  private async tileResultType(): Promise<Record<string, string>> {
+    const { advancedQueryCapabilities, maxRecordCountFactor } = await this.getMetadata();
+    if (advancedQueryCapabilities?.supportsQueryWithResultType !== false) return { resultType: 'tile' };
+    if (advancedQueryCapabilities?.supportsMaxRecordCountFactor && maxRecordCountFactor) return { maxRecordCountFactor: String(maxRecordCountFactor) };
+    return {};
+  }
+
+  // The coarsest zoom whose tiles hold few enough features to be worth drawing, for a layer whose
+  // service publishes no scale of its own - which is most of them.
+  //
+  // Worked out from the layer's own count and extent, so it is a mean, and a mean understates how
+  // crowded a city is: a tile over downtown Columbus holds two hundred times the average of the
+  // address layer it belongs to. This is a floor under the absurd - a whole state of points asked
+  // for in one tile - and not a promise that a tile fits. What a tile came back short is what says
+  // that, per view, which is the only place it can honestly be said.
+  private async getDensityFloor(): Promise<number> {
+    const { count, extent } = await this.getQuerySummary();
+    const bounds = esriExtentToBounds(extent) ?? esriExtentToBounds((await this.getMetadata()).extent);
+    if (!count || !bounds) return 0;
+
+    const readable = readBounds(bounds);
+    if (!readable) return 0;
+
+    for (let zoom = 0; zoom < TILE_MAXZOOM; zoom += 1) {
+      if (count / tilesCovering(readable, zoom) <= TILE_FEATURE_BUDGET) return zoom;
+    }
+    return TILE_MAXZOOM;
   }
 
   // Newer services answer in GeoJSON directly; older ones only speak Esri JSON, which we convert

@@ -1,3 +1,4 @@
+import type EsriFeatureLayerResource from '../resources/esri-feature-layer';
 import type IIIFManifestResource from '../resources/iiif-manifest';
 import type MapResource from '../resources/map';
 import type Resource from '../resources/resource';
@@ -8,6 +9,7 @@ import type MapPreviewer from './map';
 import CogPreviewer from './cog';
 import EsriDynamicMapLayerPreviewer from './esri-dynamic-map-layer';
 import EsriFeatureLayerPreviewer from './esri-feature-layer';
+import EsriTiledFeatureLayerPreviewer from './esri-tiled-feature-layer';
 import EsriImageMapLayerPreviewer from './esri-image-map-layer';
 import EsriTiledMapLayerPreviewer from './esri-tiled-map-layer';
 import GeoJsonPreviewer from './geojson';
@@ -34,6 +36,18 @@ type PreviewerBuilder = (resource: Resource) => AnyPreviewer[] | Promise<AnyPrev
 const holdsVectors = async (resource: Resource): Promise<boolean> =>
   await (resource as MapResource).isVector().catch(error => {
     console.warn(`Could not tell whether ${resource.url} holds vector tiles:`, error);
+    return false;
+  });
+
+// Whether a feature layer is too large to read whole, and should be drawn from tiles cut on demand
+// instead. Reading that means asking the service how many features it has, which can fail; a layer
+// we could not ask about is read the way it always was, and fails - or doesn't - the same way.
+//
+// Optional-chained because a resource built by an older copy of this library, or a stub in a test,
+// has no such method to call.
+const tilesFeatures = async (resource: Resource): Promise<boolean> =>
+  await ((resource as EsriFeatureLayerResource).tilesFeatures?.() ?? Promise.resolve(false)).catch(error => {
+    console.warn(`Could not tell whether ${resource.url} is too large to draw at once:`, error);
     return false;
   });
 
@@ -89,7 +103,10 @@ const BUILDERS: Record<ResourceKind, PreviewerBuilder> = {
   // previewersForResources, not here. See also resourcesFor.
   'location': resource => [new LocationPreviewer(resource)],
   'openindexmap': resource => [new OpenIndexMapPreviewer(resource)],
-  'esri-feature-layer': resource => [new EsriFeatureLayerPreviewer(resource)],
+  // A layer of a few hundred features is worth reading whole - every attribute in hand, a click
+  // answered without a request, and no floor under how far out it can be drawn. One of a few
+  // hundred thousand is not, and gets tiles of its own instead.
+  'esri-feature-layer': async resource => [(await tilesFeatures(resource)) ? new EsriTiledFeatureLayerPreviewer(resource) : new EsriFeatureLayerPreviewer(resource)],
   'esri-dynamic-map-layer': resource => [new EsriDynamicMapLayerPreviewer(resource)],
   'esri-image-map-layer': resource => [new EsriImageMapLayerPreviewer(resource)],
   'esri-tiled-map-layer': resource => [new EsriTiledMapLayerPreviewer(resource)],

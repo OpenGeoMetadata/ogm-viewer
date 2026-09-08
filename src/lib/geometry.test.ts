@@ -12,6 +12,9 @@ import {
   mercatorToLngLat,
   pixelWindowCenter,
   readBounds,
+  tileBbox3857,
+  tileLngLatSpan,
+  tilesCovering,
   unionBounds,
   WORLD,
 } from './geometry';
@@ -457,5 +460,53 @@ describe('clampToHemisphere', () => {
 
     expect(clamped.getEast() - clamped.getWest()).toEqual(180);
     expect(clamped.getCenter().lng).toEqual(0);
+  });
+});
+
+describe('tileBbox3857', () => {
+  const round = (box: number[]) => box.map(Math.round);
+
+  it('gives the whole plane for the tile the whole world is one of', () => {
+    expect(round(tileBbox3857(0, 0, 0))).toEqual([-20037508, -20037508, 20037508, 20037508]);
+  });
+
+  it('hangs the grid from the northwest corner, so y counts southward', () => {
+    expect(round(tileBbox3857(1, 0, 0))).toEqual([-20037508, 0, 0, 20037508]);
+    expect(round(tileBbox3857(1, 1, 1))).toEqual([0, -20037508, 20037508, 0]);
+  });
+
+  it('widens every edge by the fraction of a tile it was asked for', () => {
+    const plain = tileBbox3857(10, 257, 375);
+    const buffered = tileBbox3857(10, 257, 375, 64 / 4096);
+    const width = plain[2] - plain[0];
+
+    // The tiler keeps features 64 units past the edge of a 4,096-unit tile, so the query has to
+    // reach exactly that far or a tile comes back missing what would have drawn in its margin
+    [0, 1].forEach(edge => expect((plain[edge] - buffered[edge]) / width).toBeCloseTo(64 / 4096, 12));
+    [2, 3].forEach(edge => expect((buffered[edge] - plain[edge]) / width).toBeCloseTo(64 / 4096, 12));
+  });
+});
+
+describe('tileLngLatSpan', () => {
+  it('divides the world into as many tiles as the zoom has', () => {
+    expect(tileLngLatSpan(0)).toEqual(360);
+    expect(tileLngLatSpan(10)).toBeCloseTo(0.3515625, 7);
+  });
+});
+
+describe('tilesCovering', () => {
+  it('counts one tile for the zoom that is one tile', () => {
+    expect(tilesCovering(new LngLatBounds([-180, -85], [180, 85]), 0)).toBeCloseTo(1, 1);
+  });
+
+  it('counts four times as many with every zoom', () => {
+    const wisconsin = new LngLatBounds([-92.99, 42.39], [-86.68, 47.1]);
+
+    expect(tilesCovering(wisconsin, 10) / tilesCovering(wisconsin, 9)).toBeCloseTo(4, 6);
+  });
+
+  it('never counts less than one tile, however small the extent', () => {
+    // A point extent still needs a tile, and a zero would divide a feature count into infinity
+    expect(tilesCovering(new LngLatBounds([-89.4, 43.07], [-89.4, 43.07]), 14)).toEqual(1);
   });
 });
