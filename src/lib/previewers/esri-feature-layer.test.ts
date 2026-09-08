@@ -254,6 +254,20 @@ describe('EsriFeatureLayerPreviewer with a published scale window', () => {
     expect(notice).toHaveBeenCalledWith(expect.stringContaining('Zoom out'));
   });
 
+  it('answers for its own drawing while there is nothing to draw', async () => {
+    // No visible style layer reads the source out here, so MapLibre never loads a tile of it and
+    // never reports one - and the load deadline would expire on a preview doing as it was told
+    const drawn = vi.fn();
+    map = new FakeMap();
+    map.zoom = 5;
+    previewer = new EsriFeatureLayerPreviewer(new TestResource('trees', LAYER, SCALED)).attach(map as unknown as maplibregl.Map, style);
+    previewer.onDrawn = drawn;
+    await previewer.preview();
+
+    expect(previewer.reportsDrawing).toEqual(true);
+    expect(drawn).toHaveBeenCalled();
+  });
+
   it('reads the features once the camera reaches the window', async () => {
     await build(SCALED, { zoom: 5 });
     expect(resource.reads).toEqual(0);

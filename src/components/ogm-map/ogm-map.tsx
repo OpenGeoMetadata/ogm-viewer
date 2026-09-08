@@ -769,7 +769,8 @@ export class OgmMap {
         <div class={`container ${waScope(this.theme)}`}>
           <div id="map"></div>
           {this.notice && (
-            <wa-callout class="notice" variant="neutral" size="small">
+            <wa-callout class="notice" variant="brand" size="s">
+              <wa-icon slot="icon" name="info-circle-fill"></wa-icon>
               {this.notice}
             </wa-callout>
           )}
