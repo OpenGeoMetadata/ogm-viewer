@@ -105,6 +105,12 @@ const SCALED: EsriMetadata = {
 class TestResource extends EsriFeatureLayerResource {
   reads = 0;
 
+  // Whether a click still has anything to ask for, and what it gets when it asks
+  slim = false;
+  attributes = new Map<string | number, GeoJSON.GeoJsonProperties>();
+  attributesFail = false;
+  asked: (string | number)[][] = [];
+
   constructor(
     id: string,
     url: string,
@@ -121,7 +127,37 @@ class TestResource extends EsriFeatureLayerResource {
   protected async getMetadata() {
     return this.description;
   }
+
+  async readsAllFields() {
+    return !this.slim;
+  }
+
+  async getAttributes(objectIds: (string | number)[]) {
+    this.asked.push(objectIds);
+    if (this.attributesFail) throw new Error('nope');
+    return this.attributes;
+  }
 }
+
+// A feature as queryRenderedFeatures hands one back: its coordinates live behind a getter, so a
+// plain spread of one comes out with no geometry at all
+class RenderedFeature {
+  type = 'Feature' as const;
+  _geometry: GeoJSON.Geometry = { type: 'Point', coordinates: [-82.44, 35.61] };
+
+  constructor(
+    public id: number,
+    public properties: Record<string, unknown>,
+    public source = 'trees-esri-feature-layer',
+    public sourceLayer: string | undefined = undefined,
+  ) {}
+
+  get geometry() {
+    return this._geometry;
+  }
+}
+
+const renderedFeature = (id: number, properties: Record<string, unknown> = { FID: id }) => new RenderedFeature(id, properties) as unknown as maplibregl.MapGeoJSONFeature;
 
 let map: FakeMap;
 let resource: TestResource;
@@ -258,6 +294,68 @@ describe('EsriFeatureLayerPreviewer#minZoom', () => {
 
   it('asks for no floor when the service publishes no scales', async () => {
     expect(previewer.minZoom).toBeUndefined();
+  });
+});
+
+describe('EsriFeatureLayerPreviewer#expandFeatures', () => {
+  it('asks the service for what a slim read left out', async () => {
+    resource.slim = true;
+    resource.attributes = new Map([[1, { FID: 1, Spp_Code: 'ULPU', tiff_download_url: 'http://example.org/1.tif' }]]);
+
+    const [expanded] = await previewer.expandFeatures([renderedFeature(1)]);
+
+    expect(resource.asked).toEqual([[1]]);
+    expect(expanded.properties).toEqual({ FID: 1, Spp_Code: 'ULPU', tiff_download_url: 'http://example.org/1.tif' });
+  });
+
+  it('keeps what the map needs to highlight the feature it expanded', async () => {
+    resource.slim = true;
+    resource.attributes = new Map([[1, { FID: 1, Spp_Code: 'ULPU' }]]);
+
+    const [expanded] = await previewer.expandFeatures([renderedFeature(1)]);
+
+    // The triple setFeatureState works from, and the geometry the highlight is drawn with - which a
+    // spread of a rendered feature would have dropped
+    expect(expanded.id).toEqual(1);
+    expect(expanded.source).toEqual('trees-esri-feature-layer');
+    expect(expanded.sourceLayer).toBeUndefined();
+    expect(expanded.geometry).toEqual({ type: 'Point', coordinates: [-82.44, 35.61] });
+  });
+
+  it('leaves the tile cache alone', async () => {
+    resource.slim = true;
+    resource.attributes = new Map([[1, { FID: 1, Spp_Code: 'ULPU' }]]);
+    const drawn = renderedFeature(1);
+
+    await previewer.expandFeatures([drawn]);
+
+    expect(drawn.properties).toEqual({ FID: 1 });
+  });
+
+  it('asks nothing of a layer that was read with every field it has', async () => {
+    const drawn = renderedFeature(1);
+
+    expect(await previewer.expandFeatures([drawn])).toEqual([drawn]);
+    expect(resource.asked).toEqual([]);
+  });
+
+  it('opens the popup on what it has when the service will not answer', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    resource.slim = true;
+    resource.attributesFail = true;
+    const drawn = renderedFeature(1);
+
+    expect(await previewer.expandFeatures([drawn])).toEqual([drawn]);
+    expect(warn).toHaveBeenCalled();
+
+    warn.mockRestore();
+  });
+
+  it('leaves a feature the service said nothing about as it was', async () => {
+    resource.slim = true;
+    const drawn = renderedFeature(1);
+
+    expect(await previewer.expandFeatures([drawn])).toEqual([drawn]);
   });
 });
 

@@ -623,7 +623,9 @@ export class OgmMap {
       return dedupeFeatures(await this.previewer.inspect(this.queryWindow(point)));
     }
 
-    return dedupeFeatures(this.map.queryRenderedFeatures(point, { layers: this.queryableLayerIds }));
+    // Deduped first, so a preview filling in what its features don't carry asks about each of them
+    // once rather than once per style layer that drew it
+    return await this.previewer.expandFeatures(dedupeFeatures(this.map.queryRenderedFeatures(point, { layers: this.queryableLayerIds })));
   }
 
   // The window around a click to ask a server about. Its corners are in the same CSS pixel space
