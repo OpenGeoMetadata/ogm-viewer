@@ -145,8 +145,14 @@ export default class EsriTiledFeatureLayerPreviewer extends TiledVectorPreviewer
 
     // Only while the reader is still at or outside a zoom the service would not answer in full.
     // Further in, the tiles fit and there is nothing left out to warn about.
-    const capped = this.resource.cappedAtZoom;
-    this.onNotice?.(capped !== undefined && this.map.getZoom() <= capped ? 'Zoom in — some features are left out at this zoom.' : undefined);
+    //
+    // Per tile rather than for the view: the limit is what one request will carry, and a screen is
+    // covered by several. Saying it plainly is the point - a reader who can see the number can tell
+    // how much of a dense area is missing, where "some features" leaves them guessing.
+    const capped = this.resource.cappedTiles;
+    const truncated = capped && this.map.getZoom() <= capped.zoom;
+
+    this.onNotice?.(truncated ? `Features are truncated to ${capped.limit.toLocaleString()} per tile at this zoom level.` : undefined);
   }
 
   protected get extentSourceId(): string {

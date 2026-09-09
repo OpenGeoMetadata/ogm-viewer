@@ -446,12 +446,23 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
     await expect(resourceFor(POINTS).fetchTile(10, 257, 375)).rejects.toThrow('aborted');
   });
 
+  it('counts the limit off the answer rather than the layer description', async () => {
+    // Which limit applied depends on what the service made of resultType and the record count
+    // factor; a cut-short answer holds exactly the number it was willing to send
+    const many = Array.from({ length: 8000 }, (_unused, index) => ({ ...inMadison, id: index }));
+    stubPages({ type: 'FeatureCollection', features: many, properties: { exceededTransferLimit: true } });
+    const resource = resourceFor(POINTS);
+    await resource.fetchTile(10, 257, 375);
+
+    expect(resource.cappedTiles).toEqual({ zoom: 10, limit: 8000 });
+  });
+
   it('records the zoom a tile came back short at, so the view can say what is missing and when', async () => {
     stubPages({ type: 'FeatureCollection', features: [inMadison], properties: { exceededTransferLimit: true } });
     const resource = resourceFor(POINTS);
     await resource.fetchTile(10, 257, 375);
 
-    expect(resource.cappedAtZoom).toEqual(10);
+    expect(resource.cappedTiles).toEqual({ zoom: 10, limit: 1 });
 
     // Not the whole-layer read's own flag: that one means a paged read stopped at MAX_FEATURES,
     // which a tiled layer never does
@@ -469,7 +480,7 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
     await resource.fetchTile(10, 257, 375);
 
     // Zooming back out after a deeper tile was cut short doesn't make the shallower one the answer
-    expect(resource.cappedAtZoom).toEqual(12);
+    expect(resource.cappedTiles?.zoom).toEqual(12);
   });
 
   it('has no capped zoom for a layer the service answers in full', async () => {
@@ -477,7 +488,7 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
     const resource = resourceFor(POINTS);
     await resource.fetchTile(10, 257, 375);
 
-    expect(resource.cappedAtZoom).toBeUndefined();
+    expect(resource.cappedTiles).toBeUndefined();
   });
 });
 

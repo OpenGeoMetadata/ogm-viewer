@@ -101,12 +101,13 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
   // makes one; see cappedZoom.
   private stoppedShort = false;
 
-  // The deepest zoom at which the service has cut a tile short, if it has. A tile comes back at the
-  // service's own per-request limit when its box holds more features than one answer will carry,
-  // and what was left out is invisible - a thinner scatter of points looks like a thinner scatter
-  // of points. Kept as a zoom rather than a flag because zooming in is the fix: tiles cover less
-  // ground the further in you go, so past this they fit, and the notice has to stop then.
+  // The deepest zoom at which the service has cut a tile short, and how many features it sent for
+  // it. A tile comes back at the service's own per-request limit when its box holds more than one
+  // answer will carry, and what was left out is invisible - a thinner scatter of points looks like
+  // a thinner scatter of points. Kept as a zoom rather than a flag because zooming in is the fix:
+  // tiles cover less ground the further in you go, so past this they fit and the notice has to stop.
   private cappedZoom?: number;
+  private cappedLimit = 0;
 
   // A read already under way, so that several callers share one; see getData
   private pendingRead?: Promise<GeoJSON.FeatureCollection>;
@@ -137,10 +138,12 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
     return this.featureCollection?.features.length ?? 0;
   }
 
-  // The deepest zoom whose tiles the service would not answer in full, so a caller can stop saying
-  // so once the reader is past it
-  get cappedAtZoom(): number | undefined {
-    return this.cappedZoom;
+  // The deepest zoom whose tiles the service would not answer in full, and how many features it
+  // stopped at - so a caller can say how much a tile is being cut to, and stop saying it once the
+  // reader is past that zoom. One answer rather than two getters, because neither means anything
+  // without the other.
+  get cappedTiles(): { zoom: number; limit: number } | undefined {
+    return this.cappedZoom === undefined ? undefined : { zoom: this.cappedZoom, limit: this.cappedLimit };
   }
 
   // The zooms the service publishes this layer to be drawn between, if it publishes any. Most
@@ -479,16 +482,24 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
       'tile',
     );
 
+    const features = geojson
+      ? ((response.features ?? []) as GeoJSON.Feature[])
+      : esriQueryFeaturesToGeoJSON(response.features as EsriQueryFeature[], response.objectIdFieldName ?? esriObjectIdField(metadata));
+
     // A tile the service had to cut short has features in it that never reached the map. Recorded
     // against the zoom it happened at, not as a flag: one dense tile at the zoom a layer starts
     // drawing at is normal - one of nine over downtown Columbus - and it stops being true as soon
     // as the reader goes further in, so a flag would leave the notice on for good.
-    if (response.exceededTransferLimit ?? response.properties?.exceededTransferLimit) {
-      this.cappedZoom = Math.max(this.cappedZoom ?? z, z);
+    //
+    // How many it stopped at is counted off the answer rather than read from the layer description.
+    // Which limit applied depends on what the service made of resultType and the record count
+    // factor, and a cut-short answer holds exactly the number it was willing to send.
+    if ((response.exceededTransferLimit ?? response.properties?.exceededTransferLimit) && z >= (this.cappedZoom ?? z)) {
+      this.cappedZoom = z;
+      this.cappedLimit = features.length;
     }
 
-    if (geojson) return (response.features ?? []) as GeoJSON.Feature[];
-    return esriQueryFeaturesToGeoJSON(response.features as EsriQueryFeature[], response.objectIdFieldName ?? esriObjectIdField(metadata));
+    return features;
   }
 
   // Asking for a tile's worth raises what one answer may hold - 8,000 rather than 2,000 on the

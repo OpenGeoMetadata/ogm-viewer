@@ -112,9 +112,9 @@ class TestResource extends EsriFeatureLayerResource {
   }
 
   // Stands in for a tile the service answered at its own per-request limit
-  capped?: number;
+  capped?: { zoom: number; limit: number };
 
-  get cappedAtZoom() {
+  get cappedTiles() {
     return this.capped;
   }
 }
@@ -272,20 +272,27 @@ describe('EsriTiledFeatureLayerPreviewer further out than its tiles', () => {
 describe('EsriTiledFeatureLayerPreviewer when the service cuts a tile short', () => {
   // One dense tile at the zoom a layer starts drawing at is ordinary - one of nine over downtown
   // Columbus - and it stops being true the moment the reader goes further in
-  const noticeAt = async (zoom: number, capped: number) => {
+  const noticeAt = async (zoom: number, cappedZoom: number, limit = 8000) => {
     const notice = vi.fn();
     map = new FakeMap();
     map.zoom = zoom;
     resource = new TestResource('wi', LAYER);
-    resource.capped = capped;
+    resource.capped = { zoom: cappedZoom, limit };
     previewer = new EsriTiledFeatureLayerPreviewer(resource).attach(map as unknown as maplibregl.Map, style);
     previewer.onNotice = notice;
     await previewer.preview();
     return notice;
   };
 
-  it('says so at the zoom it happened at', async () => {
-    expect(await noticeAt(14, 14)).toHaveBeenLastCalledWith(expect.stringContaining('left out'));
+  it('says how far a tile is being cut, at the zoom it happens at', async () => {
+    // The service's own per-request limit, not any cap of ours, and per tile rather than per view:
+    // a screen is covered by several
+    expect(await noticeAt(14, 14)).toHaveBeenLastCalledWith('Features are truncated to 8,000 per tile at this zoom level.');
+  });
+
+  it('reports whatever limit the service applied, which differs between them', async () => {
+    // 32 of the 44 ArcGIS feature layers OpenGeoMetadata points at answer with 4,000, 12 with 8,000
+    expect(await noticeAt(14, 14, 4000)).toHaveBeenLastCalledWith(expect.stringContaining('4,000'));
   });
 
   it('stops saying so once the reader is past it, where the tiles fit', async () => {
@@ -293,7 +300,7 @@ describe('EsriTiledFeatureLayerPreviewer when the service cuts a tile short', ()
   });
 
   it('still says so further out, where the tiles are no smaller', async () => {
-    expect(await noticeAt(13, 14)).toHaveBeenLastCalledWith(expect.stringContaining('left out'));
+    expect(await noticeAt(13, 14)).toHaveBeenLastCalledWith(expect.stringContaining('truncated'));
   });
 
   it('says nothing for a layer the service answers in full', async () => {
@@ -319,10 +326,10 @@ describe('EsriTiledFeatureLayerPreviewer when the service cuts a tile short', ()
     await previewer.preview();
     expect(notice).toHaveBeenLastCalledWith(undefined);
 
-    resource.capped = 14;
+    resource.capped = { zoom: 14, limit: 8000 };
     map.fire('idle');
 
-    expect(notice).toHaveBeenLastCalledWith(expect.stringContaining('left out'));
+    expect(notice).toHaveBeenLastCalledWith(expect.stringContaining('truncated'));
   });
 
   it('stops listening to the map settling when the preview comes down', async () => {
