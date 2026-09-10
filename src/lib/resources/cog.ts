@@ -8,11 +8,6 @@ export default class CogResource extends RasterResource {
     return 'Cloud Optimized GeoTIFF';
   }
 
-  // Appends the cog:// protocol; must be registered first to work
-  getMapLibreSourceUrl() {
-    return `cog://${this.url}`;
-  }
-
   // COGs have no specific scheme identifier for MapLibre
   getScheme() {
     return undefined;

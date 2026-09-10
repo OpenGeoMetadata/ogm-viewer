@@ -31,7 +31,7 @@ export { fieldDefinitions, type FieldDefinition, type FieldDefinitions } from '.
 export { resolveRequest, type RequestResourceType, type RequestTransform, type TransformedRequest } from './lib/request';
 
 // How a COG is read, so that a restricted one reaches deck.gl with whatever the transform asks for.
-// Only needed if you are opening a COG yourself; DeckCogPreviewer does this for you.
+// Only needed if you are opening a COG yourself; CogPreviewer does this for you.
 export { openGeoTIFF, TransformedGeoTIFFSource } from './lib/geotiff';
 
 // What a record's references point at. `resourcesFor` is the record-driven path; the classes are
@@ -76,10 +76,8 @@ export { default as TiledVectorPreviewer } from './lib/previewers/tiled-vector';
 
 // The two previews the record-driven path loads on demand rather than bundling, because deck.gl and
 // Allmaps are large and most records need neither. Naming them here is a static import, so reach for
-// these when you are building a previewer by hand and know you want one - which is also the way to
-// get a COG with an Authorization header, since DeckCogPreviewer cannot carry one.
+// these when you are building a previewer by hand and know you want one.
 export { default as CogPreviewer } from './lib/previewers/cog';
-export { default as DeckCogPreviewer } from './lib/previewers/cog-deck';
 export { default as GeoreferencePreviewer } from './lib/previewers/georeference';
 export { default as EsriDynamicMapLayerPreviewer } from './lib/previewers/esri-dynamic-map-layer';
 export { default as EsriFeatureLayerPreviewer } from './lib/previewers/esri-feature-layer';

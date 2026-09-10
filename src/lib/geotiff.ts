@@ -10,9 +10,8 @@ const CHUNK_SIZE = 64 * 1024;
 const CACHE_SIZE = 8 * 1024 * 1024;
 
 // Reads a COG over HTTP with a RequestTransform applied to every request, so a restricted one can be
-// drawn by deck.gl rather than only by the MapLibre protocol - which matters because that protocol
-// only handles COGs already in Web Mercator, and a scan that is both reprojected and restricted had
-// nothing that could draw it.
+// drawn at all: handed a URL of its own, deck.gl opens the COG with a plain fetch that no transform
+// can reach, which left a restricted scan with nothing that could draw it.
 //
 // @chunkd's own SourceHttp does carry per-instance headers, but nothing else a transform can return:
 // the fetch it goes through is a single static shared by every source on the page, so cookies can't be

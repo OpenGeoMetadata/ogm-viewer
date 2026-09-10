@@ -5,7 +5,6 @@ import type Resource from '../resources/resource';
 import type { ResourceKind } from '../resources/resource';
 
 import CogPreviewer from './cog';
-import DeckCogPreviewer from './cog-deck';
 import GeoreferencePreviewer from './georeference';
 import EsriDynamicMapLayerPreviewer from './esri-dynamic-map-layer';
 import EsriFeatureLayerPreviewer from './esri-feature-layer';
@@ -171,10 +170,7 @@ describe('previewersFor', () => {
   it('previews a COG with deck.gl, which can warp one that is not already in Web Mercator', async () => {
     const [previewer] = await previewersFor(resourceOfKind('cog'));
 
-    expect(previewer.constructor).toBe(DeckCogPreviewer);
-    // The protocol previewer is still the fallback, and still the only one that can carry an
-    // Authorization header, so it must remain reachable rather than being dropped
-    expect(CogPreviewer).toBeDefined();
+    expect(previewer.constructor).toBe(CogPreviewer);
   });
 
   it('offers nothing for a resource it does not recognize, rather than failing the record', async () => {

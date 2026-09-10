@@ -173,8 +173,9 @@ export const config: Config = {
     // This is the build target used by apps that will consume the viewer. It emits ESM only, which
     // the `dist` target does not: `dist` also renders a CommonJS copy, and CommonJS cannot represent
     // the top-level await that @developmentseed/lzw-tiff-decoder uses to initialize its wasm module.
-    // That is what kept the deck.gl COG previewer - the only one that can warp a COG that is not in
-    // Web Mercator - out of the build. See https://github.com/OpenGeoMetadata/ogm-viewer/issues/100
+    // That is what kept the COG previewer - which draws a COG in whatever projection it is in, by
+    // warping it with deck.gl - out of the build.
+    // See https://github.com/OpenGeoMetadata/ogm-viewer/issues/100
     //
     // Importing any component entry still defines every element in the library, so embedding is
     // unchanged: one script tag, or one bare import, and <ogm-viewer> works.
