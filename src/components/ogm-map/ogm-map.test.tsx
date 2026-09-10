@@ -95,6 +95,7 @@ const raiseMapError = (el: HTMLElement, sourceId?: string) => (el as unknown as 
 const notices = (el: HTMLElement) => Array.from((el.shadowRoot as ShadowRoot).querySelectorAll('wa-callout.notice'));
 const noticeTexts = (el: HTMLElement) => notices(el).map(callout => callout.textContent ?? '');
 const noticeVariants = (el: HTMLElement) => notices(el).map(callout => callout.getAttribute('variant'));
+const basemapUrl = (el: HTMLElement) => (el.shadowRoot as ShadowRoot).querySelector('.basemap-url');
 
 const fitTo = (el: HTMLElement, mapBounds: number[][]) => (el as unknown as { fitMapBounds: (bounds: number[][]) => Promise<void> }).fitMapBounds(mapBounds);
 
@@ -130,11 +131,13 @@ afterEach(() => {
   consoleError.mockRestore();
 });
 
-const renderMap = async () => {
+// `lightBasemap` for the tests that need to know which basemap this map was asked for by name, rather
+// than asserting against whichever CARTO default the theme currently carries
+const renderMap = async (lightBasemap?: string) => {
   const container = document.createElement('div');
   containers.push(container);
   document.body.appendChild(container);
-  await stencilRender(<ogm-map></ogm-map>, container);
+  await stencilRender(<ogm-map lightBasemap={lightBasemap}></ogm-map>, container);
   const el = container.firstElementChild as HTMLElement & { componentOnReady?: () => Promise<unknown> };
   await el.componentOnReady?.();
   // Nothing under test has run yet, so anything reported on the way up is noise from mounting
@@ -414,8 +417,8 @@ describe('ogm-map', () => {
   // The failure this is all about: a basemap that never loads fires no style.load, and everything a
   // preview needs waits on one - so the preview used to be abandoned unattempted, silently, with not
   // one request made for the data. See fallBackToEmptyBasemap.
-  it('draws on an empty basemap when the real one never arrives', async () => {
-    const { el } = await renderMap();
+  it('draws on an empty basemap when the real one never arrives, and names it', async () => {
+    const { el } = await renderMap('https://example.com/light.json');
     const map = loadingMap();
     const previewer = drawablePreviewer();
     const reported = vi.fn();
@@ -428,11 +431,13 @@ describe('ogm-map', () => {
     // A style document of our own, needing nothing from the network that just failed
     expect(map.setStyle).toHaveBeenCalledWith(expect.objectContaining({ version: 8, sources: {} }));
 
-    // Said, rather than reported: the preview itself is fine, and this one outlives a load attempt
-    expect(noticeTexts(el).join()).toContain('basemap');
     // Part of the map isn't there, which is not the same kind of thing as a preview's own notice
     expect(noticeVariants(el)).toEqual(['warning']);
     expect(reported).not.toHaveBeenCalled();
+
+    // Named rather than left to the console, and the whole of it however narrow the map is
+    expect(basemapUrl(el)?.textContent).toBe('https://example.com/light.json');
+    expect(basemapUrl(el)?.getAttribute('title')).toBe('https://example.com/light.json');
   });
 
   // The grace period is a window the map can be taken off the page inside, and the map it would have
@@ -468,7 +473,7 @@ describe('ogm-map', () => {
   // preview's own sources, and a preview that paints its own pixels has none - so a map that had lost
   // its backdrop tile by tile said nothing at all about why.
   it('says the basemap is missing when its tiles fail, without failing the preview', async () => {
-    const { el } = await renderMap();
+    const { el } = await renderMap('https://example.com/light.json');
     const map = loadingMap();
     const previewer = drawablePreviewer();
     const reported = vi.fn();
@@ -479,10 +484,15 @@ describe('ogm-map', () => {
     raiseMapError(el, 'carto');
     await settle();
 
-    expect(noticeTexts(el).join()).toContain('basemap');
+    // A basemap with holes in it, not a missing one - a reader can see the difference, so the notice
+    // shouldn't claim the preview is drawn without a basemap
+    expect(noticeTexts(el).join()).toContain('Part of the basemap');
     expect(reported).not.toHaveBeenCalled();
     // The preview is drawn on whatever is left of the basemap, rather than started over on an empty one
     expect(map.setStyle).not.toHaveBeenCalled();
+
+    // The style document either way: the tile URLs come from inside it, so it is the thing to name
+    expect(basemapUrl(el)?.textContent).toBe('https://example.com/light.json');
   });
 
   // Both can be up at once, and they don't mean the same thing: one is about how to read the view,

@@ -192,4 +192,30 @@ ogm-legend {
 
 wa-callout.notice {
   box-shadow: var(--wa-shadow-m);
+  /* Held to the column's own width. A flex item's min-width is `auto`, so a line that can't wrap -
+     the basemap URL below - sizes the callout rather than being clipped by it, and the notice ends
+     up wider than the map it's centred over: 129px past both edges of a 380px map, measured. */
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* The basemap that let this map down, named the way a PreviewError's own URL is named in
+   <ogm-alerts>: quiet, in the code face, and clipped to one line rather than wrapped. The clipping
+   needs the callout above to be held to the column's width, or this line sizes it instead. The whole
+   URL is in the tooltip. */
+.basemap-url {
+  margin-block-start: var(--wa-space-3xs);
+  font-family: var(--wa-font-family-code);
+  font-size: var(--wa-font-size-xs);
+  color: var(--wa-color-text-quiet);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Both lines sit in the callout's message part, which lays its children out in a row by default -
+   so without this the URL would sit beside the sentence rather than under it. */
+wa-callout.basemap-notice::part(message) {
+  display: block;
+  min-width: 0;
 }
