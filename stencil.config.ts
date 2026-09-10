@@ -127,7 +127,21 @@ async function bundleMaplibreWorker(entry: string): Promise<string> {
   const bundle = await rolldown({ input: entry, platform: 'browser' });
 
   try {
-    const { output } = await bundle.generate({ format: 'iife', codeSplitting: false, minify: true });
+    // `name` because the entry has a default export - the worker class - and an IIFE has nowhere to
+    // put one unless it is given a variable to be. Nothing reads it: what the worker is for is the
+    // side effect at the end of that module, where it hands itself to `self`. Left unnamed, Rolldown
+    // warns about the export on every build.
+    const { output } = await bundle.generate({ format: 'iife', name: 'maplibreWorker', codeSplitting: false, minify: true });
+
+    // That side effect, which is the whole of what a worker does and the one thing a bundle of it
+    // cannot come out without. Worth asserting because maplibre-gl's package.json lists only its CSS
+    // and its sources under `sideEffects`, so nothing here declares dist/*.mjs to have any: a shake
+    // that took this out would leave a worker that loads, registers no message handler, and answers
+    // nothing - the same silence as no worker at all. See bundleDecoderWorker, which met this.
+    if (!/self\.worker\s*=\s*new/.test(output[0].code)) {
+      throw new Error(`The bundled MapLibre worker no longer hands itself to \`self\`. Check what maplibre-gl ships now, and update stencil.config.ts.`);
+    }
+
     // Named so devtools lists the worker by something other than its blob URL, and so a build can
     // tell whether the worker made it in; see verifyMaplibreWorkerInlined.
     return `${output[0].code}\n${MAPLIBRE_WORKER_MARKER}\n`;
