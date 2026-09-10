@@ -1,4 +1,4 @@
-import { MapboxOverlay as DeckOverlay } from '@deck.gl/mapbox';
+import { MapLibreOverlay as DeckOverlay } from '@deck.gl/maplibre';
 import { COGLayer } from '@developmentseed/deck.gl-geotiff';
 import type { DecoderPool, GeoTIFF } from '@developmentseed/geotiff';
 import type { AddLayerObject, LngLatBoundsLike, MapLibreMap } from 'maplibre-gl';
