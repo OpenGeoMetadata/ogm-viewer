@@ -6,7 +6,6 @@ import type { ResourceKind } from '../resources/resource';
 
 import type MapPreviewer from './map';
 
-import CogPreviewer from './cog';
 import EsriDynamicMapLayerPreviewer from './esri-dynamic-map-layer';
 import EsriFeatureLayerPreviewer from './esri-feature-layer';
 import EsriTiledFeatureLayerPreviewer from './esri-tiled-feature-layer';
@@ -112,14 +111,11 @@ const BUILDERS: Record<ResourceKind, PreviewerBuilder> = {
   'esri-tiled-map-layer': resource => [new EsriTiledMapLayerPreviewer(resource)],
   'wms': resource => [new WmsPreviewer(resource)],
   'wmts': resource => [new WmtsPreviewer(resource)],
-  // deck.gl warps the COG as it draws it, so it can show one in any projection; the maplibre-cog-
-  // protocol path in CogPreviewer only handles a COG already in Web Mercator. It is still exported
-  // for the one thing it can do that this can't: carry an Authorization header. deck.gl fetches the
-  // GeoTIFF through @developmentseed/geotiff, which offers no hook to reach those requests, so a
-  // restricted COG needs CogPreviewer built by hand rather than this default.
+  // deck.gl warps the COG as it draws it, so one in any projection can be drawn - which is why it
+  // is worth loading a chunk this size for.
   'cog': async resource => {
-    const deck = await lazily(() => import('./cog-deck'), resource, 'COG');
-    return [deck ?? new CogPreviewer(resource)];
+    const cog = await lazily(() => import('./cog'), resource, 'COG');
+    return cog ? [cog] : [];
   },
 
   'tms': resource => [new RasterPreviewer(resource)],

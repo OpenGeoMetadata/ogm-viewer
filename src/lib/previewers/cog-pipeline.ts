@@ -191,7 +191,7 @@ export const DiscardNonFinite = {
 // and value range - the two things a ramp change actually is. Rebuilt on every such change, unlike
 // scalarGetTileData: a fresh function here costs nothing tiles already decoded, because it never
 // touches the tile cache, only the shader pipeline drawn from it - see the note on updateTriggers
-// where this is called, in src/lib/previewers/cog-deck.ts.
+// where this is called, in src/lib/previewers/cog.ts.
 export function scalarRenderTile(ramp: ColorRampName, range: ScalarRange): (data: ScalarTileData) => RenderTileResult {
   const colormapIndex = COLORMAP_INDEX[ramp];
   const [rescaleMin, rescaleMax] = range;
