@@ -7,7 +7,7 @@ import { isScalarSampleFormat, scalarRange, scalarGetTileData, scalarRenderTile,
 // anyway: what matters to cog-pipeline.ts is only that it gets an ImageData-shaped object back.
 // createColormapTexture is left real; it does nothing FakeDevice.createTexture can't stand in for.
 const FAKE_SPRITE = { width: 256, height: 107, data: new Uint8ClampedArray(256 * 107 * 4) } as ImageData;
-vi.mock('../colormap', async importOriginal => ({ ...(await importOriginal()), colormapSprite: vi.fn(async () => FAKE_SPRITE) }));
+vi.mock('./colormap', async importOriginal => ({ ...(await importOriginal()), colormapSprite: vi.fn(async () => FAKE_SPRITE) }));
 
 // SampleFormat values, matching the ones cog-pipeline.ts hardcodes
 const UINT = 1;

@@ -5,7 +5,7 @@ import type { LegendEntry } from '../../lib/legend';
 import { rampedLayers, type LayerControl } from '../../lib/layers';
 
 // Reads a color ramp's ends for whichever drawn layers have one - a single-band COG of floats or
-// signed integers, drawn through src/lib/previewers/cog-pipeline.ts. Kept off the layers panel and
+// signed integers, drawn through src/lib/cog-pipeline.ts. Kept off the layers panel and
 // on the map instead: <ogm-layers> is unmounted while closed, and closing it is not asking to stop
 // being able to read the map, only to stop editing it. Native HTML elements, matching ogm-layers'
 // own reasoning for using them - easier to style and test than a Web Awesome component would be.

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from '@stencil/vitest';
 
 import CogPreviewer from './cog';
-import { scalarGetTileData } from './cog-pipeline';
+import { scalarGetTileData } from '../cog-pipeline';
 import RasterPreviewer from './raster';
 import CogResource from '../resources/cog';
 import { DEFAULT_COLOR_RAMP } from '../colormap';
@@ -210,7 +210,7 @@ describe('CogPreviewer', () => {
   });
 
   // A scalar COG - single-band float or signed-integer data - draws through its own pipeline
-  // (src/lib/previewers/cog-pipeline.ts) rather than @developmentseed/deck.gl-geotiff's own, which
+  // (src/lib/cog-pipeline.ts) rather than @developmentseed/deck.gl-geotiff's own, which
   // refuses that data outright.
   describe('a scalar COG', () => {
     it("publishes the default ramp and the file's own value range on the layer", async () => {

@@ -104,7 +104,7 @@ describe('ogm-layers', () => {
   });
 
   // A ramp picker is one more row in a layer's own <li>, not a control of its own - see
-  // src/lib/previewers/cog-pipeline.ts for what actually makes a layer rampable.
+  // src/lib/cog-pipeline.ts for what actually makes a layer rampable.
   describe('a rampable layer', () => {
     it('shows no ramp picker for an ordinary layer', async () => {
       const shadowRoot = await renderLayers(ONE);
