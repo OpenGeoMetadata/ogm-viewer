@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from '@stencil/vitest';
+import type { MapGeoJSONFeature, MapLibreMap } from 'maplibre-gl';
 
 import EsriFeatureLayerPreviewer from './esri-feature-layer';
 import type { EsriMetadata } from '../esri';
@@ -157,7 +158,7 @@ class RenderedFeature {
   }
 }
 
-const renderedFeature = (id: number, properties: Record<string, unknown> = { FID: id }) => new RenderedFeature(id, properties) as unknown as maplibregl.MapGeoJSONFeature;
+const renderedFeature = (id: number, properties: Record<string, unknown> = { FID: id }) => new RenderedFeature(id, properties) as unknown as MapGeoJSONFeature;
 
 let map: FakeMap;
 let resource: TestResource;
@@ -168,7 +169,7 @@ const build = async (description: EsriMetadata = {}, camera: { zoom?: number; fi
   map = new FakeMap();
   Object.assign(map, camera);
   resource = new TestResource('trees', LAYER, description);
-  previewer = new EsriFeatureLayerPreviewer(resource).attach(map as unknown as maplibregl.Map, style);
+  previewer = new EsriFeatureLayerPreviewer(resource).attach(map as unknown as MapLibreMap, style);
   await previewer.preview();
 };
 
@@ -236,7 +237,7 @@ describe('EsriFeatureLayerPreviewer with a published scale window', () => {
     const notice = vi.fn();
     map = new FakeMap();
     map.zoom = 5;
-    previewer = new EsriFeatureLayerPreviewer(new TestResource('trees', LAYER, SCALED)).attach(map as unknown as maplibregl.Map, style);
+    previewer = new EsriFeatureLayerPreviewer(new TestResource('trees', LAYER, SCALED)).attach(map as unknown as MapLibreMap, style);
     previewer.onNotice = notice;
     await previewer.preview();
 
@@ -247,7 +248,7 @@ describe('EsriFeatureLayerPreviewer with a published scale window', () => {
     const notice = vi.fn();
     map = new FakeMap();
     map.zoom = 21;
-    previewer = new EsriFeatureLayerPreviewer(new TestResource('trees', LAYER, SCALED)).attach(map as unknown as maplibregl.Map, style);
+    previewer = new EsriFeatureLayerPreviewer(new TestResource('trees', LAYER, SCALED)).attach(map as unknown as MapLibreMap, style);
     previewer.onNotice = notice;
     await previewer.preview();
 
@@ -260,7 +261,7 @@ describe('EsriFeatureLayerPreviewer with a published scale window', () => {
     const drawn = vi.fn();
     map = new FakeMap();
     map.zoom = 5;
-    previewer = new EsriFeatureLayerPreviewer(new TestResource('trees', LAYER, SCALED)).attach(map as unknown as maplibregl.Map, style);
+    previewer = new EsriFeatureLayerPreviewer(new TestResource('trees', LAYER, SCALED)).attach(map as unknown as MapLibreMap, style);
     previewer.onDrawn = drawn;
     await previewer.preview();
 

@@ -1,4 +1,4 @@
-import type { LayerSpecification, LineLayerSpecification, SourceSpecification, SymbolLayerSpecification, VectorSourceSpecification } from 'maplibre-gl';
+import type { LayerSpecification, LineLayerSpecification, MapGeoJSONFeature, SourceSpecification, SymbolLayerSpecification, VectorSourceSpecification } from 'maplibre-gl';
 
 import TiledVectorPreviewer from './tiled-vector';
 import { featureTileToken, registerFeatureTiler, unregisterFeatureTiler } from '../esri-features';
@@ -209,7 +209,7 @@ export default class EsriTiledFeatureLayerPreviewer extends TiledVectorPreviewer
   }
 
   // The tiles carry only what the map draws with, so a click asks the service for the rest
-  async expandFeatures(features: maplibregl.MapGeoJSONFeature[]) {
+  async expandFeatures(features: MapGeoJSONFeature[]) {
     return await this.resource.expandFeatures(features);
   }
 }

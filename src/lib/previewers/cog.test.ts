@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from '@stencil/vitest';
+import type { LngLatBoundsLike, MapLibreMap } from 'maplibre-gl';
 
 import CogPreviewer from './cog';
 import { scalarGetTileData } from '../cog-pipeline';
@@ -102,9 +103,9 @@ const style = { opacity: 0.8 } as MapLibreStyle;
 
 const COG_URL = 'https://example.com/scan.tif';
 
-const previewFor = (bounds?: maplibregl.LngLatBoundsLike) => {
+const previewFor = (bounds?: LngLatBoundsLike) => {
   const map = new FakeMap();
-  const previewer = new TestCogPreviewer(new CogResource('stanford-vq494qx9344', COG_URL, bounds)).attach(map as unknown as maplibregl.Map, style);
+  const previewer = new TestCogPreviewer(new CogResource('stanford-vq494qx9344', COG_URL, bounds)).attach(map as unknown as MapLibreMap, style);
   return { map, previewer };
 };
 
@@ -318,7 +319,7 @@ describe('CogPreviewer', () => {
 
   describe('getBounds', () => {
     it("uses the record's bounding box without waiting on the GeoTIFF header", async () => {
-      const declared: maplibregl.LngLatBoundsLike = [
+      const declared: LngLatBoundsLike = [
         [-122.2, 37.4],
         [-122.1, 37.5],
       ];
@@ -441,7 +442,7 @@ describe('CogPreviewer', () => {
       await previewer.preview();
       drawTile(previewer);
 
-      previewer.attach(map as unknown as maplibregl.Map, style);
+      previewer.attach(map as unknown as MapLibreMap, style);
       await previewer.preview();
       failTile(previewer);
 

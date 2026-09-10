@@ -1,5 +1,18 @@
 import { Component, Element, Event, EventEmitter, h, Host, Listen, Method, Prop, State, Watch } from '@stencil/core';
-import maplibregl from 'maplibre-gl';
+import {
+  FullscreenControl,
+  NavigationControl,
+  Popup,
+  type EaseToOptions,
+  type ErrorEvent,
+  type LngLatBoundsLike,
+  type LngLatLike,
+  type MapGeoJSONFeature,
+  type MapLibreMap,
+  type MapMouseEvent,
+  type MapSourceDataEvent,
+  type Point,
+} from 'maplibre-gl';
 
 import '@awesome.me/webawesome/dist/components/callout/callout.js';
 
@@ -98,14 +111,14 @@ export class OgmMap {
   private settlePreview: () => void = () => {};
 
   // MapLibre map instance and popup instance for feature info display
-  protected map: maplibregl.Map;
+  protected map: MapLibreMap;
   protected mapTheme: MapLibreTheme;
-  protected popup: maplibregl.Popup | undefined = undefined;
+  protected popup: Popup | undefined = undefined;
   // Watches the popup's contents for a change of size; see createPopup
   protected popupResize: ResizeObserver | undefined = undefined;
   protected attributesEl: HTMLOgmAttributesElement;
-  protected hoveredFeature: maplibregl.MapGeoJSONFeature | undefined = undefined;
-  protected selectedFeature: maplibregl.MapGeoJSONFeature | undefined = undefined;
+  protected hoveredFeature: MapGeoJSONFeature | undefined = undefined;
+  protected selectedFeature: MapGeoJSONFeature | undefined = undefined;
 
   // Before the first frame, so nothing paints unstyled
   componentWillLoad() {
@@ -202,14 +215,14 @@ export class OgmMap {
   // Add controls to the map, ordered from top down
   protected addControls() {
     this.map.addControl(
-      new maplibregl.NavigationControl({
+      new NavigationControl({
         visualizePitch: true,
       }),
     );
     this.layersControl = new LayersControl(this.toggleLayersPanel.bind(this));
     this.map.addControl(this.layersControl);
     this.map.addControl(
-      new maplibregl.FullscreenControl({
+      new FullscreenControl({
         container: this.getContainer(),
       }),
     );
@@ -348,7 +361,7 @@ export class OgmMap {
 
   // Surface MapLibre errors tied to the current preview, skipping the noise from basemap/glyph/
   // sprite loads, and deduped to a single alert per load attempt.
-  protected handleMapError(event: maplibregl.ErrorEvent & { sourceId?: string }) {
+  protected handleMapError(event: ErrorEvent & { sourceId?: string }) {
     if (this.errorReported || !this.previewer) return;
     if (!this.previewer.sourceIds.includes(event.sourceId ?? '')) return;
     this.reportError(event.error);
@@ -358,7 +371,7 @@ export class OgmMap {
   // it's what the deadline below waits for. MapLibre fires this with a tile on it from one place
   // only - a tile that finished loading and wasn't aborted - so its presence is the whole test; the
   // same event without one is describing the source rather than any of its contents.
-  protected handleSourceData(event: maplibregl.MapSourceDataEvent) {
+  protected handleSourceData(event: MapSourceDataEvent) {
     if (!event.tile || !this.previewer?.sourceIds.includes(event.sourceId)) return;
     this.markPreviewDrawn();
   }
@@ -371,7 +384,7 @@ export class OgmMap {
   // Filtered to the preview's own sources, so panning over a basemap that is still filling in
   // doesn't claim the preview is loading. Only the first tile of a batch says so: what a reader
   // waits for is the batch, and the events below say when it is done.
-  protected handleSourceDataLoading(event: maplibregl.MapSourceDataEvent) {
+  protected handleSourceDataLoading(event: MapSourceDataEvent) {
     if (this.tilesLoading || !this.previewer?.sourceIds.includes(event.sourceId)) return;
     this.tilesLoading = true;
     this.mapLoading.emit();
@@ -466,7 +479,7 @@ export class OgmMap {
   // Fit the map to the given bounds; resolve once the move finishes. What the sidebar covers is the
   // map's own padding (see onPaddingChange), which MapLibre already takes off the space it fits
   // bounds into, so only the theme's gap is left for fitMapBounds to add.
-  async fitMapBounds(bounds: maplibregl.LngLatBoundsLike) {
+  async fitMapBounds(bounds: LngLatBoundsLike) {
     return await fitBounds(this.map, this.mapTheme, bounds);
   }
 
@@ -479,7 +492,7 @@ export class OgmMap {
 
   // Move the map (e.g. when the sidebar moves)
   @Method()
-  async easeMapTo(options: maplibregl.EaseToOptions) {
+  async easeMapTo(options: EaseToOptions) {
     return await this.map.easeTo(options);
   }
 
@@ -559,7 +572,7 @@ export class OgmMap {
   }
 
   // Use the crosshair cursor if there's something to inspect
-  protected handleHover(event: maplibregl.MapMouseEvent) {
+  protected handleHover(event: MapMouseEvent) {
     // A preview with nothing to answer with never offers. Checked before the raster case below, which
     // is a question about how to ask rather than whether to.
     if (this.previewer && !this.previewer.inspectable) {
@@ -587,7 +600,7 @@ export class OgmMap {
   }
 
   // Show the attributes popup on click
-  protected async handleClick(event: maplibregl.MapMouseEvent) {
+  protected async handleClick(event: MapMouseEvent) {
     // Clear any existing popup and feature selection
     this.destroyPopup();
 
@@ -611,7 +624,7 @@ export class OgmMap {
   }
 
   // Delegate to server for raster inspection, or query directly for vector
-  protected async handleInspection(point: maplibregl.Point): Promise<maplibregl.MapGeoJSONFeature[]> {
+  protected async handleInspection(point: Point): Promise<MapGeoJSONFeature[]> {
     if (!this.previewer) return [];
 
     // Drawn, but not about anything: a location has one shape and no properties behind it, so a
@@ -631,7 +644,7 @@ export class OgmMap {
   // The window around a click to ask a server about. Its corners are in the same CSS pixel space
   // as the click; let MapLibre unproject them so the geography stays right under any projection,
   // then take their EPSG:3857 envelope, since that is the CRS we request.
-  protected queryWindow(point: maplibregl.Point): PixelWindow {
+  protected queryWindow(point: Point): PixelWindow {
     const half = (QUERY_WINDOW - 1) / 2;
     const corners = [
       [point.x - half, point.y - half],
@@ -655,7 +668,7 @@ export class OgmMap {
   // document instead, as it once was, every <ogm-map> on the page would answer for every popup: a
   // record change replaces them all at once, and the ones that had not built their maps yet threw.
   @Listen('featureSelected')
-  handleFeatureSelected(event: CustomEvent<maplibregl.MapGeoJSONFeature>) {
+  handleFeatureSelected(event: CustomEvent<MapGeoJSONFeature>) {
     if (!this.map) return;
     this.selectFeature(event.detail);
   }
@@ -672,7 +685,7 @@ export class OgmMap {
   }
 
   // Set styling of a single feature to selected state, releasing whatever was selected before it
-  protected selectFeature(feature: maplibregl.MapGeoJSONFeature) {
+  protected selectFeature(feature: MapGeoJSONFeature) {
     // A server-drawn raster has no client-side features to restyle, so the previewer outlines the
     // geometry the server sent back instead - and one highlight replaces the last
     if (this.previewer instanceof InspectableRasterPreviewer) {
@@ -685,7 +698,7 @@ export class OgmMap {
   }
 
   // Set styling of a single feature to hovered state
-  protected hoverFeature(feature: maplibregl.MapGeoJSONFeature) {
+  protected hoverFeature(feature: MapGeoJSONFeature) {
     this.clearHoveredFeature();
     this.hoveredFeature = feature;
     this.setFeatureState(feature, { hover: true });
@@ -701,14 +714,14 @@ export class OgmMap {
   // Restyle one of the preview's own features. Every path into here starts outside the map - a
   // pointer event, a layer control, the popup - and the map is not there for all of that time: it
   // is built in componentDidLoad and taken down in disconnectedCallback. Nothing to restyle then.
-  private setFeatureState(feature: maplibregl.MapGeoJSONFeature, state: { hover?: boolean; selected?: boolean }) {
+  private setFeatureState(feature: MapGeoJSONFeature, state: { hover?: boolean; selected?: boolean }) {
     if (!this.map) return;
     this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, state);
   }
 
   // Create a new popup and set its content and location
-  protected createPopup(location: maplibregl.LngLatLike) {
-    this.popup = new maplibregl.Popup({ maxWidth: 'none' }).setDOMContent(this.attributesEl).setLngLat(location).addTo(this.map);
+  protected createPopup(location: LngLatLike) {
+    this.popup = new Popup({ maxWidth: 'none' }).setDOMContent(this.attributesEl).setLngLat(location).addTo(this.map);
 
     // MapLibre works out which side of the click to put the popup on from how big it is at the time,
     // and the contents don't stay that size: paging moves to a feature with more properties, and an

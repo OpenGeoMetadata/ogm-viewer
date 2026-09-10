@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from '@stencil/vitest';
+import type { MapLibreMap } from 'maplibre-gl';
 
 import EsriTiledFeatureLayerPreviewer from './esri-tiled-feature-layer';
 import { parseFeatureTileUrl } from '../esri-features';
@@ -127,7 +128,7 @@ const build = async (description?: EsriMetadata, size?: { count?: number; extent
   map = new FakeMap();
   map.zoom = zoom;
   resource = new TestResource('wi', LAYER, description, size);
-  previewer = new EsriTiledFeatureLayerPreviewer(resource).attach(map as unknown as maplibregl.Map, style);
+  previewer = new EsriTiledFeatureLayerPreviewer(resource).attach(map as unknown as MapLibreMap, style);
   await previewer.preview();
 };
 
@@ -240,7 +241,7 @@ describe('EsriTiledFeatureLayerPreviewer further out than its tiles', () => {
     const drawn = vi.fn();
     map = new FakeMap();
     map.zoom = 5;
-    previewer = new EsriTiledFeatureLayerPreviewer(new TestResource('wi', LAYER)).attach(map as unknown as maplibregl.Map, style);
+    previewer = new EsriTiledFeatureLayerPreviewer(new TestResource('wi', LAYER)).attach(map as unknown as MapLibreMap, style);
     previewer.onNotice = notice;
     previewer.onDrawn = drawn;
     await previewer.preview();
@@ -278,7 +279,7 @@ describe('EsriTiledFeatureLayerPreviewer when the service cuts a tile short', ()
     map.zoom = zoom;
     resource = new TestResource('wi', LAYER);
     resource.capped = { zoom: cappedZoom, limit };
-    previewer = new EsriTiledFeatureLayerPreviewer(resource).attach(map as unknown as maplibregl.Map, style);
+    previewer = new EsriTiledFeatureLayerPreviewer(resource).attach(map as unknown as MapLibreMap, style);
     previewer.onNotice = notice;
     await previewer.preview();
     return notice;
@@ -307,7 +308,7 @@ describe('EsriTiledFeatureLayerPreviewer when the service cuts a tile short', ()
     const notice = vi.fn();
     map = new FakeMap();
     map.zoom = 14;
-    previewer = new EsriTiledFeatureLayerPreviewer(new TestResource('wi', LAYER)).attach(map as unknown as maplibregl.Map, style);
+    previewer = new EsriTiledFeatureLayerPreviewer(new TestResource('wi', LAYER)).attach(map as unknown as MapLibreMap, style);
     previewer.onNotice = notice;
     await previewer.preview();
 
@@ -321,7 +322,7 @@ describe('EsriTiledFeatureLayerPreviewer when the service cuts a tile short', ()
     map = new FakeMap();
     map.zoom = 14;
     resource = new TestResource('wi', LAYER);
-    previewer = new EsriTiledFeatureLayerPreviewer(resource).attach(map as unknown as maplibregl.Map, style);
+    previewer = new EsriTiledFeatureLayerPreviewer(resource).attach(map as unknown as MapLibreMap, style);
     previewer.onNotice = notice;
     await previewer.preview();
     expect(notice).toHaveBeenLastCalledWith(undefined);

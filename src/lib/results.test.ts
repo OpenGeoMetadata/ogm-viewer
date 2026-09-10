@@ -3,7 +3,7 @@
 // MapLibre. happy-dom has no canvas behind its <canvas>, which is the case markerImage answers for -
 // what it draws when there is one is checked in a browser, since that is the only place pixels exist.
 import { describe, it, expect, vi } from '@stencil/vitest';
-import { LngLatBounds, type LngLatBoundsLike } from 'maplibre-gl';
+import { LngLatBounds, type LngLatBoundsLike, type MapLibreMap } from 'maplibre-gl';
 
 import {
   drawResults,
@@ -104,7 +104,7 @@ const BOX_LAYERS = (id: string) => [`${id}-fill`, `${id}-outline`];
 
 const draw = (extents: (LngLatBoundsLike | undefined)[], rest: { highlighted?: number[]; searchBounds?: LngLatBounds } = {}) => {
   const map = new FakeMap();
-  drawResults(map as unknown as maplibregl.Map, style, { extents, ...rest });
+  drawResults(map as unknown as MapLibreMap, style, { extents, ...rest });
   return map;
 };
 
@@ -270,7 +270,7 @@ describe('drawResults', () => {
     const addImage = vi.spyOn(map, 'addImage');
     const removeImage = vi.spyOn(map, 'removeImage');
 
-    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND], highlighted: [2] });
+    drawResults(map as unknown as MapLibreMap, style, { extents: [CALIFORNIA, ICELAND], highlighted: [2] });
 
     expect(addImage).not.toHaveBeenCalled();
     expect(removeImage).not.toHaveBeenCalled();
@@ -283,7 +283,7 @@ describe('drawResults', () => {
     const addImage = vi.spyOn(map, 'addImage');
 
     // A canvas would have drawn the other one here; this DOM has none, so what is asserted is the ask
-    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA] });
+    drawResults(map as unknown as MapLibreMap, style, { extents: [CALIFORNIA] });
 
     expect(addImage).not.toHaveBeenCalledWith(markerImageId('1', style), expect.anything(), expect.anything());
     expect(addImage).toHaveBeenCalledTimes(0);
@@ -299,7 +299,7 @@ describe('drawResults', () => {
 
     expect(markerImageId('1', dusk)).not.toEqual(markerImageId('1', style));
 
-    drawResults(map as unknown as maplibregl.Map, dusk, { extents: [CALIFORNIA] });
+    drawResults(map as unknown as MapLibreMap, dusk, { extents: [CALIFORNIA] });
 
     // The picture drawn in the old palette is gone; a canvas would have drawn the new one in its place
     expect(map.listImages()).toEqual([]);
@@ -312,7 +312,7 @@ describe('drawResults', () => {
     map.addImage(markerImageId('2', style, true), {}, {});
     map.addImage('someone-elses-image', {}, {});
 
-    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA] });
+    drawResults(map as unknown as MapLibreMap, style, { extents: [CALIFORNIA] });
 
     expect(map.listImages()).toEqual(['someone-elses-image']);
   });
@@ -325,7 +325,7 @@ describe('drawResults', () => {
     const removeSource = vi.spyOn(map, 'removeSource');
     const order = [...map.layers.keys()];
 
-    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND], highlighted: [2], searchBounds: LngLatBounds.convert(ICELAND) });
+    drawResults(map as unknown as MapLibreMap, style, { extents: [CALIFORNIA, ICELAND], highlighted: [2], searchBounds: LngLatBounds.convert(ICELAND) });
 
     expect([...map.layers.keys()]).toEqual(order);
     expect(removeLayer).not.toHaveBeenCalled();
@@ -336,7 +336,7 @@ describe('drawResults', () => {
     const map = draw([CALIFORNIA]);
     const numbers = map.sources.get(RESULT_NUMBERS);
 
-    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND] });
+    drawResults(map as unknown as MapLibreMap, style, { extents: [CALIFORNIA, ICELAND] });
 
     expect(map.sources.get(RESULT_NUMBERS)).toBe(numbers);
     expect(numbers.data.features).toHaveLength(2);
@@ -350,7 +350,7 @@ describe('drawResults', () => {
     map.layers.clear();
     map.images.clear();
 
-    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA], highlighted: [1] });
+    drawResults(map as unknown as MapLibreMap, style, { extents: [CALIFORNIA], highlighted: [1] });
 
     expect([...map.layers.keys()]).toEqual([...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(HIGHLIGHT_BOUNDS), ...MARKER_LAYERS]);
     expect(marked(map)).toHaveLength(1);
@@ -383,7 +383,7 @@ describe('drawResults', () => {
   it('should follow the colors of a theme that changed under it', () => {
     const map = draw([CALIFORNIA], { highlighted: [1] });
 
-    drawResults(map as unknown as maplibregl.Map, { ...style, highlightColor: '#7a4600', strokeHighlightColor: '#4a0a0a' }, { extents: [CALIFORNIA], highlighted: [1] });
+    drawResults(map as unknown as MapLibreMap, { ...style, highlightColor: '#7a4600', strokeHighlightColor: '#4a0a0a' }, { extents: [CALIFORNIA], highlighted: [1] });
 
     expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-fill`).paint['fill-color']).toEqual('#7a4600');
     expect(map.layers.get(`${HIGHLIGHT_BOUNDS}-outline`).paint['line-color']).toEqual('#4a0a0a');
@@ -425,7 +425,7 @@ describe('drawResults', () => {
   it('should take the extent away again when the highlight is withdrawn', () => {
     const map = draw([CALIFORNIA, ICELAND], { highlighted: [2] });
 
-    drawResults(map as unknown as maplibregl.Map, style, { extents: [CALIFORNIA, ICELAND] });
+    drawResults(map as unknown as MapLibreMap, style, { extents: [CALIFORNIA, ICELAND] });
 
     expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features).toEqual([]);
   });

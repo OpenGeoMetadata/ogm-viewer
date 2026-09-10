@@ -10,6 +10,18 @@ import { Config } from '@stencil/core';
 const WORKER_SOURCE_MODULE = 'src/lib/decoder-worker-source.ts';
 const WORKER_ENTRY = 'decoder-worker.ts';
 
+// MapLibre's own worker, and the module it is inlined into. MapLibre 5 carried its worker inside its
+// bundle; 6 publishes it as a module of its own and looks for it beside whichever module asked for
+// it, which bundled is a file nothing publishes - see src/lib/maps.ts for what that costs. So it is
+// bundled and inlined here the same way the decoder worker above is, and started from a blob.
+const MAPLIBRE_WORKER_SOURCE_MODULE = 'src/lib/maplibre-worker-source.ts';
+const MAPLIBRE_WORKER_ENTRY = 'maplibre-gl/dist/maplibre-gl-worker.mjs';
+
+// What each half of that looks like in a built chunk: the file MapLibre asks for when it is left to
+// find its own worker, and the name given to the copy inlined here. See verifyMaplibreWorkerInlined.
+const MAPLIBRE_WORKER_FILE = 'maplibre-gl-worker.mjs';
+const MAPLIBRE_WORKER_MARKER = '//# sourceURL=maplibre-gl-worker.js';
+
 // Upstream's own default pool builds a worker from a URL beside whichever chunk it lands in:
 //
 //   createWorker: () => new Worker(new URL("./worker.js", import.meta.url), { type: "module" })
@@ -57,6 +69,7 @@ type Resolver = {
 // nothing in the worker to rebuild between them. A watch session that edits WORKER_ENTRY itself
 // needs restarting, which is a fair trade for a file that is one import.
 let bundledWorker: Promise<string> | undefined;
+let bundledMaplibreWorker: Promise<string> | undefined;
 
 // Bundle WORKER_ENTRY into one self-contained ES module, with its dynamically imported codecs
 // inlined: a worker started from a blob URL has no directory to resolve a sibling chunk against, so
@@ -96,6 +109,49 @@ const inlineDecoderWorker = () => ({
 
     bundledWorker ??= bundleDecoderWorker(normalize(id).replace(/[^/]+$/, WORKER_ENTRY));
     return { code: `export const DECODER_WORKER_SOURCE = ${JSON.stringify(await bundledWorker)};`, map: { mappings: '' } };
+  },
+});
+
+// Bundle MAPLIBRE_WORKER_ENTRY into one self-contained script, with the chunk it shares with the
+// main thread inlined: a worker started from a blob URL has no directory to resolve a sibling
+// against, the same as the decoder worker above.
+//
+// As an IIFE rather than an ES module, which the absence of any top-level await here allows: MapLibre
+// starts its worker as a module and falls back to a classic one where the browser refuses that,
+// which Chromium does for a module worker from a blob URL in a document with no origin - the
+// sandboxed iframe sul-embed embeds us in. A bundle with no imports left in it runs either way. See
+// src/lib/decoder.ts, which meets the same corner from the other side.
+async function bundleMaplibreWorker(entry: string): Promise<string> {
+  const { rolldown } = await import('rolldown');
+
+  const bundle = await rolldown({ input: entry, platform: 'browser' });
+
+  try {
+    const { output } = await bundle.generate({ format: 'iife', codeSplitting: false, minify: true });
+    // Named so devtools lists the worker by something other than its blob URL, and so a build can
+    // tell whether the worker made it in; see verifyMaplibreWorkerInlined.
+    return `${output[0].code}\n${MAPLIBRE_WORKER_MARKER}\n`;
+  } finally {
+    await bundle.close();
+  }
+}
+
+// Replaces the empty placeholder in MAPLIBRE_WORKER_SOURCE_MODULE with MapLibre's bundled worker
+const inlineMaplibreWorker = () => ({
+  name: 'ogm-inline-maplibre-worker',
+  async transform(this: Resolver, _code: string, id: string) {
+    if (!normalize(id).endsWith(MAPLIBRE_WORKER_SOURCE_MODULE)) return null;
+
+    const resolved = await this.resolve(MAPLIBRE_WORKER_ENTRY, id, { skipSelf: true });
+
+    // Loudly rather than quietly, as with the worker factory below: a MapLibre that keeps its worker
+    // somewhere else would otherwise publish a bundle whose every map is empty, and say nothing.
+    if (!resolved) {
+      throw new Error(`Could not resolve \`${MAPLIBRE_WORKER_ENTRY}\`. Check what maplibre-gl ships now, and update stencil.config.ts.`);
+    }
+
+    bundledMaplibreWorker ??= bundleMaplibreWorker(resolved.id);
+    return { code: `export const MAPLIBRE_WORKER_SOURCE = ${JSON.stringify(await bundledMaplibreWorker)};`, map: { mappings: '' } };
   },
 });
 
@@ -158,10 +214,27 @@ const verifyNoMissingWorker = () => ({
   },
 });
 
+// And the same for MapLibre's: a bundle that carries MapLibre has to carry MapLibre's worker too.
+//
+// Worth checking rather than trusting, because nothing else would say. If the plugin above stops
+// matching - the module renamed, moved, or bundled under a path that no longer ends the way it
+// expects - the placeholder is published as it was written, MapLibre goes back to asking for a file
+// beside the chunk, and every map in the build is empty with nothing thrown and nothing logged.
+const verifyMaplibreWorkerInlined = () => ({
+  name: 'ogm-verify-maplibre-worker-inlined',
+  generateBundle(_options: unknown, bundle: Record<string, { type: string; code?: string }>) {
+    const chunks = Object.values(bundle).filter(output => output.type === 'chunk' && output.code);
+    const carriesMapLibre = chunks.some(chunk => chunk.code?.includes(MAPLIBRE_WORKER_FILE));
+    if (!carriesMapLibre || chunks.some(chunk => chunk.code?.includes(MAPLIBRE_WORKER_MARKER))) return;
+
+    throw new Error(`MapLibre is in this bundle and its worker is not. Check that ${MAPLIBRE_WORKER_SOURCE_MODULE} is still where stencil.config.ts looks for it.`);
+  },
+});
+
 export const config: Config = {
   namespace: 'ogm-viewer',
   rollupPlugins: {
-    before: [resolveLercAsModule(), inlineDecoderWorker(), stripUpstreamDecoderWorker(), verifyNoMissingWorker()],
+    before: [resolveLercAsModule(), inlineDecoderWorker(), inlineMaplibreWorker(), stripUpstreamDecoderWorker(), verifyNoMissingWorker(), verifyMaplibreWorkerInlined()],
   },
   // Off because the check wants package.json's `module`/`types` pointed at dist/components/index.js,
   // and for this output target that file is the Stencil runtime, not a barrel - importing it defines

@@ -1,4 +1,5 @@
 import { describe, it, expect } from '@stencil/vitest';
+import type { MapLibreMap } from 'maplibre-gl';
 
 import GeoJsonPreviewer from './geojson';
 import OpenIndexMapPreviewer from './openindexmap';
@@ -69,14 +70,14 @@ const GEOJSON_URL = 'https://example.com/index-map.json';
 // Nothing here fetches: the source URL and the layer names are known without reading the document
 const previewGeoJson = async () => {
   const map = new FakeMap();
-  const previewer = new GeoJsonPreviewer(new GeoJsonResource('princeton-fk4544658v', GEOJSON_URL)).attach(map as unknown as maplibregl.Map, style);
+  const previewer = new GeoJsonPreviewer(new GeoJsonResource('princeton-fk4544658v', GEOJSON_URL)).attach(map as unknown as MapLibreMap, style);
   await previewer.preview();
   return { map, previewer };
 };
 
 const previewIndexMap = async () => {
   const map = new FakeMap();
-  const previewer = new OpenIndexMapPreviewer(new OpenIndexMapResource('princeton-fk4544658v', GEOJSON_URL)).attach(map as unknown as maplibregl.Map, style);
+  const previewer = new OpenIndexMapPreviewer(new OpenIndexMapResource('princeton-fk4544658v', GEOJSON_URL)).attach(map as unknown as MapLibreMap, style);
   await previewer.preview();
   return { map, previewer };
 };

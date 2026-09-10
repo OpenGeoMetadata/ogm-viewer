@@ -1,7 +1,7 @@
 import { MapboxOverlay as DeckOverlay } from '@deck.gl/mapbox';
 import { COGLayer } from '@developmentseed/deck.gl-geotiff';
 import type { DecoderPool, GeoTIFF } from '@developmentseed/geotiff';
-import type { AddLayerObject, LngLatBoundsLike } from 'maplibre-gl';
+import type { AddLayerObject, LngLatBoundsLike, MapLibreMap } from 'maplibre-gl';
 
 import MapPreviewer from './map';
 import { isScalarSampleFormat, scalarGetTileData, scalarRange, scalarRenderTile, type ScalarRange, type ScalarTileData } from '../cog-pipeline';
@@ -67,7 +67,7 @@ export default class CogPreviewer extends MapPreviewer {
   // attempt starts over. See reportTileError.
   protected anyTileDrawn = false;
 
-  attach(map: maplibregl.Map, style: MapLibreStyle): this {
+  attach(map: MapLibreMap, style: MapLibreStyle): this {
     super.attach(map, style);
     this.deckOverlay = this.getDeckOverlay();
     this.decoderPool ??= this.createDecoderPool();
