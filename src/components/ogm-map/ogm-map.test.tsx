@@ -92,7 +92,9 @@ const mapError = (sourceId?: string) => ({ error: new Error('Failed to fetch'), 
 
 const raiseMapError = (el: HTMLElement, sourceId?: string) => (el as unknown as { handleMapError: (event: never) => void }).handleMapError(mapError(sourceId));
 
-const noticeTexts = (el: HTMLElement) => Array.from((el.shadowRoot as ShadowRoot).querySelectorAll('wa-callout.notice')).map(callout => callout.textContent ?? '');
+const notices = (el: HTMLElement) => Array.from((el.shadowRoot as ShadowRoot).querySelectorAll('wa-callout.notice'));
+const noticeTexts = (el: HTMLElement) => notices(el).map(callout => callout.textContent ?? '');
+const noticeVariants = (el: HTMLElement) => notices(el).map(callout => callout.getAttribute('variant'));
 
 const fitTo = (el: HTMLElement, mapBounds: number[][]) => (el as unknown as { fitMapBounds: (bounds: number[][]) => Promise<void> }).fitMapBounds(mapBounds);
 
@@ -405,6 +407,8 @@ describe('ogm-map', () => {
     await settle();
 
     expect(el.shadowRoot?.querySelector('wa-callout.notice')?.textContent).toContain('Zoom in');
+    // Telling a reader how to use the view they're in, rather than warning them about it
+    expect(noticeVariants(el)).toEqual(['brand']);
   });
 
   // The failure this is all about: a basemap that never loads fires no style.load, and everything a
@@ -426,6 +430,8 @@ describe('ogm-map', () => {
 
     // Said, rather than reported: the preview itself is fine, and this one outlives a load attempt
     expect(noticeTexts(el).join()).toContain('basemap');
+    // Part of the map isn't there, which is not the same kind of thing as a preview's own notice
+    expect(noticeVariants(el)).toEqual(['warning']);
     expect(reported).not.toHaveBeenCalled();
   });
 
@@ -477,6 +483,25 @@ describe('ogm-map', () => {
     expect(reported).not.toHaveBeenCalled();
     // The preview is drawn on whatever is left of the basemap, rather than started over on an empty one
     expect(map.setStyle).not.toHaveBeenCalled();
+  });
+
+  // Both can be up at once, and they don't mean the same thing: one is about how to read the view,
+  // the other about the map under it being incomplete
+  it('tells its two kinds of notice apart when both are up', async () => {
+    const { el } = await renderMap();
+    const map = loadingMap();
+    const previewer = drawablePreviewer();
+    Object.assign(el, { map, layersControl: fakeLayersControl(), previewer });
+
+    await styleLoads(el, map);
+    previewer.onNotice?.('Zoom in to see this layer’s features.');
+    raiseMapError(el, 'carto');
+    await settle();
+
+    // The preview's own comes first, in document order
+    expect(noticeTexts(el)[0]).toContain('Zoom in');
+    expect(noticeTexts(el)[1]).toContain('basemap');
+    expect(noticeVariants(el)).toEqual(['brand', 'warning']);
   });
 
   it('still reports a failure of one of the preview’s own sources', async () => {

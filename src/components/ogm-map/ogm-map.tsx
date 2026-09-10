@@ -870,9 +870,13 @@ export class OgmMap {
                   {this.notice}
                 </wa-callout>
               )}
+              {/* A warning rather than the preview notice's brand, because the two are different
+                  kinds of thing: that one is telling a reader how to use the view they're in, and
+                  this one is saying part of the map isn't there. The triangle goes with it - the same
+                  pairing <ogm-alerts> uses for something having gone wrong. */}
               {this.basemapNotice && (
-                <wa-callout class="notice basemap-notice" variant="brand" size="s">
-                  <wa-icon slot="icon" name="info-circle-fill"></wa-icon>
+                <wa-callout class="notice basemap-notice" variant="warning" size="s">
+                  <wa-icon slot="icon" name="exclamation-triangle-fill"></wa-icon>
                   {this.basemapNotice}
                 </wa-callout>
               )}
