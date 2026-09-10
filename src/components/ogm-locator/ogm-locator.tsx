@@ -1,8 +1,8 @@
-import { Component, Element, h, Host, Prop, Watch } from '@stencil/core';
+import { Component, Element, h, Host, Prop, State, Watch } from '@stencil/core';
 import type maplibregl from 'maplibre-gl';
 
 import AttributionControl from '../../lib/attribution-control';
-import { fetchOrThrow } from '../../lib/errors';
+import { fetchOrThrow, isWebGLError, recordError, WebGLUnavailableError, type PreviewError } from '../../lib/errors';
 import { getElement } from '../../lib/elements';
 import { WORLD } from '../../lib/geometry';
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
@@ -50,6 +50,7 @@ export class OgmLocator {
    * gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
    */
   @Prop() cooperativeGestures: boolean = true;
+  @State() error?: PreviewError;
 
   private map: maplibregl.Map;
   private mapTheme: MapLibreTheme;
@@ -85,14 +86,25 @@ export class OgmLocator {
     if (!this.el.isConnected) return;
 
     this.mapTheme = new MapLibreTheme(container, this.theme, { darkBasemap: this.darkBasemap, lightBasemap: this.lightBasemap });
-    this.map = createMap(container, this.mapTheme, {
-      ...LOCATION_MAP,
-      cooperativeGestures: this.cooperativeGestures,
-      // We handle this on our own so we can start it collapsed
-      attributionControl: false,
-      // Already looking at the record, rather than at the world
-      ...openingLocation(container, this.mapTheme, this.opening(), this.projection === 'globe', { maxZoom: LOCATION_MAX_ZOOM }),
-    });
+
+    // In contexts without WebGL (bots, tests, some devices) this can fail.
+    // Display that nicely as an error; re-raise for anything else.
+    try {
+      this.map = createMap(container, this.mapTheme, {
+        ...LOCATION_MAP,
+        cooperativeGestures: this.cooperativeGestures,
+        // We handle this on our own so we can start it collapsed
+        attributionControl: false,
+        // Already looking at the record, rather than at the world
+        ...openingLocation(container, this.mapTheme, this.opening(), this.projection === 'globe', { maxZoom: LOCATION_MAX_ZOOM }),
+      });
+    } catch (error) {
+      if (!isWebGLError(error)) throw error;
+
+      // Bail out since everything after this needs a map
+      this.showError(new WebGLUnavailableError());
+      return;
+    }
     disableRotation(this.map);
 
     // Before the style loads, because none of them writes anything into it
@@ -158,9 +170,9 @@ export class OgmLocator {
     await this.fetchRecord();
   }
 
-  // Left unset rather than thrown on failure: unlike <ogm-viewer>, this has nowhere to show an error.
   private async fetchRecord() {
     if (!this.recordUrl) return;
+    this.clearError();
 
     try {
       const { url, init } = resolveRequest(this.recordUrl, 'metadata');
@@ -168,7 +180,18 @@ export class OgmLocator {
       this.record = new OgmRecord(await response.json());
     } catch (error) {
       console.error(`Error loading record ${this.recordUrl}:`, error);
+      this.showError(recordError(error, this.recordUrl));
     }
+  }
+
+  // Display an error. If there's already a fatal error, do nothing.
+  private showError(error?: PreviewError) {
+    if (!this.error?.fatal) this.error = error;
+  }
+
+  // Clear a displayed error. If there's already a fatal error, do nothing.
+  private clearError() {
+    if (!this.error?.fatal) this.error = undefined;
   }
 
   // When the theme or a basemap prop changes, swap the basemap to match, then draw the same location
@@ -255,6 +278,7 @@ export class OgmLocator {
     return (
       <Host class={waScope(this.theme)}>
         <div id="map" class={waScope(this.theme)}></div>
+        {this.error && <ogm-alerts theme={this.theme} error={this.error}></ogm-alerts>}
       </Host>
     );
   }

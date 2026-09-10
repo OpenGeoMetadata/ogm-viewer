@@ -1,7 +1,8 @@
-import { Component, Element, Event, EventEmitter, h, Host, Prop, Watch } from '@stencil/core';
+import { Component, Element, Event, EventEmitter, h, Host, Prop, State, Watch } from '@stencil/core';
 import type maplibregl from 'maplibre-gl';
 
 import { getElement } from '../../lib/elements';
+import { isWebGLError, WebGLUnavailableError, type PreviewError } from '../../lib/errors';
 import GeosearchControl from '../../lib/geosearch-control';
 import { boundsToBbox, readBounds, unionBounds, WORLD } from '../../lib/geometry';
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
@@ -115,6 +116,11 @@ export class OgmOverview {
    */
   @Prop() cooperativeGestures: boolean = true;
 
+  // Shown in place of the map when there is no map to show. Nothing a record does lands here: an
+  // overview draws numbers over locations it was handed, and a record it can't place still holds its
+  // place in the list - so there is no per-record failure for an alert to speak for.
+  @State() error?: PreviewError;
+
   // Where the reader has asked to search, as the west, south, east, north degrees a query states -
   // see boundsToBbox. Nothing here answers it: what a new area means is the embedding page's to say.
   @Event() boundsChange: EventEmitter<[number, number, number, number]>;
@@ -191,13 +197,23 @@ export class OgmOverview {
     this.readViewFilter();
     this.extents = this.declaredExtents();
 
-    this.map = createMap(container, this.mapTheme, {
-      ...LOCATION_MAP,
-      cooperativeGestures: this.cooperativeGestures,
-      boxZoom: { boxZoomEnd: (_map, start, end) => this.search(start, end) },
-      minZoom: 1,
-      ...openingLocation(container, this.mapTheme, this.target(), this.projection === 'globe', this.camera()),
-    });
+    // In contexts without WebGL (bots, tests, some devices) this can fail.
+    // Display that nicely as an error; re-raise for anything else.
+    try {
+      this.map = createMap(container, this.mapTheme, {
+        ...LOCATION_MAP,
+        cooperativeGestures: this.cooperativeGestures,
+        boxZoom: { boxZoomEnd: (_map, start, end) => this.search(start, end) },
+        minZoom: 1,
+        ...openingLocation(container, this.mapTheme, this.target(), this.projection === 'globe', this.camera()),
+      });
+    } catch (error) {
+      if (!isWebGLError(error)) throw error;
+
+      // Bail out since everything after this needs a map
+      this.error = new WebGLUnavailableError();
+      return;
+    }
     disableRotation(this.map);
 
     // Before the style loads, because none of these writes anything into it - and the pointer can be
@@ -614,6 +630,7 @@ export class OgmOverview {
     return (
       <Host class={waScope(this.theme)}>
         <div id="map" class={waScope(this.theme)}></div>
+        {this.error && <ogm-alerts theme={this.theme} error={this.error}></ogm-alerts>}
       </Host>
     );
   }

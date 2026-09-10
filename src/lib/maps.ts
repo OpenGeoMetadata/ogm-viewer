@@ -35,7 +35,6 @@ export const createMap = (container: HTMLElement, theme: MapLibreTheme, extras: 
     // Ours to do instead; see trackContainerSize. After the spread so it can't be handed back.
     trackResize: false,
   });
-
   trackContainerSize(map, container);
   return map;
 };

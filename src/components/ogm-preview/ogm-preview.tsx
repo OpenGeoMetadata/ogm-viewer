@@ -30,9 +30,11 @@ export class OgmPreview {
     adoptWebAwesomeTheme(this.el);
   }
 
-  // A new preview is a fresh load attempt, so clear any error left over from the previous one.
+  // Clear errors when a new preview is loaded, unless fatal
   @Watch('previewer')
   resetError() {
+    const needsMap = this.previewer && this.previewer.renderer !== 'image';
+    if (this.error?.fatal && needsMap) return;
     this.error = undefined;
   }
 

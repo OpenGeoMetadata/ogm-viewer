@@ -1,7 +1,12 @@
 // Supertype for errors thrown inside ogm-viewer.
 export class PreviewError extends Error {
   title: string;
+
+  // Optional; points to the record or reference URL that raised the error
   url?: string;
+
+  // Retrying definitely won't fix this; don't clear until something else is loaded
+  fatal?: boolean;
 }
 
 // The OGM record URL responded with a non-OK HTTP status.
@@ -108,6 +113,18 @@ export class HttpError extends Error {
   }
 }
 
+// Bots, crawlers, and some devices/test setups can hit this; we want to catch
+// and render it nicely to avoid unhandled exception noise
+export class WebGLUnavailableError extends PreviewError {
+  title = "This record couldn't be displayed";
+  fatal = true;
+
+  constructor() {
+    super('WebGL is not available for this browser or device.');
+    this.name = 'WebGLUnavailableError';
+  }
+}
+
 // Execute a fetch() and raise HttpError on non-OK status
 export async function fetchOrThrow(url: string, init?: RequestInit): Promise<Response> {
   const response = await fetch(url, init);
@@ -130,6 +147,13 @@ function statusOf(error: unknown): number | undefined {
 function isNetworkError(error: unknown): boolean {
   if (error instanceof TypeError) return true;
   return (error as { status?: unknown } | null)?.status === 0;
+}
+
+// Thrown when trying to initialize a new maplibre map. MapLibre doesn't use anything
+// more specific than 'Error', but it does set the text to a telltale string, so we
+// match on that to distinguish it from other errors.
+export function isWebGLError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('Failed to initialize WebGL');
 }
 
 // Attempt get a useful message from any error.
