@@ -37,7 +37,7 @@ let located = false;
  * Decoding is the whole of what a LERC COG needed from us, but only half of what it needed: the codec
  * answers with a band-separate raster whatever the file's layout, and
  * @developmentseed/deck.gl-geotiff's own pipeline throws "Band-separate images not yet implemented."
- * on any of those. What gets past that is src/lib/previewers/cog-pipeline.ts, which reads a single
+ * on any of those. What gets past that is src/lib/cog-pipeline.ts, which reads a single
  * band off a colour ramp and takes band-separate in its stride - so a scalar LERC COG, which is what
  * LERC is for and what assets/records/lerc-cog.json is, now draws.
  *

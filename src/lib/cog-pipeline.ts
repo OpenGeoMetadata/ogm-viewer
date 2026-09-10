@@ -3,7 +3,7 @@ import { Colormap, COLORMAP_INDEX, createColormapTexture, CreateTexture, LinearR
 import type { RenderTileResult } from '@developmentseed/deck.gl-raster';
 import type { Device, Texture } from '@luma.gl/core';
 
-import { colormapSprite, type ColorRampName } from '../colormap';
+import { colormapSprite, type ColorRampName } from './colormap';
 
 // SampleFormat values, from @cogeotiff/core's enum - hardcoded rather than imported for the same
 // reason src/lib/lerc.ts hardcodes LERC's compression tag: this library doesn't depend on

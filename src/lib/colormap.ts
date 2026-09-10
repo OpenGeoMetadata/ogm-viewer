@@ -3,7 +3,7 @@ import { COLORMAP_INDEX, decodeColormapSprite, type ColormapName } from '@develo
 import { colormapSpriteBase64 } from './assets.generated';
 
 // The color ramps offered for a scalar COG - a single-band raster whose values are read off a ramp
-// rather than shown as-is; see src/lib/previewers/cog-pipeline.ts. Twelve of the 107
+// rather than shown as-is; see src/lib/cog-pipeline.ts. Twelve of the 107
 // @developmentseed/deck.gl-raster ships, not all of them: perceptually-uniform ones first, since
 // those are the ones a value can be read off accurately, then a couple of diverging ramps for data
 // that has a meaningful zero (anomalies, elevation relative to sea level), then a few sequential

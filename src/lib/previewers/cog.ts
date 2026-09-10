@@ -4,7 +4,7 @@ import type { DecoderPool, GeoTIFF } from '@developmentseed/geotiff';
 import type { AddLayerObject, LngLatBoundsLike } from 'maplibre-gl';
 
 import MapPreviewer from './map';
-import { isScalarSampleFormat, scalarGetTileData, scalarRange, scalarRenderTile, type ScalarRange, type ScalarTileData } from './cog-pipeline';
+import { isScalarSampleFormat, scalarGetTileData, scalarRange, scalarRenderTile, type ScalarRange, type ScalarTileData } from '../cog-pipeline';
 import type CogResource from '../resources/cog';
 import { DEFAULT_COLOR_RAMP } from '../colormap';
 import { decoderPool } from '../decoder';
@@ -58,7 +58,7 @@ export default class CogPreviewer extends MapPreviewer {
   // Set once per preview(), and only for a single-band COG of floats or signed integers - the kind
   // @developmentseed/deck.gl-geotiff's own render pipeline refuses to draw at all. Its presence is
   // what createLayers and createDeckLayer below both key off of to decide whether this COG draws
-  // through our own scalar pipeline (src/lib/previewers/cog-pipeline.ts) instead of upstream's;
+  // through our own scalar pipeline (src/lib/cog-pipeline.ts) instead of upstream's;
   // there is deliberately nowhere else that re-derives the same answer.
   protected valueRange: ScalarRange | undefined;
 

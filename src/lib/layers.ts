@@ -24,7 +24,7 @@ export type Layer = {
   defaultOpacity: number;
   styleLayers: PreviewStyleLayer[];
   // Present only for a layer whose values are read off a color ramp rather than shown as-is - a
-  // single-band COG of floats or signed integers; see src/lib/previewers/cog-pipeline.ts. Its
+  // single-band COG of floats or signed integers; see src/lib/cog-pipeline.ts. Its
   // presence is what marks a layer as rampable at all, both to the layers panel (which draws a ramp
   // picker only for these layers) and to resolveLayerState below (which needs a ramp to default to).
   defaultColorRamp?: ColorRampName;
