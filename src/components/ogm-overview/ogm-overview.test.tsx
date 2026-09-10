@@ -6,7 +6,7 @@ import { describe, it, expect, h, vi, beforeEach, afterEach } from '@stencil/vit
 // never has the box whenSized waits for. What's under test is what happens once a map exists, so one
 // is handed to the component afterwards.
 import { render as stencilRender } from '@stencil/core';
-import { LngLat, Point } from 'maplibre-gl';
+import { LngLat, Point, type FitBoundsOptions, type LngLatBounds, type LngLatBoundsLike } from 'maplibre-gl';
 
 import { boundsToBbox } from '../../lib/geometry';
 import { adoptWebAwesomeTheme } from '../../lib/init';
@@ -271,7 +271,7 @@ const highlightedLabels = (map: FakeMap): string[] =>
     .map((properties: { label: string }) => properties.label);
 const highlightedLabel = (map: FakeMap) => highlightedLabels(map)[0];
 
-const framed = (map: FakeMap) => map.fitBounds.mock.calls.at(-1) as [maplibregl.LngLatBoundsLike, maplibregl.FitBoundsOptions];
+const framed = (map: FakeMap) => map.fitBounds.mock.calls.at(-1) as [LngLatBoundsLike, FitBoundsOptions];
 
 // Where the camera was pointed, as west, south, east, north. Two shapes arrive: a camera held to what
 // a globe can face is a LngLatBounds, and one that needed no holding is whatever it was given. Each
@@ -279,7 +279,7 @@ const framed = (map: FakeMap) => map.fitBounds.mock.calls.at(-1) as [maplibregl.
 // came out of the built bundle and so is not an instance of the class this file's own import names.
 const frameOf = (map: FakeMap): [number, number, number, number] => {
   const [bounds] = framed(map);
-  if (!Array.isArray(bounds)) return boundsToBbox(bounds as maplibregl.LngLatBounds);
+  if (!Array.isArray(bounds)) return boundsToBbox(bounds as LngLatBounds);
 
   const [[west, south], [east, north]] = bounds as [[number, number], [number, number]];
   return [west, south, east, north];

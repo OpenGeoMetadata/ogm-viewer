@@ -1,5 +1,5 @@
 import { Component, Element, h, Host, Prop, State, Watch } from '@stencil/core';
-import type maplibregl from 'maplibre-gl';
+import type { LngLatBoundsLike, MapLibreMap } from 'maplibre-gl';
 
 import AttributionControl from '../../lib/attribution-control';
 import { fetchOrThrow, isWebGLError, recordError, WebGLUnavailableError, type PreviewError } from '../../lib/errors';
@@ -52,7 +52,7 @@ export class OgmLocator {
   @Prop() cooperativeGestures: boolean = true;
   @State() error?: PreviewError;
 
-  private map: maplibregl.Map;
+  private map: MapLibreMap;
   private mapTheme: MapLibreTheme;
 
   // Used to prevent trying to style layers before the map is ready
@@ -245,7 +245,7 @@ export class OgmLocator {
   }
 
   // Where to open, which is the same place frame() will point once there is a style document
-  private opening(): maplibregl.LngLatBoundsLike {
+  private opening(): LngLatBoundsLike {
     return this.location()?.declaredBounds ?? WORLD;
   }
 

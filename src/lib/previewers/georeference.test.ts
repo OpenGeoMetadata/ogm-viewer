@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
 import { WarpedMapLayer } from '@allmaps/maplibre';
+import type { LngLatBoundsLike, MapLibreMap } from 'maplibre-gl';
 
 import GeoreferencePreviewer from './georeference';
 import IIIFManifestResource from '../resources/iiif-manifest';
@@ -78,7 +79,7 @@ const previewFor = async () => {
   vi.spyOn(resource, 'getGeoreferenceAnnotation').mockResolvedValue(annotation as any);
 
   const map = new FakeMap();
-  const previewer = new GeoreferencePreviewer(resource).attach(map as unknown as maplibregl.Map, style);
+  const previewer = new GeoreferencePreviewer(resource).attach(map as unknown as MapLibreMap, style);
 
   return { map, previewer, resource, addAnnotation, setOpacity };
 };
@@ -232,14 +233,14 @@ describe('GeoreferencePreviewer', () => {
       vi.spyOn(WarpedMapLayer.prototype, 'addGeoreferenceAnnotation').mockReturnValue(['map-id']);
       vi.spyOn(WarpedMapLayer.prototype, 'setOpacity').mockImplementation(() => {});
 
-      const declared: maplibregl.LngLatBoundsLike = [
+      const declared: LngLatBoundsLike = [
         [-1, -1],
         [1, 1],
       ];
       const resource = new IIIFManifestResource('bb013fz9675', MANIFEST_URL, declared);
       vi.spyOn(resource, 'getGeoreferenceAnnotation').mockResolvedValue(annotation as any);
 
-      const previewer = new GeoreferencePreviewer(resource).attach(new FakeMap() as unknown as maplibregl.Map, style);
+      const previewer = new GeoreferencePreviewer(resource).attach(new FakeMap() as unknown as MapLibreMap, style);
       await previewer.preview();
 
       expect(await previewer.getBounds()).toEqual(declared);

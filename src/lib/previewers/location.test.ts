@@ -1,4 +1,5 @@
 import { describe, it, expect } from '@stencil/vitest';
+import type { MapLibreMap } from 'maplibre-gl';
 
 import LocationPreviewer, { locationFor, locationsFor } from './location';
 import GeoJsonPreviewer from './geojson';
@@ -85,7 +86,7 @@ const COASTLINE: GeoJSON.Geometry = {
 
 const preview = async (location: GeoJSON.Geometry | [[number, number], [number, number]], mapStyle: MapLibreStyle = style) => {
   const map = new FakeMap();
-  const previewer = new LocationPreviewer(new LocationResource(ID, location)).attach(map as unknown as maplibregl.Map, mapStyle);
+  const previewer = new LocationPreviewer(new LocationResource(ID, location)).attach(map as unknown as MapLibreMap, mapStyle);
   await previewer.preview();
   return { map, previewer };
 };

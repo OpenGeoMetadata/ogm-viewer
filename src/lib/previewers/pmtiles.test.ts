@@ -1,4 +1,5 @@
 import { describe, it, expect } from '@stencil/vitest';
+import type { MapLibreMap } from 'maplibre-gl';
 
 import PMTilesRasterPreviewer from './pmtiles-raster';
 import PMTilesResource from '../resources/pmtiles';
@@ -40,7 +41,7 @@ const PMTILES_URL = 'https://example.com/tiles.pmtiles';
 // touched for bounds
 const preview = async () => {
   const map = new FakeMap();
-  const previewer = new PMTilesRasterPreviewer(new PMTilesResource('princeton-fk4544658v', PMTILES_URL)).attach(map as unknown as maplibregl.Map, style);
+  const previewer = new PMTilesRasterPreviewer(new PMTilesResource('princeton-fk4544658v', PMTILES_URL)).attach(map as unknown as MapLibreMap, style);
   await previewer.preview();
   return { map, previewer };
 };

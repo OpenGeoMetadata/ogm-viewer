@@ -1,4 +1,4 @@
-import type { SourceSpecification, AddLayerObject } from 'maplibre-gl';
+import type { AddLayerObject, LngLatBoundsLike, MapGeoJSONFeature, MapLibreMap, SourceSpecification } from 'maplibre-gl';
 
 import type Resource from '../resources/resource';
 
@@ -62,7 +62,7 @@ export default abstract class MapPreviewer extends Previewer {
   // ogm-map once its own element exists, long after a record's previews have been worked out, and
   // setStyle() hands back a different style on every theme change.
   protected style: MapLibreStyle;
-  protected map: maplibregl.Map;
+  protected map: MapLibreMap;
 
   // Where a failure that arrives after preview() has already resolved goes. Everything MapLibre
   // draws itself reports one on the map, which ogm-map is already listening to; a preview that
@@ -93,7 +93,7 @@ export default abstract class MapPreviewer extends Previewer {
   // The features come from queryRenderedFeatures, so whatever comes back has to keep its source,
   // sourceLayer and id: that triple is what setFeatureState highlights and what dedupeFeatures
   // tells one feature from another by.
-  async expandFeatures(features: maplibregl.MapGeoJSONFeature[]): Promise<maplibregl.MapGeoJSONFeature[]> {
+  async expandFeatures(features: MapGeoJSONFeature[]): Promise<MapGeoJSONFeature[]> {
     return features;
   }
 
@@ -127,7 +127,7 @@ export default abstract class MapPreviewer extends Previewer {
 
   // Bind this preview to the map it draws on and the colors it draws with. Returns itself so a
   // caller can build and bind in one breath.
-  attach(map: maplibregl.Map, style: MapLibreStyle): this {
+  attach(map: MapLibreMap, style: MapLibreStyle): this {
     this.map = map;
     this.style = style;
     return this;
@@ -292,14 +292,14 @@ export default abstract class MapPreviewer extends Previewer {
    *
    * Undefined for a record that never said where it is, which leaves the map wherever it opens.
    */
-  get declaredBounds(): maplibregl.LngLatBoundsLike | undefined {
+  get declaredBounds(): LngLatBoundsLike | undefined {
     return this.resource.declaredBounds;
   }
 
   // Where the map should be pointed to see this preview. The resource usually knows - from the
   // record's bounding box, or from metadata it reads itself - so only a preview that learns its
   // extent while drawing, like a warped image, has anything to override here.
-  async getBounds(): Promise<maplibregl.LngLatBoundsLike | undefined> {
+  async getBounds(): Promise<LngLatBoundsLike | undefined> {
     return await this.resource.getBounds();
   }
 

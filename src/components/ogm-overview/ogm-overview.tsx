@@ -1,5 +1,5 @@
 import { Component, Element, Event, EventEmitter, h, Host, Prop, State, Watch } from '@stencil/core';
-import type maplibregl from 'maplibre-gl';
+import type { FitBoundsOptions, LngLatBounds, LngLatBoundsLike, MapLayerMouseEvent, MapLibreMap, Point } from 'maplibre-gl';
 
 import { getElement } from '../../lib/elements';
 import { isWebGLError, WebGLUnavailableError, type PreviewError } from '../../lib/errors';
@@ -94,7 +94,7 @@ export class OgmOverview {
    * other, never both. Leave it unset for a map that should look at whatever it has been given; see
    * `viewBounds` for a default to open on instead of the whole world.
    */
-  @Prop() searchBounds?: maplibregl.LngLatBoundsLike | string;
+  @Prop() searchBounds?: LngLatBoundsLike | string;
 
   /**
    * Where to point the camera when there is nothing else to look at - no active search, no results -
@@ -106,7 +106,7 @@ export class OgmOverview {
    * neither one is a promise about what should fill the frame. This one is: a page that sets it has
    * already chosen the exact box the map should show, so nothing here second-guesses that choice.
    */
-  @Prop() viewBounds?: maplibregl.LngLatBoundsLike | string;
+  @Prop() viewBounds?: LngLatBoundsLike | string;
 
   /**
    * Whether a wheel needs the command key, and a touch drag needs a second finger, before either
@@ -140,7 +140,7 @@ export class OgmOverview {
    */
   @Event() highlightChange: EventEmitter<{ place: number; id: string } | null>;
 
-  private map: maplibregl.Map;
+  private map: MapLibreMap;
   private mapTheme: MapLibreTheme;
   private geosearchControl?: GeosearchControl;
 
@@ -154,18 +154,18 @@ export class OgmOverview {
 
   // Where every result is and what each of them is called, in the order they were given - including
   // the ones nobody could place, which keep their position in both. See highlightedPosition.
-  private extents: (maplibregl.LngLatBoundsLike | undefined)[] = [];
+  private extents: (LngLatBoundsLike | undefined)[] = [];
   private ids: string[] = [];
 
   // The area a search is filtered to, as this map can read it. Held rather than read where it is
   // used: it is wanted twice on every draw, once for the box and once for the camera, and reading it
   // twice would report an unreadable one twice as well.
-  private searchFilter?: maplibregl.LngLatBounds;
+  private searchFilter?: LngLatBounds;
 
   // Where to open when nothing else says where to look, as this map can read it. Held for the same
   // reason searchFilter is, even though nothing here draws it: reading it twice would warn about an
   // unreadable one twice as well.
-  private viewFilter?: maplibregl.LngLatBounds;
+  private viewFilter?: LngLatBounds;
 
   // Which result the reader's pointer is over, as its place in the list counted from one. Ours rather
   // than the page's: nothing outside can see a pointer land on a number drawn inside this shadow root.
@@ -269,7 +269,7 @@ export class OgmOverview {
   // drawn on top is the earliest, since that is how they are sorted - see resultMarkersLayer. MapLibre
   // hands back everything under the pointer without promising an order, so the choice is made here
   // rather than taken from the first of them.
-  private handlePointerOver = (event: maplibregl.MapLayerMouseEvent) => {
+  private handlePointerOver = (event: MapLayerMouseEvent) => {
     const places = (event.features ?? []).map(feature => Number(feature.properties?.label)).filter(place => Number.isInteger(place));
     this.setHovered(places.length ? Math.min(...places) : undefined);
   };
@@ -389,7 +389,7 @@ export class OgmOverview {
    * with its south edge north of its north edge. Nothing rejects that - LngLatBounds holds whichever
    * corners it is given - so it would leave here as a bbox no query can answer.
    */
-  private search(start: maplibregl.Point, end: maplibregl.Point) {
+  private search(start: Point, end: Point) {
     if (start.dist(end) < MIN_SEARCH_DRAG) return;
 
     const topLeft = this.map.unproject([Math.min(start.x, end.x), Math.min(start.y, end.y)]);
@@ -524,7 +524,7 @@ export class OgmOverview {
   }
 
   // Where each result says it is, answered on the spot
-  private declaredExtents(): (maplibregl.LngLatBoundsLike | undefined)[] {
+  private declaredExtents(): (LngLatBoundsLike | undefined)[] {
     return (this.previewers ?? locationsFor(this.records ?? [])).map(previewer => previewer?.declaredBounds);
   }
 
@@ -552,7 +552,7 @@ export class OgmOverview {
 
   // Where to point: the area a search is filtered to, or everywhere the results cover, or the
   // default a page opened on in place of the whole world
-  private target(): maplibregl.LngLatBoundsLike {
+  private target(): LngLatBoundsLike {
     return this.searchFilter ?? unionBounds(this.extents) ?? this.viewFilter ?? WORLD;
   }
 
@@ -578,7 +578,7 @@ export class OgmOverview {
   // response to a search or a highlighted row, while a reader's attention is elsewhere on the page,
   // so a cut would be a jump they didn't ask for. An <ogm-map> only refits when told to by a caller
   // who's watching the map already.
-  private camera(): maplibregl.FitBoundsOptions {
+  private camera(): FitBoundsOptions {
     if (this.searchFilter) return { animate: true };
     if (!unionBounds(this.extents) && this.viewFilter) return { animate: true, padding: 0 };
     return { animate: true, maxZoom: LOCATION_MAX_ZOOM };

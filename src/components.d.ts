@@ -6,7 +6,7 @@
  */
 import { HTMLStencilElement, JSXBase } from "@stencil/core/internal";
 import { PreviewError } from "./lib/errors";
-import { MapGeoJSONFeature } from "maplibre-gl";
+import { EaseToOptions, LngLatBoundsLike, MapGeoJSONFeature, MapLibreMap } from "maplibre-gl";
 import { ResourceKind } from "./lib/resources/resource";
 import { RequestTransform } from "./lib/request";
 import { References } from "./lib/references";
@@ -16,7 +16,7 @@ import { ColorRampName } from "./lib/colormap";
 import { LegendEntry } from "./lib/legend";
 import { AnyPreviewer } from "./lib/previewers/factory";
 export { PreviewError } from "./lib/errors";
-export { MapGeoJSONFeature } from "maplibre-gl";
+export { EaseToOptions, LngLatBoundsLike, MapGeoJSONFeature, MapLibreMap } from "maplibre-gl";
 export { ResourceKind } from "./lib/resources/resource";
 export { RequestTransform } from "./lib/request";
 export { References } from "./lib/references";
@@ -98,7 +98,7 @@ export namespace Components {
          */
         "cooperativeGestures": boolean;
         "darkBasemap"?: string;
-        "easeMapTo": (options: maplibregl.EaseToOptions) => Promise<maplibregl.Map>;
+        "easeMapTo": (options: EaseToOptions) => Promise<MapLibreMap>;
         "lightBasemap"?: string;
         /**
           * @default 0
@@ -158,7 +158,7 @@ export namespace Components {
         /**
           * The area a search is currently filtered to, drawn as a box and framed by the camera. Given as the west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an attribute, so a page rendered by a server can say what its map is filtered to without any JavaScript at all.  It goes on holding: whenever what is drawn changes, the camera returns here rather than re-framing itself around the new set of results. Wins over `viewBounds` when both are given, an active filter being the stronger statement - though in practice a page states one or the other, never both. Leave it unset for a map that should look at whatever it has been given; see `viewBounds` for a default to open on instead of the whole world.
          */
-        "searchBounds"?: maplibregl.LngLatBoundsLike | string;
+        "searchBounds"?: LngLatBoundsLike | string;
         /**
           * @default 'Shift + drag to search an area'
          */
@@ -170,7 +170,7 @@ export namespace Components {
         /**
           * Where to point the camera when there is nothing else to look at - no active search, no results - in place of the whole world. Given in the same form as `searchBounds` and read the same way, but nothing about it is drawn: no box, no marker, nothing on the map says it is there.  Framed exactly, with no padding and no ceiling on how far in the camera can zoom - unlike `searchBounds` and the extent of a set of results, which both keep the theme's gap because neither one is a promise about what should fill the frame. This one is: a page that sets it has already chosen the exact box the map should show, so nothing here second-guesses that choice.
          */
-        "viewBounds"?: maplibregl.LngLatBoundsLike | string;
+        "viewBounds"?: LngLatBoundsLike | string;
     }
     interface OgmPreview {
         /**
@@ -604,7 +604,7 @@ declare namespace LocalJSX {
         /**
           * The area a search is currently filtered to, drawn as a box and framed by the camera. Given as the west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an attribute, so a page rendered by a server can say what its map is filtered to without any JavaScript at all.  It goes on holding: whenever what is drawn changes, the camera returns here rather than re-framing itself around the new set of results. Wins over `viewBounds` when both are given, an active filter being the stronger statement - though in practice a page states one or the other, never both. Leave it unset for a map that should look at whatever it has been given; see `viewBounds` for a default to open on instead of the whole world.
          */
-        "searchBounds"?: maplibregl.LngLatBoundsLike | string;
+        "searchBounds"?: LngLatBoundsLike | string;
         /**
           * @default 'Shift + drag to search an area'
          */
@@ -616,7 +616,7 @@ declare namespace LocalJSX {
         /**
           * Where to point the camera when there is nothing else to look at - no active search, no results - in place of the whole world. Given in the same form as `searchBounds` and read the same way, but nothing about it is drawn: no box, no marker, nothing on the map says it is there.  Framed exactly, with no padding and no ceiling on how far in the camera can zoom - unlike `searchBounds` and the extent of a set of results, which both keep the theme's gap because neither one is a promise about what should fill the frame. This one is: a page that sets it has already chosen the exact box the map should show, so nothing here second-guesses that choice.
          */
-        "viewBounds"?: maplibregl.LngLatBoundsLike | string;
+        "viewBounds"?: LngLatBoundsLike | string;
     }
     interface OgmPreview {
         /**
@@ -719,8 +719,8 @@ declare namespace LocalJSX {
         "highlighted": string;
         "geosearch": boolean;
         "searchHelpText": string;
-        "searchBounds": maplibregl.LngLatBoundsLike | string;
-        "viewBounds": maplibregl.LngLatBoundsLike | string;
+        "searchBounds": LngLatBoundsLike | string;
+        "viewBounds": LngLatBoundsLike | string;
         "cooperativeGestures": boolean;
     }
     interface OgmPreviewAttributes {

@@ -1,4 +1,4 @@
-import type { AddLayerObject, LngLatBoundsLike } from 'maplibre-gl';
+import type { AddLayerObject, CustomLayerInterface, Evented, LngLatBoundsLike } from 'maplibre-gl';
 import { WarpedMapLayer } from '@allmaps/maplibre';
 
 import MapPreviewer from './map';
@@ -11,8 +11,15 @@ import type { PreviewStyleLayer } from '../layers';
 // @allmaps/render's WarpedMapEventType, which @allmaps/maplibre does not re-export.
 const FIRST_TILE_EVENT = 'firstmaptileloaded';
 
-// What @allmaps/maplibre puts on the events it refires: which of its layers the news is about.
-type WarpedMapLayerEvent = { layerId?: string };
+// What @allmaps/maplibre puts on the events it refires: which of its layers the news is about. The
+// `type` is MapLibre's own, on every event it hands a listener, and is here because Evented below
+// only takes event shapes that carry one.
+type WarpedMapLayerEvent = { type: string; layerId?: string };
+
+// The map, as something that fires the event above. MapLibre types Evented against the events it
+// knows how to fire, and this one is not among them - it is Allmaps' own, refired on our map - so
+// the name has to be declared here for on() and off() to take it.
+type WarpedMapEvented = Evented<Record<typeof FIRST_TILE_EVENT, WarpedMapLayerEvent>>;
 
 // Draws a georeferenced scan as a map layer, warping the IIIF image onto the control points a IIIF
 // Georeference Annotation gives it. The second preview a georeferenced manifest offers: the same
@@ -72,7 +79,10 @@ export default class GeoreferencePreviewer extends MapPreviewer {
       styleLayers: [{ id: this.getLayerId(), type: 'custom' }],
     });
 
-    return [this.layer];
+    // @allmaps/maplibre still types itself against MapLibre 5, so its layer is not the same
+    // CustomLayerInterface ours is - the same shape, declared twice. What MapLibre asks of a custom
+    // layer has not changed, and Allmaps imports the types alone: no second copy is ever loaded.
+    return [this.layer as unknown as CustomLayerInterface];
   }
 
   // The annotation can only go on once the layer is on the map: Allmaps builds its renderer in the
@@ -105,7 +115,7 @@ export default class GeoreferencePreviewer extends MapPreviewer {
   // On the map rather than on the layer, because the layer hands its renderer's events to the map;
   // and filtered by layer, because every warped layer on this map reports through the same channel.
   protected watchFirstTile() {
-    const events = this.map as maplibregl.Evented;
+    const events = this.map as unknown as WarpedMapEvented;
     events.off(FIRST_TILE_EVENT, this.handleFirstTile);
     events.on(FIRST_TILE_EVENT, this.handleFirstTile);
   }
@@ -118,7 +128,7 @@ export default class GeoreferencePreviewer extends MapPreviewer {
   };
 
   async clearPreview() {
-    if (this.attached) (this.map as maplibregl.Evented).off(FIRST_TILE_EVENT, this.handleFirstTile);
+    if (this.attached) (this.map as unknown as WarpedMapEvented).off(FIRST_TILE_EVENT, this.handleFirstTile);
     await super.clearPreview();
     this.layer = undefined;
   }

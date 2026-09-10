@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from '@stencil/vitest';
-import type { MapGeoJSONFeature } from 'maplibre-gl';
+import type { MapGeoJSONFeature, MapLibreMap } from 'maplibre-gl';
 
 import WmsPreviewer from './wms';
 import WmsResource from '../resources/wms';
@@ -75,7 +75,7 @@ let previewer: WmsPreviewer;
 beforeEach(async () => {
   map = new FakeMap();
   const source = new WmsResource('s7st30', 'https://geoservices.lib.berkeley.edu/geoserver/wms', { layerIds: [] });
-  previewer = new WmsPreviewer(source).attach(map as unknown as maplibregl.Map, style);
+  previewer = new WmsPreviewer(source).attach(map as unknown as MapLibreMap, style);
   await previewer.preview();
 });
 

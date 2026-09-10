@@ -6,6 +6,7 @@ import { describe, it, expect, h, vi, beforeEach, afterEach } from '@stencil/vit
 // container never has the box whenSized waits for. What's under test is what happens once a map
 // exists, so one is handed to the component afterwards.
 import { render as stencilRender } from '@stencil/core';
+import type { FitBoundsOptions, LngLatBounds, LngLatBoundsLike } from 'maplibre-gl';
 
 import { boundsToBbox } from '../../lib/geometry';
 import { adoptWebAwesomeTheme } from '../../lib/init';
@@ -143,7 +144,7 @@ type Locator = HTMLElement & {
   handleProjectionTransition: () => Promise<void>;
   draw: () => Promise<void>;
   frame: () => Promise<void>;
-  opening: () => maplibregl.LngLatBoundsLike;
+  opening: () => LngLatBoundsLike;
   onRecordChange: () => Promise<void>;
   onThemeChange: () => Promise<void>;
   onCooperativeGesturesChange: () => void;
@@ -180,7 +181,7 @@ const renderLocator = async () => {
 };
 
 const drawn = (map: FakeMap) => [...map.layers.keys()];
-const framed = (map: FakeMap) => map.fitBounds.mock.calls.at(-1) as [maplibregl.LngLatBoundsLike, maplibregl.FitBoundsOptions];
+const framed = (map: FakeMap) => map.fitBounds.mock.calls.at(-1) as [LngLatBoundsLike, FitBoundsOptions];
 
 // Where the camera was pointed, as west, south, east, north. Two shapes arrive: a camera held to what
 // a globe can face is a LngLatBounds, and one that needed no holding is the pair of corners the
@@ -189,7 +190,7 @@ const framed = (map: FakeMap) => map.fitBounds.mock.calls.at(-1) as [maplibregl.
 // file's own import names - convert would take it for an array and hand back something broken.
 const frameOf = (map: FakeMap): [number, number, number, number] => {
   const [bounds] = framed(map);
-  if (!Array.isArray(bounds)) return boundsToBbox(bounds as maplibregl.LngLatBounds);
+  if (!Array.isArray(bounds)) return boundsToBbox(bounds as LngLatBounds);
 
   const [[west, south], [east, north]] = bounds as [[number, number], [number, number]];
   return [west, south, east, north];

@@ -340,7 +340,10 @@ const drawInto = (map: Map, id: string, data: GeoJSON.GeoJSON, layers: DrawnLaye
 // A layer's colors again. A no-op for the markers, which carry no paint at all: what a marker is drawn
 // in is in the picture.
 const repaint = (map: Map, layer: DrawnLayer) => {
-  for (const [property, value] of Object.entries(layer.paint ?? {})) map.setPaintProperty(layer.id, property, value);
+  // MapLibre names a paint property against the type of the value it takes, a pairing Object.entries
+  // cannot carry through. These entries come off a layer specification, so the pairing already holds.
+  type PaintProperty = Parameters<Map['setPaintProperty']>[1];
+  for (const [property, value] of Object.entries(layer.paint ?? {})) map.setPaintProperty(layer.id, property as PaintProperty, value);
 };
 
 /**

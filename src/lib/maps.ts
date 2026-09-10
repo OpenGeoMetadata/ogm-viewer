@@ -1,6 +1,16 @@
-import maplibregl from 'maplibre-gl';
+import {
+  GlobeControl,
+  MapLibreMap,
+  NavigationControl,
+  setWorkerUrl,
+  type CameraForBoundsOptions,
+  type FitBoundsOptions,
+  type LngLatBoundsLike,
+  type MapOptions,
+} from 'maplibre-gl';
 
 import { clampToHemisphere } from './geometry';
+import { MAPLIBRE_WORKER_SOURCE } from './maplibre-worker-source';
 import type { MapProjection } from './previewers/map';
 import type Theme from './themes/theme';
 import type MapLibreTheme from './themes/maplibre';
@@ -9,17 +19,48 @@ import type MapLibreTheme from './themes/maplibre';
 // rest - gestures, request transforms, whether the thing can be dragged at all. The container, the
 // basemap and the resize tracking aren't offered, because those are the three nothing should be
 // able to disagree about.
-export type MapExtras = Omit<Partial<maplibregl.MapOptions>, 'container' | 'style' | 'trackResize'>;
+export type MapExtras = Omit<Partial<MapOptions>, 'container' | 'style' | 'trackResize'>;
 
 // How long to leave between resizes while a container is still on its way to a new size. MapLibre's
 // own tracking waits this long, and reallocating a drawing buffer costs the same either way.
 const RESIZE_PERIOD = 50;
 
+// The worker MapLibre parses tiles in, once it has been pointed at the copy in this bundle.
+let workerUrl: string | undefined;
+
+/**
+ * Start MapLibre's worker from source in this bundle, rather than from a file beside it.
+ *
+ * MapLibre 6 publishes its worker as a module of its own and looks for it next to whichever module
+ * asked for it - `new URL('./maplibre-gl-worker.mjs', import.meta.url)`. Bundled, that names a file
+ * beside one of our chunks, and no such file is published: the request 404s, no tile is ever parsed
+ * and the map sits empty, with nothing thrown and nothing logged. Every bundled consumer has to say
+ * where the worker is; there is no arrangement of this package that makes the default right.
+ *
+ * A blob rather than a URL of our own, for the reasons src/lib/decoder.ts gives at more length about
+ * the COG decoder's worker: this library is usually loaded cross-origin, from a CDN through an
+ * importmap, and a blob is same-origin wherever the page is. MapLibre 5 inlined its worker exactly
+ * this way, so this is the packaging the viewer already had rather than a new one.
+ *
+ * Held for the life of the page rather than revoked: MapLibre builds its workers when a map first
+ * needs one, and builds them again after every map has gone away.
+ */
+const useBundledWorker = () => {
+  // A build that didn't inline the worker - the unit tests, which import the placeholder module - is
+  // left with MapLibre's own default rather than pointed at an empty worker.
+  if (workerUrl || !MAPLIBRE_WORKER_SOURCE) return;
+
+  workerUrl = URL.createObjectURL(new Blob([MAPLIBRE_WORKER_SOURCE], { type: 'text/javascript' }));
+  setWorkerUrl(workerUrl);
+};
+
 /**
  * A map with our basemap on it, pointed at the whole world until something says otherwise.
  */
-export const createMap = (container: HTMLElement, theme: MapLibreTheme, extras: MapExtras = {}): maplibregl.Map => {
-  const map = new maplibregl.Map({
+export const createMap = (container: HTMLElement, theme: MapLibreTheme, extras: MapExtras = {}): MapLibreMap => {
+  useBundledWorker();
+
+  const map = new MapLibreMap({
     container,
     // The basemaps are CARTO's, over OpenStreetMap data; both require attribution. Compact so that
     // the panel can be put away, which is all an embedded map has room for - though MapLibre still
@@ -55,7 +96,7 @@ export const createMap = (container: HTMLElement, theme: MapLibreTheme, extras: 
  * after a trip through the overview. Nothing resizes the container a second time, so nothing puts it
  * right either.
  */
-export const trackContainerSize = (map: maplibregl.Map, container: HTMLElement) => {
+export const trackContainerSize = (map: MapLibreMap, container: HTMLElement) => {
   const resize = throttle(() => {
     map.resize();
     map.redraw();
@@ -141,14 +182,14 @@ const throttle = (fn: () => void, period: number): (() => void) => {
  * change without anything here having asked for it. A style document names its own, and applying one
  * announces the change as the same event a reader pressing the globe button does.
  */
-export const readProjection = (map: maplibregl.Map): MapProjection | undefined => {
+export const readProjection = (map: MapLibreMap): MapProjection | undefined => {
   const type = map.getProjection()?.type;
   if (type === undefined) return undefined;
 
   return type === 'mercator' ? 'mercator' : 'globe';
 };
 
-export const setBasemap = async (map: maplibregl.Map, theme: MapLibreTheme): Promise<void> =>
+export const setBasemap = async (map: MapLibreMap, theme: MapLibreTheme): Promise<void> =>
   new Promise<void>(resolve => {
     map.once('style.load', () => resolve());
     map.setStyle(theme.getBaseMapStyle());
@@ -171,10 +212,10 @@ export const setBasemap = async (map: maplibregl.Map, theme: MapLibreTheme): Pro
  *
  * Nothing at all for a caller with nowhere to point, which leaves createMap's own view where it is.
  */
-export const openingCamera = (container: HTMLElement, theme: Theme, target: maplibregl.LngLatBoundsLike | undefined, extras: maplibregl.FitBoundsOptions = {}): MapExtras => {
+export const openingCamera = (container: HTMLElement, theme: Theme, target: LngLatBoundsLike | undefined, extras: FitBoundsOptions = {}): MapExtras => {
   if (!target) return {};
 
-  const fitBoundsOptions: maplibregl.FitBoundsOptions = { padding: theme.getPadding(), ...extras };
+  const fitBoundsOptions: FitBoundsOptions = { padding: theme.getPadding(), ...extras };
   fitBoundsOptions.padding = fittablePadding(container, fitBoundsOptions.padding);
   return { bounds: target, fitBoundsOptions };
 };
@@ -188,8 +229,8 @@ export const openingCamera = (container: HTMLElement, theme: Theme, target: mapl
  * one camera - a maxZoom, say - as against the limits it set on the map itself, which apply to every
  * camera including the ones a reader drives.
  */
-export const fitBounds = async (map: maplibregl.Map, theme: Theme, bounds: maplibregl.LngLatBoundsLike, extras: maplibregl.FitBoundsOptions = {}): Promise<void> => {
-  const options: maplibregl.FitBoundsOptions = { padding: theme.getPadding(), animate: false, ...extras };
+export const fitBounds = async (map: MapLibreMap, theme: Theme, bounds: LngLatBoundsLike, extras: FitBoundsOptions = {}): Promise<void> => {
+  const options: FitBoundsOptions = { padding: theme.getPadding(), animate: false, ...extras };
   options.padding = fittablePadding(map.getCanvas(), options.padding);
   if (!cameraForBounds(map, bounds, options)) return;
   return new Promise<void>(resolve => {
@@ -210,7 +251,7 @@ export const fitBounds = async (map: maplibregl.Map, theme: Theme, bounds: mapli
 //
 // Only a plain number is held down. `padding` can also name the four edges one at a time, and nothing
 // here does that - what a sidebar covers is set on the map rather than asked of one camera.
-const fittablePadding = (box: { clientWidth: number; clientHeight: number }, padding: maplibregl.FitBoundsOptions['padding']): maplibregl.FitBoundsOptions['padding'] => {
+const fittablePadding = (box: { clientWidth: number; clientHeight: number }, padding: FitBoundsOptions['padding']): FitBoundsOptions['padding'] => {
   if (typeof padding !== 'number') return padding;
 
   // A map inside something hidden measures zero, and zero is not a small map: it is a map nobody can
@@ -226,7 +267,7 @@ const fittablePadding = (box: { clientWidth: number; clientHeight: number }, pad
 // asked for is wider than the canvas it has to fit inside. MapLibre says so by handing back
 // undefined on a flat map, but on a globe it reads that undefined itself and throws: the globe
 // solve takes the flat answer and only corrects its zoom. The same non-answer either way.
-const cameraForBounds = (map: maplibregl.Map, bounds: maplibregl.LngLatBoundsLike, options: maplibregl.CameraForBoundsOptions) => {
+const cameraForBounds = (map: MapLibreMap, bounds: LngLatBoundsLike, options: CameraForBoundsOptions) => {
   try {
     return map.cameraForBounds(bounds, options);
   } catch {
@@ -244,7 +285,7 @@ const cameraForBounds = (map: maplibregl.Map, bounds: maplibregl.LngLatBoundsLik
  * a whole record, and that is a question about which side of a whole zoom the fit falls on. See
  * MapPreviewer.minZoom.
  */
-export const zoomToFit = (map: maplibregl.Map, bounds: maplibregl.LngLatBoundsLike): number | undefined => cameraForBounds(map, bounds, {})?.zoom;
+export const zoomToFit = (map: MapLibreMap, bounds: LngLatBoundsLike): number | undefined => cameraForBounds(map, bounds, {})?.zoom;
 
 /**
  * What a map that says where records are is allowed to do.
@@ -272,7 +313,7 @@ export const LOCATION_MAP: MapExtras = {
 // which is also why the navigation control below has no compass, since there would be nothing for it
 // to reset. setMaxPitch(0) would be a knob with nothing behind it; that one is <ogm-map>'s, where a
 // previewer names the limit.
-export const disableRotation = (map: maplibregl.Map) => {
+export const disableRotation = (map: MapLibreMap) => {
   map.keyboard.disableRotation();
   map.touchZoomRotate.disableRotation();
 };
@@ -289,9 +330,9 @@ export const disableRotation = (map: maplibregl.Map) => {
  * in. Waiting also means the button reads the projection we set rather than the one a styleless map
  * reports, so it opens showing the state it is actually in.
  */
-export const addLocationControls = (map: maplibregl.Map) => {
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
-  map.once('style.load', () => map.addControl(new maplibregl.GlobeControl()));
+export const addLocationControls = (map: MapLibreMap) => {
+  map.addControl(new NavigationControl({ showCompass: false }));
+  map.once('style.load', () => map.addControl(new GlobeControl()));
 };
 
 // How close either of these maps opens, whatever it was pointed at. Past city scale a basemap may
@@ -314,13 +355,8 @@ export const LOCATION_MAX_ZOOM = 12;
  * at once rather than a pane filled with one record, and a shape drawn against the edge reads as
  * running off it - on a globe, that edge is where the sphere turns away.
  */
-export const frameLocation = async (
-  map: maplibregl.Map,
-  theme: MapLibreTheme,
-  target: maplibregl.LngLatBoundsLike,
-  globe: boolean,
-  extras: maplibregl.FitBoundsOptions = {},
-): Promise<void> => fitBounds(map, theme, globe ? clampToHemisphere(target) : target, { padding: theme.getOverviewPadding(), ...extras });
+export const frameLocation = async (map: MapLibreMap, theme: MapLibreTheme, target: LngLatBoundsLike, globe: boolean, extras: FitBoundsOptions = {}): Promise<void> =>
+  fitBounds(map, theme, globe ? clampToHemisphere(target) : target, { padding: theme.getOverviewPadding(), ...extras });
 
 /**
  * Where to open a map that says where records are: the camera frameLocation would settle on, worked
@@ -330,10 +366,5 @@ export const frameLocation = async (
  * projection these maps open in, and a wide record framed as though it were flat would be re-framed
  * the moment the style document lands, which is the jump this exists to avoid.
  */
-export const openingLocation = (
-  container: HTMLElement,
-  theme: MapLibreTheme,
-  target: maplibregl.LngLatBoundsLike,
-  globe: boolean,
-  extras: maplibregl.FitBoundsOptions = {},
-): MapExtras => openingCamera(container, theme, globe ? clampToHemisphere(target) : target, { padding: theme.getOverviewPadding(), ...extras });
+export const openingLocation = (container: HTMLElement, theme: MapLibreTheme, target: LngLatBoundsLike, globe: boolean, extras: FitBoundsOptions = {}): MapExtras =>
+  openingCamera(container, theme, globe ? clampToHemisphere(target) : target, { padding: theme.getOverviewPadding(), ...extras });

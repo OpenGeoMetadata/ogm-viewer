@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
+import type { MapLibreMap } from 'maplibre-gl';
 
 import TileJsonRasterPreviewer from './tilejson-raster';
 import TileJsonVectorPreviewer from './tilejson-vector';
@@ -78,7 +79,7 @@ afterEach(() => vi.restoreAllMocks());
 describe('TileJsonRasterPreviewer#preview', () => {
   const preview = async (doc: object) => {
     const map = new FakeMap();
-    const previewer = new TileJsonRasterPreviewer(serve(doc)).attach(map as unknown as maplibregl.Map, style);
+    const previewer = new TileJsonRasterPreviewer(serve(doc)).attach(map as unknown as MapLibreMap, style);
     await previewer.preview();
     return { map, previewer };
   };
@@ -141,7 +142,7 @@ describe('TileJsonVectorPreviewer#previewLayers', () => {
 
   const preview = async (doc: object) => {
     const map = new FakeMap();
-    const previewer = new TileJsonVectorPreviewer(serve(doc)).attach(map as unknown as maplibregl.Map, style);
+    const previewer = new TileJsonVectorPreviewer(serve(doc)).attach(map as unknown as MapLibreMap, style);
     await previewer.preview();
     return { map, previewer };
   };
@@ -189,7 +190,7 @@ describe('TileJsonVectorPreviewer#previewLayers', () => {
 
   it('still offers a raster tileset exactly one row', async () => {
     const map = new FakeMap();
-    const previewer = new TileJsonRasterPreviewer(serve(rasterDoc)).attach(map as unknown as maplibregl.Map, style);
+    const previewer = new TileJsonRasterPreviewer(serve(rasterDoc)).attach(map as unknown as MapLibreMap, style);
     await previewer.preview();
 
     expect(previewer.previewLayers.map(layer => layer.title)).toEqual(['TileJSON']);
@@ -199,7 +200,7 @@ describe('TileJsonVectorPreviewer#previewLayers', () => {
 describe('TileJsonVectorPreviewer#preview', () => {
   const preview = async (doc: object) => {
     const map = new FakeMap();
-    const previewer = new TileJsonVectorPreviewer(serve(doc)).attach(map as unknown as maplibregl.Map, style);
+    const previewer = new TileJsonVectorPreviewer(serve(doc)).attach(map as unknown as MapLibreMap, style);
     await previewer.preview();
     return { map, previewer };
   };

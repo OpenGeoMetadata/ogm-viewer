@@ -1,4 +1,4 @@
-import maplibregl, { type GetResourceResponse, type RequestParameters } from 'maplibre-gl';
+import { addProtocol, type GetResourceResponse, type RequestParameters } from 'maplibre-gl';
 import { geoJSONToTile } from '@maplibre/geojson-vt';
 import { fromGeojsonVt } from '@maplibre/vt-pbf';
 
@@ -139,7 +139,7 @@ export const esriFeatureTile = async (params: RequestParameters, abortController
   return { data };
 };
 
-maplibregl.addProtocol(ESRI_FEATURES_SCHEME, esriFeatureTile);
+addProtocol(ESRI_FEATURES_SCHEME, esriFeatureTile);
 
 // A tile of its own bytes and nothing else. Every tile handed to MapLibre has to be one of these,
 // and nothing we keep may share a buffer with one: the buffer is transferred to the worker rather

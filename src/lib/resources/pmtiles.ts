@@ -1,7 +1,7 @@
 // Adapted from https://github.com/protomaps/PMTiles/blob/main/app/src/tileset.ts
 
 import { FetchSource, PMTiles, Protocol, TileType, Header } from 'pmtiles';
-import maplibregl, { type LngLatBoundsLike } from 'maplibre-gl';
+import { addProtocol, type LngLatBoundsLike } from 'maplibre-gl';
 
 import Resource, { type ResourceKind } from './resource';
 import type { RequestTransform } from '../request';
@@ -20,7 +20,7 @@ interface Metadata {
 // Shared by every PMTiles archive on the page - a MapLibre protocol handler is registered once,
 // globally, for the 'pmtiles://' scheme, however many resources or maps use it.
 const protocol = new Protocol();
-maplibregl.addProtocol('pmtiles', protocol.tile);
+addProtocol('pmtiles', protocol.tile);
 
 // Vector or raster tileset stored in a PMTiles archive at a URL
 export default class PMTilesResource extends Resource {
