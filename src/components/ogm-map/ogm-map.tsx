@@ -49,6 +49,13 @@ const MIN_ZOOM = 1;
 // comfortably longer than the gap it is covering rather than tight. See confirmBasemapFailure.
 const BASEMAP_GRACE = 250;
 
+// What a map says about a basemap that let it down. Two messages because the two failures leave
+// visibly different maps: a style document that never arrived leaves no basemap at all, while tiles
+// failing one at a time leaves a basemap with holes in it - and telling a reader the preview is
+// "drawn without one" while they can see roads under it would just be wrong.
+const NO_BASEMAP = 'The basemap could not be loaded.';
+const PARTIAL_BASEMAP = 'Part of the basemap could not be loaded.';
+
 // A component for rendering an interactive data preview on a map
 @Component({
   tag: 'ogm-map',
@@ -85,11 +92,8 @@ export class OgmMap {
   // What the current preview has to say about the view it is being drawn in - see
   // MapPreviewer.onNotice. Not an error: it sits over the map rather than in place of it.
   @State() notice?: string;
-
-  // That the basemap under the preview isn't all there - see noteBasemapTrouble. Held separately
-  // from `notice` above because the two answer to different things: that one is the preview's and is
-  // cleared by every load attempt, this one is the map's and outlives them.
   @State() basemapNotice?: string;
+  @State() failedBasemap?: string;
   protected layersControl: LayersControl;
   private layerState = new Map<string, LayerState>();
 
@@ -366,6 +370,7 @@ export class OgmMap {
     // empty style it falls back to fires the style.load that it waits on.
     this.basemapFellBack = false;
     this.basemapNotice = undefined;
+    this.failedBasemap = undefined;
     await setBasemap(this.map, this.mapTheme);
     // The same preview, drawn again into the style document the swap just emptied
     await this.loadPreview();
@@ -392,7 +397,7 @@ export class OgmMap {
     // else. See confirmBasemapFailure.
     if (!this.mapStyleLoaded) return this.confirmBasemapFailure();
 
-    if (!this.previewer?.sourceIds.includes(event.sourceId ?? '')) return this.noteBasemapTrouble();
+    if (!this.previewer?.sourceIds.includes(event.sourceId ?? '')) return this.noteBasemapTrouble(PARTIAL_BASEMAP);
     if (this.errorReported) return;
     this.reportError(event.error);
   }
@@ -437,15 +442,24 @@ export class OgmMap {
    * give up on the second - but it is a reason to say so, which the notice does.
    */
   protected fallBackToEmptyBasemap() {
-    this.noteBasemapTrouble();
+    // Before the swap, while the theme is still being asked for the basemap that failed rather than
+    // for the empty one replacing it
+    this.noteBasemapTrouble(NO_BASEMAP);
     this.map.setStyle(this.mapTheme.getFallbackBaseMapStyle());
   }
 
-  // Say once that the basemap isn't all there, whichever part of it failed. Kept apart from `notice`,
-  // which belongs to the preview and is cleared with every load attempt: this one is about the map
-  // under the preview, and stays true until a basemap is asked for again.
-  protected noteBasemapTrouble() {
-    this.basemapNotice = 'The basemap could not be loaded, so this preview is drawn without one.';
+  // Say what the basemap did, and name it. Kept apart from `notice`, which belongs to the preview and
+  // is cleared with every load attempt: this one is about the map under the preview, and stays true
+  // until a basemap is asked for again.
+  //
+  // The style document's own URL either way, including when what failed was a tile: the tile URLs
+  // come from inside that document, so it is the thing a reader - or whoever they pass this on to -
+  // can actually go and look at. Read from the theme rather than taken off the error, which carries
+  // no URL at all for the failure that matters most here (a refused cross-origin request rejects with
+  // a bare TypeError).
+  protected noteBasemapTrouble(message: string) {
+    this.basemapNotice = message;
+    this.failedBasemap = this.mapTheme.getBaseMapStyle();
   }
 
   // One tile of the current preview arriving is the only proof that the preview is really there, so
@@ -870,14 +884,15 @@ export class OgmMap {
                   {this.notice}
                 </wa-callout>
               )}
-              {/* A warning rather than the preview notice's brand, because the two are different
-                  kinds of thing: that one is telling a reader how to use the view they're in, and
-                  this one is saying part of the map isn't there. The triangle goes with it - the same
-                  pairing <ogm-alerts> uses for something having gone wrong. */}
               {this.basemapNotice && (
                 <wa-callout class="notice basemap-notice" variant="warning" size="s">
                   <wa-icon slot="icon" name="exclamation-triangle-fill"></wa-icon>
-                  {this.basemapNotice}
+                  <div class="basemap-message">{this.basemapNotice}</div>
+                  {this.failedBasemap && (
+                    <div class="basemap-url" title={this.failedBasemap}>
+                      {this.failedBasemap}
+                    </div>
+                  )}
                 </wa-callout>
               )}
             </div>
