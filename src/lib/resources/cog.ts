@@ -13,7 +13,9 @@ export default class CogResource extends RasterResource {
     return undefined;
   }
 
-  // TODO: is it possible to read COG metadata to get bounds?
+  // The previewer handles this – we can't get bounds without knowing if we
+  // need to reproject, and pulling that capability up to this layer would
+  // be inefficient because all of a record's Resources are eagerly loaded.
   async getBounds() {
     return super.getBounds();
   }
