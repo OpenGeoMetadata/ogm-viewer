@@ -2,7 +2,7 @@ import { Component, Element, Event, EventEmitter, h, Host, Listen, Method, Prop,
 import maplibregl from 'maplibre-gl';
 
 import { closestAcrossShadows, findElement, getElement } from '../../lib/elements';
-import { referenceError, TimeoutError, type PreviewError } from '../../lib/errors';
+import { referenceError, TimeoutError, type PreviewError, isWebGLError, WebGLUnavailableError } from '../../lib/errors';
 import GlobeControl from '../../lib/globe-control';
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import { dedupeFeatures } from '../../lib/features';
@@ -121,21 +121,31 @@ export class OgmMap {
     // Taken back off the page while we waited
     if (!this.el.isConnected) return;
 
-    this.map = createMap(container, this.mapTheme, {
-      minZoom: 1,
-      cooperativeGestures: this.cooperativeGestures,
-      // Read fresh on every request rather than captured once, so it always reflects whichever
-      // previewer is currently attached - including across onPreviewerChange, with no watcher of
-      // our own needed. Applies to the basemap's own style/glyphs/sprites too, not just this
-      // preview's data; see RequestTransform for why a transform has to account for that itself.
-      transformRequest: (url, resourceType) => toMapLibreRequest(this.previewer?.requestTransform?.(url, ourResourceType(resourceType)), url),
-      // Already looking at the record, rather than at the world for as long as it takes the preview to
-      // draw and loadPreview to fit the camera to it - which is a round trip or two, and every one of
-      // them is spent watching a basemap of somewhere else. Only what the record declared, since that
-      // is the part that can be answered without asking anyone; see MapPreviewer.declaredBounds. A
-      // resource that reads a truer extent for itself is still fitted to that one below.
-      ...openingCamera(container, this.mapTheme, this.previewer?.declaredBounds),
-    });
+    // In contexts without WebGL (bots, tests, some devices) this can fail.
+    // Display that nicely as an error; re-raise for anything else.
+    try {
+      this.map = createMap(container, this.mapTheme, {
+        minZoom: 1,
+        cooperativeGestures: this.cooperativeGestures,
+        // Read fresh on every request rather than captured once, so it always reflects whichever
+        // previewer is currently attached - including across onPreviewerChange, with no watcher of
+        // our own needed. Applies to the basemap's own style/glyphs/sprites too, not just this
+        // preview's data; see RequestTransform for why a transform has to account for that itself.
+        transformRequest: (url, resourceType) => toMapLibreRequest(this.previewer?.requestTransform?.(url, ourResourceType(resourceType)), url),
+        // Already looking at the record, rather than at the world for as long as it takes the preview to
+        // draw and loadPreview to fit the camera to it - which is a round trip or two, and every one of
+        // them is spent watching a basemap of somewhere else. Only what the record declared, since that
+        // is the part that can be answered without asking anyone; see MapPreviewer.declaredBounds. A
+        // resource that reads a truer extent for itself is still fitted to that one below.
+        ...openingCamera(container, this.mapTheme, this.previewer?.declaredBounds),
+      });
+    } catch (error) {
+      if (!isWebGLError(error)) throw error;
+
+      // Bail out since everything after this needs a map
+      this.previewError.emit(new WebGLUnavailableError());
+      return;
+    }
 
     // Bound before the controls go on, so the preview still works if that fails
     this.map.on('load', () => this.loadPreview());

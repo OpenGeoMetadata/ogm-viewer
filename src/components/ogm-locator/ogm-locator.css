@@ -12,6 +12,11 @@
   position: relative;
 }
 
+ogm-alerts {
+  position: absolute;
+  inset: 0;
+}
+
 /* Color of the map background ("space" around the globe) */
 .maplibregl-canvas {
   background-color: var(--wa-color-surface-default);
