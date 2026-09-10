@@ -1,4 +1,4 @@
-import type { SkySpecification } from 'maplibre-gl';
+import type { SkySpecification, StyleSpecification } from 'maplibre-gl';
 
 import { atLightness, contrastColor, shiftLightness } from './color';
 import Theme from './theme';
@@ -81,6 +81,12 @@ const invalidColorLight = '#f56667';
 const textColorDark = '#f1f2f3';
 const textColorLight = '#101219';
 
+// What a map with no basemap is drawn against - see getFallbackBaseMapStyle. Close to the paper both
+// CARTO styles start from, so a preview that loses its basemap reads as a map missing its background
+// rather than as a component that failed to render at all.
+const emptyBasemapColorDark = '#0e1013';
+const emptyBasemapColorLight = '#f8f8f8';
+
 // Style properties common to all MapLibre-based previewers
 export default class MapLibreTheme extends Theme {
   // An app's own basemap for this mode - a URL to a MapLibre style document - or undefined to keep
@@ -156,6 +162,34 @@ export default class MapLibreTheme extends Theme {
   getBaseMapStyle(): string {
     const darkMode = this.darkMode();
     return (darkMode ? this.darkBasemap : this.lightBasemap) ?? (darkMode ? darkBasemapStyle : lightBasemapStyle);
+  }
+
+  /**
+   * A style document with nothing in it but a color to draw against, for a map whose basemap never
+   * arrived - see <ogm-map>'s fallBackToEmptyBasemap.
+   *
+   * A style object rather than the URL getBaseMapStyle hands back, because the whole point of this
+   * one is that it needs nothing from the network: the network is what just failed. MapLibre needs
+   * *some* style document to hold a source, so a preview whose basemap 404s or 503s has nowhere to
+   * be drawn until it is given one of these.
+   *
+   * No glyphs endpoint, which is the one thing lost: MapLibre asks the style document where to fetch
+   * glyphs from, and the only endpoint we know of is the basemap's own. So a preview that labels what
+   * it draws loses its labels here, while its shapes and rasters still draw - which is the part worth
+   * keeping. See getStyle for what `textFont` names.
+   */
+  getFallbackBaseMapStyle(): StyleSpecification {
+    return {
+      version: 8,
+      sources: {},
+      layers: [
+        {
+          id: 'ogm-empty-basemap',
+          type: 'background',
+          paint: { 'background-color': this.dualColors(emptyBasemapColorDark, emptyBasemapColorLight) },
+        },
+      ],
+    };
   }
 
   // The outline for a color, unless an app named one. Derived rather than themed, because the

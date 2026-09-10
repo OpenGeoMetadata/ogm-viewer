@@ -174,12 +174,22 @@ ogm-legend {
    the map rather than in place of it, unlike <ogm-alerts>: a reader told to zoom in still needs the
    map to zoom. Bottom center, which is the one edge nothing else claims - the layers panel takes the
    top, the legend the bottom left, and MapLibre's own controls the right. */
-wa-callout.notice {
+/* Stacked rather than one box, because there can be two and they answer to different things: what
+   the preview has to say about the view it's drawn in, and whether the basemap under it is there at
+   all. Centred as one column so a map with either has it in the same place. */
+.notices {
   position: absolute;
   inset-block-end: var(--ogm-control-inset);
   inset-inline-start: 50%;
   translate: -50%;
   z-index: 3;
   max-width: calc(100% - 2 * var(--ogm-control-inset));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--wa-space-xs);
+}
+
+wa-callout.notice {
   box-shadow: var(--wa-shadow-m);
 }

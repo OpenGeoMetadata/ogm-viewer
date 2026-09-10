@@ -50,6 +50,8 @@ const loadingMap = () => {
     }),
     setMaxPitch: vi.fn(),
     setMinZoom: vi.fn(),
+    // What a basemap that never arrived is replaced with; see fallBackToEmptyBasemap
+    setStyle: vi.fn(),
   };
   return map;
 };
@@ -79,6 +81,18 @@ const drawablePreviewer = () => ({
 
 // Stencil doesn't await a watcher, so let what the previewer's own started finish
 const settle = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+
+// Long enough for confirmBasemapFailure's own grace period to run out, so what it does about a
+// basemap that really didn't arrive has happened by the time it comes back
+const settleBasemap = () => new Promise<void>(resolve => setTimeout(resolve, 400));
+
+// What MapLibre hands a map error listener. The style document's own failure arrives with no source
+// on it - there are no sources yet - and a tile's arrives named after the source it belongs to.
+const mapError = (sourceId?: string) => ({ error: new Error('Failed to fetch'), sourceId }) as never;
+
+const raiseMapError = (el: HTMLElement, sourceId?: string) => (el as unknown as { handleMapError: (event: never) => void }).handleMapError(mapError(sourceId));
+
+const noticeTexts = (el: HTMLElement) => Array.from((el.shadowRoot as ShadowRoot).querySelectorAll('wa-callout.notice')).map(callout => callout.textContent ?? '');
 
 const fitTo = (el: HTMLElement, mapBounds: number[][]) => (el as unknown as { fitMapBounds: (bounds: number[][]) => Promise<void> }).fitMapBounds(mapBounds);
 
@@ -391,6 +405,94 @@ describe('ogm-map', () => {
     await settle();
 
     expect(el.shadowRoot?.querySelector('wa-callout.notice')?.textContent).toContain('Zoom in');
+  });
+
+  // The failure this is all about: a basemap that never loads fires no style.load, and everything a
+  // preview needs waits on one - so the preview used to be abandoned unattempted, silently, with not
+  // one request made for the data. See fallBackToEmptyBasemap.
+  it('draws on an empty basemap when the real one never arrives', async () => {
+    const { el } = await renderMap();
+    const map = loadingMap();
+    const previewer = drawablePreviewer();
+    const reported = vi.fn();
+    el.addEventListener('previewError', reported);
+    Object.assign(el, { map, layersControl: fakeLayersControl(), previewer });
+
+    raiseMapError(el);
+    await settleBasemap();
+
+    // A style document of our own, needing nothing from the network that just failed
+    expect(map.setStyle).toHaveBeenCalledWith(expect.objectContaining({ version: 8, sources: {} }));
+
+    // Said, rather than reported: the preview itself is fine, and this one outlives a load attempt
+    expect(noticeTexts(el).join()).toContain('basemap');
+    expect(reported).not.toHaveBeenCalled();
+  });
+
+  // The grace period is a window the map can be taken off the page inside, and the map it would have
+  // written to is still sitting there - disconnectedCallback removes it rather than dropping it
+  it('leaves a failed basemap alone once its map has been taken off the page', async () => {
+    const { container, el } = await renderMap();
+    const map = loadingMap();
+    Object.assign(el, { map, layersControl: fakeLayersControl(), previewer: drawablePreviewer() });
+
+    raiseMapError(el);
+    container.removeChild(el);
+    await settleBasemap();
+
+    expect(map.setStyle).not.toHaveBeenCalled();
+  });
+
+  // A style document asks for its own sprite and glyphs, and either can fail before style.load lands.
+  // Read as the style itself having failed, that would throw away a basemap that was on its way.
+  it('keeps a basemap that arrives after something of its own has failed', async () => {
+    const { el } = await renderMap();
+    const map = loadingMap();
+    Object.assign(el, { map, layersControl: fakeLayersControl(), previewer: drawablePreviewer() });
+
+    raiseMapError(el);
+    await styleLoads(el, map);
+    await settleBasemap();
+
+    expect(map.setStyle).not.toHaveBeenCalled();
+    expect(noticeTexts(el)).toEqual([]);
+  });
+
+  // Every one of these used to be dropped: the filter asked whether the failure was one of the
+  // preview's own sources, and a preview that paints its own pixels has none - so a map that had lost
+  // its backdrop tile by tile said nothing at all about why.
+  it('says the basemap is missing when its tiles fail, without failing the preview', async () => {
+    const { el } = await renderMap();
+    const map = loadingMap();
+    const previewer = drawablePreviewer();
+    const reported = vi.fn();
+    el.addEventListener('previewError', reported);
+    Object.assign(el, { map, layersControl: fakeLayersControl(), previewer });
+
+    await styleLoads(el, map);
+    raiseMapError(el, 'carto');
+    await settle();
+
+    expect(noticeTexts(el).join()).toContain('basemap');
+    expect(reported).not.toHaveBeenCalled();
+    // The preview is drawn on whatever is left of the basemap, rather than started over on an empty one
+    expect(map.setStyle).not.toHaveBeenCalled();
+  });
+
+  it('still reports a failure of one of the preview’s own sources', async () => {
+    const { el } = await renderMap();
+    const map = loadingMap();
+    const previewer = { ...drawablePreviewer(), sourceIds: ['a-preview'] };
+    const reported = vi.fn();
+    el.addEventListener('previewError', reported);
+    Object.assign(el, { map, layersControl: fakeLayersControl(), previewer });
+
+    await styleLoads(el, map);
+    raiseMapError(el, 'a-preview');
+    await settle();
+
+    expect(reported).toHaveBeenCalled();
+    expect(noticeTexts(el)).toEqual([]);
   });
 
   // The popup is built by hand rather than rendered, so it outlives the component's own markup

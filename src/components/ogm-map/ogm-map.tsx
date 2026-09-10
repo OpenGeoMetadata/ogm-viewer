@@ -44,6 +44,11 @@ const QUERY_WINDOW = 51;
 // the map further out than any preview is drawn at.
 const MIN_ZOOM = 1;
 
+// How long an error that arrived before the style document did is given to be proved wrong, in
+// milliseconds. Only ever waited out by a map that has nothing to draw into, so it is set to be
+// comfortably longer than the gap it is covering rather than tight. See confirmBasemapFailure.
+const BASEMAP_GRACE = 250;
+
 // A component for rendering an interactive data preview on a map
 @Component({
   tag: 'ogm-map',
@@ -80,6 +85,11 @@ export class OgmMap {
   // What the current preview has to say about the view it is being drawn in - see
   // MapPreviewer.onNotice. Not an error: it sits over the map rather than in place of it.
   @State() notice?: string;
+
+  // That the basemap under the preview isn't all there - see noteBasemapTrouble. Held separately
+  // from `notice` above because the two answer to different things: that one is the preview's and is
+  // cleared by every load attempt, this one is the map's and outlives them.
+  @State() basemapNotice?: string;
   protected layersControl: LayersControl;
   private layerState = new Map<string, LayerState>();
 
@@ -89,6 +99,11 @@ export class OgmMap {
 
   // Used to prevent trying to style layers before the map is ready
   private mapStyleLoaded: boolean = false;
+
+  // Whether the basemap now on its way has already been given up on, so that one failure is answered
+  // with one empty style rather than with one per error MapLibre reports about it. Per attempt, not
+  // per map: a theme swap asks for a real basemap again, and that one gets its own chance to fail.
+  private basemapFellBack: boolean = false;
 
   // Guards against reporting more than one error per load attempt
   private errorReported: boolean = false;
@@ -345,6 +360,12 @@ export class OgmMap {
     this.destroyPopup();
     // The panel is still on screen over the window this opens, and a layer can't be styled inside it
     this.mapStyleLoaded = false;
+    // A real basemap is being asked for again, so it gets its own chance to arrive - and its own
+    // chance to be given up on. Clearing the notice with it means a swap that succeeds stops saying
+    // the basemap is missing, and setBasemap below still resolves if this one fails too, because the
+    // empty style it falls back to fires the style.load that it waits on.
+    this.basemapFellBack = false;
+    this.basemapNotice = undefined;
     await setBasemap(this.map, this.mapTheme);
     // The same preview, drawn again into the style document the swap just emptied
     await this.loadPreview();
@@ -359,12 +380,72 @@ export class OgmMap {
     else this.map.cooperativeGestures.disable();
   }
 
-  // Surface MapLibre errors tied to the current preview, skipping the noise from basemap/glyph/
-  // sprite loads, and deduped to a single alert per load attempt.
+  // Surface MapLibre errors tied to the current preview, deduped to a single alert per load attempt.
+  // Everything else it reports is the basemap's - a style document, a tile, a sprite, a glyph range -
+  // and none of that is worth an alert, since a preview drawn over a basemap with holes in it is
+  // still a preview. But none of it is worth swallowing either, which is what happened before: a
+  // preview that paints its own pixels has no sourceIds at all, so every basemap failure was dropped
+  // on the second line and a map that had lost its backdrop said nothing about why.
   protected handleMapError(event: ErrorEvent & { sourceId?: string }) {
-    if (this.errorReported || !this.previewer) return;
-    if (!this.previewer.sourceIds.includes(event.sourceId ?? '')) return;
+    // Nothing but the style document can have failed this early - a map has no sources until a style
+    // document brings them - and that failure is the expensive one, so it is checked before anything
+    // else. See confirmBasemapFailure.
+    if (!this.mapStyleLoaded) return this.confirmBasemapFailure();
+
+    if (!this.previewer?.sourceIds.includes(event.sourceId ?? '')) return this.noteBasemapTrouble();
+    if (this.errorReported) return;
     this.reportError(event.error);
+  }
+
+  // A style document that failed to load, once we're sure that's what happened.
+  //
+  // Worth being sure about: this reads "an error arrived before style.load did", and the sprite and
+  // glyph requests a style document makes for itself can lose that race, so a basemap that is
+  // perfectly fine can raise one of these on its way up. Waiting a beat and asking again costs
+  // nothing - a style that is coming is already on its way, and one that isn't has left the map with
+  // nothing to draw into - and it means the answer doesn't depend on telling MapLibre's error shapes
+  // apart, which differ by what failed and change between versions.
+  protected confirmBasemapFailure() {
+    if (this.basemapFellBack) return;
+    this.basemapFellBack = true;
+
+    setTimeout(() => {
+      // The style arrived after all, or there is no longer anywhere to put one: this waits out a
+      // window a map can be taken off the page inside, and disconnectedCallback leaves the removed
+      // map in place rather than dropping it, so having one is not the same as being able to write
+      // to one.
+      if (this.mapStyleLoaded || !this.map || !this.el.isConnected) return;
+      this.fallBackToEmptyBasemap();
+    }, BASEMAP_GRACE);
+  }
+
+  /**
+   * Draw on an empty basemap, for a map whose real one never arrived.
+   *
+   * Everything downstream of a style document waits on the style.load a failed one never fires:
+   * mapStyleLoaded, and so loadPreview, and so every source a preview adds. So a basemap CDN having
+   * a bad day didn't just cost the backdrop, it abandoned the preview - no spinner, no alert, and not
+   * one request made for the data the reader came for. It also can't be waited out, because there is
+   * no second attempt: MapLibre asks for a style document once.
+   *
+   * Handing over a style document of our own puts all of that back: MapLibre fires style.load for it
+   * like any other, which lets go of loadPreview, and its own `load` follows from the next frame
+   * since that latch was never set. The theme swap does the same thing through setBasemap, which
+   * waits on the same event.
+   *
+   * The basemap is the backdrop and the data is the point, so losing the first is not a reason to
+   * give up on the second - but it is a reason to say so, which the notice does.
+   */
+  protected fallBackToEmptyBasemap() {
+    this.noteBasemapTrouble();
+    this.map.setStyle(this.mapTheme.getFallbackBaseMapStyle());
+  }
+
+  // Say once that the basemap isn't all there, whichever part of it failed. Kept apart from `notice`,
+  // which belongs to the preview and is cleared with every load attempt: this one is about the map
+  // under the preview, and stays true until a basemap is asked for again.
+  protected noteBasemapTrouble() {
+    this.basemapNotice = 'The basemap could not be loaded, so this preview is drawn without one.';
   }
 
   // One tile of the current preview arriving is the only proof that the preview is really there, so
@@ -781,11 +862,21 @@ export class OgmMap {
       <Host class={waScope(this.theme)}>
         <div class={`container ${waScope(this.theme)}`}>
           <div id="map"></div>
-          {this.notice && (
-            <wa-callout class="notice" variant="brand" size="s">
-              <wa-icon slot="icon" name="info-circle-fill"></wa-icon>
-              {this.notice}
-            </wa-callout>
+          {(this.notice || this.basemapNotice) && (
+            <div class="notices">
+              {this.notice && (
+                <wa-callout class="notice" variant="brand" size="s">
+                  <wa-icon slot="icon" name="info-circle-fill"></wa-icon>
+                  {this.notice}
+                </wa-callout>
+              )}
+              {this.basemapNotice && (
+                <wa-callout class="notice basemap-notice" variant="brand" size="s">
+                  <wa-icon slot="icon" name="info-circle-fill"></wa-icon>
+                  {this.basemapNotice}
+                </wa-callout>
+              )}
+            </div>
           )}
           {this.layersPanelOpen && <ogm-layers theme={this.theme} layers={this.layerControls}></ogm-layers>}
           {hasLegend && <ogm-legend theme={this.theme} layers={this.layerControls} entries={legendEntries}></ogm-legend>}
