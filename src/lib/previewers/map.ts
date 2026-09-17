@@ -78,6 +78,13 @@ export default abstract class MapPreviewer extends Previewer {
   // draws is watched through the map's own tile events instead. Set by whoever draws this preview.
   onDrawn?: () => void;
 
+  // Where a preview says the logical layers it offers have changed since it drew them: a background
+  // colour it had to fetch a thumbnail for has arrived, and a row in the panel has a control to offer
+  // that it didn't when the panel was built. Only for what settles after preview() has resolved -
+  // anything known by then is already in previewLayers by the time ogm-map reads it. Set by whoever
+  // draws this preview.
+  onLayersChanged?: () => void;
+
   // Where a preview says something about the view it is being asked to draw in: that the layer is
   // published for closer views than this one, or that what is on the map is only part of it. Not a
   // failure - nothing went wrong, and the alert a failure raises fills the pane and replaces the

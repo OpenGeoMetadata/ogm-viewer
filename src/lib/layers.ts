@@ -32,10 +32,17 @@ export type Layer = {
   // its ends with. A fixed fact about the layer, not something the user chooses, so unlike the ramp
   // itself it has no counterpart on LayerState; it travels with the layer the same way title does.
   colorRampRange?: readonly [min: number, max: number];
+  // Present only for a layer whose background colour has been worked out and can be taken away - a
+  // georeferenced scan whose paper colour we managed to detect; see src/lib/background-color.ts. Its
+  // presence is what marks a layer as removable at all, the same way defaultColorRamp's marks one as
+  // rampable, and it is set after the layer is already drawn: detecting the colour means fetching a
+  // thumbnail, which finishes long after createLayers() did. Hence onLayersChanged in
+  // MapPreviewer, which is how the panel hears that a row has grown a control.
+  backgroundRemovable?: boolean;
 };
 
 // Attributes of a layer that the user can toggle in the control panel
-export type LayerState = { visible: boolean; opacity: number; colorRamp?: ColorRampName };
+export type LayerState = { visible: boolean; opacity: number; colorRamp?: ColorRampName; removeBackground?: boolean };
 
 // Data for a single entry in the layers control panel
 export type LayerControl = { id: string; title: string; colorRampRange?: Layer['colorRampRange'] } & LayerState;
@@ -50,6 +57,9 @@ export const resolveLayerState = (layer: Layer, states: ReadonlyMap<string, Laye
     visible: requested?.visible ?? true,
     opacity: requested?.opacity ?? layer.defaultOpacity,
     colorRamp: requested?.colorRamp ?? layer.defaultColorRamp,
+    // Off unless asked for, rather than defaulting off the layer the way the two above do: a scan
+    // arrives as the scan, and taking its paper away is something the reader chooses to do to it.
+    removeBackground: requested?.removeBackground ?? false,
   };
 };
 
@@ -68,11 +78,20 @@ export const rampedLayers = (layers: readonly LayerControl[]): LayerControl[] =>
 
 export const toLayerControlItems = (layers: readonly Layer[], states: ReadonlyMap<string, LayerState>): LayerControl[] =>
   layers.map(layer => {
-    const { visible, opacity, colorRamp } = resolveLayerState(layer, states);
+    const { visible, opacity, colorRamp, removeBackground } = resolveLayerState(layer, states);
     // Left off a layer with no ramp of its own, rather than carried as undefined: ordinary vector
     // and raster layers are most of what this list holds, and there is no reason for their entries
-    // to grow two keys that never mean anything for them.
-    return { id: layer.id, title: layer.title, visible, opacity, ...(colorRamp !== undefined && { colorRamp, colorRampRange: layer.colorRampRange }) };
+    // to grow two keys that never mean anything for them. Same for the background toggle, which only
+    // a georeferenced scan has anything to say about - its absence is what the panel reads to decide
+    // whether to draw the control at all, so it has to be absent rather than false.
+    return {
+      id: layer.id,
+      title: layer.title,
+      visible,
+      opacity,
+      ...(colorRamp !== undefined && { colorRamp, colorRampRange: layer.colorRampRange }),
+      ...(layer.backgroundRemovable && { removeBackground }),
+    };
   });
 
 // A tileset names its layers for machines ('landuse_overlay'); a WMTS <ows:Title> is already

@@ -2,8 +2,9 @@ import type { AddLayerObject, CustomLayerInterface, Evented, LngLatBoundsLike } 
 import { WarpedMapLayer } from '@allmaps/maplibre';
 
 import MapPreviewer from './map';
+import { backgroundColorOf } from '../background-color';
 import type IIIFManifestResource from '../resources/iiif-manifest';
-import type { PreviewStyleLayer } from '../layers';
+import type { LayerState, PreviewStyleLayer } from '../layers';
 
 // Allmaps' own event for the first tile of one warped map arriving. @allmaps/maplibre refires every
 // event its renderer emits on the MapLibre map, tagged with the layer it came from, so this is how a
@@ -11,15 +12,26 @@ import type { PreviewStyleLayer } from '../layers';
 // @allmaps/render's WarpedMapEventType, which @allmaps/maplibre does not re-export.
 const FIRST_TILE_EVENT = 'firstmaptileloaded';
 
-// What @allmaps/maplibre puts on the events it refires: which of its layers the news is about. The
-// `type` is MapLibre's own, on every event it hands a listener, and is here because Evented below
-// only takes event shapes that carry one.
-type WarpedMapLayerEvent = { type: string; layerId?: string };
+// What @allmaps/maplibre puts on the events it refires: which of its layers the news is about, and
+// which of that layer's maps. The `type` is MapLibre's own, on every event it hands a listener, and
+// is here because Evented below only takes event shapes that carry one.
+type WarpedMapLayerEvent = { type: string; layerId?: string; mapIds?: string[] };
 
 // The map, as something that fires the event above. MapLibre types Evented against the events it
 // knows how to fire, and this one is not among them - it is Allmaps' own, refired on our map - so
 // the name has to be declared here for on() and off() to take it.
 type WarpedMapEvented = Evented<Record<typeof FIRST_TILE_EVENT, WarpedMapLayerEvent>>;
+
+// How the Allmaps Viewer tunes its own magic wand, rather than @allmaps/render's shipped defaults of
+// 0.3 and 0.7. The threshold is how far a pixel may sit from the detected colour and still be taken
+// away, as a Euclidean distance in fractional RGB - so on a 0 to sqrt(3) scale - and the hardness is
+// how abruptly that happens at the edge: 1 is a straight cutoff, and 0.1 feathers almost the whole
+// way, which is what keeps linework drawn over the paper from coming away with it.
+//
+// Zero threshold is not "take nothing" but "do nothing": the shader skips the entire branch unless it
+// is positive, which is why switching the toggle off writes it as well as removeColor.
+const REMOVE_COLOR_THRESHOLD = 1 / 3;
+const REMOVE_COLOR_HARDNESS = 0.1;
 
 // Draws a georeferenced scan as a map layer, warping the IIIF image onto the control points a IIIF
 // Georeference Annotation gives it. The second preview a georeferenced manifest offers: the same
@@ -53,6 +65,24 @@ export default class GeoreferencePreviewer extends MapPreviewer {
   // MapLibre's getLayer() hands back a wrapper of its own rather than what we added.
   protected layer: WarpedMapLayer | undefined;
 
+  // The paper colour of each sheet this annotation describes, by the map id Allmaps gave it, once a
+  // thumbnail has been read for it. An instance field rather than anything on the layer, so it
+  // survives a basemap swap: setStyle() rebuilds the style document and this preview draws itself
+  // into the new one from scratch, and re-fetching every thumbnail to learn the same answers again
+  // would be a request per sheet per theme toggle.
+  private backgroundColors = new Map<string, string>();
+
+  // Sheets a detection is already in flight for. The image-loaded event can arrive more than once for
+  // the same map - and does, on every redraw - so without this a slow thumbnail would be fetched
+  // twice over.
+  private detecting = new Set<string>();
+
+  // What applyBackgroundRemoval last told the layer, or undefined if it hasn't yet. Worth a memo
+  // because applyLayerState runs on every frame of an opacity drag, and each call rebuilds per-map
+  // uniforms and asks for a render. Reset in createLayers(), so the first apply after a basemap swap
+  // reaches the freshly built layer rather than being skipped as a repeat.
+  private backgroundRemoved: boolean | undefined;
+
   // A second preview of a manifest that is already offered as an image, so it needs its own name:
   // two tabs both reading 'IIIF Manifest' would tell the user nothing.
   label() {
@@ -71,12 +101,17 @@ export default class GeoreferencePreviewer extends MapPreviewer {
 
   protected async createLayers(): Promise<AddLayerObject[]> {
     this.layer = new WarpedMapLayer({ layerId: this.getLayerId() });
+    this.backgroundRemoved = undefined;
 
     this.previewLayers.push({
       id: this.getLayerId(),
       title: this.label(),
       defaultOpacity: this.style.opacity,
       styleLayers: [{ id: this.getLayerId(), type: 'custom' }],
+      // Whether the panel has a background toggle to draw. False on a first draw, since no thumbnail
+      // has been read yet, and answered from what we already know on a redraw so a basemap swap
+      // doesn't take the control away and then put it back.
+      backgroundRemovable: this.backgroundColors.size > 0,
     });
 
     // @allmaps/maplibre still types itself against MapLibre 5, so its layer is not the same
@@ -122,10 +157,55 @@ export default class GeoreferencePreviewer extends MapPreviewer {
 
   // A bound instance property rather than a method, so that off() above and in clearPreview() has
   // the same function to remove that on() was given
+  //
+  // Also where each sheet's background colour is worked out from, which is not the event it looks
+  // like it should be: @allmaps/render has an `imageloaded` of its own, but @allmaps/maplibre routes
+  // that one straight to its repaint and only refires a dozen others, so nothing outside the layer
+  // ever hears it. This one arrives a moment later and answers the same question - a tile cannot be
+  // requested before the image information that says where the tiles are - and it carries the same
+  // mapIds. A sheet that never comes into view never gets a tile, and so never costs a thumbnail.
   private handleFirstTile = (event: WarpedMapLayerEvent) => {
     if (event.layerId !== this.getLayerId()) return;
     this.onDrawn?.();
+
+    // Not awaited: nothing on the map is waiting for a colour, each sheet reports its own outcome,
+    // and detectBackground swallows its own failures.
+    event.mapIds?.forEach(mapId => void this.detectBackground(mapId));
   };
+
+  // Work out one sheet's paper colour and offer the toggle once any sheet has one. Runs on its own
+  // after the scan is already drawn, so a slow or missing thumbnail costs the reader the control
+  // rather than the preview - which is also why a failure is warned about rather than reported
+  // through onError, the way a partly-unreadable annotation is in preview() above.
+  private async detectBackground(mapId: string) {
+    if (this.backgroundColors.has(mapId) || this.detecting.has(mapId)) return;
+
+    const warpedMap = this.layer?.getWarpedMap(mapId);
+    if (!warpedMap || !warpedMap.hasImage()) return;
+
+    this.detecting.add(mapId);
+
+    try {
+      // resourceMask rather than resourceFullMask: the mask is the sheet the georeferencer traced, so
+      // clipping the histogram to it keeps the scanner bed, the binding and the margins out of it.
+      const hexColor = await backgroundColorOf(warpedMap.image, warpedMap.resourceMask);
+      this.backgroundColors.set(mapId, hexColor);
+
+      // A sheet whose colour arrived while the toggle was already on has to be caught up on its own:
+      // the panel's state won't change again by itself, so nothing else will come back for it.
+      if (this.backgroundRemoved) this.layer?.setMapOptions(mapId, this.removeColorOptions(hexColor, true));
+
+      const layer = this.previewLayers.find(previewLayer => previewLayer.id === this.getLayerId());
+      if (layer && !layer.backgroundRemovable) {
+        layer.backgroundRemovable = true;
+        this.onLayersChanged?.();
+      }
+    } catch (error) {
+      console.warn(`Could not work out the background color of a georeferenced map in ${this.url}:`, error);
+    } finally {
+      this.detecting.delete(mapId);
+    }
+  }
 
   async clearPreview() {
     if (this.attached) (this.map as unknown as WarpedMapEvented).off(FIRST_TILE_EVENT, this.handleFirstTile);
@@ -133,10 +213,53 @@ export default class GeoreferencePreviewer extends MapPreviewer {
     this.layer = undefined;
   }
 
+  // Visibility is still MapLibre's to set - it honours the layout property on a custom layer - so
+  // the base class keeps that half, and the background toggle is added on top of it. Overridden here
+  // rather than in applyOpacity below because removal is a whole-layer setting and that seam is only
+  // handed an opacity.
+  protected applyStyleLayerState(styleLayer: PreviewStyleLayer, state: LayerState) {
+    super.applyStyleLayerState(styleLayer, state);
+
+    // The same guard the base class makes before touching the style document, for the same window:
+    // mid-rebuild this.layer is an object MapLibre has not handed a context to yet, and every call on
+    // it throws 'Renderer not defined' rather than being ignored.
+    if (!this.map.getLayer(styleLayer.id)) return;
+
+    this.applyBackgroundRemoval(state.removeBackground ?? false);
+  }
+
   // Opacity is the layer's own, not a paint property: MapLibre has no shader of its own for a
   // custom layer and rejects the properties a style layer would take.
   protected applyOpacity(_styleLayer: PreviewStyleLayer, opacity: number) {
     this.layer?.setOpacity(opacity);
+  }
+
+  // Tell every sheet whose colour we know whether to drop it. One call for the whole layer rather
+  // than one per sheet: setMapsOptions takes a callback and asks it about each map in turn, so a
+  // sheet still waiting on its thumbnail can be answered with undefined and left exactly as it is.
+  private applyBackgroundRemoval(remove: boolean) {
+    if (remove === this.backgroundRemoved) return;
+    this.backgroundRemoved = remove;
+
+    // Nothing to say yet, and the memo above is still worth writing: a colour that lands later is
+    // caught up by detectBackground, and a toggle after that finds the memo already disagreeing.
+    if (!this.backgroundColors.size) return;
+
+    this.layer?.setMapsOptions(mapId => {
+      const hexColor = this.backgroundColors.get(mapId);
+      return hexColor === undefined ? undefined : this.removeColorOptions(hexColor, remove);
+    });
+  }
+
+  // Written in one place because two callers set it: the toggle, and a sheet whose colour landed
+  // after the toggle was already on.
+  private removeColorOptions(hexColor: string, remove: boolean) {
+    return {
+      removeColor: remove,
+      removeColorColor: hexColor,
+      removeColorHardness: REMOVE_COLOR_HARDNESS,
+      removeColorThreshold: remove ? REMOVE_COLOR_THRESHOLD : 0,
+    };
   }
 
   // Allmaps works the extent out from the annotation's control points, which frames the scan far

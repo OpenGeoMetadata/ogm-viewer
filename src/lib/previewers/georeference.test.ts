@@ -1,10 +1,21 @@
-import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
+import { describe, it, expect, afterEach } from '@stencil/vitest';
+// vi from vitest itself rather than from @stencil/vitest, which the other previewer tests take it
+// from: vi.mock below is rewritten and hoisted by vitest's own transform, and that only recognizes
+// the API when it was imported from vitest. The same object either way - @stencil/vitest re-exports
+// it - so nothing else in this file changes.
+import { vi } from 'vitest';
 import { WarpedMapLayer } from '@allmaps/maplibre';
 import type { LngLatBoundsLike, MapLibreMap } from 'maplibre-gl';
 
 import GeoreferencePreviewer from './georeference';
 import IIIFManifestResource from '../resources/iiif-manifest';
 import type { MapLibreStyle } from '../themes/maplibre';
+
+// Reading pixels out of a thumbnail needs a canvas and a network, neither of which this project's
+// node environment has; background-color.test.ts covers what it does with them. What's exercised here
+// is everything around it: when it is asked, what the panel is told, and what reaches the layer.
+const { backgroundColorOf } = vi.hoisted(() => ({ backgroundColorOf: vi.fn(async () => '#f0ebdc') }));
+vi.mock('../background-color', () => ({ backgroundColorOf }));
 
 // Just enough of a MapLibre map to record what the previewer puts on it. Unlike the other previewer
 // fakes this one has to accept a layer with no source, since that is what a custom layer is - and it
@@ -71,9 +82,27 @@ const annotation = {
 // calls the previewer makes on the layer are spied on rather than run. Everything either side of
 // them - which layer goes on the map, what the layers panel is told, what opacity reaches the layer
 // rather than the style - is the previewer's own and is exercised for real.
+// One sheet of a scan, as much of it as detecting a background colour reads
+const warpedMapFor = (mapId = 'map-id') =>
+  ({
+    mapId,
+    hasImage: () => true,
+    image: { width: 4000, height: 3000 },
+    resourceMask: [
+      [400, 300],
+      [3600, 300],
+      [3600, 2700],
+      [400, 2700],
+    ],
+  }) as unknown as ReturnType<WarpedMapLayer['getWarpedMap']>;
+
 const previewFor = async () => {
   const addAnnotation = vi.spyOn(WarpedMapLayer.prototype, 'addGeoreferenceAnnotation').mockReturnValue(['map-id']);
   const setOpacity = vi.spyOn(WarpedMapLayer.prototype, 'setOpacity').mockImplementation(() => {});
+  // setMapOptions delegates to this one, so a single spy catches both the whole-layer push and the
+  // single-sheet catch-up
+  const setMapsOptions = vi.spyOn(WarpedMapLayer.prototype, 'setMapsOptions').mockImplementation(() => {});
+  const getWarpedMap = vi.spyOn(WarpedMapLayer.prototype, 'getWarpedMap').mockImplementation(() => warpedMapFor());
 
   const resource = new IIIFManifestResource('bb013fz9675', MANIFEST_URL);
   vi.spyOn(resource, 'getGeoreferenceAnnotation').mockResolvedValue(annotation as any);
@@ -81,11 +110,32 @@ const previewFor = async () => {
   const map = new FakeMap();
   const previewer = new GeoreferencePreviewer(resource).attach(map as unknown as MapLibreMap, style);
 
-  return { map, previewer, resource, addAnnotation, setOpacity };
+  return { map, previewer, resource, addAnnotation, setOpacity, setMapsOptions, getWarpedMap };
+};
+
+// Allmaps refires its renderer's events on the map, tagged with the layer they came from; a tile is
+// what tells this preview that a sheet's image information is in hand. See handleFirstTile.
+const LAYER_ID = 'bb013fz9675-georeference';
+const firstTile = (map: FakeMap, mapIds: string[] = ['map-id'], layerId = LAYER_ID) => map.fire('firstmaptileloaded', { type: 'firstmaptileloaded', layerId, mapIds });
+
+// The detection is a promise chain started from a listener, so a fired event is not finished with
+const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+
+const stateFor = (removeBackground: boolean) => new Map([[LAYER_ID, { visible: true, opacity: 0.8, removeBackground }]]);
+
+// What setMapsOptions was handed for one sheet, whichever of its two forms it was called in
+const optionsFor = (setMapsOptions: ReturnType<typeof vi.spyOn>, mapId = 'map-id') => {
+  const [first, second] = setMapsOptions.mock.calls.at(-1) as [unknown, unknown];
+  return typeof first === 'function' ? (first as (id: string) => unknown)(mapId) : second;
 };
 
 describe('GeoreferencePreviewer', () => {
-  afterEach(() => vi.restoreAllMocks());
+  // restoreAllMocks only undoes the spyOn ones; the detection above is a plain vi.fn() whose calls
+  // would otherwise pile up across the tests that count them
+  afterEach(() => {
+    vi.restoreAllMocks();
+    backgroundColorOf.mockClear();
+  });
 
   it('puts a warped map layer on the map and no source at all', async () => {
     const { map, previewer } = await previewFor();
@@ -210,6 +260,167 @@ describe('GeoreferencePreviewer', () => {
       previewer.applyLayerState(new Map([['bb013fz9675-georeference', { visible: false, opacity: 0.8 }]]));
 
       expect(map.layoutProperties).toContainEqual(['bb013fz9675-georeference', 'visibility', 'none']);
+    });
+  });
+
+  describe('removing the background', () => {
+    it('works the paper color out when a sheet draws, and tells the panel the row has a control now', async () => {
+      const { map, previewer } = await previewFor();
+      const onLayersChanged = vi.fn();
+      previewer.onLayersChanged = onLayersChanged;
+      await previewer.preview();
+
+      // Nothing on offer until a colour is in hand: a scan whose thumbnail can't be read is better
+      // off with no toggle than with one that does nothing
+      expect(previewer.previewLayers[0].backgroundRemovable).toBe(false);
+      expect(onLayersChanged).not.toHaveBeenCalled();
+
+      firstTile(map);
+      await settle();
+
+      expect(backgroundColorOf).toHaveBeenCalledWith({ width: 4000, height: 3000 }, warpedMapFor()!.resourceMask);
+      expect(previewer.previewLayers[0].backgroundRemovable).toBe(true);
+      expect(onLayersChanged).toHaveBeenCalled();
+    });
+
+    // Every warped layer on this map reports through the same channel, so the filter that keeps
+    // onDrawn honest has to keep this honest too
+    it('ignores a tile that belongs to another layer', async () => {
+      const { map, previewer } = await previewFor();
+      await previewer.preview();
+
+      firstTile(map, ['map-id'], 'some-other-georeference');
+      await settle();
+
+      expect(backgroundColorOf).not.toHaveBeenCalled();
+      expect(previewer.previewLayers[0].backgroundRemovable).toBe(false);
+    });
+
+    // The event arrives again on every redraw, and a thumbnail is a whole request
+    it('reads a sheet only once, however often its tiles are reported', async () => {
+      const { map, previewer } = await previewFor();
+      await previewer.preview();
+
+      firstTile(map);
+      firstTile(map);
+      await settle();
+      firstTile(map);
+      await settle();
+
+      expect(backgroundColorOf).toHaveBeenCalledTimes(1);
+    });
+
+    it('takes the paper away with the tuning the Allmaps Viewer uses, not the library defaults', async () => {
+      const { map, previewer, setMapsOptions } = await previewFor();
+      await previewer.preview();
+      firstTile(map);
+      await settle();
+
+      setMapsOptions.mockClear();
+      previewer.applyLayerState(stateFor(true));
+
+      expect(optionsFor(setMapsOptions)).toEqual({ removeColor: true, removeColorColor: '#f0ebdc', removeColorThreshold: 1 / 3, removeColorHardness: 0.1 });
+    });
+
+    // Zero threshold is what actually switches the shader's branch off; removeColor alone leaves it
+    // computing a distance it then ignores
+    it('puts the paper back, threshold and all', async () => {
+      const { map, previewer, setMapsOptions } = await previewFor();
+      await previewer.preview();
+      firstTile(map);
+      await settle();
+
+      previewer.applyLayerState(stateFor(true));
+      setMapsOptions.mockClear();
+      previewer.applyLayerState(stateFor(false));
+
+      expect(optionsFor(setMapsOptions)).toEqual({ removeColor: false, removeColorColor: '#f0ebdc', removeColorThreshold: 0, removeColorHardness: 0.1 });
+    });
+
+    // applyLayerState runs on every frame of an opacity drag, and each of these rebuilds per-map
+    // uniforms and asks for a render
+    it('leaves the layer alone when the toggle itself has not moved', async () => {
+      const { map, previewer, setMapsOptions } = await previewFor();
+      await previewer.preview();
+      firstTile(map);
+      await settle();
+
+      previewer.applyLayerState(stateFor(true));
+      setMapsOptions.mockClear();
+
+      previewer.applyLayerState(new Map([[LAYER_ID, { visible: true, opacity: 0.6, removeBackground: true }]]));
+      previewer.applyLayerState(new Map([[LAYER_ID, { visible: true, opacity: 0.4, removeBackground: true }]]));
+
+      expect(setMapsOptions).not.toHaveBeenCalled();
+    });
+
+    // A sheet of a multi-sheet scan can come into view after the reader has already switched the
+    // toggle on, and the panel's state won't change again by itself to come back for it
+    it('catches up a sheet whose color arrives after the toggle is already on', async () => {
+      const { map, previewer, setMapsOptions } = await previewFor();
+      await previewer.preview();
+      firstTile(map, ['first-sheet']);
+      await settle();
+
+      previewer.applyLayerState(stateFor(true));
+      setMapsOptions.mockClear();
+
+      firstTile(map, ['second-sheet']);
+      await settle();
+
+      expect(setMapsOptions).toHaveBeenCalledWith(['second-sheet'], expect.objectContaining({ removeColor: true, removeColorColor: '#f0ebdc' }), undefined);
+    });
+
+    // A basemap swap rebuilds the style document and draws this preview again from scratch. The
+    // colours are the same scan's, so they are kept - and the row keeps its control rather than
+    // losing it and earning it back a request later.
+    it('keeps what it learned across a basemap swap, and re-applies it to the new layer', async () => {
+      const { map, previewer, setMapsOptions } = await previewFor();
+      await previewer.preview();
+      firstTile(map);
+      await settle();
+      previewer.applyLayerState(stateFor(true));
+
+      await previewer.preview();
+      expect(previewer.previewLayers[0].backgroundRemovable).toBe(true);
+
+      setMapsOptions.mockClear();
+      previewer.applyLayerState(stateFor(true));
+
+      expect(backgroundColorOf).toHaveBeenCalledTimes(1);
+      expect(optionsFor(setMapsOptions)).toMatchObject({ removeColor: true, removeColorColor: '#f0ebdc' });
+    });
+
+    it('keeps the preview and offers no toggle when the thumbnail cannot be read', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      backgroundColorOf.mockRejectedValueOnce(new Error('403 Forbidden'));
+
+      const { map, previewer } = await previewFor();
+      const onLayersChanged = vi.fn();
+      previewer.onLayersChanged = onLayersChanged;
+      await previewer.preview();
+
+      firstTile(map);
+      await settle();
+
+      expect(previewer.previewLayers[0].backgroundRemovable).toBe(false);
+      expect(onLayersChanged).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/background color/i), expect.any(Error));
+    });
+
+    // Mid-rebuild the layer is an object MapLibre has not handed a context to yet, and every call on
+    // it throws 'Renderer not defined' rather than being ignored
+    it('does not reach for a layer the style document no longer holds', async () => {
+      const { map, previewer, setMapsOptions } = await previewFor();
+      await previewer.preview();
+      firstTile(map);
+      await settle();
+
+      map.removeLayer(LAYER_ID);
+      setMapsOptions.mockClear();
+      previewer.applyLayerState(stateFor(true));
+
+      expect(setMapsOptions).not.toHaveBeenCalled();
     });
   });
 

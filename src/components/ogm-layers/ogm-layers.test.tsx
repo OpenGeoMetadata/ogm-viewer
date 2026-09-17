@@ -8,6 +8,10 @@ const item = (id: string, title: string, overrides: Partial<LayerControl> = {}):
 const ONE = [item('districts', 'Districts', { opacity: 0.8 })];
 const TWO = [item('districts', 'Districts'), item('places', 'Places')];
 const RAMPED = [item('elevation', 'Groundwater Elevation', { colorRamp: 'viridis', colorRampRange: [-184.48, 607.27] })];
+// A georeferenced scan whose paper colour has been worked out. The key being there at all is what
+// marks the row as removable - see toLayerControlItems - so false is a row with the toggle off, and
+// an ordinary layer has no key rather than a false one.
+const SCAN = [item('bb013fz9675-georeference', 'Georeferenced map', { opacity: 0.8, removeBackground: false })];
 
 const renderLayers = async (layers: LayerControl[]) => {
   const { root } = await render(<ogm-layers layers={layers}></ogm-layers>);
@@ -167,6 +171,46 @@ describe('ogm-layers', () => {
 
       expect(shadowRoot.querySelector('.ramps')?.getAttribute('aria-label')).toEqual('Color ramp for Groundwater Elevation');
       expect(shadowRoot.querySelector('.swatch input[value="viridis"]')?.getAttribute('aria-label')).toEqual('Viridis');
+    });
+  });
+
+  describe('the background toggle', () => {
+    it('offers it only for a layer whose background can be removed', async () => {
+      expect((await renderLayers(SCAN)).querySelector('.remove-background')).not.toBeNull();
+      expect((await renderLayers(ONE)).querySelector('.remove-background')).toBeNull();
+      expect((await renderLayers(RAMPED)).querySelector('.remove-background')).toBeNull();
+    });
+
+    it('reflects whether the background is already off', async () => {
+      const on = await renderLayers([item('scan', 'Georeferenced map', { removeBackground: true })]);
+      expect(on.querySelector<HTMLInputElement>('.remove-background')?.checked).toBe(true);
+
+      const off = await renderLayers(SCAN);
+      expect(off.querySelector<HTMLInputElement>('.remove-background')?.checked).toBe(false);
+    });
+
+    // A panel listing several layers would otherwise read as several identical checkboxes, which is
+    // also why the opacity slider names its layer
+    it('names the layer it belongs to, for a reader who cannot see which row it is in', async () => {
+      const shadowRoot = await renderLayers(SCAN);
+      const checkbox = shadowRoot.querySelector('.remove-background');
+
+      expect(checkbox?.getAttribute('aria-label')).toEqual('Remove background of Georeferenced map');
+      // The visible text is inside the label, so the whole thing is a click target
+      expect(shadowRoot.querySelector('.background')?.textContent).toContain('Remove background');
+    });
+
+    it('reports when the user asks for the background to go', async () => {
+      const { root, waitForChanges } = await render(<ogm-layers layers={SCAN}></ogm-layers>);
+      const changes: { id: string; removeBackground: boolean }[] = [];
+      root.addEventListener('layerBackgroundRemovalChange', (event: Event) => changes.push((event as CustomEvent<{ id: string; removeBackground: boolean }>).detail));
+
+      const checkbox = getElement(root, '.remove-background') as HTMLInputElement;
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+      await waitForChanges();
+
+      expect(changes).toEqual([{ id: 'bb013fz9675-georeference', removeBackground: true }]);
     });
   });
 });

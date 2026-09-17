@@ -28,6 +28,16 @@ const scalarLayer: Layer = {
   colorRampRange: [-184.48, 607.27],
 };
 
+// A georeferenced scan whose paper colour was worked out. Nothing sets backgroundRemovable until
+// that happens, so the same layer before detection is this one without the flag.
+const scanLayer: Layer = {
+  id: 'stanford-bb013fz9675-georeference',
+  title: 'Georeferenced map',
+  defaultOpacity: 0.8,
+  styleLayers: [{ id: 'stanford-bb013fz9675-georeference', type: 'custom' }],
+  backgroundRemovable: true,
+};
+
 describe('humanizeLayerName', () => {
   it('turns a machine-written tileset name into a readable one', () => {
     expect(humanizeLayerName('landuse_overlay')).toEqual('Landuse overlay');
@@ -51,27 +61,38 @@ describe('resolveLayerState', () => {
   // The same value for both: a user comparing a vector overlay with a raster one is comparing two
   // layers at the same opacity, not one drawn solid over one the theme happened to fade
   it('follows the theme for a row the user has not touched, whatever kind of data it is', () => {
-    expect(resolveLayerState(rasterLayer, new Map())).toEqual({ visible: true, opacity: 0.8 });
-    expect(resolveLayerState(vectorLayer, new Map())).toEqual({ visible: true, opacity: 0.8 });
+    expect(resolveLayerState(rasterLayer, new Map())).toEqual({ visible: true, opacity: 0.8, removeBackground: false });
+    expect(resolveLayerState(vectorLayer, new Map())).toEqual({ visible: true, opacity: 0.8, removeBackground: false });
   });
 
   it('prefers what the user asked for', () => {
     const states = new Map<string, LayerState>([[rasterLayer.id, { visible: false, opacity: 0.25 }]]);
-    expect(resolveLayerState(rasterLayer, states)).toEqual({ visible: false, opacity: 0.25 });
+    expect(resolveLayerState(rasterLayer, states)).toEqual({ visible: false, opacity: 0.25, removeBackground: false });
   });
 
   it('does not let the state of one row leak into another', () => {
     const states = new Map<string, LayerState>([[rasterLayer.id, { visible: false, opacity: 0.25 }]]);
-    expect(resolveLayerState(vectorLayer, states)).toEqual({ visible: true, opacity: 0.8 });
+    expect(resolveLayerState(vectorLayer, states)).toEqual({ visible: true, opacity: 0.8, removeBackground: false });
   });
 
   it("follows the layer's own ramp for a rampable row the user has not touched", () => {
-    expect(resolveLayerState(scalarLayer, new Map())).toEqual({ visible: true, opacity: 0.8, colorRamp: 'viridis' });
+    expect(resolveLayerState(scalarLayer, new Map())).toEqual({ visible: true, opacity: 0.8, colorRamp: 'viridis', removeBackground: false });
   });
 
   it('prefers the ramp the user chose', () => {
     const states = new Map<string, LayerState>([[scalarLayer.id, { visible: true, opacity: 0.8, colorRamp: 'magma' }]]);
     expect(resolveLayerState(scalarLayer, states).colorRamp).toEqual('magma');
+  });
+
+  it("prefers the reader's choice about the background", () => {
+    const states = new Map<string, LayerState>([[scanLayer.id, { visible: true, opacity: 0.8, removeBackground: true }]]);
+    expect(resolveLayerState(scanLayer, states).removeBackground).toBe(true);
+  });
+
+  // Unlike the ramp below, which falls back to the layer's own: there is no such thing as a scan that
+  // arrives with its paper already taken off, so an untouched row is the scan as it was published
+  it('leaves the background alone for a removable row the user has not touched', () => {
+    expect(resolveLayerState(scanLayer, new Map()).removeBackground).toBe(false);
   });
 
   // The case a whole-object fallback (states.get(id) ?? default) would get wrong: a state already
@@ -126,5 +147,20 @@ describe('toLayerControlItems', () => {
 
     const [vector] = toLayerControlItems([vectorLayer], new Map());
     expect(Object.keys(vector).sort()).toEqual(['id', 'opacity', 'title', 'visible']);
+  });
+
+  // Same reasoning as the ramp above, and it matters more here: the panel decides whether to draw the
+  // background toggle at all by whether this key is there, so false and absent are different answers
+  it('carries the background toggle only for a layer whose background can be removed', () => {
+    const [scan] = toLayerControlItems([scanLayer], new Map());
+    expect(scan).toEqual({ id: scanLayer.id, title: 'Georeferenced map', visible: true, opacity: 0.8, removeBackground: false });
+
+    const [undetected] = toLayerControlItems([{ ...scanLayer, backgroundRemovable: undefined }], new Map());
+    expect(Object.keys(undetected).sort()).toEqual(['id', 'opacity', 'title', 'visible']);
+  });
+
+  it('reflects a background the reader has already taken off', () => {
+    const states = new Map<string, LayerState>([[scanLayer.id, { visible: true, opacity: 0.8, removeBackground: true }]]);
+    expect(toLayerControlItems([scanLayer], states)[0].removeBackground).toBe(true);
   });
 });

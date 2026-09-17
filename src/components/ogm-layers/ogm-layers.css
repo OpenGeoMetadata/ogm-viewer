@@ -145,3 +145,20 @@
   outline: 2px solid var(--wa-color-brand-fill-loud, currentColor);
   outline-offset: 1px;
 }
+
+/* The background toggle's own row. A label wrapping both the box and its text, so the whole thing is
+   a click target; the box itself is styled like the visibility checkbox above, since they are the
+   same kind of control. */
+.background {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: var(--wa-space-xs);
+  min-width: 0;
+}
+
+.remove-background {
+  accent-color: var(--wa-color-brand-fill-loud, currentColor);
+  flex: none;
+  margin: 0;
+}
