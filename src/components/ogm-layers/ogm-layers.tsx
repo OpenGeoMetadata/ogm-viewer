@@ -17,6 +17,7 @@ export class OgmLayers {
   @Event() layerVisibilityChange: EventEmitter<{ id: string; visible: boolean }>;
   @Event() layerOpacityChange: EventEmitter<{ id: string; opacity: number }>;
   @Event() layerColorRampChange: EventEmitter<{ id: string; colorRamp: ColorRampName }>;
+  @Event() layerBackgroundRemovalChange: EventEmitter<{ id: string; removeBackground: boolean }>;
   @Event() allLayersVisibilityChange: EventEmitter<boolean>;
 
   // The sprite every ramp swatch draws its gradient from - see colormapSprite(). Loaded before the
@@ -60,6 +61,10 @@ export class OgmLayers {
     this.layerColorRampChange.emit({ id: layer.id, colorRamp: (event.target as HTMLInputElement).value as ColorRampName });
   }
 
+  private onBackgroundRemovalInput(layer: LayerControl, event: Event) {
+    this.layerBackgroundRemovalChange.emit({ id: layer.id, removeBackground: (event.target as HTMLInputElement).checked });
+  }
+
   render() {
     if (!this.layers.length) return null;
 
@@ -100,6 +105,24 @@ export class OgmLayers {
                   />
                   <span class="percent">{Math.round(layer.opacity * 100)}%</span>
                 </div>
+                {layer.removeBackground !== undefined && (
+                  <div class="row">
+                    {/* The text is inside the label so it is a click target too, and the input still
+                        carries an aria-label of its own: a panel listing several layers would
+                        otherwise read as several identical "Remove background" checkboxes, the same
+                        reason the opacity slider above names its layer. */}
+                    <label class="background">
+                      <input
+                        class="remove-background"
+                        type="checkbox"
+                        checked={layer.removeBackground}
+                        aria-label={`Remove background of ${layer.title}`}
+                        onChange={event => this.onBackgroundRemovalInput(layer, event)}
+                      />
+                      Remove background
+                    </label>
+                  </div>
+                )}
                 {layer.colorRamp && (
                   <div class="row">
                     <fieldset class="ramps" aria-label={`Color ramp for ${layer.title}`}>

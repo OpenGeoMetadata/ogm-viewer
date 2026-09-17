@@ -305,6 +305,7 @@ declare global {
         "layerVisibilityChange": { id: string; visible: boolean };
         "layerOpacityChange": { id: string; opacity: number };
         "layerColorRampChange": { id: string; colorRamp: ColorRampName };
+        "layerBackgroundRemovalChange": { id: string; removeBackground: boolean };
         "allLayersVisibilityChange": boolean;
     }
     interface HTMLOgmLayersElement extends Components.OgmLayers, HTMLStencilElement {
@@ -497,6 +498,7 @@ declare namespace LocalJSX {
          */
         "layers"?: LayerControl[];
         "onAllLayersVisibilityChange"?: (event: OgmLayersCustomEvent<boolean>) => void;
+        "onLayerBackgroundRemovalChange"?: (event: OgmLayersCustomEvent<{ id: string; removeBackground: boolean }>) => void;
         "onLayerColorRampChange"?: (event: OgmLayersCustomEvent<{ id: string; colorRamp: ColorRampName }>) => void;
         "onLayerOpacityChange"?: (event: OgmLayersCustomEvent<{ id: string; opacity: number }>) => void;
         "onLayerVisibilityChange"?: (event: OgmLayersCustomEvent<{ id: string; visible: boolean }>) => void;

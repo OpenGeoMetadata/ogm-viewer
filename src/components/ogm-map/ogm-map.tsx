@@ -310,6 +310,13 @@ export class OgmMap {
     previewer.onNotice = notice => {
       if (this.previewer === previewer) this.notice = notice;
     };
+    // A preview whose layers can still change after they are drawn - a georeferenced scan works its
+    // background colour out from a thumbnail it has to fetch, and only then has a toggle to offer.
+    // Bound the same way, so a colour that arrives for the record we just left cannot rebuild the
+    // panel of the one that replaced it.
+    previewer.onLayersChanged = () => {
+      if (this.previewer === previewer) this.setupLayerControls();
+    };
 
     try {
       // The style is only known now: it comes out of the theme, and the theme can change under a
@@ -607,6 +614,12 @@ export class OgmMap {
   handleLayerColorRampChange(event: CustomEvent<{ id: string; colorRamp: LayerState['colorRamp'] }>) {
     event.stopPropagation();
     this.setLayerState(event.detail.id, { colorRamp: event.detail.colorRamp });
+  }
+
+  @Listen('layerBackgroundRemovalChange')
+  handleLayerBackgroundRemovalChange(event: CustomEvent<{ id: string; removeBackground: boolean }>) {
+    event.stopPropagation();
+    this.setLayerState(event.detail.id, { removeBackground: event.detail.removeBackground });
   }
 
   // Used when the user toggles the summary checkbox to show/hide all layers at once

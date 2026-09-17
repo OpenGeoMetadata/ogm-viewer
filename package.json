@@ -61,6 +61,7 @@
   "license": "MIT",
   "dependencies": {
     "@allmaps/maplibre": "^1.0.0-beta.43",
+    "@allmaps/stdlib": "^1.0.0-beta.41",
     "@awesome.me/webawesome": "^3.10.0",
     "@chunkd/middleware": "^11.3.0",
     "@chunkd/source": "^11.4.0",
