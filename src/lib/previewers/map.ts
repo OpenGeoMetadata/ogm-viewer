@@ -16,12 +16,11 @@ export type MapProjection = 'globe' | 'mercator';
 export default abstract class MapPreviewer extends Previewer {
   readonly renderer = 'map' as const;
 
-  // The projection this preview needs. Globe reads better for anything worldwide, so it's the default
-  // and everything MapLibre draws itself keeps it. The two previews that paint with their own WebGL
-  // both ask for a flat map instead, for their own reasons: deck.gl's tile layers have no bounding
-  // volume implemented for a globe view and report an error every frame they try to cull against one,
-  // and Allmaps works its viewport out as though the map were flat. <ogm-map> hides the globe control
-  // for anything but 'globe', so a preview can't be put back into a projection it isn't drawn in.
+  // The projection this preview needs. Globe reads better for anything worldwide, so it's the default,
+  // and everything MapLibre draws itself keeps it - as does the COG preview, which deck.gl warps onto
+  // the sphere. The one preview that asks for a flat map instead is the georeferenced scan: Allmaps
+  // works its viewport out as though the map were flat. <ogm-map> hides the globe control for anything
+  // but 'globe', so a preview can't be put back into a projection it isn't drawn in.
   readonly projection: MapProjection = 'globe';
 
   // How long this preview has to put something on the map before whoever draws it calls the load a

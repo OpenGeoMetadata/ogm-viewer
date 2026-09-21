@@ -37,6 +37,26 @@ class FakeMap {
   addControl(control: unknown) {
     this._controls.push(control);
   }
+
+  // Enough of MapLibre's event emitter for the projection watch in CogPreviewer. once() is on()
+  // here: nothing in these tests removes a map, so the distinction never comes up.
+  listeners = new Map<string, Set<() => void>>();
+  on(event: string, fn: () => void) {
+    if (!this.listeners.has(event)) this.listeners.set(event, new Set());
+    this.listeners.get(event)!.add(fn);
+  }
+  once(event: string, fn: () => void) {
+    this.on(event, fn);
+  }
+  off(event: string, fn: () => void) {
+    this.listeners.get(event)?.delete(fn);
+  }
+  emit(event: string) {
+    this.listeners.get(event)?.forEach(fn => fn());
+  }
+  listenerCount(event: string) {
+    return this.listeners.get(event)?.size ?? 0;
+  }
   setLayoutProperty(_id: string, name: string) {
     throw new Error(`MapLibre has no layer here to set ${name} on`);
   }
@@ -298,14 +318,50 @@ describe('CogPreviewer', () => {
     expect(previewer.pool).toBe(other.pool);
   });
 
-  // deck.gl's TileLayer has no getBoundingVolume for a globe view and logs an error for every frame
-  // it tries to cull against one, so this preview asks for the flat map instead
-  it('asks for a flat map rather than the globe everything else is drawn on', () => {
+  // @deck.gl/maplibre picks its view from the map's projection when its props are set and on
+  // 'styledata', and setProjection raises neither - only 'projectiontransition'. Left alone, the
+  // overlay keeps drawing through the GlobeView it was built with after a reader presses the globe
+  // button off, and the COG lands in the wrong place. See CogPreviewer.watchProjection.
+  describe('when the map changes projection', () => {
+    it('hands the overlay its layers again, which is what makes it re-read the projection', async () => {
+      const { map, previewer } = previewFor();
+      await previewer.preview();
+
+      const before = previewer.overlay.props.length;
+      map.emit('projectiontransition');
+
+      expect(previewer.overlay.props.length).toEqual(before + 1);
+      expect(previewer.overlay.lastLayers).toHaveLength(1);
+    });
+
+    // A theme change draws this preview again into a rebuilt style document, with no clearPreview
+    // between - so attach() runs twice on the same map and must not leave two listeners
+    it('watches once however many times it is attached', async () => {
+      const { map, previewer } = previewFor();
+      previewer.attach(map as unknown as MapLibreMap, style);
+      await previewer.preview();
+
+      expect(map.listenerCount('projectiontransition')).toEqual(1);
+    });
+
+    it('stops watching once the preview is cleared', async () => {
+      const { map, previewer } = previewFor();
+      await previewer.preview();
+      await previewer.clearPreview();
+
+      expect(map.listenerCount('projectiontransition')).toEqual(0);
+    });
+  });
+
+  // This preview asked for a flat map until deck.gl-raster implemented a globe bounding volume for
+  // its tile traversal - see the note on CogPreviewer. Worth asserting rather than leaving to the
+  // inherited default: what it turns on is a globe button <ogm-map> would otherwise keep hidden, and
+  // the dependency that earned it is pinned to a prerelease something may yet move off.
+  it('is drawn on the globe everything else is drawn on', () => {
     const { previewer } = previewFor();
 
-    expect(previewer.projection).toEqual('mercator');
-    // Which is a departure worth noticing if it is ever lost: every other map preview takes
-    // MapPreviewer's own globe default, RasterPreviewer here standing in for all of them
+    expect(previewer.projection).toEqual('globe');
+    // The same answer MapPreviewer gives every other map preview, RasterPreviewer standing in here
     expect(new RasterPreviewer(new CogResource('id', COG_URL)).projection).toEqual('globe');
   });
 

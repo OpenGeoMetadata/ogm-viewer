@@ -25,10 +25,16 @@ const HEADER_TIMEOUT = 10_000;
 export default class CogPreviewer extends MapPreviewer {
   declare protected resource: CogResource;
 
-  // deck.gl's TileLayer, which COGLayer draws through, has no getBoundingVolume for a globe view and
-  // logs an error every frame it tries to cull tiles against one. The COG still draws, but the
-  // console fills up, so this preview asks for the flat map it can actually be culled in.
-  readonly projection = 'mercator' as const;
+  // No projection of its own: this preview takes MapPreviewer's globe default like everything else.
+  // It asked for a flat map until @developmentseed/deck.gl-raster 0.8.0-beta.2, whose tile traversal
+  // had `assert(false, "TODO: implement getBoundingVolume in Globe view")` where a globe bounding
+  // volume belongs - so tile selection threw on every frame, nothing was ever drawn, and the preview
+  // failed on <ogm-map>'s load deadline. See developmentseed/deck.gl-raster#563, which implemented
+  // it, and #82, which tracks what is left. The three @developmentseed packages are pinned to that
+  // exact prerelease in package.json rather than carried on a range: it is the only published
+  // version with this, and 0.7.0 is still what `latest` points at.
+  //
+  // The parameters createDeckLayer passes are part of this - see the note there.
 
   // deck.gl tells us when a tile is drawn, which nothing on the map would; see reportTileDrawn
   readonly reportsDrawing = true;
@@ -74,8 +80,50 @@ export default class CogPreviewer extends MapPreviewer {
     this.drawnState = { visible: true, opacity: style.opacity };
     this.geotiffBoundsLoaded = new Promise(resolve => (this.resolveGeotiffBounds = resolve));
     this.anyTileDrawn = false;
+    this.watchProjection();
     return this;
   }
+
+  /**
+   * Tell the overlay the map's projection changed, because MapLibre doesn't tell it in a way it
+   * hears.
+   *
+   * @deck.gl/maplibre decides between a MapView and a GlobeView by asking the map which projection
+   * it is in, and it asks in two places: whenever its own props are set, and on 'styledata'.
+   * setProjection() announces itself as 'projectiontransition' and raises no 'styledata' at all, so
+   * a reader pressing the globe button off leaves the overlay drawing through the GlobeView it was
+   * built with while MapLibre has gone back to drawing flat. The COG is then drawn in the wrong
+   * place - 12px out at zoom 4, 80px at zoom 3 - and stays there: no pan, zoom or later frame puts
+   * it back, because none of them is a style change either.
+   *
+   * Handing the overlay its layers again is the nudge, since setProps is one of the two places it
+   * re-reads the projection. Cheap: deck.gl matches the layer by id and updates props in place, so
+   * the tiles already decoded are kept.
+   *
+   * Remove this when @deck.gl/maplibre watches 'projectiontransition' itself.
+   *
+   * Taken off first for the same reason EsriFeatureLayerPreviewer does it: a theme change draws
+   * this preview again into a rebuilt style document with no clearPreview between, and that must
+   * leave one listener rather than two.
+   */
+  protected watchProjection() {
+    this.map.off('projectiontransition', this.handleProjectionTransition);
+    this.map.on('projectiontransition', this.handleProjectionTransition);
+    this.map.off('remove', this.stopWatchingProjection);
+    this.map.once('remove', this.stopWatchingProjection);
+  }
+
+  // Bound instance properties rather than methods, so off() has the same function to remove that
+  // on() was given
+  private stopWatchingProjection = () => {
+    if (!this.attached) return;
+    this.map.off('projectiontransition', this.handleProjectionTransition);
+    this.map.off('remove', this.stopWatchingProjection);
+  };
+
+  private handleProjectionTransition = () => {
+    this.drawDeckLayer();
+  };
 
   // Nothing for MapLibre to fetch or draw: deck.gl reads the COG itself, through the source opened in
   // preview() rather than through MapLibre's transformRequest.
@@ -125,6 +173,7 @@ export default class CogPreviewer extends MapPreviewer {
   }
 
   async clearPreview() {
+    this.stopWatchingProjection();
     await super.clearPreview();
     this.deckOverlay?.setProps({ layers: [] });
     this.geotiff = undefined;
@@ -175,6 +224,11 @@ export default class CogPreviewer extends MapPreviewer {
       },
       onTileLoad: () => this.reportTileDrawn(),
       onTileError: (error: unknown) => this.reportTileError(error),
+      // On a globe the warped raster is coplanar with MapLibre's own sphere and shares the depth
+      // buffer it draws into, so the two z-fight. A depth bias doesn't reach it - MapLibre encodes
+      // globe depth its own way - so the depth test is skipped entirely and the far hemisphere is
+      // hidden by winding instead. 'back' is right for an interleaved overlay on MapLibre; a deck.gl
+      // _GlobeView standing on its own would want 'front'. See visgl/deck.gl#9592.
       parameters: { depthCompare: 'always' as const, cullMode: 'back' as const },
       pool: this.decoderPool,
     };
