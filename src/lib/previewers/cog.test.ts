@@ -506,6 +506,92 @@ describe('CogPreviewer', () => {
     });
   });
 
+  // deck.gl caches whatever getTileData returned and evicts it without disposing of anything
+  // inside, so every GPU texture the two pipelines upload per tile is this previewer's to free.
+  // Without that, panning across a large COG leaves every tile it ever decoded resident on the GPU
+  // for the life of the page. See https://github.com/developmentseed/deck.gl-raster/issues/591.
+  describe('a tile evicted from the cache', () => {
+    // Stands in for a luma.gl texture, recording whether it was freed - which is the whole of what
+    // these tests are asking about
+    const fakeTexture = () => ({
+      destroyed: 0,
+      destroy() {
+        this.destroyed += 1;
+      },
+    });
+
+    // deck.gl hands the evicted tile back, decoded data and all, on `content`
+    const unload = (previewer: TestCogPreviewer, content: unknown) => previewer.overlay.lastLayers[0].props.onTileUnload({ content });
+
+    const scalarPreview = async () => {
+      const { previewer } = previewFor();
+      previewer.geotiffToLoad = FAKE_SCALAR_GEOTIFF;
+      await previewer.preview();
+      return previewer;
+    };
+
+    const scalarTile = (texture: unknown, colormapTexture: unknown) => ({ width: 256, height: 256, byteLength: 262144, texture, colormapTexture });
+
+    it("frees the scalar pipeline's upload of the tile", async () => {
+      const previewer = await scalarPreview();
+      const texture = fakeTexture();
+
+      unload(previewer, scalarTile(texture, fakeTexture()));
+
+      expect(texture.destroyed).toEqual(1);
+    });
+
+    // The ramp sprite is uploaded once per Device and shared by every scalar tile on the page - see
+    // the colormapTextures WeakMap in src/lib/cog-pipeline.ts. Freeing it along with the first tile
+    // evicted would leave every tile still on screen sampling a texture that no longer exists, and
+    // the WeakMap would go on handing the dead one to every tile decoded afterwards.
+    it('leaves the colormap alone, which every other tile is still sampling', async () => {
+      const previewer = await scalarPreview();
+      const colormapTexture = fakeTexture();
+
+      unload(previewer, scalarTile(fakeTexture(), colormapTexture));
+
+      expect(colormapTexture.destroyed).toEqual(0);
+    });
+
+    // Upstream's own inferRenderPipeline uploads a texture per tile too - two, for a COG carrying a
+    // mask - and deck.gl-geotiff destroys neither, so an ordinary COG leaks exactly as a scalar one
+    // does. Its palette colormap is not reached from here at all: that one belongs to the render
+    // pipeline rather than to any tile.
+    it('frees the textures of an ordinary COG, which deck.gl-geotiff does not own either', async () => {
+      const { previewer } = previewFor();
+      await previewer.preview();
+      const texture = fakeTexture();
+      const mask = fakeTexture();
+
+      unload(previewer, { width: 256, height: 256, byteLength: 262144, texture, mask });
+
+      expect(texture.destroyed).toEqual(1);
+      expect(mask.destroyed).toEqual(1);
+    });
+
+    // A COG without one decodes to a tile with no mask at all, which is not a tile half-freed
+    it('is untroubled by an ordinary COG that carries no mask', async () => {
+      const { previewer } = previewFor();
+      await previewer.preview();
+      const texture = fakeTexture();
+
+      expect(() => unload(previewer, { width: 256, height: 256, byteLength: 262144, texture })).not.toThrow();
+      expect(texture.destroyed).toEqual(1);
+    });
+
+    // deck.gl evicts a tile still in flight as readily as a finished one, and one that failed never
+    // decoded to anything either - both arrive with nothing to free. This is why the previewer reads
+    // `content` rather than the `data` upstream's own example does: `data` answers a Promise while
+    // the tile is loading, and reaching through that for a texture would throw from inside deck.gl's
+    // cache resize.
+    it('has nothing to free for a tile that never finished loading', async () => {
+      const previewer = await scalarPreview();
+
+      expect(() => unload(previewer, null)).not.toThrow();
+    });
+  });
+
   it('takes its layer off the overlay when cleared', async () => {
     const { previewer } = previewFor();
     await previewer.preview();
