@@ -469,10 +469,10 @@ describe('ogm-map', () => {
     expect(noticeTexts(el)).toEqual([]);
   });
 
-  // Every one of these used to be dropped: the filter asked whether the failure was one of the
-  // preview's own sources, and a preview that paints its own pixels has none - so a map that had lost
-  // its backdrop tile by tile said nothing at all about why.
-  it('says the basemap is missing when its tiles fail, without failing the preview', async () => {
+  // A basemap drops tiles for all sorts of ordinary reasons, and one that came up with holes in it is
+  // still a backdrop with the preview drawn over it. Saying so put a warning on maps a reader could
+  // see were fine, and often - these arrive one per tile.
+  it('says nothing when a basemap that came up loses tiles', async () => {
     const { el } = await renderMap('https://example.com/light.json');
     const map = loadingMap();
     const previewer = drawablePreviewer();
@@ -484,28 +484,27 @@ describe('ogm-map', () => {
     raiseMapError(el, 'carto');
     await settle();
 
-    // A basemap with holes in it, not a missing one - a reader can see the difference, so the notice
-    // shouldn't claim the preview is drawn without a basemap
-    expect(noticeTexts(el).join()).toContain('Part of the basemap');
+    expect(noticeTexts(el)).toEqual([]);
+    // Not the preview's failure either: it is drawn on whatever is left of the basemap, rather than
+    // reported or started over on an empty one
     expect(reported).not.toHaveBeenCalled();
-    // The preview is drawn on whatever is left of the basemap, rather than started over on an empty one
     expect(map.setStyle).not.toHaveBeenCalled();
-
-    // The style document either way: the tile URLs come from inside it, so it is the thing to name
-    expect(basemapUrl(el)?.textContent).toBe('https://example.com/light.json');
   });
 
   // Both can be up at once, and they don't mean the same thing: one is about how to read the view,
-  // the other about the map under it being incomplete
+  // the other about the map under it being missing
   it('tells its two kinds of notice apart when both are up', async () => {
     const { el } = await renderMap();
     const map = loadingMap();
     const previewer = drawablePreviewer();
     Object.assign(el, { map, layersControl: fakeLayersControl(), previewer });
 
+    raiseMapError(el);
+    await settleBasemap();
+    // The empty style the fallback hands over fires style.load like any other, which is what lets the
+    // preview - and so its notice - arrive on a map that lost its basemap
     await styleLoads(el, map);
     previewer.onNotice?.('Zoom in to see this layer’s features.');
-    raiseMapError(el, 'carto');
     await settle();
 
     // The preview's own comes first, in document order

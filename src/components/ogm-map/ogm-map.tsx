@@ -49,12 +49,10 @@ const MIN_ZOOM = 1;
 // comfortably longer than the gap it is covering rather than tight. See confirmBasemapFailure.
 const BASEMAP_GRACE = 250;
 
-// What a map says about a basemap that let it down. Two messages because the two failures leave
-// visibly different maps: a style document that never arrived leaves no basemap at all, while tiles
-// failing one at a time leaves a basemap with holes in it - and telling a reader the preview is
-// "drawn without one" while they can see roads under it would just be wrong.
+// What a map says about a basemap that never arrived at all. Only that failure is said out loud: a
+// basemap that came up and then lost tiles is still a basemap, and a reader looking at roads under
+// the preview doesn't need to be told part of them is missing.
 const NO_BASEMAP = 'The basemap could not be loaded.';
-const PARTIAL_BASEMAP = 'Part of the basemap could not be loaded.';
 
 // A component for rendering an interactive data preview on a map
 @Component({
@@ -393,18 +391,17 @@ export class OgmMap {
   }
 
   // Surface MapLibre errors tied to the current preview, deduped to a single alert per load attempt.
-  // Everything else it reports is the basemap's - a style document, a tile, a sprite, a glyph range -
-  // and none of that is worth an alert, since a preview drawn over a basemap with holes in it is
-  // still a preview. But none of it is worth swallowing either, which is what happened before: a
-  // preview that paints its own pixels has no sourceIds at all, so every basemap failure was dropped
-  // on the second line and a map that had lost its backdrop said nothing about why.
+  // Everything else it reports once the style document is up is the basemap's - a tile, a sprite, a
+  // glyph range - and a basemap missing some of those is still a backdrop, so none of it is said out
+  // loud. They arrive often enough (one per tile a CDN drops) that a notice about them would be up
+  // on maps that look perfectly fine.
   protected handleMapError(event: ErrorEvent & { sourceId?: string }) {
     // Nothing but the style document can have failed this early - a map has no sources until a style
     // document brings them - and that failure is the expensive one, so it is checked before anything
     // else. See confirmBasemapFailure.
     if (!this.mapStyleLoaded) return this.confirmBasemapFailure();
 
-    if (!this.previewer?.sourceIds.includes(event.sourceId ?? '')) return this.noteBasemapTrouble(PARTIAL_BASEMAP);
+    if (!this.previewer?.sourceIds.includes(event.sourceId ?? '')) return;
     if (this.errorReported) return;
     this.reportError(event.error);
   }
@@ -449,24 +446,15 @@ export class OgmMap {
    * give up on the second - but it is a reason to say so, which the notice does.
    */
   protected fallBackToEmptyBasemap() {
-    // Before the swap, while the theme is still being asked for the basemap that failed rather than
-    // for the empty one replacing it
-    this.noteBasemapTrouble(NO_BASEMAP);
-    this.map.setStyle(this.mapTheme.getFallbackBaseMapStyle());
-  }
-
-  // Say what the basemap did, and name it. Kept apart from `notice`, which belongs to the preview and
-  // is cleared with every load attempt: this one is about the map under the preview, and stays true
-  // until a basemap is asked for again.
-  //
-  // The style document's own URL either way, including when what failed was a tile: the tile URLs
-  // come from inside that document, so it is the thing a reader - or whoever they pass this on to -
-  // can actually go and look at. Read from the theme rather than taken off the error, which carries
-  // no URL at all for the failure that matters most here (a refused cross-origin request rejects with
-  // a bare TypeError).
-  protected noteBasemapTrouble(message: string) {
-    this.basemapNotice = message;
+    // Said before the swap, while the theme is still being asked for the basemap that failed rather
+    // than for the empty one replacing it. Kept apart from `notice`, which belongs to the preview and
+    // is cleared with every load attempt: this one is about the map under the preview, and stays true
+    // until a basemap is asked for again. Named from the theme rather than off the error, which
+    // carries no URL at all for the failure that matters most here (a refused cross-origin request
+    // rejects with a bare TypeError).
+    this.basemapNotice = NO_BASEMAP;
     this.failedBasemap = this.mapTheme.getBaseMapStyle();
+    this.map.setStyle(this.mapTheme.getFallbackBaseMapStyle());
   }
 
   // One tile of the current preview arriving is the only proof that the preview is really there, so
