@@ -125,6 +125,20 @@ export async function scalarGetTileData(
   };
 }
 
+// Frees the GPU memory one tile held, once deck.gl has dropped it. deck.gl caches whatever
+// getTileData returned and evicts it without disposing of anything inside, so the r32float upload
+// above outlives the tile unless something destroys it - and an unbounded pan across a large COG
+// leaves every tile it ever decoded resident on the GPU. See the note on onTileUnload in
+// src/lib/previewers/cog.ts for where deck.gl hands this back.
+//
+// The tile's own texture and nothing else: colormapTexture is the ramp sprite shared by every
+// scalar tile on the Device (see colormapTextures above), so destroying it with the first tile
+// evicted would leave every tile still on screen - and every tile decoded afterwards, since the
+// WeakMap would keep handing out the dead one - sampling a destroyed texture.
+export function releaseScalarTile(data: ScalarTileData | null | undefined) {
+  data?.texture.destroy();
+}
+
 // A single band's samples, however the decoder answered: band-separate (LERC always does, and
 // PlanarConfiguration=2 does for any codec) or pixel-interleaved (everything else, and LERC's own
 // codec output for a one-band file is identical either way - there is only one band to separate).

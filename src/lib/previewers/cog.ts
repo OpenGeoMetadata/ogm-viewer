@@ -1,10 +1,11 @@
 import { MapLibreOverlay as DeckOverlay } from '@deck.gl/maplibre';
 import { COGLayer } from '@developmentseed/deck.gl-geotiff';
 import type { DecoderPool, GeoTIFF } from '@developmentseed/geotiff';
+import type { Texture } from '@luma.gl/core';
 import type { AddLayerObject, LngLatBoundsLike, MapLibreMap } from 'maplibre-gl';
 
 import MapPreviewer from './map';
-import { isScalarSampleFormat, scalarGetTileData, scalarRange, scalarRenderTile, type ScalarRange, type ScalarTileData } from '../cog-pipeline';
+import { isScalarSampleFormat, releaseScalarTile, scalarGetTileData, scalarRange, scalarRenderTile, type ScalarRange, type ScalarTileData } from '../cog-pipeline';
 import type CogResource from '../resources/cog';
 import { DEFAULT_COLOR_RAMP } from '../colormap';
 import { decoderPool } from '../decoder';
@@ -15,6 +16,25 @@ import type { MapLibreStyle } from '../themes/maplibre';
 // How long to wait for deck.gl to read the GeoTIFF's header when the record declared no bounding box
 // of its own. A COG that never answers must not leave the map spinning with nowhere to point.
 const HEADER_TIMEOUT = 10_000;
+
+// The tile deck.gl hands to onTileUnload, narrowed to the one field this file reads. A tile is
+// evicted from deck.gl's cache without anything inside it being disposed of - it caches whatever
+// getTileData returned and drops the reference - so every texture either pipeline below uploads per
+// tile is ours to destroy, or it stays on the GPU for the life of the page. See
+// https://github.com/developmentseed/deck.gl-raster/issues/591.
+//
+// Deliberately content, not the data upstream's own example reaches for: data is a getter that
+// answers a Promise while the tile is still loading, and deck.gl evicts a tile still in flight as
+// readily as a finished one - so `tile.data?.texture.destroy()` would throw on exactly that tile,
+// from inside deck.gl's own cache resize. content is the decoded tile, or null for one that never
+// got that far.
+type UnloadedTile = { content: unknown };
+
+// What @developmentseed/deck.gl-geotiff's own inferred pipeline leaves in a tile for us to free: a
+// texture of the samples, and a second one for the mask of a COG that carries one. Spelled out here
+// rather than imported - upstream exports no type for it, and COGLayer's default generic parameter
+// names the samples but not the mask.
+type InferredTileData = { texture: Texture; mask?: Texture };
 
 // Draws a Cloud Optimized GeoTIFF with deck.gl, which warps it as it draws - so a COG is drawn
 // whatever projection it is in, not only one already in Web Mercator.
@@ -179,13 +199,27 @@ export default class CogPreviewer extends MapPreviewer {
       pool: this.decoderPool,
     };
 
-    if (!range) return new COGLayer(shared);
+    if (!range)
+      return new COGLayer({
+        ...shared,
+        // deck.gl-geotiff's own inferRenderPipeline uploads these and destroys neither - see
+        // UnloadedTile above. Its palette colormap needs no such care and must not get it: that one
+        // is built once per file, held by the render pipeline rather than by any tile.
+        onTileUnload: (tile: UnloadedTile) => {
+          const data = tile.content as InferredTileData | null;
+          data?.texture.destroy();
+          data?.mask?.destroy();
+        },
+      });
 
     const ramp = state.colorRamp ?? DEFAULT_COLOR_RAMP;
     return new COGLayer({
       ...shared,
       getTileData: scalarGetTileData,
       renderTile: scalarRenderTile(ramp, range),
+      // The other half of scalarGetTileData: what it uploaded per tile, freed once deck.gl is done
+      // with the tile. See releaseScalarTile for which of the tile's two textures that is.
+      onTileUnload: (tile: UnloadedTile) => releaseScalarTile(tile.content as ScalarTileData | null),
       // Without this, a ramp swatch click would do nothing visible: drawDeckLayer rebuilds the
       // layer object on every layer-state change, but deck.gl matches it by id and updates props in
       // place rather than re-rendering from scratch, so the inner TileLayer keeps whichever shader
