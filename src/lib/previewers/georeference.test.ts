@@ -96,8 +96,14 @@ const warpedMapFor = (mapId = 'map-id') =>
     ],
   }) as unknown as ReturnType<WarpedMapLayer['getWarpedMap']>;
 
+// What @allmaps/render answers addGeoreferenceAnnotation with: one result per map in the annotation,
+// each either an ok one naming the map it added or a failed one carrying that map's error. Built here
+// rather than written out, because only the two fields the previewer reads are ever interesting.
+const added = (mapId = 'map-id', index = 0) => ({ ok: true as const, mapId, index });
+const failed = (message: string, index = 0) => ({ ok: false as const, error: new Error(message), index });
+
 const previewFor = async () => {
-  const addAnnotation = vi.spyOn(WarpedMapLayer.prototype, 'addGeoreferenceAnnotation').mockReturnValue(['map-id']);
+  const addAnnotation = vi.spyOn(WarpedMapLayer.prototype, 'addGeoreferenceAnnotation').mockReturnValue([added()]);
   const setOpacity = vi.spyOn(WarpedMapLayer.prototype, 'setOpacity').mockImplementation(() => {});
   // setMapOptions delegates to this one, so a single spy catches both the whole-layer push and the
   // single-sheet catch-up
@@ -161,7 +167,7 @@ describe('GeoreferencePreviewer', () => {
     // Allmaps builds its renderer in the layer's onAdd and throws if handed an annotation first
     addAnnotation.mockImplementation(() => {
       expect(map.layers.has('bb013fz9675-georeference')).toBe(true);
-      return ['map-id'];
+      return [added()];
     });
 
     await previewer.preview();
@@ -207,7 +213,7 @@ describe('GeoreferencePreviewer', () => {
   it('fails the preview when every map in the annotation is unreadable', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { previewer, addAnnotation } = await previewFor();
-    addAnnotation.mockReturnValue([new Error('unsupported transformation')]);
+    addAnnotation.mockReturnValue([failed('unsupported transformation')]);
 
     await expect(previewer.preview()).rejects.toThrow('unsupported transformation');
     expect(warn).toHaveBeenCalled();
@@ -217,7 +223,7 @@ describe('GeoreferencePreviewer', () => {
   it('still draws when only some of the maps in the annotation are unreadable', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { previewer, addAnnotation } = await previewFor();
-    addAnnotation.mockReturnValue(['map-id', new Error('unsupported transformation')]);
+    addAnnotation.mockReturnValue([added(), failed('unsupported transformation', 1)]);
 
     await expect(previewer.preview()).resolves.toBeUndefined();
     expect(warn).toHaveBeenCalled();
@@ -441,7 +447,7 @@ describe('GeoreferencePreviewer', () => {
 
     it("falls back to the record's own bounds when the annotation described nothing drawable", async () => {
       vi.spyOn(WarpedMapLayer.prototype, 'getBounds').mockReturnValue(undefined);
-      vi.spyOn(WarpedMapLayer.prototype, 'addGeoreferenceAnnotation').mockReturnValue(['map-id']);
+      vi.spyOn(WarpedMapLayer.prototype, 'addGeoreferenceAnnotation').mockReturnValue([added()]);
       vi.spyOn(WarpedMapLayer.prototype, 'setOpacity').mockImplementation(() => {});
 
       const declared: LngLatBoundsLike = [

@@ -60,8 +60,8 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@allmaps/maplibre": "^1.0.0-beta.43",
-    "@allmaps/stdlib": "^1.0.0-beta.41",
+    "@allmaps/background-color": "^1.0.0-beta.2",
+    "@allmaps/maplibre": "^1.0.0-beta.44",
     "@awesome.me/webawesome": "^3.10.0",
     "@chunkd/middleware": "^11.3.0",
     "@chunkd/source": "^11.4.0",

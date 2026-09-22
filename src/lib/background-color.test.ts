@@ -2,15 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { backgroundColorOf, type ThumbnailSource } from './background-color';
 
-// getImageData is the one step that needs a canvas to read pixels out of a bitmap, which this
-// project's node environment has none of - so it is stubbed, and everything either side of it runs
-// for real: the request the thumbnail is asked for with, the mask scaled into that thumbnail's own
-// pixels, and the histogram read off whatever comes back. Same approach as colormap.test.ts.
-const { getImageData } = vi.hoisted(() => ({ getImageData: vi.fn() }));
-vi.mock('@allmaps/stdlib', async importOriginal => ({ ...(await importOriginal<object>()), getImageData }));
-
-// The sheet's own size, and a thumbnail an eighth as wide - so a mask has to shrink by 0.128 to land
-// on it, and a test can tell that from the reciprocal a wrong scale would give.
+// The canvas is the one thing this project's node environment has none of, and both halves of the
+// work want one: ours to stitch a tiled thumbnail together, and @allmaps/background-color's to clip
+// that thumbnail to the mask and read its pixels back. So a canvas is stubbed - one that records what
+// was drawn into it and what it was clipped to, and hands back pixels a test chose - and everything
+// either side of it runs for real, the detector included. Same approach as colormap.test.ts.
 const IMAGE_SIZE = { width: 4000, height: 3000 };
 const THUMBNAIL_SIZE = { width: 512, height: 384 };
 
@@ -26,14 +22,17 @@ const MASK: [number, number][] = [
 const PAPER = [240, 235, 220] as const;
 const PAPER_HEX = '#f0ebdc';
 
-// A thumbnail's worth of pixels, all the same colour except for one that isn't - enough for a
-// histogram to have a winner, and to tell that it picked the winner rather than the last thing it saw
+// A canvas's worth of pixels, all the same colour except for one that isn't - enough for a histogram
+// to have a winner, and to tell that it picked the winner rather than the last thing it saw
 const pixels = ({ width, height }: { width: number; height: number }, color: readonly number[] = PAPER): ImageData => {
   const data = new Uint8ClampedArray(width * height * 4);
   for (let index = 0; index < width * height; index++) data.set([...color, 255], index * 4);
   data.set([10, 10, 10, 255], 0);
   return { width, height, data, colorSpace: 'srgb' } as ImageData;
 };
+
+// What a stubbed canvas answers a pixel read with. Swapped out by the test that needs them unreadable.
+let readPixels: (size: { width: number; height: number }) => ImageData;
 
 const bitmaps: { width: number; height: number; closed: boolean }[] = [];
 
@@ -43,6 +42,11 @@ const bitmap = (size: { width: number; height: number }) => {
   return made;
 };
 
+// Every canvas the run made, in the order they were made: one for a thumbnail that arrived whole - the
+// detector's - and two for a tiled one, the stitching canvas first.
+type FakeCanvas = { width: number; height: number; drawn: { x: number; y: number; width: number }[]; clipped: [number, number][] };
+const canvases: FakeCanvas[] = [];
+
 const imageFor = (overrides: Partial<ThumbnailSource> = {}): ThumbnailSource => ({
   ...IMAGE_SIZE,
   getImageRequest: vi.fn(() => ({ size: THUMBNAIL_SIZE })),
@@ -50,13 +54,10 @@ const imageFor = (overrides: Partial<ThumbnailSource> = {}): ThumbnailSource => 
   ...overrides,
 });
 
-const drawn: { x: number; y: number; width: number }[] = [];
-
 beforeEach(() => {
   bitmaps.length = 0;
-  drawn.length = 0;
-
-  getImageData.mockImplementation((thumbnail: { width: number; height: number }) => pixels(thumbnail));
+  canvases.length = 0;
+  readPixels = pixels;
 
   vi.stubGlobal(
     'fetch',
@@ -70,15 +71,30 @@ beforeEach(() => {
   vi.stubGlobal(
     'OffscreenCanvas',
     class {
-      constructor(
-        readonly width: number,
-        readonly height: number,
-      ) {}
-      getContext() {
-        return { drawImage: (tile: { width: number }, x: number, y: number) => drawn.push({ x, y, width: tile.width }) };
+      readonly record: FakeCanvas;
+
+      constructor(width: number, height: number) {
+        this.record = { width, height, drawn: [], clipped: [] };
+        canvases.push(this.record);
       }
+
+      getContext() {
+        const { record } = this;
+        return {
+          fillStyle: '',
+          fillRect: () => {},
+          beginPath: () => {},
+          moveTo: (x: number, y: number) => record.clipped.push([x, y]),
+          lineTo: (x: number, y: number) => record.clipped.push([x, y]),
+          closePath: () => {},
+          clip: () => {},
+          drawImage: (tile: { width: number }, x: number, y: number) => record.drawn.push({ x, y, width: tile.width }),
+          getImageData: () => readPixels(record),
+        };
+      }
+
       transferToImageBitmap() {
-        return bitmap({ width: this.width, height: this.height });
+        return bitmap({ width: this.record.width, height: this.record.height });
       }
     },
   );
@@ -103,21 +119,23 @@ describe('backgroundColorOf', () => {
     await expect(backgroundColorOf(imageFor(), MASK)).resolves.toEqual(PAPER_HEX);
   });
 
-  // The mask arrives in the sheet's own coordinates and clips a canvas the size of the thumbnail, so
-  // it has to shrink to fit it. This is the mistake @allmaps/background-color@1.0.0-beta.1 makes the
-  // other way round - see the note on it in background-color.ts - and it fails silently: the clipping
-  // polygon lands off the canvas, nothing is drawn, and the histogram comes back empty.
+  // The mask is handed over in the sheet's own coordinates and clips a canvas the size of the
+  // thumbnail, so something has to shrink it to fit. That something is now the detector - this asks
+  // for the sheet's size alongside the mask so it can - and it is the mistake
+  // @allmaps/background-color@1.0.0-beta.1 made the other way round, see the note on it in
+  // background-color.ts. It fails silently: the clipping polygon lands off the canvas, nothing is
+  // drawn, and the histogram comes back empty. So the clip is read back off the canvas rather than
+  // taken on trust.
   it('scales the mask down into the thumbnail rather than up out of it', async () => {
     await backgroundColorOf(imageFor(), MASK);
 
     const scale = THUMBNAIL_SIZE.width / IMAGE_SIZE.width;
-    expect(getImageData).toHaveBeenCalledWith(
-      expect.objectContaining(THUMBNAIL_SIZE),
-      MASK.map(([x, y]) => [x * scale, y * scale]),
-    );
+    const [read] = canvases;
 
-    const [, mask] = getImageData.mock.calls[0] as [unknown, [number, number][]];
-    mask.forEach(([x, y]) => {
+    expect(read).toMatchObject(THUMBNAIL_SIZE);
+    expect(read.clipped).toEqual(MASK.map(([x, y]) => [x * scale, y * scale]));
+
+    read.clipped.forEach(([x, y]) => {
       expect(x).toBeLessThanOrEqual(THUMBNAIL_SIZE.width);
       expect(y).toBeLessThanOrEqual(THUMBNAIL_SIZE.height);
     });
@@ -131,9 +149,9 @@ describe('backgroundColorOf', () => {
   });
 
   it('closes the thumbnail even when the pixels turn out to be unreadable', async () => {
-    getImageData.mockImplementation(({ width, height }: { width: number; height: number }) => ({ width, height, data: new Uint8ClampedArray(width * height * 4) }));
-
     // Every pixel transparent, so there is nothing to build a histogram out of
+    readPixels = ({ width, height }) => ({ width, height, data: new Uint8ClampedArray(width * height * 4) }) as ImageData;
+
     await expect(backgroundColorOf(imageFor(), MASK)).rejects.toThrow(/histogram is empty/i);
     expect(bitmaps.every(made => made.closed)).toBe(true);
   });
@@ -168,7 +186,9 @@ describe('backgroundColorOf', () => {
       await expect(backgroundColorOf(image, MASK)).resolves.toEqual(PAPER_HEX);
 
       expect(fetch).toHaveBeenCalledTimes(4);
-      expect(drawn).toEqual([
+
+      const [stitched, read] = canvases;
+      expect(stitched.drawn).toEqual([
         { x: 0, y: 0, width: 256 },
         { x: 256, y: 0, width: 256 },
         { x: 0, y: 192, width: 256 },
@@ -176,7 +196,7 @@ describe('backgroundColorOf', () => {
       ]);
 
       // The whole grid, not one tile of it: a histogram read off a corner would describe the corner
-      expect(getImageData).toHaveBeenCalledWith(expect.objectContaining({ width: 512, height: 384 }), expect.anything());
+      expect(read).toMatchObject({ width: 512, height: 384 });
     });
 
     it('says so when the service offered no tiles either', async () => {
