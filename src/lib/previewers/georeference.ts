@@ -133,9 +133,14 @@ export default class GeoreferencePreviewer extends MapPreviewer {
     await super.preview();
 
     // Allmaps reports per-map rather than throwing: a page of annotations can be partly readable,
-    // and one bad map among several is not worth refusing to draw the rest of.
+    // and one bad map among several is not worth refusing to draw the rest of. One result per map,
+    // each either an ok one naming the map it added or a failed one carrying the error.
+    //
+    // `=== false` rather than a plain `!result.ok`: the TypeScript Stencil compiles with narrows a
+    // boolean discriminant by comparison but not by truthiness, and the repo's own newer one - what
+    // `npm run lint` runs - accepts either. This form satisfies both.
     const results = this.layer?.addGeoreferenceAnnotation(annotation) ?? [];
-    const errors = results.filter((result): result is Error => result instanceof Error);
+    const errors = results.flatMap(result => (result.ok === false ? [result.error] : []));
 
     errors.forEach(error => console.warn(`Could not read a georeferenced map in ${this.url}:`, error));
     if (errors.length === results.length) throw errors[0] ?? new Error('The georeference annotation described no maps that could be drawn.');

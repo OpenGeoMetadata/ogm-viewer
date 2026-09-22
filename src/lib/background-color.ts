@@ -1,4 +1,4 @@
-import { getColorHistogram, getColorsArray, getImageData, getMaxOccurringColor, scalePoints } from '@allmaps/stdlib';
+import { detectBackgroundColor } from '@allmaps/background-color';
 import { rgb } from 'd3-color';
 
 import { fetchOrThrow } from './errors';
@@ -35,15 +35,17 @@ export type ThumbnailSource = {
 // common colour among the pixels inside the mask the georeferencer traced. The same thing the Allmaps
 // Viewer's magic wand does, and the hex is what a warped map layer's removeColorColor option takes.
 //
-// The mask arrives in the image's own coordinates and the histogram is read off a thumbnail, so it is
-// scaled down to the thumbnail's pixels before it can clip anything.
+// Fetching the thumbnail is all this does itself. The histogram is @allmaps/background-color's, which
+// packages exactly it: clip to the mask, list the colours inside - every second pixel, and none of the
+// transparent ones the clip left behind - bin them, and take the bin with the most in it. Written
+// against stdlib's own copies of those primitives until 1.0.0-beta.2, because the package's first
+// release scaled the mask by resourceSize / thumbnailWidth where it needs the reciprocal, which for
+// any mask inset from the scan's edges put the clipping polygon off the canvas entirely: nothing
+// drawn, every pixel transparent, and 'Histogram is empty' rather than a colour. beta.2 fixes the
+// scale, and stdlib has since dropped its copies, so this is now the only place the histogram lives.
 //
-// Assembled here from @allmaps/stdlib's own primitives rather than through @allmaps/background-color,
-// which packages exactly this: that package's only published version (1.0.0-beta.1) scales the mask by
-// resourceSize / thumbnailWidth where it needs the reciprocal, which for any mask inset from the
-// scan's edges puts the clipping polygon entirely off the canvas - so nothing is drawn, every pixel
-// comes back transparent, and getMaxOccurringColor throws 'Histogram is empty'. Upstream's source has
-// since fixed the scale and reordered the arguments; worth switching to once that is published.
+// The mask is handed over in the sheet's own coordinates, unscaled: the detector takes the size those
+// coordinates are in and shrinks them into the thumbnail itself.
 export async function backgroundColorOf(image: ThumbnailSource, resourceMask: [number, number][]): Promise<string> {
   const request = image.getImageRequest(THUMBNAIL_SIZE);
 
@@ -52,15 +54,7 @@ export async function backgroundColorOf(image: ThumbnailSource, resourceMask: [n
   const thumbnail = Array.isArray(request) ? await fetchTiledThumbnail(image, request) : await fetchThumbnail(image, request);
 
   try {
-    const mask = scalePoints(resourceMask, thumbnail.width / image.width);
-
-    // Clip the thumbnail to the sheet, list the colours inside it - every second pixel, and none of
-    // the transparent ones the clip left behind - bin them, and take the bin with the most in it.
-    // The sampling stride and the bin size are stdlib's defaults, left alone for the same reason
-    // THUMBNAIL_SIZE is.
-    const { color } = getMaxOccurringColor(getColorHistogram(getColorsArray(getImageData(thumbnail, mask))));
-
-    const [red, green, blue] = color;
+    const [red, green, blue] = detectBackgroundColor([image.width, image.height], thumbnail, resourceMask);
     return rgb(red, green, blue).formatHex();
   } finally {
     thumbnail.close();
