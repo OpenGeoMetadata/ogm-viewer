@@ -102,7 +102,7 @@
     </style>
 
     <script type="module">
-      import { OgmRecord, locationsFor, unionBounds } from './build/index.esm.js';
+      import { OgmRecord, fetchOrThrow, locationsFor, unionBounds } from './build/index.esm.js';
 
       function parseCsvRecords(csvText) {
         const rows = [];
@@ -226,13 +226,18 @@
         // Load record button
         loadRecordButton.addEventListener('click', async () => {
           const recordUrl = recordInput.value.trim() || recordSelector.value;
-          const recordContents = await fetch(recordUrl);
-          const recordJson = await recordContents.json();
-          const record = new OgmRecord(recordJson);
+          if (!recordUrl) return;
+          viewer.recordUrl = recordUrl;
 
-          if (recordUrl) viewer.recordUrl = recordUrl;
-          if (record) locator.record = record;
-          if (record) await loadRecords([record]);
+          try {
+            const record = new OgmRecord(await (await fetchOrThrow(recordUrl)).json());
+            locator.record = record;
+            await loadRecords([record]);
+          } catch (error) {
+            console.error(`Error loading record ${recordUrl}:`, error);
+            locator.record = undefined;
+            await loadRecords([]);
+          }
         });
 
         // Clear record button
