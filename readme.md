@@ -44,7 +44,7 @@ const viewer = document.querySelector('ogm-viewer');
 viewer.recordUrl = 'https://example.com/record.json';
 ```
 
-When the record URL changes, the viewer will automatically fetch and display the record data.
+When the record URL changes, the viewer will automatically fetch and display the record data. Setting it to `undefined`, or removing the attribute, clears the viewer.
 
 ### Dark mode support
 

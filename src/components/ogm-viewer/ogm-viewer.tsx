@@ -12,7 +12,7 @@ import { resolveRequest, type RequestTransform } from '../../lib/request';
 })
 export class OgmViewer {
   @Element() el!: HTMLElement;
-  @Prop() recordUrl: string;
+  @Prop() recordUrl?: string;
   @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
   // A caller's own basemap for each mode, as a URL to a MapLibre style document; see
   // MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default.
@@ -84,8 +84,10 @@ export class OgmViewer {
   }
 
   // Fetch a record by URL and parse it into an OgmRecord instance.
-  private async fetchRecord(recordUrl: string): Promise<OgmRecord | undefined> {
+  private async fetchRecord(recordUrl?: string): Promise<OgmRecord | undefined> {
     this.error = undefined;
+    // No URL means no record, rather than a fetch of one called "undefined"
+    if (!recordUrl) return undefined;
     try {
       const { url, init } = resolveRequest(recordUrl, 'metadata', this.requestTransform);
       const response = await fetchOrThrow(url, init);
