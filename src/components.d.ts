@@ -216,7 +216,7 @@ export namespace Components {
         "hideTitle": boolean;
         "lightBasemap"?: string;
         "loadRecord": (record: OgmRecord) => Promise<void>;
-        "recordUrl": string;
+        "recordUrl"?: string;
         "requestTransform"?: RequestTransform;
         /**
           * @default initialTheme(this.el)

@@ -245,7 +245,7 @@
         clearRecordButton.addEventListener('click', async () => {
           recordInput.value = '';
           recordSelector.value = '';
-          viewer.loadRecord(null);
+          viewer.recordUrl = undefined;
           locator.record = undefined;
           await loadRecords([]);
         });
