@@ -506,10 +506,12 @@ describe('CogPreviewer', () => {
     });
   });
 
-  // deck.gl caches whatever getTileData returned and evicts it without disposing of anything
-  // inside, so every GPU texture the two pipelines upload per tile is this previewer's to free.
-  // Without that, panning across a large COG leaves every tile it ever decoded resident on the GPU
-  // for the life of the page. See https://github.com/developmentseed/deck.gl-raster/issues/591.
+  // deck.gl caches whatever getTileData returned and evicts it without disposing of anything inside,
+  // so the GPU textures the scalar pipeline uploads per tile are this previewer's to free - without
+  // that, panning across a large COG leaves every tile it ever decoded resident on the GPU for the
+  // life of the page. The default pipeline supplies no getTileData, so COGLayer frees the textures it
+  // uploads itself; only the scalar pipeline is this previewer's to free, and only it is tested here.
+  // See https://github.com/developmentseed/deck.gl-raster/pull/594.
   describe('a tile evicted from the cache', () => {
     // Stands in for a luma.gl texture, recording whether it was freed - which is the whole of what
     // these tests are asking about
@@ -552,32 +554,6 @@ describe('CogPreviewer', () => {
       unload(previewer, scalarTile(fakeTexture(), colormapTexture));
 
       expect(colormapTexture.destroyed).toEqual(0);
-    });
-
-    // Upstream's own inferRenderPipeline uploads a texture per tile too - two, for a COG carrying a
-    // mask - and deck.gl-geotiff destroys neither, so an ordinary COG leaks exactly as a scalar one
-    // does. Its palette colormap is not reached from here at all: that one belongs to the render
-    // pipeline rather than to any tile.
-    it('frees the textures of an ordinary COG, which deck.gl-geotiff does not own either', async () => {
-      const { previewer } = previewFor();
-      await previewer.preview();
-      const texture = fakeTexture();
-      const mask = fakeTexture();
-
-      unload(previewer, { width: 256, height: 256, byteLength: 262144, texture, mask });
-
-      expect(texture.destroyed).toEqual(1);
-      expect(mask.destroyed).toEqual(1);
-    });
-
-    // A COG without one decodes to a tile with no mask at all, which is not a tile half-freed
-    it('is untroubled by an ordinary COG that carries no mask', async () => {
-      const { previewer } = previewFor();
-      await previewer.preview();
-      const texture = fakeTexture();
-
-      expect(() => unload(previewer, { width: 256, height: 256, byteLength: 262144, texture })).not.toThrow();
-      expect(texture.destroyed).toEqual(1);
     });
 
     // deck.gl evicts a tile still in flight as readily as a finished one, and one that failed never
