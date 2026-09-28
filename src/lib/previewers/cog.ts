@@ -36,6 +36,14 @@ type UnloadedTile = { content: unknown };
 // names the samples but not the mask.
 type InferredTileData = { texture: Texture; mask?: Texture };
 
+// Mirrors deck.gl-geotiff's own unexported DefaultDataT - MinimalTileData plus the texture and
+// byteLength its default render pipeline fills each tile with. Named here to hand COGLayer as its
+// explicit type argument on the default-pipeline branch below: getTileData is what would otherwise
+// pin DataT, and without it COGLayer's DataT infers to the bare MinimalTileData constraint, which
+// has no texture and so does not match the method's own COGLayer return type. Being structurally
+// equal to upstream's DefaultDataT, COGLayer<DefaultTileData> is that same COGLayer.
+type DefaultTileData = { height: number; width: number; byteLength: number; texture: Texture };
+
 // Draws a Cloud Optimized GeoTIFF with deck.gl, which warps it as it draws - so a COG is drawn
 // whatever projection it is in, not only one already in Web Mercator.
 //
@@ -44,17 +52,6 @@ type InferredTileData = { texture: Texture; mask?: Texture };
 // style layer type and applyStyleLayerState below are overridden - see MapPreviewer.
 export default class CogPreviewer extends MapPreviewer {
   declare protected resource: CogResource;
-
-  // No projection of its own: this preview takes MapPreviewer's globe default like everything else.
-  // It asked for a flat map until @developmentseed/deck.gl-raster 0.8.0-beta.2, whose tile traversal
-  // had `assert(false, "TODO: implement getBoundingVolume in Globe view")` where a globe bounding
-  // volume belongs - so tile selection threw on every frame, nothing was ever drawn, and the preview
-  // failed on <ogm-map>'s load deadline. See developmentseed/deck.gl-raster#563, which implemented
-  // it, and #82, which tracks what is left. The three @developmentseed packages are pinned to that
-  // exact prerelease in package.json rather than carried on a range: it is the only published
-  // version with this, and 0.7.0 is still what `latest` points at.
-  //
-  // The parameters createDeckLayer passes are part of this - see the note there.
 
   // deck.gl tells us when a tile is drawn, which nothing on the map would; see reportTileDrawn
   readonly reportsDrawing = true;
@@ -254,7 +251,10 @@ export default class CogPreviewer extends MapPreviewer {
     };
 
     if (!range)
-      return new COGLayer({
+      // Explicit type argument, not inferred: absent getTileData/renderTile there is nothing to pin
+      // DataT to, and it otherwise collapses to the bare MinimalTileData constraint - see
+      // DefaultTileData above.
+      return new COGLayer<DefaultTileData>({
         ...shared,
         // deck.gl-geotiff's own inferRenderPipeline uploads these and destroys neither - see
         // UnloadedTile above. Its palette colormap needs no such care and must not get it: that one
@@ -267,7 +267,10 @@ export default class CogPreviewer extends MapPreviewer {
       });
 
     const ramp = state.colorRamp ?? DEFAULT_COLOR_RAMP;
-    return new COGLayer({
+    // Explicit type argument for the same reason as the branch above: getTileData sits inside a union
+    // of prop shapes that TypeScript won't infer DataT through, so DataT is named rather than left to
+    // collapse to MinimalTileData.
+    return new COGLayer<ScalarTileData>({
       ...shared,
       getTileData: scalarGetTileData,
       renderTile: scalarRenderTile(ramp, range),
