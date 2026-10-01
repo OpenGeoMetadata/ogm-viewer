@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from '@stencil/vitest';
+/** @vitest-environment happy-dom */
+import { describe, it, expect, beforeEach, afterEach, vi } from '@stencil/vitest';
 import type { MapGeoJSONFeature, MapLibreMap } from 'maplibre-gl';
 
 import WmsPreviewer from './wms';
@@ -69,13 +70,35 @@ const tract = (id: string, geometry: GeoJSON.Geometry | null = TRACT_GEOMETRY) =
 
 const HIGHLIGHT_SOURCE = 's7st30-wms-highlight';
 
+// The part of a capabilities document that lists what GetFeatureInfo can answer with
+const capabilities = (formats: string[]) => `<?xml version="1.0" encoding="UTF-8"?>
+<WMS_Capabilities xmlns="http://www.opengis.net/wms" version="1.3.0">
+  <Capability>
+    <Request>
+      <GetFeatureInfo>${formats.map(format => `<Format>${format}</Format>`).join('')}</GetFeatureInfo>
+    </Request>
+  </Capability>
+</WMS_Capabilities>`;
+
+const GEOSERVER_FORMATS = ['text/plain', 'application/vnd.ogc.gml', 'application/json', 'text/html'];
+
+// Reads a capabilities document listing the given formats instead of fetching one, so nothing here
+// touches the network; given none, reading them fails as it would for an unreachable server
+const resourceFor = (formats?: string[]) => {
+  const resource = new WmsResource('s7st30', 'https://geoservices.lib.berkeley.edu/geoserver/wms', { layerIds: [] });
+  (resource as unknown as { getMetadata: () => Promise<Document> }).getMetadata = async () => {
+    if (!formats) throw new Error('capabilities unavailable');
+    return new DOMParser().parseFromString(capabilities(formats), 'application/xml');
+  };
+  return resource;
+};
+
 let map: FakeMap;
 let previewer: WmsPreviewer;
 
 beforeEach(async () => {
   map = new FakeMap();
-  const source = new WmsResource('s7st30', 'https://geoservices.lib.berkeley.edu/geoserver/wms', { layerIds: [] });
-  previewer = new WmsPreviewer(source).attach(map as unknown as MapLibreMap, style);
+  previewer = new WmsPreviewer(resourceFor(GEOSERVER_FORMATS)).attach(map as unknown as MapLibreMap, style);
   await previewer.preview();
 });
 
@@ -150,6 +173,31 @@ describe('WmsPreviewer#preview', () => {
 
   it('starts with nothing highlighted', () => {
     expect(map.sources.get(HIGHLIGHT_SOURCE)?.data).toEqual({ type: 'FeatureCollection', features: [] });
+  });
+});
+
+describe('WmsPreviewer#canInspect', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  // On a map of its own, rather than the one previewed above
+  const previewedFor = async (formats?: string[]) => {
+    const previewer = new WmsPreviewer(resourceFor(formats)).attach(new FakeMap() as unknown as MapLibreMap, style);
+    await previewer.preview();
+    return previewer;
+  };
+
+  it('offers to inspect a server that answers GetFeatureInfo in GeoJSON', async () => {
+    expect((await previewedFor(GEOSERVER_FORMATS)).canInspect).toBe(true);
+  });
+
+  // THREDDS' ncWMS answers with a chart or XML of its own, and refuses to answer in JSON at all
+  it('does not offer to inspect a server that answers only in formats we cannot read', async () => {
+    expect((await previewedFor(['image/png', 'text/xml'])).canInspect).toBe(false);
+  });
+
+  it('still offers to inspect when the capabilities cannot be read', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect((await previewedFor()).canInspect).toBe(true);
   });
 });
 

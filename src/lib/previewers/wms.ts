@@ -25,6 +25,11 @@ export default class WmsPreviewer extends InspectableRasterPreviewer {
     return `${this.resource.id}-wms`;
   }
 
+  // Only a server that answers GetFeatureInfo in GeoJSON can say what it drew at a point
+  protected async checkInspectable(): Promise<boolean> {
+    return await this.resource.canInspect();
+  }
+
   // Ask the server what it drew in the window, via a GetFeatureInfo request
   async inspect(window: PixelWindow): Promise<MapGeoJSONFeature[]> {
     const response = await this.resource.inspect(window);

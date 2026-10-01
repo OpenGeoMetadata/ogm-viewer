@@ -188,6 +188,55 @@ describe('WmsSource#getInfoFormat', () => {
   });
 });
 
+describe('WmsSource#canInspect', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const canInspect = async (xml?: string) => {
+    const source = new TestWmsSource('s7st30', ENDPOINT, { layerIds: [] });
+    if (xml) source.withCapabilities(xml);
+    return await source.canInspect();
+  };
+
+  // THREDDS' ncWMS answers with a chart or XML of its own, and refuses to answer in JSON at all
+  it('says no for a server that answers only in formats we cannot read', async () => {
+    expect(await canInspect(capabilities(['image/png', 'text/xml']))).toBe(false);
+  });
+
+  it('says yes for a server that answers in GeoJSON', async () => {
+    expect(await canInspect(capabilities(GEOSERVER_FORMATS))).toBe(true);
+  });
+
+  it('says yes when the capabilities cannot be read, rather than never asking', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(await canInspect()).toBe(true);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it('takes the word of a caller who names the format, skipping the capabilities', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const source = new TestWmsSource('s7st30', ENDPOINT, { layerIds: [], infoFormat: 'application/json' });
+
+    expect(await source.canInspect()).toBe(true);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('gives up on the capabilities once between the check and the clicks after it', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const source = new TestWmsSource('s7st30', ENDPOINT, { layerIds: [] });
+    let reads = 0;
+    (source as any).getMetadata = async () => {
+      reads += 1;
+      throw new Error('capabilities unavailable');
+    };
+
+    await source.canInspect();
+    await source.url_for(options);
+
+    expect(reads).toEqual(1);
+  });
+});
+
 describe('WmsSource#requestTransform', () => {
   afterEach(() => vi.restoreAllMocks());
 
