@@ -55,6 +55,9 @@ export default class WmsResource extends RasterResource {
   // Memoized metadata via GetCapabilities request
   private metadata: Document;
 
+  // Memoized GetFeatureInfo formats the capabilities list; empty if they can't be read
+  private publishedInfoFormats?: string[];
+
   constructor(id: string, url: string, options: WmsOptions, bounds?: LngLatBoundsLike, requestTransform?: RequestTransform) {
     super(id, url, bounds, requestTransform);
     this.options = { ...defaultWmsOptions, ...options };
@@ -98,24 +101,33 @@ export default class WmsResource extends RasterResource {
     return await fetch(url, init);
   }
 
+  // Whether the server will answer GetFeatureInfo in GeoJSON, the only format the previewer reads
+  async canInspect(): Promise<boolean> {
+    if (this.options.infoFormat) return true;
+    const formats = await this.getPublishedInfoFormats();
+    return formats.length === 0 || GEOJSON_INFO_FORMATS.some(format => formats.includes(format));
+  }
+
   // The info format to ask GetFeatureInfo for. A server rejects the whole request over a format it
   // doesn't publish, so read the capabilities and pick one it does.
   protected async getInfoFormat(): Promise<string> {
     if (this.options.infoFormat) return this.options.infoFormat;
+    const formats = await this.getPublishedInfoFormats();
+    return GEOJSON_INFO_FORMATS.find(format => formats.includes(format)) ?? DEFAULT_INFO_FORMAT;
+  }
 
-    let supported: string | undefined;
-    try {
-      const metadata = await this.getMetadata();
-      const formats = Array.from(metadata.querySelectorAll('GetFeatureInfo > Format')).map(element => element.textContent?.trim());
-      supported = GEOJSON_INFO_FORMATS.find(format => formats.includes(format));
-    } catch (error) {
-      console.warn(`Could not read the supported info formats from ${this.capabilitiesUrl}:`, error);
+  // The formats the capabilities say GetFeatureInfo answers in
+  protected async getPublishedInfoFormats(): Promise<string[]> {
+    if (!this.publishedInfoFormats) {
+      try {
+        const metadata = await this.getMetadata();
+        this.publishedInfoFormats = Array.from(metadata.querySelectorAll('GetFeatureInfo > Format')).map(element => element.textContent?.trim());
+      } catch (error) {
+        console.warn(`Could not read the supported info formats from ${this.capabilitiesUrl}:`, error);
+        this.publishedInfoFormats = [];
+      }
     }
-
-    // Settle on a format either way, so a server that publishes none of them - or whose
-    // capabilities can't be read at all - isn't asked again on every click
-    this.options.infoFormat = supported ?? DEFAULT_INFO_FORMAT;
-    return this.options.infoFormat;
+    return this.publishedInfoFormats;
   }
 
   // WMS GetMap URL that will fetch tiles for this source
