@@ -17,11 +17,11 @@ import LocationPreviewer from './location';
 import OpenIndexMapPreviewer from './openindexmap';
 import PMTilesRasterPreviewer from './pmtiles-raster';
 import PMTilesVectorPreviewer from './pmtiles-vector';
-import RasterPreviewer from './raster';
 import TileJsonRasterPreviewer from './tilejson-raster';
 import TileJsonVectorPreviewer from './tilejson-vector';
 import WmsPreviewer from './wms';
 import WmtsPreviewer from './wmts';
+import XyzPreviewer from './xyz';
 
 // Every preview this library can draw. The renderer is the discriminant, so a component can tell
 // which one it's holding without a class test.
@@ -117,9 +117,8 @@ const BUILDERS: Record<ResourceKind, PreviewerBuilder> = {
     const cog = await lazily(() => import('./cog'), resource, 'COG');
     return cog ? [cog] : [];
   },
-
-  'tms': resource => [new RasterPreviewer(resource)],
-  'xyz': resource => [new RasterPreviewer(resource)],
+  'tms': resource => [new XyzPreviewer(resource)],
+  'xyz': resource => [new XyzPreviewer(resource)],
 
   // An archive or a tileset document can describe either kind of tiles, and the only way to find
   // out is to read it

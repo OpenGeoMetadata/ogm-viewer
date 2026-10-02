@@ -9,6 +9,9 @@ import type { MapGeoJSONFeature } from 'maplibre-gl';
 // and the state a selection used to crash it in. What needs one is handed a fake afterwards.
 import { render as stencilRender } from '@stencil/core';
 
+import XyzPreviewer from '../../lib/previewers/xyz';
+import XyzResource from '../../lib/resources/xyz';
+
 const feature = {
   type: 'Feature',
   id: 'sheet.1',
@@ -569,6 +572,90 @@ describe('ogm-map', () => {
 
     expect(reported).toHaveBeenCalled();
     expect(noticeTexts(el)).toEqual([]);
+  });
+
+  // NASA GIBS serves each of its XYZ layers down to a zoom of its own - this one stops at 7 - and
+  // answers anything deeper with a 400, which used to replace the whole map with an alert as soon as
+  // a reader zoomed in past it
+  describe('over an XYZ service that stops short of where the reader zooms to', () => {
+    const TEMPLATE = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GHRSST_L4_MUR_Sea_Surface_Temperature/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png';
+    const SOURCE = 'ghrsst-xyz';
+
+    // Enough of a map for the preview to draw itself onto, and to be held to a depth on
+    const tileMap = () => {
+      const sources = new Map<string, Record<string, unknown>>();
+      const layers = new Map<string, unknown>();
+      return {
+        sources,
+        getSource: (id: string) => sources.get(id),
+        addSource: (id: string, spec: Record<string, unknown>) => sources.set(id, { ...spec }),
+        getLayer: (id: string) => layers.get(id),
+        addLayer: (layer: { id: string }) => layers.set(layer.id, layer),
+        _update: vi.fn(),
+        remove: vi.fn(),
+      };
+    };
+
+    // What MapLibre hands a listener about one tile: the zoom it was asked for is all either side reads
+    const tile = (z: number) => ({ tileID: { canonical: { z, x: 0, y: 0 } } });
+
+    const handlers = (el: HTMLElement) =>
+      el as unknown as {
+        handleSourceData: (event: unknown) => void;
+        handleMapError: (event: unknown) => void;
+      };
+
+    const tileArrives = (el: HTMLElement, z: number) => handlers(el).handleSourceData({ sourceId: SOURCE, tile: tile(z) });
+    const tileFails = (el: HTMLElement, z: number) =>
+      handlers(el).handleMapError({ error: Object.assign(new Error('Bad Request'), { status: 400 }), sourceId: SOURCE, tile: tile(z) });
+
+    // Drawn by hand rather than through loadPreview, which would also fit the camera and wait on a
+    // first tile; what's under test is what the map does with the tiles that arrive afterwards
+    const xyzMap = async () => {
+      const { el } = await renderMap();
+      const map = tileMap();
+      const previewer = new XyzPreviewer(new XyzResource('ghrsst', TEMPLATE)).attach(map as never, { opacity: 0.8 } as never);
+      await previewer.preview();
+
+      const reported = vi.fn();
+      el.addEventListener('previewError', reported);
+      Object.assign(el, { map, previewer });
+      Object.assign(el, { mapStyleLoaded: true });
+      return { el, map, reported };
+    };
+
+    it('keeps the preview up, stretching the deepest tiles it has', async () => {
+      const { el, map, reported } = await xyzMap();
+
+      tileArrives(el, 7);
+      tileFails(el, 8);
+      await settle();
+
+      expect(reported).not.toHaveBeenCalled();
+      expect(map.sources.get(SOURCE)?.maxzoom).toEqual(7);
+    });
+
+    // A template that answers nothing at all, at the zoom the preview opened at, is a broken
+    // reference - not one that runs out of tiles
+    it('still reports a first tile that fails', async () => {
+      const { el, reported } = await xyzMap();
+
+      tileFails(el, 3);
+      await settle();
+
+      expect(reported).toHaveBeenCalledTimes(1);
+      expect(reported.mock.calls[0][0].detail.message).toContain('HTTP 400');
+    });
+
+    it('still reports a tile that fails at a zoom that has drawn', async () => {
+      const { el, reported } = await xyzMap();
+
+      tileArrives(el, 7);
+      tileFails(el, 7);
+      await settle();
+
+      expect(reported).toHaveBeenCalledTimes(1);
+    });
   });
 
   // The popup is built by hand rather than rendered, so it outlives the component's own markup

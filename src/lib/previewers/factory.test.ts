@@ -17,11 +17,11 @@ import LocationPreviewer from './location';
 import OpenIndexMapPreviewer from './openindexmap';
 import PMTilesRasterPreviewer from './pmtiles-raster';
 import PMTilesVectorPreviewer from './pmtiles-vector';
-import RasterPreviewer from './raster';
 import TileJsonRasterPreviewer from './tilejson-raster';
 import TileJsonVectorPreviewer from './tilejson-vector';
 import WmsPreviewer from './wms';
 import WmtsPreviewer from './wmts';
+import XyzPreviewer from './xyz';
 
 // The factory reads a resource's kind and, for a tileset, asks what it holds. Nothing else, so a
 // plain object stands in for one - and using a real class here would prove less, since the point
@@ -43,8 +43,8 @@ const SYNCHRONOUS: [ResourceKind, new (...args: never[]) => unknown][] = [
   ['esri-tiled-map-layer', EsriTiledMapLayerPreviewer],
   ['wms', WmsPreviewer],
   ['wmts', WmtsPreviewer],
-  ['tms', RasterPreviewer],
-  ['xyz', RasterPreviewer],
+  ['tms', XyzPreviewer],
+  ['xyz', XyzPreviewer],
 ];
 
 describe('previewersFor', () => {
