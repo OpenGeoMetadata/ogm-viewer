@@ -12,6 +12,7 @@ import {
   type MapMouseEvent,
   type MapSourceDataEvent,
   type Point,
+  type Tile,
 } from 'maplibre-gl';
 
 import '@awesome.me/webawesome/dist/components/callout/callout.js';
@@ -53,6 +54,9 @@ const BASEMAP_GRACE = 250;
 // basemap that came up and then lost tiles is still a basemap, and a reader looking at roads under
 // the preview doesn't need to be told part of them is missing.
 const NO_BASEMAP = 'The basemap could not be loaded.';
+
+// The zoom a tile was requested at, as written into its URL
+const tileZoom = (tile: Tile): number => tile.tileID.canonical.z;
 
 // A component for rendering an interactive data preview on a map
 @Component({
@@ -395,13 +399,19 @@ export class OgmMap {
   // glyph range - and a basemap missing some of those is still a backdrop, so none of it is said out
   // loud. They arrive often enough (one per tile a CDN drops) that a notice about them would be up
   // on maps that look perfectly fine.
-  protected handleMapError(event: ErrorEvent & { sourceId?: string }) {
+  protected handleMapError(event: ErrorEvent & { sourceId?: string; tile?: Tile }) {
     // Nothing but the style document can have failed this early - a map has no sources until a style
     // document brings them - and that failure is the expensive one, so it is checked before anything
     // else. See confirmBasemapFailure.
     if (!this.mapStyleLoaded) return this.confirmBasemapFailure();
 
-    if (!this.previewer?.sourceIds.includes(event.sourceId ?? '')) return;
+    const sourceId = event.sourceId ?? '';
+    if (!this.previewer?.sourceIds.includes(sourceId)) return;
+
+    // Allow tile failure path for previewers like XYZ where it's expected, because
+    // appropriate zoom isn't known until the request happens
+    if (event.tile && this.previewer.absorbTileError(sourceId, tileZoom(event.tile))) return;
+
     if (this.errorReported) return;
     this.reportError(event.error);
   }
@@ -463,6 +473,7 @@ export class OgmMap {
   // same event without one is describing the source rather than any of its contents.
   protected handleSourceData(event: MapSourceDataEvent) {
     if (!event.tile || !this.previewer?.sourceIds.includes(event.sourceId)) return;
+    this.previewer.tileLoaded(event.sourceId, tileZoom(event.tile));
     this.markPreviewDrawn();
   }
 

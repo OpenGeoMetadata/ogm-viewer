@@ -96,6 +96,7 @@ export { default as TileJsonRasterPreviewer } from './lib/previewers/tilejson-ra
 export { default as TileJsonVectorPreviewer } from './lib/previewers/tilejson-vector';
 export { default as WmsPreviewer } from './lib/previewers/wms';
 export { default as WmtsPreviewer } from './lib/previewers/wmts';
+export { default as XyzPreviewer } from './lib/previewers/xyz';
 
 // What a preview is drawn with, and what a failed one reports
 export { default as Theme } from './lib/themes/theme';

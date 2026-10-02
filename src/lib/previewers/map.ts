@@ -103,6 +103,14 @@ export default abstract class MapPreviewer extends Previewer {
     return features;
   }
 
+  // A tile of one of this preview's own sources has arrived
+  tileLoaded(_sourceId: string, _zoom: number): void {}
+
+  // A tile of one of this preview's own sources failed to arrive
+  absorbTileError(_sourceId: string, _zoom: number): boolean {
+    return false;
+  }
+
   // Whether this preview answers for its own drawing through onDrawn. Read rather than assumed,
   // because the alternative is worse in both directions: a preview held to a deadline it has no way
   // to satisfy would be called broken while it draws, and one exempted by mistake goes back to
