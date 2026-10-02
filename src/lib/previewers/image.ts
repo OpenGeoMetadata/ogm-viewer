@@ -27,7 +27,7 @@ export default class ImagePreviewer extends Previewer {
   async preview(): Promise<void> {
     const images = await this.resource.getIIIFImageUrls();
     if (!images.length) throw new Error('No IIIF images found for this preview');
-    this.viewer.open(images);
+    this.viewer.open(images.map(tileSource => ({ tileSource })));
   }
 
   // OpenSeadragon owns its own canvas, so unlike a map there is no shared document to take this
