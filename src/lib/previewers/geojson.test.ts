@@ -82,7 +82,27 @@ const previewIndexMap = async () => {
   return { map, previewer };
 };
 
+// The style layers a row offers the panel's controls
 const SUFFIXES = ['polygons', 'polygon-outlines', 'lines', 'points', 'polygon-labels', 'line-labels', 'point-labels'];
+
+// Each geometry layer drawn a second time for the selected feature: hidden with its row, but neither
+// faded by it nor found by a click
+const SELECTED_SUFFIXES = ['polygons-selected', 'polygon-outlines-selected', 'lines-selected', 'points-selected'];
+
+// Everything on the map, in the order it's drawn
+const DRAWN = [
+  'polygons',
+  'polygons-selected',
+  'polygon-outlines',
+  'polygon-outlines-selected',
+  'lines',
+  'lines-selected',
+  'points',
+  'points-selected',
+  'polygon-labels',
+  'line-labels',
+  'point-labels',
+];
 
 describe('GeoJsonPreviewer#preview', () => {
   it('hands MapLibre the document URL as a geojson source', async () => {
@@ -99,7 +119,7 @@ describe('GeoJsonPreviewer#preview', () => {
 
     // A layer pointing at any other ID would be dropped by MapLibre, drawing nothing
     expect([...map.layers.values()].every(layer => map.sources.has(layer.source))).toBe(true);
-    expect([...map.layers.keys()]).toEqual(SUFFIXES.map(suffix => `princeton-fk4544658v-geojson-geojson-${suffix}`));
+    expect([...map.layers.keys()]).toEqual(DRAWN.map(suffix => `princeton-fk4544658v-geojson-geojson-${suffix}`));
   });
 
   it('removes what it added when cleared', async () => {
@@ -122,9 +142,10 @@ describe('GeoJsonPreviewer#preview', () => {
     await previewer.preview();
 
     expect(previewer.sourceIds).toEqual(['princeton-fk4544658v-geojson']);
-    expect(previewer.layerIds).toEqual(SUFFIXES.map(suffix => `princeton-fk4544658v-geojson-geojson-${suffix}`));
+    expect(previewer.layerIds).toEqual(DRAWN.map(suffix => `princeton-fk4544658v-geojson-geojson-${suffix}`));
     expect(previewer.previewLayers).toHaveLength(1);
-    expect(map.layers.size).toEqual(SUFFIXES.length);
+    expect(previewer.previewLayers[0].styleLayers).toHaveLength(SUFFIXES.length + SELECTED_SUFFIXES.length);
+    expect(map.layers.size).toEqual(DRAWN.length);
   });
 });
 
@@ -135,20 +156,40 @@ const HOVER = ['boolean', ['feature-state', 'hover'], false];
 const UNAVAILABLE = ['==', ['get', 'available'], false];
 
 describe('GeoJsonPreviewer#previewLayers', () => {
-  it('offers the user one layer, not the seven it takes to draw it', async () => {
+  it('offers the user one layer, not the eleven it takes to draw it', async () => {
     const { previewer } = await previewGeoJson();
 
     expect(previewer.previewLayers).toHaveLength(1);
     expect(previewer.previewLayers[0].id).toEqual(ROW_ID);
     expect(previewer.previewLayers[0].title).toEqual('GeoJSON');
     expect(previewer.previewLayers[0].defaultOpacity).toEqual(style.opacity);
-    expect(previewer.previewLayers[0].styleLayers.map(styleLayer => styleLayer.id)).toEqual(SUFFIXES.map(layerId));
+    expect(previewer.previewLayers[0].styleLayers.map(styleLayer => styleLayer.id)).toEqual([...SUFFIXES, ...SELECTED_SUFFIXES].map(layerId));
   });
 
   it('records the type of each style layer, since that decides which paint property carries opacity', async () => {
     const { previewer } = await previewGeoJson();
 
-    expect(previewer.previewLayers[0].styleLayers.map(styleLayer => styleLayer.type)).toEqual(['fill', 'line', 'line', 'circle', 'symbol', 'symbol', 'symbol']);
+    expect(previewer.previewLayers[0].styleLayers.map(styleLayer => styleLayer.type)).toEqual([
+      'fill',
+      'line',
+      'line',
+      'circle',
+      'symbol',
+      'symbol',
+      'symbol',
+      'fill',
+      'line',
+      'line',
+      'circle',
+    ]);
+  });
+
+  // The copies are machinery for showing a selection, not something a user fades or switches on
+  it('flags the selection copies internal, and nothing else', async () => {
+    const { previewer } = await previewGeoJson();
+    const internal = previewer.previewLayers[0].styleLayers.filter(styleLayer => styleLayer.internal);
+
+    expect(internal.map(styleLayer => styleLayer.id)).toEqual(SELECTED_SUFFIXES.map(layerId));
   });
 });
 
@@ -222,7 +263,7 @@ describe('GeoJsonPreviewer#applyLayerState', () => {
   it('never writes fill-opacity to a layer that has no fill', async () => {
     const map = await applyOpacity(0.5);
 
-    SUFFIXES.filter(suffix => suffix !== 'polygons').forEach(suffix => {
+    DRAWN.filter(suffix => !suffix.startsWith('polygons')).forEach(suffix => {
       expect(map.layers.get(layerId(suffix)).paint['fill-opacity']).toBeUndefined();
     });
   });
@@ -253,9 +294,9 @@ describe('GeoJsonPreviewer#applyLayerState', () => {
 
     previewer.applyLayerState(new Map([[ROW_ID, { visible: false, opacity: style.opacity }]]));
 
-    SUFFIXES.forEach(suffix => expect(map.layers.get(layerId(suffix)).layout.visibility).toEqual('none'));
+    DRAWN.forEach(suffix => expect(map.layers.get(layerId(suffix)).layout.visibility).toEqual('none'));
     expect(map.layers.get(layerId('polygons')).paint).toEqual(authored);
-    expect(previewer.layerIds).toEqual(SUFFIXES.map(layerId));
+    expect(previewer.layerIds).toEqual(DRAWN.map(layerId));
   });
 
   it('shows them again when the row comes back', async () => {
@@ -264,7 +305,7 @@ describe('GeoJsonPreviewer#applyLayerState', () => {
     previewer.applyLayerState(new Map([[ROW_ID, { visible: false, opacity: style.opacity }]]));
     previewer.applyLayerState(new Map([[ROW_ID, { visible: true, opacity: style.opacity }]]));
 
-    SUFFIXES.forEach(suffix => expect(map.layers.get(layerId(suffix)).layout.visibility).toEqual('visible'));
+    DRAWN.forEach(suffix => expect(map.layers.get(layerId(suffix)).layout.visibility).toEqual('visible'));
   });
 
   // Zero opacity has to hide the layer rather than just make it invisible, or a user could still
@@ -272,7 +313,7 @@ describe('GeoJsonPreviewer#applyLayerState', () => {
   it('hides a row faded all the way out', async () => {
     const map = await applyOpacity(0);
 
-    SUFFIXES.forEach(suffix => expect(map.layers.get(layerId(suffix)).layout.visibility).toEqual('none'));
+    DRAWN.forEach(suffix => expect(map.layers.get(layerId(suffix)).layout.visibility).toEqual('none'));
   });
 });
 
@@ -313,7 +354,7 @@ describe('OpenIndexMapPreviewer#preview', () => {
   it('styles the one layer an index map has', async () => {
     const { map } = await previewIndexMap();
 
-    expect([...map.layers.keys()]).toEqual(SUFFIXES.map(suffix => `princeton-fk4544658v-geojson-indexmap-${suffix}`));
+    expect([...map.layers.keys()]).toEqual(DRAWN.map(suffix => `princeton-fk4544658v-geojson-indexmap-${suffix}`));
   });
 
   it('describes its availability and selection colors for a legend', async () => {
@@ -372,7 +413,7 @@ describe('OpenIndexMapPreviewer#opacity', () => {
 
   it('reproduces the authored paint exactly at its own default, so re-applying is a no-op', async () => {
     const { map, previewer } = await previewIndexMap();
-    const authored = SUFFIXES.map(suffix => structuredClone(map.layers.get(indexLayerId(suffix)).paint));
+    const authored = DRAWN.map(suffix => structuredClone(map.layers.get(indexLayerId(suffix)).paint));
 
     previewer.applyLayerState(
       new Map([
@@ -381,7 +422,7 @@ describe('OpenIndexMapPreviewer#opacity', () => {
       ]),
     );
 
-    SUFFIXES.forEach((suffix, index) => expect(map.layers.get(indexLayerId(suffix)).paint).toEqual(authored[index]));
+    DRAWN.forEach((suffix, index) => expect(map.layers.get(indexLayerId(suffix)).paint).toEqual(authored[index]));
   });
 
   // The lower start is where the row begins, not a ceiling on it: someone who wants to read the
@@ -412,7 +453,8 @@ describe('OpenIndexMapPreviewer#labels', () => {
     const { previewer } = await previewIndexMap();
     const [boundaries, labels] = previewer.previewLayers;
 
-    expect(boundaries.styleLayers.map(styleLayer => styleLayer.id)).toEqual(GEOMETRY_SUFFIXES.map(indexLayerId));
+    // The selected sheet is drawn by the boundaries' copies, so it goes with the boundaries
+    expect(boundaries.styleLayers.map(styleLayer => styleLayer.id)).toEqual([...GEOMETRY_SUFFIXES, ...SELECTED_SUFFIXES].map(indexLayerId));
     expect(labels.styleLayers.map(styleLayer => styleLayer.id)).toEqual(LABEL_SUFFIXES.map(indexLayerId));
   });
 
@@ -445,7 +487,7 @@ describe('OpenIndexMapPreviewer#labels', () => {
     previewer.applyLayerState(new Map([[LABELS_ROW_ID, { visible: false, opacity: style.opacity }]]));
 
     LABEL_SUFFIXES.forEach(suffix => expect(map.layers.get(indexLayerId(suffix)).layout.visibility).toEqual('none'));
-    GEOMETRY_SUFFIXES.forEach(suffix => expect(map.layers.get(indexLayerId(suffix)).layout.visibility).toEqual('visible'));
+    [...GEOMETRY_SUFFIXES, ...SELECTED_SUFFIXES].forEach(suffix => expect(map.layers.get(indexLayerId(suffix)).layout.visibility).toEqual('visible'));
     expect(previewer.visibleLayerIds).toEqual(GEOMETRY_SUFFIXES.map(indexLayerId));
   });
 
@@ -470,5 +512,113 @@ describe('OpenIndexMapPreviewer#labels', () => {
     previewer.applyLayerState(new Map([[LABELS_ROW_ID, { visible: false, opacity: style.opacity }]]));
 
     expect(previewer.legendEntries).toHaveLength(3);
+  });
+});
+
+// Only one label fits where a stack of features shares an outline, and MapLibre keeps whichever it
+// places first: the lowest symbol-sort-key, or with no key the first in the document - the feature
+// drawn under all the rest, and the one a click lists last.
+describe('GeoJsonPreviewer#labelPriority', () => {
+  const LAST_FIRST = ['-', 0, ['id']];
+
+  // A document's ids are generated from each feature's position in it, which is the order it is drawn in
+  it('gives a stack’s label to the feature drawn on top of it', async () => {
+    const { map } = await previewGeoJson();
+
+    LABEL_SUFFIXES.forEach(suffix => expect(map.layers.get(layerId(suffix)).layout['symbol-sort-key']).toEqual(LAST_FIRST));
+  });
+
+  // gov.usgs lists a sheet's editions oldest first, so this labels the sheet with its latest - the
+  // edition the popup opens at
+  it('labels an index map sheet with the edition drawn on top', async () => {
+    const { map } = await previewIndexMap();
+
+    LABEL_SUFFIXES.forEach(suffix => expect(map.layers.get(indexLayerId(suffix)).layout['symbol-sort-key']).toEqual(LAST_FIRST));
+  });
+
+  // The key is only right while the shapes are drawn in document order
+  it('leaves the shapes drawn in the order the document lists them', async () => {
+    const { map } = await previewGeoJson();
+
+    GEOMETRY_SUFFIXES.forEach(suffix => expect(Object.keys(map.layers.get(layerId(suffix)).layout).filter(key => key.endsWith('-sort-key'))).toEqual([]));
+  });
+});
+
+// Feature-state can recolour a feature but can't move it, so a selected feature is drawn where its
+// document lists it, under everything listed after it. An index map lists a sheet's editions one over
+// another, latest last, and the popup pages down them from the top: every edition but the latest was
+// selected out of sight, and the oldest looked like it wasn't selected at all.
+describe('GeoJsonPreviewer#selection', () => {
+  const ONLY_SELECTED = ['case', SELECTED, 1, 0];
+  const COPIES = [
+    ['polygons', 'polygons-selected'],
+    ['polygon-outlines', 'polygon-outlines-selected'],
+    ['lines', 'lines-selected'],
+    ['points', 'points-selected'],
+  ];
+
+  // What MapLibre builds layers from one bucket by, rather than tiling the same data once per layer
+  const GROUPED_BY = ['type', 'source', 'source-layer', 'minzoom', 'maxzoom', 'filter', 'layout'];
+
+  // Over its own kind of shape and nothing else, so a selected polygon still has the lines and points
+  // drawn over it that it always had
+  it('draws each geometry layer a second time, directly over itself', async () => {
+    const { map } = await previewGeoJson();
+    const order = [...map.layers.keys()];
+
+    COPIES.forEach(([layer, copy]) => expect(order.indexOf(layerId(copy))).toEqual(order.indexOf(layerId(layer)) + 1));
+  });
+
+  // Anything else in a copy would draw over the stack a second time
+  it('shows nothing in a copy but the selected feature', async () => {
+    const { map } = await previewGeoJson();
+
+    expect(map.layers.get(layerId('polygons-selected')).paint['fill-opacity']).toEqual(ONLY_SELECTED);
+    expect(map.layers.get(layerId('polygon-outlines-selected')).paint['line-opacity']).toEqual(ONLY_SELECTED);
+    expect(map.layers.get(layerId('lines-selected')).paint['line-opacity']).toEqual(ONLY_SELECTED);
+    expect(map.layers.get(layerId('points-selected')).paint['circle-opacity']).toEqual(ONLY_SELECTED);
+    expect(map.layers.get(layerId('points-selected')).paint['circle-stroke-opacity']).toEqual(ONLY_SELECTED);
+  });
+
+  it('draws the selected feature in a copy the way its own layer draws it', async () => {
+    const { map } = await previewGeoJson();
+    const paint = (suffix: string) => map.layers.get(layerId(suffix)).paint;
+
+    expect(paint('polygons-selected')).toEqual({ ...paint('polygons'), 'fill-opacity': ONLY_SELECTED });
+    expect(paint('polygon-outlines-selected')).toEqual({ ...paint('polygon-outlines'), 'line-opacity': ONLY_SELECTED });
+    expect(paint('lines-selected')).toEqual({ ...paint('lines'), 'line-opacity': ONLY_SELECTED });
+    expect(paint('points-selected')).toEqual({ ...paint('points'), 'circle-opacity': ONLY_SELECTED, 'circle-stroke-opacity': ONLY_SELECTED });
+  });
+
+  it('reads exactly the features of the layer it copies', async () => {
+    const { map } = await previewGeoJson();
+
+    COPIES.forEach(([layer, copy]) => GROUPED_BY.forEach(key => expect(map.layers.get(layerId(copy))[key]).toEqual(map.layers.get(layerId(layer))[key])));
+  });
+
+  // The copies are flagged internal, which keeps the slider off them - the same reason a selected fill
+  // ignores it (see selectedOpacity)
+  it('keeps the selected feature solid at any opacity the row is faded to', async () => {
+    const { map, previewer } = await previewGeoJson();
+
+    previewer.applyLayerState(new Map([[ROW_ID, { visible: true, opacity: 0.3 }]]));
+
+    expect(map.layers.get(layerId('polygons-selected')).paint['fill-opacity']).toEqual(ONLY_SELECTED);
+    expect(map.layers.get(layerId('polygon-outlines-selected')).paint['line-opacity']).toEqual(ONLY_SELECTED);
+    expect(map.layers.get(layerId('points-selected')).paint['circle-stroke-opacity']).toEqual(ONLY_SELECTED);
+  });
+
+  // Every feature is in the copies too, so a click that looked in them would list each one twice
+  it('keeps the copies out of what a click can find', async () => {
+    const { previewer } = await previewGeoJson();
+
+    SELECTED_SUFFIXES.forEach(suffix => expect(previewer.visibleLayerIds).not.toContain(layerId(suffix)));
+  });
+
+  it('copies an index map sheet the same way', async () => {
+    const { map } = await previewIndexMap();
+
+    expect(map.layers.get(indexLayerId('polygons-selected')).paint['fill-opacity']).toEqual(ONLY_SELECTED);
+    expect(map.layers.get(indexLayerId('polygon-outlines-selected')).paint['line-color']).toEqual(map.layers.get(indexLayerId('polygon-outlines')).paint['line-color']);
   });
 });

@@ -160,7 +160,8 @@ describe('EsriTiledFeatureLayerPreviewer#preview', () => {
   it('names the source layer its tiles carry, on every style layer', () => {
     const tiled = [...map.layers.values()].filter(layer => layer.source === SOURCE);
 
-    expect(tiled).toHaveLength(7);
+    // Seven, and a copy of each of the four that draw shapes, for the selected feature
+    expect(tiled).toHaveLength(11);
     tiled.forEach(layer => expect(layer['source-layer']).toEqual('esri'));
   });
 
@@ -231,8 +232,10 @@ describe('EsriTiledFeatureLayerPreviewer further out than its tiles', () => {
   it('keeps the outline out of the layers panel and off the opacity slider', () => {
     // It is machinery for reading the layer, not a layer of its own
     const [row] = previewer.previewLayers;
+    // Machinery the same way the copies drawing the selected feature are
+    const copies = ['polygons', 'polygon-outlines', 'lines', 'points'].map(suffix => `${SOURCE}-esri-${suffix}-selected`);
 
-    expect(row.styleLayers.filter(layer => layer.internal).map(layer => layer.id)).toEqual([`${SOURCE}-extent-outline`, `${SOURCE}-extent-label`]);
+    expect(row.styleLayers.filter(layer => layer.internal).map(layer => layer.id)).toEqual([...copies, `${SOURCE}-extent-outline`, `${SOURCE}-extent-label`]);
     expect(previewer.previewLayers).toHaveLength(1);
   });
 

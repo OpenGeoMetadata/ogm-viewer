@@ -399,6 +399,48 @@ describe('ogm-map', () => {
     expect(inspected).toEqual([expanded]);
   });
 
+  // An index map stacks a sheet's editions under one label, and which of them has it is down to how
+  // MapLibre placed its labels. A label is drawn over every shape, so a click on it used to open at
+  // that edition and only then go down the stack from the top.
+  describe('over a stack of editions sharing one label', () => {
+    const edition = (id: number, layer: { id: string; type: string }) =>
+      ({ ...feature, id, layer: { ...layer, source: 'a-preview' }, properties: { label: `Bright Angel ${id}` } }) as unknown as MapGeoJSONFeature;
+    const label = (id: number) => edition(id, { id: 'a-preview-polygon-labels', type: 'symbol' });
+    const fill = (id: number) => edition(id, { id: 'a-preview-polygons', type: 'fill' });
+
+    // What MapLibre answers with, top down: the label, then the fills from the top of the stack
+    const besideLabel = () => [fill(19), fill(12), fill(6)];
+    const onLabel = () => [label(6), ...besideLabel()];
+
+    it('opens at the edition drawn on top, whether the click lands on the label or beside it', async () => {
+      const { el } = await renderMap();
+      const queryRenderedFeatures = vi.fn();
+      Object.assign(el, { map: { queryRenderedFeatures, remove: vi.fn() }, previewer: drawablePreviewer() });
+      const inspect = (answer: MapGeoJSONFeature[]) => {
+        queryRenderedFeatures.mockReturnValueOnce(answer);
+        return (el as unknown as { handleInspection: (point: unknown) => Promise<MapGeoJSONFeature[]> }).handleInspection({ x: 1, y: 1 });
+      };
+
+      const onIt = await inspect(onLabel());
+      const besideIt = await inspect(besideLabel());
+
+      expect(onIt.map(sheet => sheet.id)).toEqual([19, 12, 6]);
+      expect(besideIt.map(sheet => sheet.id)).toEqual([19, 12, 6]);
+    });
+
+    // Hover says what a click would open at, so it can't light up an edition buried under the rest
+    it('lights up the edition a click would open at, over the label as much as beside it', async () => {
+      const { el } = await renderMap();
+      const map = { queryRenderedFeatures: vi.fn(onLabel), setFeatureState: vi.fn(), getCanvas: () => ({ style: {} }), remove: vi.fn() };
+      Object.assign(el, { map, previewer: drawablePreviewer() });
+
+      (el as unknown as { handleHover: (event: unknown) => void }).handleHover({ point: { x: 1, y: 1 } });
+
+      expect(map.setFeatureState).toHaveBeenCalledTimes(1);
+      expect(map.setFeatureState).toHaveBeenCalledWith({ source: 'a-preview', id: 19, sourceLayer: undefined }, { hover: true });
+    });
+  });
+
   it('shows what a preview has to say about the view it was asked to draw in', async () => {
     const { el } = await renderMap();
     const map = loadingMap();

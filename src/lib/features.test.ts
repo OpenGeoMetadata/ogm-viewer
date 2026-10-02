@@ -80,6 +80,42 @@ describe('dedupeFeatures', () => {
   });
 });
 
+// Bright Angel as gov.usgs indexes it: fourteen editions of one sheet sharing an outline, listed oldest
+// first so the latest is drawn on top, with one label between them. MapLibre answers top down, layer by
+// layer - the label first, since it is drawn over everything, then the outlines and the fills, each
+// from the top of the stack down.
+describe('dedupeFeatures, for a stack under one label', () => {
+  const EDITIONS = [19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6];
+
+  const label = (id: number) => entry({ id, layer: { id: `${SOURCE}-polygon-labels`, type: 'symbol', source: SOURCE } });
+  const outline = (id: number) => entry({ id, layer: { id: `${SOURCE}-polygon-outlines`, type: 'line', source: SOURCE } });
+  const fill = (id: number) => entry({ id });
+
+  const besideLabel = () => [...EDITIONS.map(outline), ...EDITIONS.map(fill)];
+  const ids = (features: MapGeoJSONFeature[]) => features.map(feature => feature.id);
+
+  // Placement decides which edition gets the label, and it was the oldest: the first in the document
+  it('lists the stack from the top, whichever edition the label names', () => {
+    expect(ids(dedupeFeatures([label(6), ...besideLabel()]))).toEqual(EDITIONS);
+    expect(ids(dedupeFeatures([label(12), ...besideLabel()]))).toEqual(EDITIONS);
+  });
+
+  it('lists the stack the same way whether the click lands on its label or beside it', () => {
+    expect(dedupeFeatures([label(6), ...besideLabel()])).toEqual(dedupeFeatures(besideLabel()));
+  });
+
+  // A point's label sits above the point, and a long sheet label runs out over its neighbours
+  it('keeps a feature the click reached only through its label where the label put it', () => {
+    const neighbour = label(23);
+
+    expect(ids(dedupeFeatures([neighbour, ...besideLabel()]))).toEqual([23, ...EDITIONS]);
+  });
+
+  it('keeps one entry for a feature reached only through its label, however many came back', () => {
+    expect(ids(dedupeFeatures([label(23), label(23)]))).toEqual([23]);
+  });
+});
+
 describe('getFeatureTitle', () => {
   it('calls a feature what the data calls it', () => {
     expect(getFeatureTitle(entry({ properties: { label: 'SF 20' } }))).toEqual('SF 20');

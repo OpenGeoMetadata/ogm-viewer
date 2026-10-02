@@ -5,6 +5,11 @@ import type { MapGeoJSONFeature } from 'maplibre-gl';
 // alike are one feature to the map and should be one feature here too.
 const identify = (feature: MapGeoJSONFeature): string => JSON.stringify([feature.source, feature.sourceLayer, String(feature.id)]);
 
+const identified = (feature: MapGeoJSONFeature): boolean => feature.id !== undefined && feature.id !== null;
+
+// Every symbol layer a vector preview draws is one of its labels
+const isLabel = (feature: MapGeoJSONFeature): boolean => feature.layer?.type === 'symbol';
+
 // An inspection answers with one entry per drawn piece of a feature rather than one per feature: a
 // polygon split across two tiles comes back from each of them, a MultiPolygon whose parts both cover
 // the click comes back per part, and a feature drawn by both a fill and its outline comes back from
@@ -15,12 +20,23 @@ const identify = (feature: MapGeoJSONFeature): string => JSON.stringify([feature
 // same feature carry the same properties, and one setFeatureState call would highlight all of them.
 // An entry with no id has nothing to be identified by - a GetFeatureInfo response may answer without
 // one - so those are all kept, since collapsing them would hide genuinely different features.
+//
+// Which entry is kept also decides where the feature sits in the list, which is why a label's entry
+// gives way to the feature's own. MapLibre answers topmost first, and a label is drawn over every
+// shape, so whatever a label named used to lead the list. But features that share an outline share
+// one label - an index map stacks a sheet's editions one over another - and which of them gets it is
+// down to how MapLibre places labels, not to the stack. So a click on a sheet's label opened at
+// whichever edition had it, while a click beside the label opened at the edition drawn on top.
+// Placed by their shapes, a stack lists the same way wherever the click lands. A feature the click
+// reached only through its label, like a point whose label sits above it, keeps the place its label
+// gave it.
 export const dedupeFeatures = (features: readonly MapGeoJSONFeature[]): MapGeoJSONFeature[] => {
+  const drawn = new Set(features.filter(feature => identified(feature) && !isLabel(feature)).map(identify));
   const seen = new Set<string>();
   return features.filter(feature => {
-    if (feature.id === undefined || feature.id === null) return true;
+    if (!identified(feature)) return true;
     const identity = identify(feature);
-    if (seen.has(identity)) return false;
+    if (seen.has(identity) || (isLabel(feature) && drawn.has(identity))) return false;
     seen.add(identity);
     return true;
   });

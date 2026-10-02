@@ -19,6 +19,12 @@ export type AddVectorSourceObject = VectorSourceSpecification & { id: string };
 // on, and the type that decides which property that is.
 export const previewStyleLayers = (layers: LayerSpecification[]): PreviewStyleLayer[] => layers.map(({ id, type }) => ({ id, type }));
 
+// The style layers that draw a feature's shape, as opposed to its label
+type GeometryLayerSpecification = FillLayerSpecification | LineLayerSpecification | CircleLayerSpecification;
+
+// Every feature but the selected one, transparent
+const SELECTED_ONLY: ExpressionSpecification = ['case', ['boolean', ['feature-state', 'selected'], false], 1, 0];
+
 export default abstract class VectorPreviewer extends MapPreviewer {
   declare protected resource: VectorResource;
 
@@ -40,6 +46,16 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     return {};
   }
 
+  // Which label MapLibre keeps where labels collide. It places them in ascending order of
+  // symbol-sort-key and drops any that would overlap one already placed, so without a key they go in
+  // the order the source holds them - and a stack of features sharing an outline is labelled with the
+  // first of them, the one drawn under all the rest, which a click lists last. Nothing by default:
+  // MapLibre draws a tile's features in the order the tile holds them, and an expression can't read
+  // that order, so a tileset has no key that would say which of a stack is on top.
+  protected labelPriority(): { 'symbol-sort-key'?: ExpressionSpecification } {
+    return {};
+  }
+
   protected async createLayers(): Promise<LayerSpecification[]> {
     const layerIds = await this.resource.getVectorLayers();
     const range = await this.zoomRange();
@@ -47,14 +63,46 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     return layerIds.flatMap(layerId => {
       const geometry = [this.createPolygonLayer(layerId), this.createPolygonOutlineLayer(layerId), this.createLineLayer(layerId), this.createPointLayer(layerId)];
       const labels = [this.createPolygonLabelLayer(layerId), this.createLineLabelLayer(layerId), this.createPointLabelLayer(layerId)];
+      const selected = geometry.map(layer => this.createSelectedLayer(layer));
 
       this.previewLayers.push(...this.createPreviewLayers(layerId, geometry, labels));
 
+      // The copies go with the row their features are drawn in, so they hide when it does, but
+      // flagged internal: the selected feature stays solid at any opacity, and a click mustn't find
+      // every feature twice.
+      this.findPreviewLayer(this.previewLayerId(layerId))?.styleLayers.push(...previewStyleLayers(selected).map(styleLayer => ({ ...styleLayer, internal: true })));
+
       // Written over the finished specs rather than into each of the seven builders, and after the
       // panel rows have been taken from them, which read only an id and a type. An empty range
-      // leaves each layer exactly as its builder made it.
-      return [...geometry, ...labels].map(layer => Object.assign(layer, range));
+      // leaves each layer exactly as its builder made it. Each copy goes directly over the layer it
+      // copies, so the selected feature is lifted over its own kind of shape and nothing else: a
+      // selected polygon still has the outlines, lines and points drawn over it that it always had.
+      return [...geometry.flatMap((layer, index) => [layer, selected[index]]), ...labels].map(layer => Object.assign(layer, range));
     });
+  }
+
+  // A geometry layer drawn a second time, directly over itself, showing only the selected feature.
+  // MapLibre draws features in the order their source lists them, and feature-state can recolour a
+  // feature but can't move it, so a selected feature with others listed after it was highlighted
+  // underneath them. An index map stacks a sheet's editions that way, latest last, and the popup pages
+  // down the stack from the top - so every edition but the first it showed was selected out of
+  // sight, and the oldest, under all the rest, looked like no edition was selected at all. In the copy
+  // the selected feature is drawn over its stack wherever it sits in it, and solid, the way a
+  // selected fill already was at any opacity (see selectedOpacity).
+  //
+  // Everything but the id and paint is the layer's own, so the copy reads exactly the features its
+  // layer does. That is also what MapLibre groups layers by, so both are built from one bucket.
+  private createSelectedLayer(layer: GeometryLayerSpecification): GeometryLayerSpecification {
+    const id = `${layer.id}-selected`;
+
+    switch (layer.type) {
+      case 'fill':
+        return { ...layer, id, paint: { ...layer.paint, 'fill-opacity': SELECTED_ONLY } };
+      case 'line':
+        return { ...layer, id, paint: { ...layer.paint, 'line-opacity': SELECTED_ONLY } };
+      case 'circle':
+        return { ...layer, id, paint: { ...layer.paint, 'circle-opacity': SELECTED_ONLY, 'circle-stroke-opacity': SELECTED_ONLY } };
+    }
   }
 
   // How a layer's style layers are grouped into the rows a user sees in the panel.
@@ -222,6 +270,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-field': ['coalesce', ['get', 'label'], ['get', 'id']] as const,
         'text-font': [this.style.textFont],
         'text-size': this.style.textSize,
+        ...this.labelPriority(),
       },
       paint: {
         'text-color': this.style.textColor,
@@ -245,6 +294,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-field': ['coalesce', ['get', 'label'], ['get', 'id']] as const,
         'text-font': [this.style.textFont],
         'text-size': this.style.textSize,
+        ...this.labelPriority(),
       },
       paint: {
         'text-color': this.style.textColor,
@@ -268,6 +318,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         'text-font': [this.style.textFont],
         'text-size': this.style.textSize,
         'text-offset': [0, -1],
+        ...this.labelPriority(),
       },
       paint: {
         'text-color': this.style.textColor,
