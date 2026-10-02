@@ -40,6 +40,23 @@ const capabilities = (formats: string[]) => `<?xml version="1.0" encoding="UTF-8
   </Capability>
 </WMS_Capabilities>`;
 
+// NASA GIBS's, which list every request the server takes, and GetFeatureInfo isn't one of them
+const WITHOUT_GET_FEATURE_INFO = `<?xml version="1.0" encoding="UTF-8"?>
+<WMS_Capabilities xmlns="http://www.opengis.net/wms" version="1.3.0">
+  <Capability>
+    <Request>
+      <GetCapabilities><Format>text/xml</Format></GetCapabilities>
+      <GetMap><Format>image/png</Format><Format>image/jpeg</Format></GetMap>
+    </Request>
+  </Capability>
+</WMS_Capabilities>`;
+
+// What a server can send in place of its capabilities, which says nothing about what it offers
+const EXCEPTION_REPORT = `<?xml version="1.0" encoding="UTF-8"?>
+<ServiceExceptionReport xmlns="http://www.opengis.net/ogc" version="1.3.0">
+  <ServiceException>The server is too busy to list its capabilities.</ServiceException>
+</ServiceExceptionReport>`;
+
 // The formats ArcGIS Server publishes; notably not the 'application/json' GeoServer answers to
 const ARCGIS_FORMATS = ['application/vnd.esri.wms_raw_xml', 'application/geo+json', 'text/xml', 'text/html', 'text/plain'];
 
@@ -210,6 +227,18 @@ describe('WmsSource#canInspect', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     expect(await canInspect()).toBe(true);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  // Asked anyway, it answers a click with an exception report, which the previewer can't read
+  it('says no for a server whose capabilities offer no GetFeatureInfo at all', async () => {
+    expect(await canInspect(WITHOUT_GET_FEATURE_INFO)).toBe(false);
+  });
+
+  it('says yes when what comes back in place of the capabilities says nothing about them', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(await canInspect(EXCEPTION_REPORT)).toBe(true);
     expect(warn).toHaveBeenCalled();
   });
 

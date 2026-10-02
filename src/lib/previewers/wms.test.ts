@@ -82,16 +82,30 @@ const capabilities = (formats: string[]) => `<?xml version="1.0" encoding="UTF-8
 
 const GEOSERVER_FORMATS = ['text/plain', 'application/vnd.ogc.gml', 'application/json', 'text/html'];
 
-// Reads a capabilities document listing the given formats instead of fetching one, so nothing here
-// touches the network; given none, reading them fails as it would for an unreachable server
-const resourceFor = (formats?: string[]) => {
+// NASA GIBS's, which list every request the server takes, and GetFeatureInfo isn't one of them
+const WITHOUT_GET_FEATURE_INFO = `<?xml version="1.0" encoding="UTF-8"?>
+<WMS_Capabilities xmlns="http://www.opengis.net/wms" version="1.3.0">
+  <Capability>
+    <Request>
+      <GetCapabilities><Format>text/xml</Format></GetCapabilities>
+      <GetMap><Format>image/png</Format></GetMap>
+    </Request>
+  </Capability>
+</WMS_Capabilities>`;
+
+// Reads the given capabilities document instead of fetching one, so nothing here touches the
+// network; given none, reading them fails as it would for an unreachable server
+const resourceReading = (xml?: string) => {
   const resource = new WmsResource('s7st30', 'https://geoservices.lib.berkeley.edu/geoserver/wms', { layerIds: [] });
   (resource as unknown as { getMetadata: () => Promise<Document> }).getMetadata = async () => {
-    if (!formats) throw new Error('capabilities unavailable');
-    return new DOMParser().parseFromString(capabilities(formats), 'application/xml');
+    if (!xml) throw new Error('capabilities unavailable');
+    return new DOMParser().parseFromString(xml, 'application/xml');
   };
   return resource;
 };
+
+// One whose capabilities list the given GetFeatureInfo formats
+const resourceFor = (formats?: string[]) => resourceReading(formats && capabilities(formats));
 
 let map: FakeMap;
 let previewer: WmsPreviewer;
@@ -180,11 +194,12 @@ describe('WmsPreviewer#canInspect', () => {
   afterEach(() => vi.restoreAllMocks());
 
   // On a map of its own, rather than the one previewed above
-  const previewedFor = async (formats?: string[]) => {
-    const previewer = new WmsPreviewer(resourceFor(formats)).attach(new FakeMap() as unknown as MapLibreMap, style);
+  const previewedWith = async (resource: WmsResource) => {
+    const previewer = new WmsPreviewer(resource).attach(new FakeMap() as unknown as MapLibreMap, style);
     await previewer.preview();
     return previewer;
   };
+  const previewedFor = async (formats?: string[]) => await previewedWith(resourceFor(formats));
 
   it('offers to inspect a server that answers GetFeatureInfo in GeoJSON', async () => {
     expect((await previewedFor(GEOSERVER_FORMATS)).canInspect).toBe(true);
@@ -198,6 +213,11 @@ describe('WmsPreviewer#canInspect', () => {
   it('still offers to inspect when the capabilities cannot be read', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     expect((await previewedFor()).canInspect).toBe(true);
+  });
+
+  // Asked anyway, NASA GIBS answers every click with an XML exception report
+  it('does not offer to inspect a server whose capabilities offer no GetFeatureInfo at all', async () => {
+    expect((await previewedWith(resourceReading(WITHOUT_GET_FEATURE_INFO))).canInspect).toBe(false);
   });
 });
 
