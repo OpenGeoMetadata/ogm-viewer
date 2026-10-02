@@ -190,9 +190,13 @@ describe('EsriFeatureLayerPreviewer#preview', () => {
   it('draws the features with the styled vector layers, one set per geometry type', () => {
     expect([...map.layers.keys()]).toEqual([
       'trees-esri-feature-layer-esri-polygons',
+      'trees-esri-feature-layer-esri-polygons-selected',
       'trees-esri-feature-layer-esri-polygon-outlines',
+      'trees-esri-feature-layer-esri-polygon-outlines-selected',
       'trees-esri-feature-layer-esri-lines',
+      'trees-esri-feature-layer-esri-lines-selected',
       'trees-esri-feature-layer-esri-points',
+      'trees-esri-feature-layer-esri-points-selected',
       'trees-esri-feature-layer-esri-polygon-labels',
       'trees-esri-feature-layer-esri-line-labels',
       'trees-esri-feature-layer-esri-point-labels',

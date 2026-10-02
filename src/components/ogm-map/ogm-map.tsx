@@ -684,7 +684,8 @@ export class OgmMap {
       return;
     }
 
-    const features = this.map.queryRenderedFeatures(event.point, { layers: this.queryableLayerIds });
+    // In the order a click would list them, so what lights up is the feature a click opens at
+    const features = dedupeFeatures(this.map.queryRenderedFeatures(event.point, { layers: this.queryableLayerIds }));
 
     if (features.length > 0) {
       this.map.getCanvas().style.cursor = 'crosshair';

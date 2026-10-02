@@ -138,7 +138,10 @@ describe('TileJsonRasterPreviewer#preview', () => {
 // yields exactly one row in production, so this is where independent per-layer control is exercised.
 describe('TileJsonVectorPreviewer#previewLayers', () => {
   const SUFFIXES = ['polygons', 'polygon-outlines', 'lines', 'points', 'polygon-labels', 'line-labels', 'point-labels'];
-  const styleLayerIds = (layerId: string) => SUFFIXES.map(suffix => `princeton-fk4544658v-tilejson-${layerId}-${suffix}`);
+  // Each geometry layer drawn again for the selected feature: hidden with its row, never queried
+  const SELECTED_SUFFIXES = ['polygons-selected', 'polygon-outlines-selected', 'lines-selected', 'points-selected'];
+  const ids = (layerId: string, suffixes: string[]) => suffixes.map(suffix => `princeton-fk4544658v-tilejson-${layerId}-${suffix}`);
+  const styleLayerIds = (layerId: string) => ids(layerId, [...SUFFIXES, ...SELECTED_SUFFIXES]);
 
   const preview = async (doc: object) => {
     const map = new FakeMap();
@@ -154,7 +157,7 @@ describe('TileJsonVectorPreviewer#previewLayers', () => {
     expect(previewer.previewLayers.map(layer => layer.title)).toEqual(['Districts', 'Places']);
   });
 
-  it('drives all seven style layers from each row', async () => {
+  it('drives all eleven style layers from each row', async () => {
     const { previewer } = await preview(vectorDoc);
 
     expect(previewer.previewLayers.map(layer => layer.styleLayers.map(styleLayer => styleLayer.id))).toEqual([styleLayerIds('districts'), styleLayerIds('places')]);
@@ -173,7 +176,7 @@ describe('TileJsonVectorPreviewer#previewLayers', () => {
 
     styleLayerIds('places').forEach(id => expect(map.layers.get(id).layout.visibility).toEqual('none'));
     styleLayerIds('districts').forEach(id => expect(map.layers.get(id).layout.visibility).toEqual('visible'));
-    expect(previewer.visibleLayerIds).toEqual(styleLayerIds('districts'));
+    expect(previewer.visibleLayerIds).toEqual(ids('districts', SUFFIXES));
     // One row still drawn is still a drawn preview
     expect(previewer.anyLayerVisible).toBe(true);
   });
@@ -221,7 +224,19 @@ describe('TileJsonVectorPreviewer#preview', () => {
 
   it('styles every layer the document lists', async () => {
     const { map } = await preview(vectorDoc);
-    const suffixes = ['polygons', 'polygon-outlines', 'lines', 'points', 'polygon-labels', 'line-labels', 'point-labels'];
+    const suffixes = [
+      'polygons',
+      'polygons-selected',
+      'polygon-outlines',
+      'polygon-outlines-selected',
+      'lines',
+      'lines-selected',
+      'points',
+      'points-selected',
+      'polygon-labels',
+      'line-labels',
+      'point-labels',
+    ];
 
     expect([...map.layers.keys()]).toEqual(['districts', 'places'].flatMap(layer => suffixes.map(suffix => `princeton-fk4544658v-tilejson-${layer}-${suffix}`)));
   });
@@ -232,6 +247,16 @@ describe('TileJsonVectorPreviewer#preview', () => {
     // Without this a layer would draw from whichever layer of the tiles came first
     expect(map.layers.get('princeton-fk4544658v-tilejson-places-points')['source-layer']).toEqual('places');
     expect([...map.layers.values()].every(layer => layer['source-layer'])).toBe(true);
+  });
+
+  // A tile's ids say nothing about which of its features is drawn last, so there is no key that would
+  // give a stack's label to the one on top; see GeoJsonPreviewer for a source whose ids do
+  it('leaves its labels to be placed in the order its tiles hold them', async () => {
+    const { map } = await preview(vectorDoc);
+    const labels = [...map.layers.values()].filter(layer => layer.type === 'symbol');
+
+    expect(labels).toHaveLength(6);
+    labels.forEach(layer => expect(layer.layout['symbol-sort-key']).toBeUndefined());
   });
 
   it('takes its bounds from the document', async () => {
