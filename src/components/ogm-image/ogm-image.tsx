@@ -55,7 +55,7 @@ export class OgmImage {
       // Given to the viewer rather than set afterwards: OpenSeadragon works out where "home" is from
       // the margins in place when an image opens, and setMargins() doesn't refit one already open.
       viewportMargins: this.margins(),
-      prefixUrl: 'https://cdnjs.cloudflare.com/ajax/libs/openseadragon/2.4.2/images/',
+      prefixUrl: 'https://cdnjs.cloudflare.com/ajax/libs/openseadragon/6.1.1/images/',
       visibilityRatio: 1,
       sequenceMode: true,
       showReferenceStrip: true,

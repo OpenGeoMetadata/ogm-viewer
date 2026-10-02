@@ -9,10 +9,10 @@ import IIIFManifestResource from '../resources/iiif-manifest';
 // one can't be built outside a browser, which is why none of this could be tested until the logic
 // moved off ogm-image.
 class FakeViewer {
-  opened: string[][] = [];
+  opened: { tileSource: string }[][] = [];
   closed = 0;
 
-  open(images: string[]) {
+  open(images: { tileSource: string }[]) {
     this.opened.push(images);
   }
   close() {
@@ -63,7 +63,7 @@ describe('ImagePreviewer', () => {
       const fetchSpy = vi.spyOn(global, 'fetch');
       await previewerFor(new IIIFResource('princeton-fk4544658v', IMAGE_URL)).preview();
 
-      expect(viewer.opened).toEqual([[IMAGE_URL]]);
+      expect(viewer.opened).toEqual([[{ tileSource: IMAGE_URL }]]);
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
@@ -72,7 +72,7 @@ describe('ImagePreviewer', () => {
       serveManifest(manifest);
       await previewerFor(new IIIFManifestResource('princeton-fk4544658v', MANIFEST_URL)).preview();
 
-      expect(viewer.opened).toEqual([['https://example.com/image1/info.json', 'https://example.com/image2/info.json']]);
+      expect(viewer.opened).toEqual([[{ tileSource: 'https://example.com/image1/info.json' }, { tileSource: 'https://example.com/image2/info.json' }]]);
     });
 
     // Previously this opened an empty viewer and said nothing; the tab has to report it instead
