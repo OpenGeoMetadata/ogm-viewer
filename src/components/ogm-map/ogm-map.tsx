@@ -26,6 +26,7 @@ import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
 import { createMap, fitBounds, openingCamera, setBasemap, whenSized } from '../../lib/maps';
 import { isLayerDrawn, rampedLayers, resolveLayerState, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
 import LayersControl from '../../lib/layers-control';
+import { imageLegends } from '../../lib/legend';
 import InspectableRasterPreviewer from '../../lib/previewers/inspectable-raster';
 import type MapPreviewer from '../../lib/previewers/map';
 import type { References } from '../../lib/references';
@@ -96,6 +97,12 @@ export class OgmMap {
   @State() notice?: string;
   @State() basemapNotice?: string;
   @State() failedBasemap?: string;
+
+  // The zoom the camera last came to rest at
+  @State() zoom?: number;
+
+  // Whether the reader has the legend unfolded
+  @State() legendOpen: boolean = true;
   protected layersControl: LayersControl;
   private layerState = new Map<string, LayerState>();
 
@@ -201,6 +208,8 @@ export class OgmMap {
     this.map.on('sourcedata', this.handleSourceData.bind(this));
     this.map.on('sourcedataloading', this.handleSourceDataLoading.bind(this));
     this.map.on('idle', this.settleTileLoading.bind(this));
+    this.map.on('zoomend', () => (this.zoom = this.map.getZoom()));
+    this.zoom = this.map.getZoom();
     this.addControls();
 
     // Style as a globe with atmosphere once style is loaded and set the flag
@@ -621,6 +630,12 @@ export class OgmMap {
     this.setLayerState(event.detail.id, { removeBackground: event.detail.removeBackground });
   }
 
+  @Listen('legendToggle')
+  handleLegendToggle(event: CustomEvent<boolean>) {
+    event.stopPropagation();
+    this.legendOpen = event.detail;
+  }
+
   // Used when the user toggles the summary checkbox to show/hide all layers at once
   @Listen('allLayersVisibilityChange')
   handleAllLayersVisibilityChange(event: CustomEvent<boolean>) {
@@ -878,12 +893,13 @@ export class OgmMap {
   // The legend is shown independently of the panel, unlike layersPanelOpen below: it exists to be
   // read while looking at the map, which is exactly when the panel that would have opened it is
   // closed. But it is gated the same way the panel is - mounted only when there's something for it
-  // to show, via rampedLayers(this.layerControls) and the previewer's own named entries rather than
-  // unconditionally with the component left to render null on its own. Both would look right to a
-  // reader; only one of them is - see the note on this at the top of ogm-legend.tsx.
+  // to show, via rampedLayers(this.layerControls), imageLegends() and the previewer's own named
+  // entries rather than unconditionally with the component left to render null on its own. Both
+  // would look right to a reader; only one of them is - see the note on this at the top of
+  // ogm-legend.tsx.
   render() {
     const legendEntries = this.previewer?.legendEntries ?? [];
-    const hasLegend = legendEntries.length > 0 || rampedLayers(this.layerControls).length > 0;
+    const hasLegend = legendEntries.length > 0 || rampedLayers(this.layerControls).length > 0 || imageLegends(this.layerControls, this.zoom).length > 0;
 
     return (
       <Host class={waScope(this.theme)}>
@@ -911,7 +927,7 @@ export class OgmMap {
             </div>
           )}
           {this.layersPanelOpen && <ogm-layers theme={this.theme} layers={this.layerControls}></ogm-layers>}
-          {hasLegend && <ogm-legend theme={this.theme} layers={this.layerControls} entries={legendEntries}></ogm-legend>}
+          {hasLegend && <ogm-legend theme={this.theme} layers={this.layerControls} entries={legendEntries} zoom={this.zoom} open={this.legendOpen}></ogm-legend>}
         </div>
       </Host>
     );

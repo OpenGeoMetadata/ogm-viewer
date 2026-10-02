@@ -25,6 +25,16 @@ if (!HTMLElement.prototype.attachInternals) {
   };
 }
 
+// Enough of the Web Animations API for <wa-details> to open and close. happy-dom has no
+// Element.animate (checked in 20.9), and Web Awesome slides a details' contents in and out with it -
+// so without this the legend's fold threw from inside the toggle, an unhandled rejection that fails
+// the run. Finishing at once is all a test needs: what is asserted is where the details ends up.
+if (!Element.prototype.animate) {
+  Element.prototype.animate = function animate() {
+    return { finished: Promise.resolve(), cancel: () => {}, finish: () => {} } as unknown as Animation;
+  };
+}
+
 // Enough of the image pipeline to turn encoded bytes into pixels, which happy-dom has none of
 // (checked in 20.9): no ImageData, no ImageBitmap, no createImageBitmap, no OffscreenCanvas. Two of
 // those are what @developmentseed/deck.gl-raster's decodeColormapSprite reaches for, so without

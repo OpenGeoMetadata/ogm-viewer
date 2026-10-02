@@ -95,14 +95,16 @@ const boundingBox = (west: number, south: number, east: number, north: number) =
     <ows:UpperCorner>${east} ${north}</ows:UpperCorner>
   </ows:WGS84BoundingBox>`;
 
-type LayerOptions = { id?: string; links: string[]; templates?: string[]; dimension?: string; extraUrls?: string; bbox?: string };
+const DEFAULT_STYLE = '<Style isDefault="true"><ows:Identifier>default</ows:Identifier></Style>';
 
-const layer = ({ id = 'lights', links, templates = [TILE_TEMPLATE], dimension = '', extraUrls = '', bbox = '' }: LayerOptions) => `
+type LayerOptions = { id?: string; links: string[]; templates?: string[]; dimension?: string; extraUrls?: string; bbox?: string; styles?: string };
+
+const layer = ({ id = 'lights', links, templates = [TILE_TEMPLATE], dimension = '', extraUrls = '', bbox = '', styles = DEFAULT_STYLE }: LayerOptions) => `
   <Layer>
     <ows:Title>Night Lights</ows:Title>
     ${bbox}
     <ows:Identifier>${id}</ows:Identifier>
-    <Style isDefault="true"><ows:Identifier>default</ows:Identifier></Style>
+    ${styles}
     ${dimension}
     ${links.map(link => `<TileMatrixSetLink><TileMatrixSet>${link}</TileMatrixSet></TileMatrixSetLink>`).join('')}
     ${templates.map(template => `<ResourceURL resourceType="tile" format="image/png" template="${template}"/>`).join('')}
@@ -110,7 +112,7 @@ const layer = ({ id = 'lights', links, templates = [TILE_TEMPLATE], dimension = 
   </Layer>`;
 
 const capabilities = (...contents: string[]) => `<?xml version="1.0" encoding="UTF-8"?>
-<Capabilities xmlns="http://www.opengis.net/wmts/1.0" xmlns:ows="http://www.opengis.net/ows/1.1" version="1.0.0">
+<Capabilities xmlns="http://www.opengis.net/wmts/1.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.0.0">
   <Contents>${contents.join('')}</Contents>
 </Capabilities>`;
 
@@ -307,5 +309,85 @@ describe('WmtsResource#getLayers tile hosts', () => {
     const [drawn] = await resourceFor(capabilities(layer({ links: ['GoogleMapsCompatible_Level3'] }), MERCATOR_SET)).getLayers();
 
     expect(drawn.tileUrls).toEqual(['https://tiles.example.org/lights/default/GoogleMapsCompatible_Level3/{z}/{y}/{x}.png']);
+  });
+});
+
+// The pair NASA GIBS publishes in the default style of every colormapped layer, as it writes them
+const GIBS_LEGENDS = `
+  <LegendURL xlink:href='https://gibs.earthdata.nasa.gov/legends/GHRSST_Sea_Surface_Temperature_H.svg' height='86' xlink:type='simple' xlink:title='GIBS Color Map Legend: Horizontal' format='image/svg+xml' xlink:role='http://earthdata.nasa.gov/gibs/legend-type/horizontal' width='378'/>
+  <LegendURL xlink:href='https://gibs.earthdata.nasa.gov/legends/GHRSST_Sea_Surface_Temperature_V.svg' height='288' xlink:type='simple' xlink:title='GIBS Color Map Legend: Vertical' format='image/svg+xml' xlink:role='http://earthdata.nasa.gov/gibs/legend-type/vertical' width='135'/>`;
+
+const style = (identifier: string, legends: string, isDefault?: boolean) =>
+  `<Style${isDefault === undefined ? '' : ` isDefault="${isDefault}"`}><ows:Identifier>${identifier}</ows:Identifier>${legends}</Style>`;
+
+const legendLayer = async (styles: string) => {
+  const [drawn] = await resourceFor(capabilities(layer({ links: ['GoogleMapsCompatible_Level3'], styles }), MERCATOR_SET)).getLayers();
+  return drawn;
+};
+
+describe('WmtsResource#getLayers legends', () => {
+  it('reads every legend picture the default style publishes, with its format and size', async () => {
+    const drawn = await legendLayer(style('default', GIBS_LEGENDS, true));
+
+    expect(drawn.legendImages).toEqual([
+      { url: 'https://gibs.earthdata.nasa.gov/legends/GHRSST_Sea_Surface_Temperature_H.svg', format: 'image/svg+xml', width: 378, height: 86 },
+      { url: 'https://gibs.earthdata.nasa.gov/legends/GHRSST_Sea_Surface_Temperature_V.svg', format: 'image/svg+xml', width: 135, height: 288 },
+    ]);
+  });
+
+  // The tiles are drawn in the default style, so its legend is the one that explains them
+  it('reads the legend of the style marked default, not of the first one listed', async () => {
+    const other = '<LegendURL format="image/png" xlink:href="https://tiles.example.org/legends/contrast.png"/>';
+    const drawn = await legendLayer(style('contrast', other, false) + style('default', GIBS_LEGENDS, true));
+
+    expect(drawn.legendImages?.map(image => image.url)).toEqual([
+      'https://gibs.earthdata.nasa.gov/legends/GHRSST_Sea_Surface_Temperature_H.svg',
+      'https://gibs.earthdata.nasa.gov/legends/GHRSST_Sea_Surface_Temperature_V.svg',
+    ]);
+  });
+
+  it('reads the first style when none is marked default', async () => {
+    const first = '<LegendURL format="image/png" xlink:href="https://tiles.example.org/legends/first.png"/>';
+    const second = '<LegendURL format="image/png" xlink:href="https://tiles.example.org/legends/second.png"/>';
+    const drawn = await legendLayer(style('first', first) + style('second', second));
+
+    expect(drawn.legendImages?.map(image => image.url)).toEqual(['https://tiles.example.org/legends/first.png']);
+  });
+
+  // GeoWebCache can publish a style's legend per range of scales
+  it('keeps the scales a legend is limited to', async () => {
+    const legends = `
+      <LegendURL format="image/png" xlink:href="https://tiles.example.org/legends/overview.png" minScaleDenominator="1000000"/>
+      <LegendURL format="image/png" xlink:href="https://tiles.example.org/legends/detail.png" maxScaleDenominator="1000000"/>`;
+    const drawn = await legendLayer(style('default', legends, true));
+
+    expect(drawn.legendImages).toEqual([
+      { url: 'https://tiles.example.org/legends/overview.png', format: 'image/png', minScaleDenominator: 1_000_000 },
+      { url: 'https://tiles.example.org/legends/detail.png', format: 'image/png', maxScaleDenominator: 1_000_000 },
+    ]);
+  });
+
+  it('reads a relative legend address against the capabilities document', async () => {
+    const drawn = await legendLayer(style('default', '<LegendURL format="image/png" xlink:href="../legends/lights.png"/>', true));
+
+    expect(drawn.legendImages?.[0].url).toEqual('https://example.org/wmts/legends/lights.png');
+  });
+
+  // All a legend is good for here is being shown
+  it('leaves out a legend that is not an image, and one with no address', async () => {
+    const legends = `
+      <LegendURL format="text/html" xlink:href="https://tiles.example.org/legends/lights.html"/>
+      <LegendURL format="image/png"/>
+      <LegendURL format="image/png" xlink:href="https://tiles.example.org/legends/lights.png" width="0" height="wide"/>`;
+    const drawn = await legendLayer(style('default', legends, true));
+
+    // A size that isn't a size is left out, rather than reserving no room or NaN of it
+    expect(drawn.legendImages).toEqual([{ url: 'https://tiles.example.org/legends/lights.png', format: 'image/png' }]);
+  });
+
+  it('carries no legend key for a layer whose style publishes none', async () => {
+    const drawn = await legendLayer(DEFAULT_STYLE);
+
+    expect(drawn).not.toHaveProperty('legendImages');
   });
 });

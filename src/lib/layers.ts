@@ -1,6 +1,7 @@
 import type { LayerSpecification as MapLibreLayerSpecification } from 'maplibre-gl';
 
 import type { ColorRampName } from './colormap';
+import type { LegendImage } from './legend';
 
 // A MapLibre style layer, one piece of a logical layer. Vector layers can have
 // multiple of these, e.g. to style fills, outlines, and labels separately.
@@ -39,13 +40,17 @@ export type Layer = {
   // thumbnail, which finishes long after createLayers() did. Hence onLayersChanged in
   // MapPreviewer, which is how the panel hears that a row has grown a control.
   backgroundRemovable?: boolean;
+  // Present only for a layer whose service publishes pictures of its key - a WMTS layer's <LegendURL>s.
+  // Which one the legend shows depends on the scale the map is at; see chooseLegendImage in
+  // src/lib/legend.ts. A fact about the layer, like colorRampRange, so it travels with the layer.
+  legendImages?: LegendImage[];
 };
 
 // Attributes of a layer that the user can toggle in the control panel
 export type LayerState = { visible: boolean; opacity: number; colorRamp?: ColorRampName; removeBackground?: boolean };
 
 // Data for a single entry in the layers control panel
-export type LayerControl = { id: string; title: string; colorRampRange?: Layer['colorRampRange'] } & LayerState;
+export type LayerControl = { id: string; title: string; colorRampRange?: Layer['colorRampRange']; legendImages?: Layer['legendImages'] } & LayerState;
 
 // Get the initial state for a layer. Field by field against the layer's own defaults, not the
 // stored state wholesale: a state already on record from before colorRamp existed - or from a
@@ -79,11 +84,7 @@ export const rampedLayers = (layers: readonly LayerControl[]): LayerControl[] =>
 export const toLayerControlItems = (layers: readonly Layer[], states: ReadonlyMap<string, LayerState>): LayerControl[] =>
   layers.map(layer => {
     const { visible, opacity, colorRamp, removeBackground } = resolveLayerState(layer, states);
-    // Left off a layer with no ramp of its own, rather than carried as undefined: ordinary vector
-    // and raster layers are most of what this list holds, and there is no reason for their entries
-    // to grow two keys that never mean anything for them. Same for the background toggle, which only
-    // a georeferenced scan has anything to say about - its absence is what the panel reads to decide
-    // whether to draw the control at all, so it has to be absent rather than false.
+
     return {
       id: layer.id,
       title: layer.title,
@@ -91,6 +92,7 @@ export const toLayerControlItems = (layers: readonly Layer[], states: ReadonlyMa
       opacity,
       ...(colorRamp !== undefined && { colorRamp, colorRampRange: layer.colorRampRange }),
       ...(layer.backgroundRemovable && { removeBackground }),
+      ...(layer.legendImages && { legendImages: layer.legendImages }),
     };
   });
 
