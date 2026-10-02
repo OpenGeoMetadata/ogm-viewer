@@ -159,6 +159,15 @@ describe('toLayerControlItems', () => {
     expect(Object.keys(undetected).sort()).toEqual(['id', 'opacity', 'title', 'visible']);
   });
 
+  it('carries legend pictures only for a layer whose service publishes them', () => {
+    const legendImages = [{ url: 'https://gibs.earthdata.nasa.gov/legends/GHRSST_Sea_Surface_Temperature_H.svg', width: 378, height: 86 }];
+    const [wmts] = toLayerControlItems([{ ...rasterLayer, legendImages }], new Map());
+    expect(wmts).toEqual({ id: rasterLayer.id, title: 'XYZ Tiles', visible: true, opacity: 0.8, legendImages });
+
+    const [raster] = toLayerControlItems([rasterLayer], new Map());
+    expect(Object.keys(raster).sort()).toEqual(['id', 'opacity', 'title', 'visible']);
+  });
+
   it('reflects a background the reader has already taken off', () => {
     const states = new Map<string, LayerState>([[scanLayer.id, { visible: true, opacity: 0.8, removeBackground: true }]]);
     expect(toLayerControlItems([scanLayer], states)[0].removeBackground).toBe(true);

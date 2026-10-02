@@ -73,7 +73,12 @@ export namespace Components {
           * @default []
          */
         "layers": LayerControl[];
+        /**
+          * @default true
+         */
+        "open": boolean;
         "theme": 'light' | 'dark';
+        "zoom"?: number;
     }
     interface OgmLocator {
         /**
@@ -236,6 +241,10 @@ export interface OgmLayersCustomEvent<T> extends CustomEvent<T> {
     detail: T;
     target: HTMLOgmLayersElement;
 }
+export interface OgmLegendCustomEvent<T> extends CustomEvent<T> {
+    detail: T;
+    target: HTMLOgmLegendElement;
+}
 export interface OgmMapCustomEvent<T> extends CustomEvent<T> {
     detail: T;
     target: HTMLOgmMapElement;
@@ -322,7 +331,18 @@ declare global {
         prototype: HTMLOgmLayersElement;
         new (): HTMLOgmLayersElement;
     };
+    interface HTMLOgmLegendElementEventMap {
+        "legendToggle": boolean;
+    }
     interface HTMLOgmLegendElement extends Components.OgmLegend, HTMLStencilElement {
+        addEventListener<K extends keyof HTMLOgmLegendElementEventMap>(type: K, listener: (this: HTMLOgmLegendElement, ev: OgmLegendCustomEvent<HTMLOgmLegendElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLOgmLegendElementEventMap>(type: K, listener: (this: HTMLOgmLegendElement, ev: OgmLegendCustomEvent<HTMLOgmLegendElementEventMap[K]>) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
     }
     var HTMLOgmLegendElement: {
         prototype: HTMLOgmLegendElement;
@@ -513,7 +533,13 @@ declare namespace LocalJSX {
           * @default []
          */
         "layers"?: LayerControl[];
+        "onLegendToggle"?: (event: OgmLegendCustomEvent<boolean>) => void;
+        /**
+          * @default true
+         */
+        "open"?: boolean;
         "theme"?: 'light' | 'dark';
+        "zoom"?: number;
     }
     interface OgmLocator {
         /**
@@ -691,6 +717,8 @@ declare namespace LocalJSX {
     }
     interface OgmLegendAttributes {
         "theme": 'light' | 'dark';
+        "zoom": number;
+        "open": boolean;
     }
     interface OgmLocatorAttributes {
         "theme": 'light' | 'dark';

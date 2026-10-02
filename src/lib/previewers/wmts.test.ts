@@ -55,7 +55,13 @@ class StubWmtsResource extends WmtsResource {
 // The previewer only reads the opacity
 const style = { opacity: 0.8 } as MapLibreStyle;
 
-// A layer served from several tile hosts, and one on a grid with its own size and limits
+const LEGENDS = [
+  { url: 'https://one.example.org/legends/lights_H.svg', format: 'image/svg+xml', width: 378, height: 86 },
+  { url: 'https://one.example.org/legends/lights_V.svg', format: 'image/svg+xml', width: 135, height: 288 },
+];
+
+// A layer served from several tile hosts with a legend, and one on a grid with its own size and
+// limits and no legend
 const LAYERS: WmtsLayer[] = [
   {
     id: 'lights',
@@ -64,6 +70,7 @@ const LAYERS: WmtsLayer[] = [
     tileSize: 256,
     minzoom: 0,
     maxzoom: 8,
+    legendImages: LEGENDS,
   },
   {
     id: 'ortho',
@@ -98,6 +105,12 @@ describe('WmtsPreviewer#previewLayers', () => {
     expect(previewer.previewLayers.map(layer => layer.id)).toEqual(['night-lights-lights', 'night-lights-ortho']);
     expect(previewer.previewLayers.map(layer => layer.styleLayers.map(styleLayer => styleLayer.id))).toEqual([['night-lights-lights'], ['night-lights-ortho']]);
     expect(previewer.previewLayers.every(layer => layer.defaultOpacity === 0.8)).toBe(true);
+  });
+
+  // Every one of them, since which applies depends on the map the legend is drawn over
+  it("carries each layer's legend pictures to its own row", () => {
+    expect(previewer.previewLayers[0].legendImages).toEqual(LEGENDS);
+    expect(previewer.previewLayers[1]).not.toHaveProperty('legendImages');
   });
 
   it('falls back to the identifier when the service published no title', async () => {

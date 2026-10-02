@@ -9,6 +9,7 @@ import type { MapGeoJSONFeature } from 'maplibre-gl';
 // and the state a selection used to crash it in. What needs one is handed a fake afterwards.
 import { render as stencilRender } from '@stencil/core';
 
+import type { LegendImage } from '../../lib/legend';
 import XyzPreviewer from '../../lib/previewers/xyz';
 import XyzResource from '../../lib/resources/xyz';
 
@@ -457,6 +458,59 @@ describe('ogm-map', () => {
     expect(el.shadowRoot?.querySelector('wa-callout.notice')?.textContent).toContain('Zoom in');
     // Telling a reader how to use the view they're in, rather than warning them about it
     expect(noticeVariants(el)).toEqual(['brand']);
+  });
+
+  // A WMTS layer's <LegendURL>s ride on its row in the layers panel, the way a COG's ramp does
+  describe('with a layer whose service publishes a picture of its key', () => {
+    const pictured = (legendImages: LegendImage[]) => ({
+      ...drawablePreviewer(),
+      previewLayers: [{ id: 'roads', title: 'Roads', defaultOpacity: 1, styleLayers: [{ id: 'roads', type: 'raster' }], legendImages }],
+    });
+
+    const legend = (el: HTMLElement) => (el.shadowRoot as ShadowRoot).querySelector<HTMLElement & { zoom?: number }>('ogm-legend');
+
+    it('shows a legend for it', async () => {
+      const { el } = await renderMap();
+      const map = loadingMap();
+      Object.assign(el, { map, layersControl: fakeLayersControl(), previewer: pictured([{ url: 'https://example.org/legend/roads.png' }]) });
+
+      await styleLoads(el, map);
+      await settle();
+
+      expect(legend(el)).not.toBeNull();
+    });
+
+    // A picture limited to closer views than the map is at describes nothing on it yet
+    it('shows a picture limited to some scales only once the map is zoomed to them', async () => {
+      const { el } = await renderMap();
+      const map = loadingMap();
+      const detail = { url: 'https://example.org/legend/detail.png', maxScaleDenominator: 1_000_000 };
+      Object.assign(el, { map, layersControl: fakeLayersControl(), previewer: pictured([detail]), zoom: 3 });
+
+      await styleLoads(el, map);
+      await settle();
+      expect(legend(el)).toBeNull();
+
+      // What the map's zoomend listener does, about 1:68,000 in
+      Object.assign(el, { zoom: 12 });
+      await settle();
+      expect(legend(el)?.zoom).toEqual(12);
+    });
+
+    // A theme change draws the whole preview again, the legend with it
+    it('keeps a legend the reader folded away folded when it is drawn again', async () => {
+      const { el } = await renderMap();
+      const map = loadingMap();
+      Object.assign(el, { map, layersControl: fakeLayersControl(), previewer: pictured([{ url: 'https://example.org/legend/roads.png' }]) });
+      await styleLoads(el, map);
+      await settle();
+
+      legend(el)?.dispatchEvent(new CustomEvent('legendToggle', { detail: false, bubbles: true, composed: true }));
+      await styleLoads(el, map);
+      await settle();
+
+      expect((legend(el) as (HTMLElement & { open?: boolean }) | null)?.open).toBe(false);
+    });
   });
 
   // The failure this is all about: a basemap that never loads fires no style.load, and everything a

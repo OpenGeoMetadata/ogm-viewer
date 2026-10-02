@@ -1,6 +1,7 @@
 import { LngLatBounds, type LngLatBoundsLike, type RasterSourceSpecification } from 'maplibre-gl';
 import RasterResource from './raster';
 import type { ResourceKind } from './resource';
+import type { LegendImage } from '../legend';
 import { resolveRequest, type RequestTransform } from '../request';
 
 export type WmtsOptions = {
@@ -20,6 +21,7 @@ export type WmtsLayer = {
   minzoom: number;
   maxzoom: number;
   bounds?: Bounds;
+  legendImages?: LegendImage[];
 };
 
 // What MapLibre needs to know about a tile grid in order to draw from it
@@ -66,6 +68,9 @@ const WEB_MERCATOR_CODES = ['3857', '900913', '102100'];
 // The latitude the Web Mercator world stops at. A layer may claim an extent that runs to the
 // pole, but there is no map there to bound it against.
 const MERCATOR_MAX_LATITUDE = 85.051129;
+
+// Where a <LegendURL>'s href lives
+const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink';
 
 // Layers (potentially multiple) accessed via WMTS GetTile requests
 // NOTE: in Aardvark, the reference URL is the GetCapabilities URL, not the tile URL
@@ -171,6 +176,7 @@ export default class WmtsResource extends RasterResource {
     const tileUrls = this.preferKnownHost(templates).map(template => this.formatTileUrl(template, styleId, tileMatrixSet, dimensionDefaults));
 
     const bounds = this.parseBounds(element) ?? this.recordBounds();
+    const legendImages = this.parseLegendImages(style);
 
     return {
       id: layerId,
@@ -180,6 +186,7 @@ export default class WmtsResource extends RasterResource {
       minzoom: clamp(this.boundsMinzoom(bounds), grid.minzoom, grid.maxzoom),
       maxzoom: grid.maxzoom,
       bounds: bounds,
+      ...(legendImages.length > 0 && { legendImages }),
     };
   }
 
@@ -195,6 +202,36 @@ export default class WmtsResource extends RasterResource {
     if ([west, south, east, north].some(value => !Number.isFinite(value))) return undefined;
 
     return [west, south, east, north];
+  }
+
+  // The pictures of the layer's key that its style publishes, one per <LegendURL>. A service can list several.
+  protected parseLegendImages(style: Element | undefined): LegendImage[] {
+    if (!style) return [];
+
+    return Array.from(style.getElementsByTagName('LegendURL')).flatMap(legend => {
+      const href = (legend.getAttributeNS(XLINK_NAMESPACE, 'href') || legend.getAttribute('xlink:href'))?.trim();
+      const format = legend.getAttribute('format')?.trim() || undefined;
+      if (!href || (format && !format.startsWith('image/'))) return [];
+
+      // Relative to the capabilities document, if the service wrote it that way
+      let url: string;
+      try {
+        url = new URL(href, this.url).href;
+      } catch {
+        return [];
+      }
+
+      return [
+        {
+          url,
+          format,
+          width: positiveAttribute(legend, 'width'),
+          height: positiveAttribute(legend, 'height'),
+          minScaleDenominator: positiveAttribute(legend, 'minScaleDenominator'),
+          maxScaleDenominator: positiveAttribute(legend, 'maxScaleDenominator'),
+        },
+      ];
+    });
   }
 
   // The extent the record claims, for a service that publishes none of its own. Aardvark states
@@ -395,6 +432,13 @@ function hostOf(template: string): string | undefined {
 function numericChild(element: Element, tagName: string): number {
   const text = element.getElementsByTagName(tagName)[0]?.textContent?.trim();
   return text ? Number(text) : NaN;
+}
+
+// A numeric attribute that has to be above zero to mean anything - a size, a scale - or undefined
+// when it's missing or isn't. A minimum scale of zero says no more than leaving it out does.
+function positiveAttribute(element: Element, name: string): number | undefined {
+  const value = Number(element.getAttribute(name) ?? NaN);
+  return value > 0 && Number.isFinite(value) ? value : undefined;
 }
 
 // One corner of an OWS bounding box, written as space-separated ordinates

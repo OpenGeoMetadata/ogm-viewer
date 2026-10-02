@@ -52,6 +52,7 @@ ogm-legend {
   inset-inline-start: var(--ogm-control-inset);
   z-index: 3;
   max-width: calc(100% - 2 * var(--ogm-control-inset));
+  max-height: calc(100% - 2 * var(--ogm-control-inset));
   display: flex;
 }
 

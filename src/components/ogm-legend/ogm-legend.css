@@ -12,11 +12,36 @@
   flex-direction: column;
   font-family: var(--wa-font-family-body);
   font-size: var(--wa-font-size-s);
-  gap: var(--wa-space-xs);
   line-height: var(--wa-line-height-condensed);
   max-width: 18rem;
   min-width: 13rem;
+  overflow-y: auto;
   padding: var(--wa-space-2xs);
+}
+
+.panel.has-images {
+  max-width: none;
+}
+
+/* Folded away, the panel is only as wide as the summary that unfolds it */
+.panel.folded {
+  min-width: 0;
+}
+
+wa-details {
+  --spacing: 0;
+}
+
+wa-details::part(header) {
+  color: var(--wa-color-text-quiet);
+  gap: var(--wa-space-xs);
+}
+
+wa-details::part(content) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--wa-space-xs);
+  padding-block-start: var(--wa-space-2xs);
 }
 
 .entry + .entry {
@@ -48,7 +73,7 @@
   width: var(--wa-space-m, 1rem);
 }
 
-.swatches + .ramp-entry {
+.swatches + .entry {
   border-top: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
   margin-top: var(--wa-space-2xs);
   padding-top: var(--wa-space-2xs);
@@ -69,6 +94,22 @@
   height: var(--wa-space-s, 0.75rem);
   margin-top: var(--wa-space-3xs);
   width: 100%;
+}
+
+/* We can't invert legend pictures because it'd screw up the colors */
+.picture {
+  background-color: white;
+  border-radius: var(--wa-border-radius-s, 0.125rem);
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: var(--wa-space-2xs);
+  width: fit-content;
+}
+
+.picture img {
+  display: block;
+  height: auto;
+  max-width: 100%;
 }
 
 /* Min at the start, max at the end - no midpoint label, matching how little space a bar this

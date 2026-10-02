@@ -27,7 +27,7 @@ export default class WmtsPreviewer extends RasterPreviewer {
 
   // One layer per source, with the same ID as the source. Each is its own row in the layer
   // control, titled from the <ows:Title> the service published for people to read rather than the
-  // identifier it uses to address the layer.
+  // identifier it uses to address the layer, and carrying whatever legend its style publishes.
   protected async createLayers(): Promise<RasterLayerSpecification[]> {
     const layers = await this.resource.getLayers();
 
@@ -39,6 +39,7 @@ export default class WmtsPreviewer extends RasterPreviewer {
         title: layer.title?.trim() || layer.id,
         defaultOpacity: this.style.opacity,
         styleLayers: [{ id, type: 'raster' }],
+        ...(layer.legendImages && { legendImages: layer.legendImages }),
       });
 
       return {
