@@ -424,6 +424,12 @@ export class OgmMap {
     // appropriate zoom isn't known until the request happens
     if (event.tile && this.previewer.absorbTileError(sourceId, tileZoom(event.tile))) return;
 
+    // If we successfully drew at least some tiles, just log the failing ones and let the previewer continue
+    if (event.tile && this.previewDrawn) {
+      console.warn(`Could not load a tile of ${this.previewer.url}:`, event.error);
+      return;
+    }
+
     if (this.errorReported) return;
     this.reportError(event.error);
   }
