@@ -291,22 +291,33 @@ describe('ogm-map', () => {
   // <ogm-viewer> counts these in pairs, so an unmatched one either sticks the spinner on for good
   // or turns it off while something else is still loading
   describe('while tiles of the preview are arriving', () => {
+    // Enough of a MapLibre map to decide when it is idle the way MapLibre does: only at the end of a
+    // frame, and only drawing a frame when something asks for one. Nothing is ever outstanding here,
+    // so every frame it is asked for ends idle - as MapLibre's does once the last tile it was waiting
+    // on has failed.
+    const idlingMap = (el: HTMLElement) => ({
+      triggerRepaint: vi.fn(() => setTimeout(() => (el as unknown as { settleTileLoading: () => void }).settleTileLoading())),
+      remove: vi.fn(),
+    });
+
     const tileLoading = async () => {
       const { el } = await renderMap();
       const previewer = drawablePreviewer();
       previewer.sourceIds = ['a-preview'];
-      Object.assign(el, { previewer });
+      Object.assign(el, { previewer, map: idlingMap(el), mapStyleLoaded: true });
 
       const said: string[] = [];
       el.addEventListener('mapLoading', () => said.push('start'));
       el.addEventListener('mapIdle', () => said.push('stop'));
+      const reported = vi.fn();
+      el.addEventListener('previewError', reported);
 
       const map = el as unknown as {
         handleSourceDataLoading: (event: { sourceId: string }) => void;
         settleTileLoading: () => void;
         tilesLoading: boolean;
       };
-      return { el, map, said };
+      return { el, map, said, reported };
     };
 
     it('says the map is loading, and says so once for the batch rather than once per tile', async () => {
@@ -353,6 +364,55 @@ describe('ogm-map', () => {
       (el as unknown as { disconnectedCallback: () => void }).disconnectedCallback();
 
       expect(said).toEqual(['start', 'stop']);
+    });
+
+    // A tile that fails asks MapLibre for no frame, and 'idle' only comes at the end of one, so a
+    // batch whose last tile failed left the spinner turning until the reader moved the map
+    it('says it is done once the last tile it was waiting on has failed', async () => {
+      const { el, map, said } = await tileLoading();
+
+      map.handleSourceDataLoading({ sourceId: 'a-preview' });
+      raiseMapError(el, 'a-preview');
+      await settle();
+
+      expect(said).toEqual(['start', 'stop']);
+    });
+
+    // Only the first failure of a load attempt is reported, but every batch is waited on the same way:
+    // a reader who pans on after the alert is waiting on tiles that fail just as the first ones did
+    it('says so again when the next batch fails, though only the first failure is reported', async () => {
+      const { el, map, said, reported } = await tileLoading();
+
+      map.handleSourceDataLoading({ sourceId: 'a-preview' });
+      raiseMapError(el, 'a-preview');
+      await settle();
+      map.handleSourceDataLoading({ sourceId: 'a-preview' });
+      raiseMapError(el, 'a-preview');
+      await settle();
+
+      expect(reported).toHaveBeenCalledTimes(1);
+      expect(said).toEqual(['start', 'stop', 'start', 'stop']);
+    });
+
+    // 'idle' waits on every source on the map, so a basemap tile that fails last strands it the same way
+    it('says it is done when the tile that failed last was the basemap’s', async () => {
+      const { el, map, said, reported } = await tileLoading();
+
+      map.handleSourceDataLoading({ sourceId: 'a-preview' });
+      raiseMapError(el, 'carto');
+      await settle();
+
+      expect(said).toEqual(['start', 'stop']);
+      expect(reported).not.toHaveBeenCalled();
+    });
+
+    it('says nothing about a failure when it had not said it was loading', async () => {
+      const { el, said } = await tileLoading();
+
+      raiseMapError(el, 'a-preview');
+      await settle();
+
+      expect(said).toEqual([]);
     });
   });
 

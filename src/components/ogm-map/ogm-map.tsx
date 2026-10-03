@@ -405,6 +405,9 @@ export class OgmMap {
     // else. See confirmBasemapFailure.
     if (!this.mapStyleLoaded) return this.confirmBasemapFailure();
 
+    // This forces 'idle' to fire so the spinner stops after an error
+    if (this.tilesLoading) this.map.triggerRepaint();
+
     const sourceId = event.sourceId ?? '';
     if (!this.previewer?.sourceIds.includes(sourceId)) return;
 
@@ -491,9 +494,7 @@ export class OgmMap {
     this.mapLoading.emit();
   }
 
-  // Everything the map was waiting for has arrived and been drawn. MapLibre fires 'idle' once no
-  // camera movement, tile request or fade is still outstanding, which is the honest moment to stop
-  // saying a view is loading - a tile that has landed but not yet been placed is not yet drawn.
+  // Everything the map was waiting for has arrived and been drawn
   private settleTileLoading() {
     if (!this.tilesLoading) return;
     this.tilesLoading = false;
