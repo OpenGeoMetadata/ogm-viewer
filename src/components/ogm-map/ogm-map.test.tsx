@@ -81,6 +81,8 @@ const drawablePreviewer = () => ({
   clearPreview: vi.fn(async () => {}),
   getBounds: vi.fn(async () => bounds),
   expandFeatures: vi.fn(async (features: MapGeoJSONFeature[]) => features),
+  tileLoaded: vi.fn(),
+  absorbTileError: vi.fn(() => false),
 });
 
 // Stencil doesn't await a watcher, so let what the previewer's own started finish
@@ -414,6 +416,79 @@ describe('ogm-map', () => {
       await settle();
 
       expect(said).toEqual([]);
+    });
+
+    // NASA GIBS answers a few percent of its WMTS tiles with a 500 that succeeds on retry, so with a
+    // couple dozen tiles in view nearly every preview lost one - and the alert for it hid a map that
+    // had drawn fine
+    describe('when one of them fails', () => {
+      const tile = { tileID: { canonical: { z: 3, x: 0, y: 0 } } };
+      const tileArrives = (el: HTMLElement) => (el as unknown as { handleSourceData: (event: unknown) => void }).handleSourceData({ sourceId: 'a-preview', tile });
+      const tileFails = (el: HTMLElement) =>
+        (el as unknown as { handleMapError: (event: unknown) => void }).handleMapError({
+          error: Object.assign(new Error('Internal Server Error'), { status: 500 }),
+          sourceId: 'a-preview',
+          tile,
+        });
+
+      let warn: ReturnType<typeof vi.spyOn>;
+
+      const failing = async () => {
+        const loading = await tileLoading();
+        warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        return { ...loading, warn };
+      };
+
+      afterEach(() => warn?.mockRestore());
+
+      it('keeps a preview that has already drawn, and says so only in the console', async () => {
+        const { el, reported, warn } = await failing();
+
+        tileArrives(el);
+        tileFails(el);
+        tileFails(el);
+        await settle();
+
+        expect(reported).not.toHaveBeenCalled();
+        expect(warn).toHaveBeenCalledTimes(2);
+        expect(String(warn.mock.calls[0][0])).toContain('http://example.com/data.json');
+      });
+
+      // The spinner is waited on the same way whether or not the failure was reported: a tile kept
+      // quiet about still asks MapLibre for no frame of its own
+      it('still says the batch is done', async () => {
+        const { el, map, said } = await failing();
+
+        tileArrives(el);
+        map.handleSourceDataLoading({ sourceId: 'a-preview' });
+        tileFails(el);
+        await settle();
+
+        expect(said).toEqual(['start', 'stop']);
+      });
+
+      // Nothing on the map yet, so this may be the only answer the preview is ever going to give
+      it('still reports one that fails before anything has drawn', async () => {
+        const { el, reported, warn } = await failing();
+
+        tileFails(el);
+        await settle();
+
+        expect(reported).toHaveBeenCalledTimes(1);
+        expect(reported.mock.calls[0][0].detail.message).toContain('HTTP 500');
+        expect(warn).not.toHaveBeenCalled();
+      });
+
+      // Not a hole in the map: the source itself has gone
+      it('still reports a failure of the whole source after drawing', async () => {
+        const { el, reported } = await failing();
+
+        tileArrives(el);
+        raiseMapError(el, 'a-preview');
+        await settle();
+
+        expect(reported).toHaveBeenCalledTimes(1);
+      });
     });
   });
 
@@ -761,14 +836,20 @@ describe('ogm-map', () => {
       expect(reported.mock.calls[0][0].detail.message).toContain('HTTP 400');
     });
 
-    it('still reports a tile that fails at a zoom that has drawn', async () => {
-      const { el, reported } = await xyzMap();
+    // A zoom that has drawn has tiles to give, so this one is a stray failure rather than the bottom of
+    // the service: the preview stays up, and isn't held any shallower for it
+    it('keeps the preview up past a tile that fails at a zoom that has drawn', async () => {
+      const { el, map, reported } = await xyzMap();
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       tileArrives(el, 7);
       tileFails(el, 7);
       await settle();
 
-      expect(reported).toHaveBeenCalledTimes(1);
+      expect(reported).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(map.sources.get(SOURCE)?.maxzoom).toBeUndefined();
+      warn.mockRestore();
     });
   });
 
