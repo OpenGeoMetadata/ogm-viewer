@@ -42,6 +42,18 @@ ogm-layers {
   display: flex;
 }
 
+/* Top center, the stretch of the top edge the control stack leaves free, and kept clear of that stack's
+   column on either side so it never covers a button. Beneath the layer panel rather than over it: the
+   panel only opens when asked for, and while it's open it's what the reader is using. */
+ogm-time {
+  position: absolute;
+  inset-block-start: var(--ogm-control-inset);
+  inset-inline-start: 50%;
+  translate: -50%;
+  z-index: 2;
+  max-width: calc(100% - 4 * var(--ogm-control-inset) - 2 * var(--ogm-control-size));
+}
+
 /* Bottom-left, the one corner nothing else claims: the layer panel above is top-right, and
    MapLibre's own attribution control defaults to bottom-right. Unlike the panel, this is never
    toggled, so there's no button stack of its own to clear - just the same inset the panel keeps

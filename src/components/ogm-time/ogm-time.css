@@ -1,0 +1,166 @@
+:host {
+  display: block;
+}
+
+.panel {
+  background-color: var(--wa-color-surface-default);
+  border: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+  border-radius: var(--wa-border-radius-m, 0.25rem);
+  box-shadow: var(--wa-shadow-m);
+  box-sizing: border-box;
+  color: var(--wa-color-text-normal);
+  font-family: var(--wa-font-family-body);
+  font-size: var(--wa-font-size-s);
+  line-height: var(--wa-line-height-condensed);
+  max-width: 100%;
+  padding: var(--wa-space-3xs);
+  min-width: 15rem;
+}
+
+/* A time of day takes more room: Oct 2, 2026, 20:27:40 UTC */
+.panel.tells-time-of-day {
+  min-width: 19rem;
+}
+
+.layer + .layer {
+  border-top: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+  margin-top: var(--wa-space-3xs);
+  padding-top: var(--wa-space-3xs);
+}
+
+.title {
+  color: var(--wa-color-text-quiet);
+  overflow: hidden;
+  padding: var(--wa-space-3xs) var(--wa-space-2xs) 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar {
+  align-items: center;
+  display: flex;
+  gap: var(--wa-space-3xs);
+}
+
+button {
+  align-items: center;
+  appearance: none;
+  background: none;
+  border: 0;
+  border-radius: var(--wa-border-radius-s, 0.125rem);
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+}
+
+button:hover:not(:disabled) {
+  background-color: var(--wa-color-neutral-fill-quiet);
+}
+
+button:focus-visible {
+  outline: var(--wa-focus-ring);
+  outline-offset: var(--wa-focus-ring-offset);
+}
+
+/* At the first or last time there is */
+button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.step {
+  flex: none;
+  height: 1.75rem;
+  width: 1.75rem;
+}
+
+.value {
+  flex: 1;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--wa-font-weight-semibold);
+  gap: var(--wa-space-2xs);
+  height: 1.75rem;
+  min-width: 0;
+  padding: 0 var(--wa-space-xs);
+}
+
+.value .label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.value wa-icon {
+  color: var(--wa-color-text-quiet);
+  flex: none;
+  font-size: 0.75em;
+  transition: rotate var(--wa-transition-fast) var(--wa-transition-easing);
+}
+
+.value[aria-expanded='true'] wa-icon {
+  rotate: 180deg;
+}
+
+.picker {
+  align-items: center;
+  border-top: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
+  display: grid;
+  gap: var(--wa-space-2xs) var(--wa-space-xs);
+  grid-template-columns: auto minmax(0, 1fr);
+  margin-top: var(--wa-space-3xs);
+  padding: var(--wa-space-xs) var(--wa-space-2xs) var(--wa-space-2xs);
+}
+
+.picker label {
+  color: var(--wa-color-text-quiet);
+}
+
+/* Native fields, in Web Awesome's form-control colors. The calendar a date field opens is the
+   browser's own, which follows the color-scheme the theme sets on the map around this. */
+.date,
+.time {
+  background-color: var(--wa-form-control-background-color);
+  border: var(--wa-form-control-border-width) var(--wa-form-control-border-style) var(--wa-form-control-border-color);
+  border-radius: var(--wa-form-control-border-radius);
+  box-sizing: border-box;
+  color: var(--wa-form-control-value-color);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  padding: var(--wa-space-3xs) var(--wa-space-2xs);
+  width: 100%;
+}
+
+.date:focus-visible,
+.time:focus-visible {
+  outline: var(--wa-focus-ring);
+  outline-offset: var(--wa-focus-ring-offset);
+}
+
+.range,
+.refusal {
+  font-size: var(--wa-font-size-xs);
+  grid-column: 1 / -1;
+}
+
+.range {
+  color: var(--wa-color-text-quiet);
+}
+
+.refusal {
+  color: var(--wa-color-danger-on-quiet);
+}
+
+/* Read out, not shown: the time a step just moved to, for a reader who can't see the label change */
+.status {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}

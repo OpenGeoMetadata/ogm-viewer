@@ -9,7 +9,9 @@ import type { MapGeoJSONFeature } from 'maplibre-gl';
 // and the state a selection used to crash it in. What needs one is handed a fake afterwards.
 import { render as stencilRender } from '@stencil/core';
 
+import type { LayerState } from '../../lib/layers';
 import type { LegendImage } from '../../lib/legend';
+import TimeDomain from '../../lib/time';
 import XyzPreviewer from '../../lib/previewers/xyz';
 import XyzResource from '../../lib/resources/xyz';
 
@@ -645,6 +647,66 @@ describe('ogm-map', () => {
       await settle();
 
       expect((legend(el) as (HTMLElement & { open?: boolean }) | null)?.open).toBe(false);
+    });
+  });
+
+  // A WMTS layer with a Time dimension rides on its row in the layers panel too, the way a legend does
+  describe('with a layer that can be drawn at more than one time', () => {
+    const timed = (values: string[]) => ({
+      ...drawablePreviewer(),
+      loadTimeDomain: vi.fn(),
+      previewLayers: [
+        {
+          id: 'modis',
+          title: 'Corrected Reflectance',
+          defaultOpacity: 1,
+          styleLayers: [{ id: 'modis', type: 'raster' }],
+          defaultTime: '2026-10-01',
+          timeDomain: TimeDomain.parse(values),
+        },
+      ],
+    });
+
+    const control = (el: HTMLElement) => (el.shadowRoot as ShadowRoot).querySelector('ogm-time');
+
+    const drawn = async (previewer: ReturnType<typeof timed>) => {
+      const { el } = await renderMap();
+      const map = loadingMap();
+      Object.assign(el, { map, layersControl: fakeLayersControl(), previewer });
+      await styleLoads(el, map);
+      await settle();
+      return el;
+    };
+
+    it('shows a time control for it', async () => {
+      const el = await drawn(timed(['2026-09-01/2026-10-01/P1D']));
+      expect(control(el)).not.toBeNull();
+    });
+
+    it('shows none for a layer published at a single time', async () => {
+      const el = await drawn(timed(['2026-10-01']));
+      expect(control(el)).toBeNull();
+    });
+
+    it('draws the time the reader picks', async () => {
+      const previewer = timed(['2026-09-01/2026-10-01/P1D']);
+      const el = await drawn(previewer);
+
+      control(el)?.dispatchEvent(new CustomEvent('layerTimeChange', { detail: { id: 'modis', time: '2026-09-30' }, bubbles: true, composed: true }));
+      await settle();
+
+      const states = previewer.applyLayerState.mock.lastCall?.[0] as ReadonlyMap<string, LayerState>;
+      expect(states.get('modis')?.time).toEqual('2026-09-30');
+      expect((control(el) as (HTMLElement & { layers?: { time?: string }[] }) | null)?.layers?.[0].time).toEqual('2026-09-30');
+    });
+
+    it('asks the preview for every time the layer has once the reader starts using the control', async () => {
+      const previewer = timed(['2026-09-01/2026-10-01/P1D']);
+      const el = await drawn(previewer);
+
+      control(el)?.dispatchEvent(new CustomEvent('layerTimeDomainRequest', { detail: { id: 'modis' }, bubbles: true, composed: true }));
+
+      expect(previewer.loadTimeDomain).toHaveBeenCalledWith('modis');
     });
   });
 

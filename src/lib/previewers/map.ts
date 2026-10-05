@@ -111,6 +111,12 @@ export default abstract class MapPreviewer extends Previewer {
     return false;
   }
 
+  // The reader has started using a layer's time control, so every time the layer can be drawn at is now
+  // worth knowing - a service may list only its latest up front, and the rest can be a large document
+  // to fetch for a control nobody touches. A preview that learns more says so through onLayersChanged.
+  // Nothing to do for a preview with no time to choose.
+  loadTimeDomain(_id: string): void {}
+
   // Whether this preview answers for its own drawing through onDrawn. Read rather than assumed,
   // because the alternative is worse in both directions: a preview held to a deadline it has no way
   // to satisfy would be called broken while it draws, and one exempted by mistake goes back to

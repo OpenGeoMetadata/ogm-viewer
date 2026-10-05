@@ -24,7 +24,7 @@ import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import { dedupeFeatures } from '../../lib/features';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
 import { createMap, fitBounds, openingCamera, setBasemap, whenSized } from '../../lib/maps';
-import { isLayerDrawn, rampedLayers, resolveLayerState, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
+import { isLayerDrawn, rampedLayers, resolveLayerState, timedLayers, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
 import LayersControl from '../../lib/layers-control';
 import { imageLegends } from '../../lib/legend';
 import InspectableRasterPreviewer from '../../lib/previewers/inspectable-raster';
@@ -637,6 +637,18 @@ export class OgmMap {
     this.setLayerState(event.detail.id, { removeBackground: event.detail.removeBackground });
   }
 
+  @Listen('layerTimeChange')
+  handleLayerTimeChange(event: CustomEvent<{ id: string; time: string }>) {
+    event.stopPropagation();
+    this.setLayerState(event.detail.id, { time: event.detail.time });
+  }
+
+  @Listen('layerTimeDomainRequest')
+  handleLayerTimeDomainRequest(event: CustomEvent<{ id: string }>) {
+    event.stopPropagation();
+    this.previewer?.loadTimeDomain(event.detail.id);
+  }
+
   @Listen('legendToggle')
   handleLegendToggle(event: CustomEvent<boolean>) {
     event.stopPropagation();
@@ -885,10 +897,10 @@ export class OgmMap {
     return this.previewer?.visibleLayerIds || [];
   }
 
-  // The layer panel and the legend are siblings of #map rather than MapLibre controls, even though
-  // the button that opens the panel is one. MapLibre owns the children of #map, so anything Stencil
-  // renders in there is fighting it for the same DOM - the reason ogm-attributes has to be built by
-  // hand.
+  // The layer panel, the legend and the time control are siblings of #map rather than MapLibre
+  // controls, even though the button that opens the panel is one. MapLibre owns the children of #map,
+  // so anything Stencil renders in there is fighting it for the same DOM - the reason ogm-attributes
+  // has to be built by hand.
   //
   // Everything is wrapped in .container because that is where the Web Awesome scope has to go: the
   // classes waScope() applies are matched by the theme adopted into this root, and a plain class
@@ -903,7 +915,7 @@ export class OgmMap {
   // to show, via rampedLayers(this.layerControls), imageLegends() and the previewer's own named
   // entries rather than unconditionally with the component left to render null on its own. Both
   // would look right to a reader; only one of them is - see the note on this at the top of
-  // ogm-legend.tsx.
+  // ogm-legend.tsx. The time control is gated the same way, on timedLayers().
   render() {
     const legendEntries = this.previewer?.legendEntries ?? [];
     const hasLegend = legendEntries.length > 0 || rampedLayers(this.layerControls).length > 0 || imageLegends(this.layerControls, this.zoom).length > 0;
@@ -933,6 +945,7 @@ export class OgmMap {
               )}
             </div>
           )}
+          {timedLayers(this.layerControls).length > 0 && <ogm-time theme={this.theme} layers={this.layerControls}></ogm-time>}
           {this.layersPanelOpen && <ogm-layers theme={this.theme} layers={this.layerControls}></ogm-layers>}
           {hasLegend && <ogm-legend theme={this.theme} layers={this.layerControls} entries={legendEntries} zoom={this.zoom} open={this.legendOpen}></ogm-legend>}
         </div>

@@ -1,5 +1,5 @@
 /** @vitest-environment happy-dom */
-import { describe, it, expect } from '@stencil/vitest';
+import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
 import { LngLatBounds, type LngLatBoundsLike } from 'maplibre-gl';
 import WmtsResource, { type WmtsOptions } from './wmts';
 
@@ -389,5 +389,151 @@ describe('WmtsResource#getLayers legends', () => {
     const drawn = await legendLayer(DEFAULT_STYLE);
 
     expect(drawn).not.toHaveProperty('legendImages');
+  });
+});
+
+// The three tile templates NASA GIBS lists for each of its layers: one that takes a date, and two that
+// only ever draw the default. Plus the ways it offers to describe the layer's dates in full.
+const GIBS_TEMPLATES = [
+  'https://gibs.example.org/wmts/epsg3857/best/MODIS/default/{Time}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.jpeg',
+  'https://gibs.example.org/wmts/epsg3857/best/MODIS/default/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.jpeg',
+  'https://gibs.example.org/wmts/epsg3857/best/MODIS/default/default/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.jpeg',
+];
+
+const GIBS_DOMAINS = ['{TileMatrixSet}/{BBOX}/{TimeStart}.xml', '{TileMatrixSet}/all/{TimeStart}--{TimeEnd}.xml', '{TileMatrixSet}/{BBOX}/all.xml']
+  .map(path => `<ResourceURL format="text/xml" template="https://gibs.example.org/wmts/epsg3857/best/1.0.0/MODIS/default/${path}" resourceType="Domains"/>`)
+  .join('');
+
+const timeDimension = (values: string[], defaultValue: string | undefined = '2026-10-01', identifier = 'Time') => `
+  <Dimension>
+    <ows:Identifier>${identifier}</ows:Identifier>
+    <ows:UOM>ISO8601</ows:UOM>
+    ${defaultValue ? `<Default>${defaultValue}</Default>` : ''}
+    <Current>false</Current>
+    ${values.map(value => `<Value>${value}</Value>`).join('')}
+  </Dimension>`;
+
+const DAILY = ['2000-02-24/2000-04-25/P1D', '2025-11-10/2026-10-01/P1D'];
+
+const timedLayer = async ({ dimension = timeDimension(DAILY), templates = GIBS_TEMPLATES, extraUrls = GIBS_DOMAINS } = {}) => {
+  const xml = capabilities(layer({ links: ['GoogleMapsCompatible_Level3'], templates, dimension, extraUrls }), MERCATOR_SET);
+  const [drawn] = await resourceFor(xml, ['lights'], 'https://gibs.example.org/wmts/epsg3857/best/1.0.0/WMTSCapabilities.xml').getLayers();
+  return drawn;
+};
+
+describe('WmtsResource#getLayers time', () => {
+  it('offers the times a layer lists, starting from its default', async () => {
+    const drawn = await timedLayer();
+
+    expect(drawn.time?.identifier).toEqual('Time');
+    expect(drawn.time?.default).toEqual('2026-10-01');
+    expect(drawn.time?.values).toEqual(DAILY);
+  });
+
+  // MapLibre assigns each tile to one of a source's URLs by its coordinates, so a URL that can't be told
+  // the time would show a share of the tiles at the default whatever was picked
+  it('draws a layer with a choice of times only through the templates that take one', async () => {
+    const drawn = await timedLayer();
+
+    expect(drawn.tileUrls).toEqual(['https://gibs.example.org/wmts/epsg3857/best/MODIS/default/2026-10-01/GoogleMapsCompatible_Level3/{z}/{y}/{x}.jpeg']);
+    expect(drawn.time?.templates).toEqual(['https://gibs.example.org/wmts/epsg3857/best/MODIS/default/{Time}/GoogleMapsCompatible_Level3/{z}/{y}/{x}.jpeg']);
+  });
+
+  it('holds every other dimension at its default', async () => {
+    const elevation = '<Dimension><ows:Identifier>Elevation</ows:Identifier><Default>850</Default><Value>850</Value><Value>500</Value></Dimension>';
+    const templates = ['https://gibs.example.org/wmts/winds/{Elevation}/{Time}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.png'];
+    const drawn = await timedLayer({ dimension: timeDimension(DAILY) + elevation, templates });
+
+    expect(drawn.time?.templates).toEqual(['https://gibs.example.org/wmts/winds/850/{Time}/GoogleMapsCompatible_Level3/{z}/{y}/{x}.png']);
+  });
+
+  it('starts from the latest time a layer lists when it names no default', async () => {
+    const drawn = await timedLayer({ dimension: timeDimension(DAILY, undefined) });
+
+    expect(drawn.time?.default).toEqual('2026-10-01');
+    expect(drawn.tileUrls[0]).toContain('/2026-10-01/');
+  });
+
+  // GEDI's biomass is one four-year composite
+  it('offers no choice for a layer published at a single time, and draws it as before', async () => {
+    const drawn = await timedLayer({ dimension: timeDimension(['2019-04-18/2019-04-18/P1429D'], '2019-04-18') });
+
+    expect(drawn).not.toHaveProperty('time');
+    expect(drawn.tileUrls).toHaveLength(3);
+    expect(drawn.tileUrls[0]).toContain('/2019-04-18/');
+  });
+
+  it('offers no choice when no template can be told the time', async () => {
+    const drawn = await timedLayer({ templates: GIBS_TEMPLATES.slice(1) });
+
+    expect(drawn).not.toHaveProperty('time');
+    expect(drawn.tileUrls).toHaveLength(2);
+  });
+
+  it('offers no choice for a dimension that is not time', async () => {
+    const drawn = await timedLayer({ dimension: timeDimension(['850', '500'], '850', 'Elevation') });
+
+    expect(drawn).not.toHaveProperty('time');
+  });
+
+  // The only one of GIBS's templates that needs nothing but the grid and the extent
+  it('finds where the service describes every time the layer has', async () => {
+    const drawn = await timedLayer();
+
+    expect(drawn.time?.domainsUrl).toEqual('https://gibs.example.org/wmts/epsg3857/best/1.0.0/MODIS/default/GoogleMapsCompatible_Level3/all/all.xml');
+  });
+
+  it('looks nowhere else when the service describes no domains', async () => {
+    const drawn = await timedLayer({ extraUrls: '' });
+
+    expect(drawn.time).toBeDefined();
+    expect(drawn.time).not.toHaveProperty('domainsUrl');
+  });
+});
+
+// What GIBS's DescribeDomains answers with, cut down to a few runs
+const DOMAINS_DOCUMENT = `<Domains xmlns:ows='http://www.opengis.net/ows/1.1'>
+  <SpaceDomain><BoundingBox crs='urn:ogc:def:crs:EPSG::3857' minx='-20037508.342789' miny='-20037508.342789' maxx='20037508.342789' maxy='20037508.342789'/></SpaceDomain>
+  <DimensionDomain><ows:Identifier>time</ows:Identifier><Domain>2000-02-24/2000-04-25/P1D,2000-04-28/2000-08-06/P1D,2025-11-10/2026-10-01/P1D</Domain><Size>3</Size></DimensionDomain>
+</Domains>`;
+
+describe('WmtsResource#fetchTimeValues', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const stubFetch = (body: string, ok = true, status = 200) => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok, status, statusText: ok ? 'OK' : 'Not Found', text: async () => body });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  };
+
+  it('reads every time from the domains document', async () => {
+    const fetchMock = stubFetch(DOMAINS_DOCUMENT);
+    const drawn = await timedLayer();
+    const resource = resourceFor('', ['lights'], 'https://gibs.example.org/wmts/epsg3857/best/1.0.0/WMTSCapabilities.xml');
+
+    expect(await resource.fetchTimeValues(drawn.time!)).toEqual(['2000-02-24/2000-04-25/P1D,2000-04-28/2000-08-06/P1D,2025-11-10/2026-10-01/P1D']);
+    expect(fetchMock.mock.calls[0][0]).toEqual(drawn.time?.domainsUrl);
+  });
+
+  it('reads nothing from a document that describes some other dimension', async () => {
+    stubFetch(DOMAINS_DOCUMENT.replace('<ows:Identifier>time</ows:Identifier>', '<ows:Identifier>elevation</ows:Identifier>'));
+    const drawn = await timedLayer();
+
+    expect(await resourceFor('').fetchTimeValues(drawn.time!)).toBeUndefined();
+  });
+
+  it('asks for nothing when there is no document to read', async () => {
+    const fetchMock = stubFetch(DOMAINS_DOCUMENT);
+    const drawn = await timedLayer({ extraUrls: '' });
+
+    expect(await resourceFor('').fetchTimeValues(drawn.time!)).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fails when the document is not there', async () => {
+    stubFetch('', false, 404);
+    const drawn = await timedLayer();
+
+    await expect(resourceFor('').fetchTimeValues(drawn.time!)).rejects.toThrow();
   });
 });
