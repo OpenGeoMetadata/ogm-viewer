@@ -1,8 +1,10 @@
 import { LngLatBounds, type LngLatBoundsLike, type RasterSourceSpecification } from 'maplibre-gl';
 import RasterResource from './raster';
 import type { ResourceKind } from './resource';
+import { fetchOrThrow } from '../errors';
 import type { LegendImage } from '../legend';
 import { resolveRequest, type RequestTransform } from '../request';
+import TimeDomain from '../time';
 
 export type WmtsOptions = {
   layerIds: string[];
@@ -22,6 +24,37 @@ export type WmtsLayer = {
   maxzoom: number;
   bounds?: Bounds;
   legendImages?: LegendImage[];
+  // Present only for a layer that can be drawn at more than one time, through a tile template that
+  // can ask for any of them. tileUrls are this layer's tiles at its default time.
+  time?: WmtsTime;
+};
+
+// One <Dimension> of a layer - time, elevation, a band, whatever the service varies its tiles by - as
+// the capabilities write it. Each value is one the tiles can be asked for, or for time a run of them:
+// see src/lib/time.ts for how those read.
+export type WmtsDimension = {
+  // Also the name of its placeholder in the tile templates: {Time}
+  identifier: string;
+  default?: string;
+  values: string[];
+};
+
+// A layer's Time dimension, for a layer that can be drawn at more than one time
+export type WmtsTime = {
+  identifier: string;
+  // What's drawn until the reader picks another time: the dimension's <Default>, or failing that the
+  // latest time it lists
+  default: string;
+  values: string[];
+  // Tile URLs in MapLibre's form with the time's placeholder still in them, from only the templates that
+  // have one. NASA GIBS lists three per layer and only one of them takes a date - the other two always
+  // draw the default - and MapLibre assigns each tile to a URL by its coordinates, so a URL that can't be
+  // told the time would leave a share of the tiles showing another one.
+  templates: string[];
+  // Where the service describes the whole dimension, for one whose capabilities list only part of it.
+  // GIBS's capabilities give a layer's latest hundred values and no more, which take GOES-East's
+  // ten-minute frames back seven weeks of the five years it has; its DescribeDomains gives the rest.
+  domainsUrl?: string;
 };
 
 // What MapLibre needs to know about a tile grid in order to draw from it
@@ -152,28 +185,21 @@ export default class WmtsResource extends RasterResource {
     const grid = tileMatrixSet?.grid;
     if (!tileMatrixSet || !grid) return undefined;
 
-    // Get the default values for all dimensions listed for the layer
-    // TODO: actually support adjusting these in the previewer?
-    const dimensions = Array.from(element.getElementsByTagName('Dimension'));
-    const dimensionDefaults = dimensions.reduce(
-      (acc, dimension) => {
-        const name = dimension.getElementsByTagName('ows:Identifier')[0]?.textContent?.trim();
-        const defaultValue = dimension.getElementsByTagName('Default')[0]?.textContent?.trim();
-        if (name && defaultValue) {
-          acc[name] = defaultValue;
-        }
-        return acc;
-      },
-      {} as Record<string, string>,
-    );
-
     // For each tiled ResourceURL, reformat as XYZ-style URL
     // Each MapLibre layer will be tied to a MapLibre source with multiple tile URLs
-    const templates = Array.from(element.getElementsByTagName('ResourceURL'))
-      .filter(resourceUrl => resourceUrl.getAttribute('resourceType') === 'tile')
-      .map(resourceUrl => resourceUrl.getAttribute('template') ?? '');
+    const templates = this.preferKnownHost(
+      Array.from(element.getElementsByTagName('ResourceURL'))
+        .filter(resourceUrl => resourceUrl.getAttribute('resourceType') === 'tile')
+        .map(resourceUrl => resourceUrl.getAttribute('template') ?? ''),
+    );
 
-    const tileUrls = this.preferKnownHost(templates).map(template => this.formatTileUrl(template, styleId, tileMatrixSet, dimensionDefaults));
+    // Every dimension is drawn at its default. Only the time can be changed from there, and a layer whose
+    // time can be is drawn through just the templates that can be told it.
+    const dimensions = this.parseDimensions(element);
+    const time = this.timeOf(element, dimensions, templates, styleId, tileMatrixSet);
+    const tileUrls = time
+      ? time.templates.map(template => template.replaceAll(`{${time.identifier}}`, time.default))
+      : templates.map(template => this.formatTileUrl(template, styleId, tileMatrixSet, defaultsOf(dimensions)));
 
     const bounds = this.parseBounds(element) ?? this.recordBounds();
     const legendImages = this.parseLegendImages(style);
@@ -187,7 +213,83 @@ export default class WmtsResource extends RasterResource {
       maxzoom: grid.maxzoom,
       bounds: bounds,
       ...(legendImages.length > 0 && { legendImages }),
+      ...(time && { time }),
     };
+  }
+
+  // Every <Dimension> the layer declares, as written
+  protected parseDimensions(element: Element): WmtsDimension[] {
+    return Array.from(element.getElementsByTagName('Dimension')).flatMap(dimension => {
+      const identifier = dimension.getElementsByTagName('ows:Identifier')[0]?.textContent?.trim();
+      if (!identifier) return [];
+
+      const defaultValue = dimension.getElementsByTagName('Default')[0]?.textContent?.trim();
+      const values = Array.from(dimension.getElementsByTagName('Value'))
+        .map(value => value.textContent?.trim() ?? '')
+        .filter(value => value !== '');
+      return [{ identifier, values, ...(defaultValue && { default: defaultValue }) }];
+    });
+  }
+
+  // The layer's Time dimension, for a layer that offers more than one time and a template that can ask
+  // for any of them. A template without the placeholder only ever draws the default, so a layer whose
+  // templates all lack it has no time to offer, whatever its dimension lists. `templates` are the
+  // layer's own, as the service wrote them; the ones that come back are in MapLibre's form, with only
+  // the time left to fill in.
+  protected timeOf(element: Element, dimensions: WmtsDimension[], templates: string[], style: string | undefined, tileMatrixSet: TileMatrixSet): WmtsTime | undefined {
+    const dimension = dimensions.find(each => each.identifier.toLowerCase() === 'time');
+    if (!dimension) return undefined;
+
+    const timed = templates.filter(template => template.includes(`{${dimension.identifier}}`));
+    const domain = TimeDomain.parse(dimension.values);
+    if (timed.length === 0 || !domain.offersChoice) return undefined;
+
+    const others = defaultsOf(dimensions.filter(other => other !== dimension));
+    const domainsUrl = this.parseDomainsUrl(element, style, tileMatrixSet);
+
+    return {
+      identifier: dimension.identifier,
+      default: dimension.default ?? domain.format(domain.last!),
+      values: dimension.values,
+      templates: timed.map(template => this.formatTileUrl(template, style, tileMatrixSet, others)),
+      ...(domainsUrl && { domainsUrl }),
+    };
+  }
+
+  // Where the service describes the layer's dimensions in full, if it says: a <ResourceURL> of type
+  // Domains, filled in for the whole of the layer. GIBS publishes several, for one place or span of time
+  // or another; the one wanted is the one that needs nothing but the grid and the extent, which it
+  // writes as "all" - .../GoogleMapsCompatible_Level7/all/all.xml.
+  protected parseDomainsUrl(element: Element, style: string | undefined, tileMatrixSet: TileMatrixSet): string | undefined {
+    const filled = Array.from(element.getElementsByTagName('ResourceURL'))
+      .filter(resourceUrl => resourceUrl.getAttribute('resourceType') === 'Domains')
+      .map(resourceUrl =>
+        (resourceUrl.getAttribute('template') ?? '')
+          .replace('{TileMatrixSet}', tileMatrixSet.id)
+          .replace('{Style}', style ?? '')
+          .replace('{BBOX}', 'all'),
+      )
+      .filter(template => template !== '' && !template.includes('{'));
+
+    return this.preferKnownHost(filled)[0];
+  }
+
+  // Every value the service has for a layer's time, read from its domains document - which is where a
+  // service that lists only some of them in its capabilities lists the rest. Undefined when there's no
+  // such document for the layer, or it doesn't describe this dimension.
+  async fetchTimeValues(time: WmtsTime): Promise<string[] | undefined> {
+    if (!time.domainsUrl) return undefined;
+
+    const { url, init } = resolveRequest(time.domainsUrl, 'metadata', this.requestTransform);
+    const response = await fetchOrThrow(url, init);
+    const domains = new DOMParser().parseFromString(await response.text(), 'application/xml');
+
+    // GIBS names the dimension "time" here and "Time" in its capabilities
+    const described = Array.from(domains.getElementsByTagName('DimensionDomain')).find(
+      domain => domain.getElementsByTagName('ows:Identifier')[0]?.textContent?.trim().toLowerCase() === time.identifier.toLowerCase(),
+    );
+    const values = described?.getElementsByTagName('Domain')[0]?.textContent?.trim();
+    return values ? [values] : undefined;
   }
 
   // The extent the layer covers, from its <ows:WGS84BoundingBox>. OWS writes both corners as
@@ -363,7 +465,7 @@ export default class WmtsResource extends RasterResource {
   }
 
   // Rewrite the tile URL template to a MapLibre-compatible (XYZ-style) URL
-  protected formatTileUrl(template: string, style: string, tileMatrixSet: TileMatrixSet, dimensionDefaults?: Record<string, string>): string {
+  protected formatTileUrl(template: string, style: string | undefined, tileMatrixSet: TileMatrixSet, dimensionDefaults?: Record<string, string>): string {
     let url = template
       .replace('{TileMatrixSet}', tileMatrixSet.id)
       .replace('{Style}', style ?? '')
@@ -415,6 +517,11 @@ function isXyzLevel(matrix: TileMatrix): boolean {
     Math.abs(x + XYZ_ORIGIN) <= ORIGIN_TOLERANCE &&
     Math.abs(y - XYZ_ORIGIN) <= ORIGIN_TOLERANCE
   );
+}
+
+// What each dimension is drawn at when nothing else has been asked for, by the placeholder it fills
+function defaultsOf(dimensions: WmtsDimension[]): Record<string, string> {
+  return Object.fromEntries(dimensions.flatMap(dimension => (dimension.default ? [[dimension.identifier, dimension.default]] : [])));
 }
 
 // The host a tile template points at, or undefined if it isn't an absolute URL. The braces

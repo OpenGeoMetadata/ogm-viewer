@@ -213,6 +213,13 @@ export namespace Components {
         "requestTransform"?: RequestTransform;
         "theme": 'light' | 'dark';
     }
+    interface OgmTime {
+        /**
+          * @default []
+         */
+        "layers": LayerControl[];
+        "theme": 'light' | 'dark';
+    }
     interface OgmViewer {
         "darkBasemap"?: string;
         /**
@@ -260,6 +267,10 @@ export interface OgmOverviewCustomEvent<T> extends CustomEvent<T> {
 export interface OgmPreviewsCustomEvent<T> extends CustomEvent<T> {
     detail: T;
     target: HTMLOgmPreviewsElement;
+}
+export interface OgmTimeCustomEvent<T> extends CustomEvent<T> {
+    detail: T;
+    target: HTMLOgmTimeElement;
 }
 declare global {
     interface HTMLOgmAlertsElement extends Components.OgmAlerts, HTMLStencilElement {
@@ -452,6 +463,24 @@ declare global {
         prototype: HTMLOgmSidebarElement;
         new (): HTMLOgmSidebarElement;
     };
+    interface HTMLOgmTimeElementEventMap {
+        "layerTimeChange": { id: string; time: string };
+        "layerTimeDomainRequest": { id: string };
+    }
+    interface HTMLOgmTimeElement extends Components.OgmTime, HTMLStencilElement {
+        addEventListener<K extends keyof HTMLOgmTimeElementEventMap>(type: K, listener: (this: HTMLOgmTimeElement, ev: OgmTimeCustomEvent<HTMLOgmTimeElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
+        addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLOgmTimeElementEventMap>(type: K, listener: (this: HTMLOgmTimeElement, ev: OgmTimeCustomEvent<HTMLOgmTimeElementEventMap[K]>) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
+        removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
+    }
+    var HTMLOgmTimeElement: {
+        prototype: HTMLOgmTimeElement;
+        new (): HTMLOgmTimeElement;
+    };
     interface HTMLOgmViewerElement extends Components.OgmViewer, HTMLStencilElement {
     }
     var HTMLOgmViewerElement: {
@@ -473,6 +502,7 @@ declare global {
         "ogm-preview": HTMLOgmPreviewElement;
         "ogm-previews": HTMLOgmPreviewsElement;
         "ogm-sidebar": HTMLOgmSidebarElement;
+        "ogm-time": HTMLOgmTimeElement;
         "ogm-viewer": HTMLOgmViewerElement;
     }
 }
@@ -684,6 +714,15 @@ declare namespace LocalJSX {
         "requestTransform"?: RequestTransform;
         "theme"?: 'light' | 'dark';
     }
+    interface OgmTime {
+        /**
+          * @default []
+         */
+        "layers"?: LayerControl[];
+        "onLayerTimeChange"?: (event: OgmTimeCustomEvent<{ id: string; time: string }>) => void;
+        "onLayerTimeDomainRequest"?: (event: OgmTimeCustomEvent<{ id: string }>) => void;
+        "theme"?: 'light' | 'dark';
+    }
     interface OgmViewer {
         "darkBasemap"?: string;
         /**
@@ -770,6 +809,9 @@ declare namespace LocalJSX {
         "theme": 'light' | 'dark';
         "open": boolean;
     }
+    interface OgmTimeAttributes {
+        "theme": 'light' | 'dark';
+    }
     interface OgmViewerAttributes {
         "recordUrl": string;
         "theme": 'light' | 'dark';
@@ -793,6 +835,7 @@ declare namespace LocalJSX {
         "ogm-preview": Omit<OgmPreview, keyof OgmPreviewAttributes> & { [K in keyof OgmPreview & keyof OgmPreviewAttributes]?: OgmPreview[K] } & { [K in keyof OgmPreview & keyof OgmPreviewAttributes as `attr:${K}`]?: OgmPreviewAttributes[K] } & { [K in keyof OgmPreview & keyof OgmPreviewAttributes as `prop:${K}`]?: OgmPreview[K] };
         "ogm-previews": Omit<OgmPreviews, keyof OgmPreviewsAttributes> & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes]?: OgmPreviews[K] } & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes as `attr:${K}`]?: OgmPreviewsAttributes[K] } & { [K in keyof OgmPreviews & keyof OgmPreviewsAttributes as `prop:${K}`]?: OgmPreviews[K] };
         "ogm-sidebar": Omit<OgmSidebar, keyof OgmSidebarAttributes> & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes]?: OgmSidebar[K] } & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes as `attr:${K}`]?: OgmSidebarAttributes[K] } & { [K in keyof OgmSidebar & keyof OgmSidebarAttributes as `prop:${K}`]?: OgmSidebar[K] };
+        "ogm-time": Omit<OgmTime, keyof OgmTimeAttributes> & { [K in keyof OgmTime & keyof OgmTimeAttributes]?: OgmTime[K] } & { [K in keyof OgmTime & keyof OgmTimeAttributes as `attr:${K}`]?: OgmTimeAttributes[K] } & { [K in keyof OgmTime & keyof OgmTimeAttributes as `prop:${K}`]?: OgmTime[K] };
         "ogm-viewer": Omit<OgmViewer, keyof OgmViewerAttributes> & { [K in keyof OgmViewer & keyof OgmViewerAttributes]?: OgmViewer[K] } & { [K in keyof OgmViewer & keyof OgmViewerAttributes as `attr:${K}`]?: OgmViewerAttributes[K] } & { [K in keyof OgmViewer & keyof OgmViewerAttributes as `prop:${K}`]?: OgmViewer[K] };
     }
 }
@@ -822,6 +865,7 @@ declare module "@stencil/core" {
             "ogm-preview": LocalJSX.IntrinsicElements["ogm-preview"] & JSXBase.HTMLAttributes<HTMLOgmPreviewElement>;
             "ogm-previews": LocalJSX.IntrinsicElements["ogm-previews"] & JSXBase.HTMLAttributes<HTMLOgmPreviewsElement>;
             "ogm-sidebar": LocalJSX.IntrinsicElements["ogm-sidebar"] & JSXBase.HTMLAttributes<HTMLOgmSidebarElement>;
+            "ogm-time": LocalJSX.IntrinsicElements["ogm-time"] & JSXBase.HTMLAttributes<HTMLOgmTimeElement>;
             "ogm-viewer": LocalJSX.IntrinsicElements["ogm-viewer"] & JSXBase.HTMLAttributes<HTMLOgmViewerElement>;
         }
     }

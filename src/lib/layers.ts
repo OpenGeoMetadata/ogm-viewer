@@ -2,6 +2,7 @@ import type { LayerSpecification as MapLibreLayerSpecification } from 'maplibre-
 
 import type { ColorRampName } from './colormap';
 import type { LegendImage } from './legend';
+import type TimeDomain from './time';
 
 // A MapLibre style layer, one piece of a logical layer. Vector layers can have
 // multiple of these, e.g. to style fills, outlines, and labels separately.
@@ -44,13 +45,26 @@ export type Layer = {
   // Which one the legend shows depends on the scale the map is at; see chooseLegendImage in
   // src/lib/legend.ts. A fact about the layer, like colorRampRange, so it travels with the layer.
   legendImages?: LegendImage[];
+  // Present only for a layer that can be drawn at more than one time - a WMTS layer with a Time
+  // dimension. The domain is every time it offers, and can grow after the layer is drawn, the way
+  // backgroundRemovable can arrive: a service may list only its latest times up front. The default is
+  // what the service draws unasked, as the service writes it.
+  timeDomain?: TimeDomain;
+  defaultTime?: string;
 };
 
-// Attributes of a layer that the user can toggle in the control panel
-export type LayerState = { visible: boolean; opacity: number; colorRamp?: ColorRampName; removeBackground?: boolean };
+// Attributes of a layer that the user can toggle in the control panel. The time is a value as the
+// layer's service writes it - 2026-10-01, or 2026-10-02T18:50:00Z - since that's what it's asked for.
+export type LayerState = { visible: boolean; opacity: number; colorRamp?: ColorRampName; removeBackground?: boolean; time?: string };
 
 // Data for a single entry in the layers control panel
-export type LayerControl = { id: string; title: string; colorRampRange?: Layer['colorRampRange']; legendImages?: Layer['legendImages'] } & LayerState;
+export type LayerControl = {
+  id: string;
+  title: string;
+  colorRampRange?: Layer['colorRampRange'];
+  legendImages?: Layer['legendImages'];
+  timeDomain?: Layer['timeDomain'];
+} & LayerState;
 
 // Get the initial state for a layer. Field by field against the layer's own defaults, not the
 // stored state wholesale: a state already on record from before colorRamp existed - or from a
@@ -65,6 +79,7 @@ export const resolveLayerState = (layer: Layer, states: ReadonlyMap<string, Laye
     // Off unless asked for, rather than defaulting off the layer the way the two above do: a scan
     // arrives as the scan, and taking its paper away is something the reader chooses to do to it.
     removeBackground: requested?.removeBackground ?? false,
+    time: requested?.time ?? layer.defaultTime,
   };
 };
 
@@ -81,9 +96,12 @@ export const isLayerDrawn = ({ visible, opacity }: LayerState): boolean => visib
 export const rampedLayers = (layers: readonly LayerControl[]): LayerControl[] =>
   layers.filter(layer => isLayerDrawn(layer) && layer.colorRamp !== undefined && layer.colorRampRange !== undefined);
 
+// Which of a panel's rows have a time to choose
+export const timedLayers = (layers: readonly LayerControl[]): LayerControl[] => layers.filter(layer => layer.timeDomain?.offersChoice && layer.time !== undefined);
+
 export const toLayerControlItems = (layers: readonly Layer[], states: ReadonlyMap<string, LayerState>): LayerControl[] =>
   layers.map(layer => {
-    const { visible, opacity, colorRamp, removeBackground } = resolveLayerState(layer, states);
+    const { visible, opacity, colorRamp, removeBackground, time } = resolveLayerState(layer, states);
 
     return {
       id: layer.id,
@@ -93,6 +111,7 @@ export const toLayerControlItems = (layers: readonly Layer[], states: ReadonlyMa
       ...(colorRamp !== undefined && { colorRamp, colorRampRange: layer.colorRampRange }),
       ...(layer.backgroundRemovable && { removeBackground }),
       ...(layer.legendImages && { legendImages: layer.legendImages }),
+      ...(layer.timeDomain && { time, timeDomain: layer.timeDomain }),
     };
   });
 
