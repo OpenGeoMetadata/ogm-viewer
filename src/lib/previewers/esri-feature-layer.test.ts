@@ -3,6 +3,7 @@ import type { MapGeoJSONFeature, MapLibreMap } from 'maplibre-gl';
 
 import EsriFeatureLayerPreviewer from './esri-feature-layer';
 import type { EsriMetadata } from '../esri';
+import { withLabelPoints } from '../labels';
 import EsriFeatureLayerResource from '../resources/esri-feature-layer';
 import type { MapLibreStyle } from '../themes/maplibre';
 
@@ -179,8 +180,9 @@ beforeEach(async () => {
 
 describe('EsriFeatureLayerPreviewer#preview', () => {
   it('hands MapLibre the features rather than a URL to fetch them from', () => {
-    // The query has to be paged, and may need converting, so MapLibre can't fetch it itself
-    expect(map.sources.get('trees-esri-feature-layer')?.data).toBe(FEATURES);
+    // The query has to be paged, and may need converting, so MapLibre can't fetch it itself. Numbered,
+    // and with a point to label each polygon at, the way any GeoJSON document is handed over.
+    expect(map.sources.get('trees-esri-feature-layer')?.data).toBe(withLabelPoints(FEATURES));
   });
 
   it('keeps its source apart from the one plain GeoJSON in the same record would use', () => {
@@ -281,7 +283,7 @@ describe('EsriFeatureLayerPreviewer with a published scale window', () => {
     map.fire('zoomend');
     await vi.waitFor(() => expect(resource.reads).toEqual(1));
 
-    expect(map.sources.get('trees-esri-feature-layer')?.data).toBe(FEATURES);
+    expect(map.sources.get('trees-esri-feature-layer')?.data).toBe(withLabelPoints(FEATURES));
   });
 
   it('leaves one camera listener behind after a theme change draws the same preview again', async () => {

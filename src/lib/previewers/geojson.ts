@@ -1,6 +1,7 @@
-import type { ExpressionSpecification, GeoJSONSourceSpecification } from 'maplibre-gl';
+import type { CircleLayerSpecification, ExpressionSpecification, GeoJSONSourceSpecification, MapGeoJSONFeature, SymbolLayerSpecification } from 'maplibre-gl';
 
 import VectorPreviewer from './vector';
+import { IS_LABEL_POINT, unmarkLabelPoints, withLabelPoints } from '../labels';
 import type GeoJsonResource from '../resources/geojson';
 
 // MapLibre doesn't bundle the id with the source, but we need to
@@ -19,8 +20,8 @@ export default class GeoJsonPreviewer extends VectorPreviewer {
   }
 
   // A document is drawn in the order it lists its features, so the last of a stack is the one on top
-  // and the one a click lists first. Its ids are generated from that same position - see
-  // createSources - which makes the id a key that gives the stack's label to the feature on top. An
+  // and the one a click lists first. Its ids are numbered from that same position - see
+  // withLabelPoints - which makes the id a key that gives the stack's label to the feature on top. An
   // index map that lists a sheet's editions oldest first is labelled with the latest.
   protected labelPriority() {
     return { 'symbol-sort-key': LAST_FIRST };
@@ -31,9 +32,29 @@ export default class GeoJsonPreviewer extends VectorPreviewer {
       {
         id: this.getSourceId(),
         type: await this.resource.getMapLibreSourceType(),
-        data: await this.resource.getMapLibreSourceUrl(),
-        generateId: true, // autogenerate feature IDs for labeling
+        data: withLabelPoints(await this.resource.getData()),
       },
     ];
+  }
+
+  // A label hit on its own, outside the polygon it names, answers with the polygon's properties
+  async expandFeatures(features: MapGeoJSONFeature[]): Promise<MapGeoJSONFeature[]> {
+    return unmarkLabelPoints(features);
+  }
+
+  // Polygon labels are drawn at the label points rather than over the polygons themselves
+  protected createPolygonLabelLayer(layerId: string): SymbolLayerSpecification {
+    return { ...super.createPolygonLabelLayer(layerId), filter: IS_LABEL_POINT };
+  }
+
+  // The label points are points, but not ones the document drew
+  protected createPointLayer(layerId: string): CircleLayerSpecification {
+    const layer = super.createPointLayer(layerId);
+    return { ...layer, filter: ['all', layer.filter as ExpressionSpecification, ['!', IS_LABEL_POINT]] };
+  }
+
+  protected createPointLabelLayer(layerId: string): SymbolLayerSpecification {
+    const layer = super.createPointLabelLayer(layerId);
+    return { ...layer, filter: ['all', layer.filter as ExpressionSpecification, ['!', IS_LABEL_POINT]] };
   }
 }
