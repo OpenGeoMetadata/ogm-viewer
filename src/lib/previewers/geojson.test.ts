@@ -1,8 +1,9 @@
-import { describe, it, expect } from '@stencil/vitest';
-import type { MapLibreMap } from 'maplibre-gl';
+import { describe, it, expect, beforeEach, afterEach, vi } from '@stencil/vitest';
+import type { MapGeoJSONFeature, MapLibreMap } from 'maplibre-gl';
 
 import GeoJsonPreviewer from './geojson';
 import OpenIndexMapPreviewer from './openindexmap';
+import { IS_LABEL_POINT, LABEL_POINT } from '../labels';
 import GeoJsonResource from '../resources/geojson';
 import OpenIndexMapResource from '../resources/openindexmap';
 import type { MapLibreStyle } from '../themes/maplibre';
@@ -67,7 +68,36 @@ const style = {
 
 const GEOJSON_URL = 'https://example.com/index-map.json';
 
-// Nothing here fetches: the source URL and the layer names are known without reading the document
+// A square sheet with an island off its corner, a second sheet, and a point that labels itself
+const square = (x: number, y: number, size: number) => [
+  [
+    [x, y],
+    [x + size, y],
+    [x + size, y + size],
+    [x, y + size],
+    [x, y],
+  ],
+];
+const DOCUMENT: GeoJSON.FeatureCollection = {
+  type: 'FeatureCollection',
+  features: [
+    { type: 'Feature', geometry: { type: 'MultiPolygon', coordinates: [square(0, 0, 10), square(11, 11, 1)] }, properties: { label: 'SF 20' } },
+    { type: 'Feature', geometry: { type: 'Polygon', coordinates: square(20, 0, 4) }, properties: { label: 'SF 21' } },
+    { type: 'Feature', geometry: { type: 'Point', coordinates: [30, 2] }, properties: { label: 'Benchmark' } },
+  ],
+};
+
+// The document is read to place the labels from, so every preview reads it
+let fetches: ReturnType<typeof vi.fn>;
+beforeEach(() => {
+  fetches = vi.fn(async () => ({ ok: true, status: 200, json: async () => DOCUMENT }));
+  vi.stubGlobal('fetch', fetches);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 const previewGeoJson = async () => {
   const map = new FakeMap();
   const previewer = new GeoJsonPreviewer(new GeoJsonResource('princeton-fk4544658v', GEOJSON_URL)).attach(map as unknown as MapLibreMap, style);
@@ -105,12 +135,21 @@ const DRAWN = [
 ];
 
 describe('GeoJsonPreviewer#preview', () => {
-  it('hands MapLibre the document URL as a geojson source', async () => {
+  it('hands MapLibre the document, numbered, with a label point after it for each polygon', async () => {
     const { map, previewer } = await previewGeoJson();
     const source = map.sources.get('princeton-fk4544658v-geojson');
 
+    expect(fetches).toHaveBeenCalledWith(GEOJSON_URL, undefined);
     expect(source.type).toEqual('geojson');
-    expect(source.data).toEqual(GEOJSON_URL);
+    expect(source.data.features.map((feature: GeoJSON.Feature) => [feature.id, feature.geometry.type, feature.properties?.label])).toEqual([
+      [0, 'MultiPolygon', 'SF 20'],
+      [1, 'Polygon', 'SF 21'],
+      [2, 'Point', 'Benchmark'],
+      [0, 'Point', 'SF 20'],
+      [1, 'Point', 'SF 21'],
+    ]);
+    // The numbers are ours, so MapLibre mustn't number the label points apart from their features
+    expect(source.generateId).toBeUndefined();
     expect(previewer.sourceIds).toEqual(['princeton-fk4544658v-geojson']);
   });
 
@@ -146,6 +185,8 @@ describe('GeoJsonPreviewer#preview', () => {
     expect(previewer.previewLayers).toHaveLength(1);
     expect(previewer.previewLayers[0].styleLayers).toHaveLength(SUFFIXES.length + SELECTED_SUFFIXES.length);
     expect(map.layers.size).toEqual(DRAWN.length);
+    // Nor does it read the document again to draw it again
+    expect(fetches).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -541,6 +582,43 @@ describe('GeoJsonPreviewer#labelPriority', () => {
     const { map } = await previewGeoJson();
 
     GEOMETRY_SUFFIXES.forEach(suffix => expect(Object.keys(map.layers.get(layerId(suffix)).layout).filter(key => key.endsWith('-sort-key'))).toEqual([]));
+  });
+});
+
+// MapLibre labels a polygon once per part and once more per tile a part crosses, so a sheet traced
+// from a coastline was labelled on every island. Each polygon is labelled once, at a point of its own.
+describe('GeoJsonPreviewer#labels', () => {
+  const NOT_LABEL_POINT = ['!', IS_LABEL_POINT];
+  const IS_POINT = ['==', ['geometry-type'], 'Point'];
+
+  it('draws polygon labels at the label points, not over the polygons', async () => {
+    const { map } = await previewGeoJson();
+
+    expect(map.layers.get(layerId('polygon-labels')).filter).toEqual(IS_LABEL_POINT);
+  });
+
+  // A circle drawn at every label point would be a feature the document never had
+  it('keeps the label points out of everything that draws the document’s own points', async () => {
+    const { map } = await previewGeoJson();
+
+    ['points', 'points-selected', 'point-labels'].forEach(suffix => expect(map.layers.get(layerId(suffix)).filter).toEqual(['all', IS_POINT, NOT_LABEL_POINT]));
+  });
+
+  it('labels an index map’s sheets the same way', async () => {
+    const { map } = await previewIndexMap();
+
+    expect(map.layers.get(indexLayerId('polygon-labels')).filter).toEqual(IS_LABEL_POINT);
+  });
+
+  // A label hanging off the edge of its sheet can be clicked where the sheet can't
+  it('answers a click on a label alone with its sheet’s properties, unmarked', async () => {
+    const { previewer } = await previewGeoJson();
+    const label = { source: 'princeton-fk4544658v-geojson', id: 0, properties: { label: 'SF 20', [LABEL_POINT]: true } } as unknown as MapGeoJSONFeature;
+
+    const [expanded] = await previewer.expandFeatures([label]);
+
+    expect(expanded.properties).toEqual({ label: 'SF 20' });
+    expect([expanded.source, expanded.id]).toEqual([label.source, label.id]);
   });
 });
 

@@ -12,8 +12,8 @@ export default class GeoJsonResource extends VectorResource {
   // Data parsed from GeoJSON document
   private data: any;
 
-  // Fetch and memoize data
-  protected async getData() {
+  // Fetch and memoize data. The previewer can call this too.
+  async getData() {
     if (!this.data) {
       const { url, init } = resolveRequest(this.url, 'metadata', this.requestTransform);
       const resp = await fetchOrThrow(url, init);

@@ -2,6 +2,7 @@ import type { GeoJSONSource, MapGeoJSONFeature } from 'maplibre-gl';
 
 import GeoJsonPreviewer from './geojson';
 import type { AddGeoJsonSourceObject } from './geojson';
+import { withLabelPoints } from '../labels';
 import { zoomToFit } from '../maps';
 import type EsriFeatureLayerResource from '../resources/esri-feature-layer';
 
@@ -33,7 +34,6 @@ export default class EsriFeatureLayerPreviewer extends GeoJsonPreviewer {
         id: this.getSourceId(),
         type: 'geojson',
         data: NO_FEATURES,
-        generateId: true, // autogenerate feature IDs for labeling
       },
     ];
   }
@@ -103,7 +103,7 @@ export default class EsriFeatureLayerPreviewer extends GeoJsonPreviewer {
   // The features carry only what the map draws with when the layer was too large to read whole,
   // so a click asks the service for the rest
   async expandFeatures(features: MapGeoJSONFeature[]) {
-    return await this.resource.expandFeatures(features);
+    return await this.resource.expandFeatures(await super.expandFeatures(features));
   }
 
   // Draw the features if the camera is somewhere they belong, and say why not if it isn't. The
@@ -125,7 +125,7 @@ export default class EsriFeatureLayerPreviewer extends GeoJsonPreviewer {
     if (!this.attached) return;
 
     const source = this.map.getSource(this.getSourceId()) as GeoJSONSource | undefined;
-    source?.setData(data);
+    source?.setData(withLabelPoints(data));
 
     this.onNotice?.(this.resource.truncated ? `Showing the first ${this.resource.featuresRead.toLocaleString()} features of this layer.` : undefined);
   }
