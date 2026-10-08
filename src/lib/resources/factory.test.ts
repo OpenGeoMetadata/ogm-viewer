@@ -40,9 +40,9 @@ const buildRecord = (references: Record<string, string>, extra: Partial<GeoBlack
 const REFERENCES: [string, string, new (...args: never[]) => Resource, ResourceKind][] = [
   ['http://iiif.io/api/image', 'https://example.com/iiif/info.json', IIIFResource, 'iiif-image'],
   ['http://iiif.io/api/presentation#manifest', 'https://example.com/manifest.json', IIIFManifestResource, 'iiif-manifest'],
+  ['https://openindexmaps.org', 'https://example.com/index.json', OpenIndexMapResource, 'openindexmap'],
   ['https://github.com/protomaps/PMTiles', 'https://example.com/tiles.pmtiles', PMTilesResource, 'pmtiles'],
   ['https://github.com/mapbox/tilejson-spec', 'https://example.com/tiles.json', TileJsonResource, 'tilejson'],
-  ['https://openindexmaps.org', 'https://example.com/index.json', OpenIndexMapResource, 'openindexmap'],
   ['http://geojson.org/geojson-spec.html', 'https://example.com/data.json', GeoJsonResource, 'geojson'],
   ['urn:x-esri:serviceType:ArcGIS#FeatureLayer', 'https://example.com/arcgis/0', EsriFeatureLayerResource, 'esri-feature-layer'],
   ['https://github.com/cogeotiff/cog-spec', 'https://example.com/scan.tif', CogResource, 'cog'],
@@ -76,6 +76,17 @@ describe('resourcesFor', () => {
     const record = buildRecord(Object.fromEntries(REFERENCES.map(([uri, url]) => [uri, url])), { gbl_wxsIdentifier_s: 's7sq63' });
 
     expect(resourcesFor(record).map(resource => resource.constructor)).toEqual(REFERENCES.map(([, , expected]) => expected));
+  });
+
+  // Stanford publishes an index map's sheets both ways, and the tileset labels each sheet once per
+  // piece of it in every tile - every island of a coastline, many times over
+  it('opens on an index map rather than the tileset of the same sheets', () => {
+    const record = buildRecord({
+      'https://github.com/protomaps/PMTiles': 'https://example.com/tiles.pmtiles',
+      'https://openindexmaps.org': 'https://example.com/index.json',
+    });
+
+    expect(resourcesFor(record).map(resource => resource.kind)).toEqual(['openindexmap', 'pmtiles']);
   });
 
   it('offers nothing for a record with no previewable references', () => {

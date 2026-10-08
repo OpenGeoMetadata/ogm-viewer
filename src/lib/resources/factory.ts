@@ -40,9 +40,14 @@ export function resourcesFor(record: OgmRecord, requestTransform?: RequestTransf
   // a set of control points for an image held elsewhere. It goes to the manifest instead, which
   // offers a second, map preview of itself when either source turns out to have one.
   if (references.iiifManifestUrl) resources.push(new IIIFManifestResource(id, references.iiifManifestUrl, bounds, requestTransform, references.georeferenceUrl));
+  // An index map ahead of any tileset, which for a record that has both is the same sheets tiled. The
+  // index map preview is the one made for them - availability colors, a popup that shows the sheet -
+  // and it labels each sheet once. A tileset can't: a tile holds only the pieces of a sheet that fall
+  // inside it, and MapLibre labels every piece, so a sheet traced from a coastline is named on every
+  // island in every tile.
+  if (references.indexMapUrl) resources.push(new OpenIndexMapResource(id, references.indexMapUrl, bounds, requestTransform));
   if (references.pmtilesUrl) resources.push(new PMTilesResource(id, references.pmtilesUrl, bounds, requestTransform));
   if (references.tilejsonUrl) resources.push(new TileJsonResource(id, references.tilejsonUrl, bounds, requestTransform));
-  if (references.indexMapUrl) resources.push(new OpenIndexMapResource(id, references.indexMapUrl, bounds, requestTransform));
   if (references.geojsonUrl) resources.push(new GeoJsonResource(id, references.geojsonUrl, bounds, requestTransform));
   if (references.esriFeatureLayerUrl) resources.push(new EsriFeatureLayerResource(id, references.esriFeatureLayerUrl, bounds, requestTransform));
   if (references.cogUrl) resources.push(new CogResource(id, references.cogUrl, bounds, requestTransform));
