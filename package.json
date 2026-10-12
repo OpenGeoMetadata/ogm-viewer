@@ -50,13 +50,13 @@
     "@types/node": "^22.13.5",
     "@types/polylabel": "^2.0.0",
     "@types/terraformer__wkt": "^2.0.3",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/coverage-v8": "^4.1.11",
     "happy-dom": "^20.9.0",
     "pbf": "^4.0.1",
     "prettier": "^3.6.2",
     "rolldown": "^1.0.3",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.11"
   },
   "license": "MIT",
   "dependencies": {
