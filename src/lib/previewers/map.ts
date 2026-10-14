@@ -117,6 +117,11 @@ export default abstract class MapPreviewer extends Previewer {
   // Nothing to do for a preview with no time to choose.
   loadTimeDomain(_id: string): void {}
 
+  // Draw a feature with no id as the selected one, or with none given, stop. Feature-state draws every
+  // other selection, and it needs an id; only a tileset someone else cut can be without them, so
+  // nothing to do for any other preview. See VectorPreviewer.
+  matchSelection(_feature?: MapGeoJSONFeature): void {}
+
   // Whether this preview answers for its own drawing through onDrawn. Read rather than assumed,
   // because the alternative is worse in both directions: a preview held to a deadline it has no way
   // to satisfy would be called broken while it draws, and one exempted by mistake goes back to

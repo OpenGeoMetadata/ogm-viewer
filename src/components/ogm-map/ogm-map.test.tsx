@@ -12,7 +12,9 @@ import { render as stencilRender } from '@stencil/core';
 import type { LayerState } from '../../lib/layers';
 import type { LegendImage } from '../../lib/legend';
 import TimeDomain from '../../lib/time';
+import TileJsonVectorPreviewer from '../../lib/previewers/tilejson-vector';
 import XyzPreviewer from '../../lib/previewers/xyz';
+import TileJsonResource from '../../lib/resources/tilejson';
 import XyzResource from '../../lib/resources/xyz';
 
 const feature = {
@@ -153,15 +155,15 @@ const renderMap = async (lightBasemap?: string) => {
   return { container, el };
 };
 
-const selection = () => new CustomEvent('featureSelected', { detail: feature, bubbles: true, composed: true });
+const selection = (detail: MapGeoJSONFeature = feature) => new CustomEvent('featureSelected', { detail, bubbles: true, composed: true });
 
 // MapLibre builds the popup inside the map's container, so a selection made in one starts inside the
 // map's shadow root and crosses out of it. Standing in for the popup rather than opening one, since
 // there is no map here to open it on.
-const selectInOwnPopup = (el: HTMLElement) => {
+const selectInOwnPopup = (el: HTMLElement, detail: MapGeoJSONFeature = feature) => {
   const popup = document.createElement('div');
   (el.shadowRoot as ShadowRoot).appendChild(popup);
-  popup.dispatchEvent(selection());
+  popup.dispatchEvent(selection(detail));
 };
 
 describe('ogm-map', () => {
@@ -192,6 +194,61 @@ describe('ogm-map', () => {
     selectInOwnPopup(el);
 
     expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  // HOT's OpenStreetMap exports are cut without ids, so feature-state has nothing to hang a selection
+  // on; MapLibre refuses one with an error event nobody sees, and nothing was ever highlighted
+  describe('for a tileset whose features have no ids', () => {
+    const temple = {
+      ...feature,
+      id: undefined,
+      source: 'a-preview-tilejson',
+      sourceLayer: 'cultural_places',
+      properties: { id: 'way/23630366', name: 'Wat Pho' },
+    } as unknown as MapGeoJSONFeature;
+
+    const tilesetPreviewer = () => {
+      const previewer = new TileJsonVectorPreviewer(new TileJsonResource('a-preview', 'https://example.com/tilejson.json'));
+      vi.spyOn(previewer, 'matchSelection').mockImplementation(() => undefined);
+      return previewer;
+    };
+
+    it('has the preview draw the selection by what the feature says', async () => {
+      const { el } = await renderMap();
+      const map = fakeMap();
+      const previewer = tilesetPreviewer();
+      Object.assign(el, { map, previewer });
+
+      selectInOwnPopup(el, temple);
+
+      expect(previewer.matchSelection).toHaveBeenCalledWith(temple);
+      expect(map.setFeatureState).not.toHaveBeenCalled();
+    });
+
+    it('has the preview stop drawing it when the selection ends', async () => {
+      const { el } = await renderMap();
+      const previewer = tilesetPreviewer();
+      Object.assign(el, { map: fakeMap(), previewer });
+
+      selectInOwnPopup(el, temple);
+      (el as unknown as { clearFeatureSelection: () => void }).clearFeatureSelection();
+
+      expect(previewer.matchSelection).toHaveBeenLastCalledWith(undefined);
+    });
+
+    // Matching lays out every tile of the source again, which can't keep up with a pointer
+    it('draws nothing for a hover', async () => {
+      const { el } = await renderMap();
+      const map = { ...fakeMap(), queryRenderedFeatures: vi.fn(() => [temple]), getCanvas: () => ({ style: {} }) };
+      const previewer = tilesetPreviewer();
+      Object.assign(el, { map, previewer });
+
+      (el as unknown as { handleHover: (event: unknown) => void }).handleHover({ point: { x: 1, y: 1 } });
+      (el as unknown as { clearHoveredFeature: () => void }).clearHoveredFeature();
+
+      expect(map.setFeatureState).not.toHaveBeenCalled();
+      expect(previewer.matchSelection).not.toHaveBeenCalled();
+    });
   });
 
   // A map used on its own has to establish the Web Awesome palette for itself, and the classes that do

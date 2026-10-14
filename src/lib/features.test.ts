@@ -1,7 +1,7 @@
 import { describe, it, expect } from '@stencil/vitest';
 import type { MapGeoJSONFeature } from 'maplibre-gl';
 
-import { dedupeFeatures, getFeatureTitle } from './features';
+import { dedupeFeatures, getFeatureTitle, propertyFilter } from './features';
 
 const SOURCE = 'ark-77981-gmgscj87k49-openindexmap';
 
@@ -77,6 +77,79 @@ describe('dedupeFeatures', () => {
     const three = entry({ id: null as unknown as undefined, properties: { TRACT: '000500' } });
 
     expect(dedupeFeatures([one, two, three])).toEqual([one, two, three]);
+  });
+});
+
+// HOT's OpenStreetMap exports, cut without --generate-ids: no ids, and the OSM id among the properties
+describe('dedupeFeatures, for a tileset without ids', () => {
+  const HOT = 'hdx-c2334a9d-33ed-46ab-b239-cf99d985fa20';
+  const tile = (overrides: Partial<MapGeoJSONFeature>) =>
+    entry({ source: HOT, sourceLayer: 'cultural_places', id: undefined, properties: { id: 'way/23630366', name: 'Wat Pho' }, ...overrides });
+
+  it('collapses a feature the map drew in more than one piece', () => {
+    const tileA = tile({});
+    const tileB = tile({});
+    const tileC = tile({});
+
+    expect(dedupeFeatures([tileA, tileB, tileC])).toEqual([tileA]);
+  });
+
+  it('collapses a feature reported once per style layer that draws it', () => {
+    const fill = tile({ layer: { id: `${HOT}-polygons`, type: 'fill', source: HOT } as MapGeoJSONFeature['layer'] });
+    const outline = tile({ layer: { id: `${HOT}-polygon-outlines`, type: 'line', source: HOT } as MapGeoJSONFeature['layer'] });
+
+    expect(dedupeFeatures([fill, outline])).toEqual([fill]);
+  });
+
+  it('reads two tiles’ pieces of a feature alike, whatever order each lists its properties in', () => {
+    const tileA = tile({ properties: { id: 'way/23630366', name: 'Wat Pho' } });
+    const tileB = tile({ properties: { name: 'Wat Pho', id: 'way/23630366' } });
+
+    expect(dedupeFeatures([tileA, tileB])).toEqual([tileA]);
+  });
+
+  it('keeps features that say different things', () => {
+    const temple = tile({});
+    const shrine = tile({ properties: { id: 'way/210284649', name: 'Wat Pho' } });
+
+    expect(dedupeFeatures([temple, shrine])).toEqual([temple, shrine]);
+  });
+
+  it('gives a label’s entry way to the feature it names', () => {
+    const label = tile({ layer: { id: `${HOT}-polygon-labels`, type: 'symbol', source: HOT } as MapGeoJSONFeature['layer'] });
+    const fill = tile({});
+
+    expect(dedupeFeatures([label, fill])).toEqual([fill]);
+  });
+
+  it('keeps every feature with nothing to tell it by', () => {
+    const one = tile({ properties: {} });
+    const two = tile({ properties: {} });
+
+    expect(dedupeFeatures([one, two])).toEqual([one, two]);
+  });
+});
+
+describe('propertyFilter', () => {
+  const feature = (properties: Record<string, unknown>) => entry({ id: undefined, sourceLayer: 'cultural_places', properties });
+
+  it('matches every property a filter can compare, in an order that doesn’t depend on the tile', () => {
+    expect(propertyFilter(feature({ name: 'Wat Pho', id: 'way/23630366', capacity: 200, open: true }))).toEqual([
+      'all',
+      ['==', ['get', 'capacity'], 200],
+      ['==', ['get', 'id'], 'way/23630366'],
+      ['==', ['get', 'name'], 'Wat Pho'],
+      ['==', ['get', 'open'], true],
+    ]);
+  });
+
+  it('leaves out what a filter can’t compare', () => {
+    expect(propertyFilter(feature({ id: 'way/23630366', tags: { tourism: 'attraction' }, nothing: null }))).toEqual(['all', ['==', ['get', 'id'], 'way/23630366']]);
+  });
+
+  it('has no filter for a feature with nothing to compare, rather than one matching everything', () => {
+    expect(propertyFilter(feature({}))).toBeUndefined();
+    expect(propertyFilter(feature({ tags: {} }))).toBeUndefined();
   });
 });
 

@@ -2,13 +2,16 @@ import MapPreviewer from './map';
 import type {
   ExpressionSpecification,
   FillLayerSpecification,
+  FilterSpecification,
   LineLayerSpecification,
   CircleLayerSpecification,
   SymbolLayerSpecification,
   LayerSpecification,
+  MapGeoJSONFeature,
   VectorSourceSpecification,
 } from 'maplibre-gl';
 
+import { propertyFilter } from '../features';
 import type { Layer, PreviewStyleLayer } from '../layers';
 import type VectorResource from '../resources/vector';
 
@@ -22,11 +25,33 @@ export const previewStyleLayers = (layers: LayerSpecification[]): PreviewStyleLa
 // The style layers that draw a feature's shape, as opposed to its label
 type GeometryLayerSpecification = FillLayerSpecification | LineLayerSpecification | CircleLayerSpecification;
 
+// Whether a feature is the selected one
+const IS_SELECTED: ExpressionSpecification = ['boolean', ['feature-state', 'selected'], false];
+
 // Every feature but the selected one, transparent
-const SELECTED_ONLY: ExpressionSpecification = ['case', ['boolean', ['feature-state', 'selected'], false], 1, 0];
+const SELECTED_ONLY: ExpressionSpecification = ['case', IS_SELECTED, 1, 0];
+
+// What a matched copy draws when nothing is selected by matching: nothing
+const MATCH_NONE: ExpressionSpecification = ['literal', false];
+
+// A paint value with every IS_SELECTED in it answered yes.
+const answerSelected = <T>(value: T): T => {
+  if (JSON.stringify(value) === JSON.stringify(IS_SELECTED)) return true as T;
+  if (Array.isArray(value)) return value.map(answerSelected) as T;
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, answerSelected(inner)])) as T;
+  return value;
+};
+
+type MatchedLayer = { id: string; source: string; sourceLayer?: string; filter?: FilterSpecification };
 
 export default abstract class VectorPreviewer extends MapPreviewer {
   declare protected resource: VectorResource;
+
+  // Whether this preview's features can arrive without ids
+  protected readonly featuresMayLackIds: boolean = false;
+
+  // The matched copies on the map, when featuresMayLackIds; see createMatchedLayer
+  private matchedLayers: MatchedLayer[] = [];
 
   protected getSourceId(): string {
     return this.resource.id;
@@ -59,26 +84,57 @@ export default abstract class VectorPreviewer extends MapPreviewer {
   protected async createLayers(): Promise<LayerSpecification[]> {
     const layerIds = await this.resource.getVectorLayers();
     const range = await this.zoomRange();
+    this.matchedLayers = [];
 
     return layerIds.flatMap(layerId => {
       const geometry = [this.createPolygonLayer(layerId), this.createPolygonOutlineLayer(layerId), this.createLineLayer(layerId), this.createPointLayer(layerId)];
       const labels = [this.createPolygonLabelLayer(layerId), this.createLineLabelLayer(layerId), this.createPointLabelLayer(layerId)];
       const selected = geometry.map(layer => this.createSelectedLayer(layer));
+      const matched = this.featuresMayLackIds ? geometry.map(layer => this.createMatchedLayer(layer)) : [];
 
       this.previewLayers.push(...this.createPreviewLayers(layerId, geometry, labels));
+      this.matchedLayers.push(
+        ...matched.map(({ id }, index) => ({ id, source: geometry[index].source, sourceLayer: geometry[index]['source-layer'], filter: geometry[index].filter })),
+      );
 
       // The copies go with the row their features are drawn in, so they hide when it does, but
       // flagged internal: the selected feature stays solid at any opacity, and a click mustn't find
       // every feature twice.
-      this.findPreviewLayer(this.previewLayerId(layerId))?.styleLayers.push(...previewStyleLayers(selected).map(styleLayer => ({ ...styleLayer, internal: true })));
+      this.findPreviewLayer(this.previewLayerId(layerId))?.styleLayers.push(
+        ...previewStyleLayers([...selected, ...matched]).map(styleLayer => ({ ...styleLayer, internal: true })),
+      );
 
       // Written over the finished specs rather than into each of the seven builders, and after the
       // panel rows have been taken from them, which read only an id and a type. An empty range
       // leaves each layer exactly as its builder made it. Each copy goes directly over the layer it
       // copies, so the selected feature is lifted over its own kind of shape and nothing else: a
       // selected polygon still has the outlines, lines and points drawn over it that it always had.
-      return [...geometry.flatMap((layer, index) => [layer, selected[index]]), ...labels].map(layer => Object.assign(layer, range));
+      return [...geometry.flatMap((layer, index) => [layer, selected[index], ...matched.slice(index, index + 1)]), ...labels].map(layer => Object.assign(layer, range));
     });
+  }
+
+  // Draw a feature with no id as selected
+  matchSelection(feature?: MapGeoJSONFeature) {
+    const match = feature && propertyFilter(feature);
+
+    this.matchedLayers.forEach(layer => {
+      if (!this.map.getLayer(layer.id)) return;
+      const ours = feature !== undefined && match !== undefined && feature.source === layer.source && feature.sourceLayer === layer.sourceLayer;
+      this.map.setFilter(layer.id, this.matchedFilter(layer.filter, ours ? match : MATCH_NONE));
+    });
+  }
+
+  // A layer's own filter narrowed to the features matching another
+  private matchedFilter(filter: FilterSpecification | undefined, match: ExpressionSpecification): FilterSpecification {
+    return filter === undefined ? match : ['all', filter as ExpressionSpecification, match];
+  }
+
+  // A selected copy that picks its feature out by filter rather than feature-state, for a feature
+  // with no id: drawn as feature-state draws the selected one, and drawing nothing until
+  // matchSelection gives it a feature to match.
+  private createMatchedLayer(layer: GeometryLayerSpecification): GeometryLayerSpecification {
+    const copy = this.createSelectedLayer(layer);
+    return { ...copy, id: `${layer.id}-matched`, paint: answerSelected(copy.paint), filter: this.matchedFilter(layer.filter, MATCH_NONE) } as GeometryLayerSpecification;
   }
 
   // A geometry layer drawn a second time, directly over itself, showing only the selected feature.
@@ -138,7 +194,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
   // to see. So the selected feature stays solid at any opacity: someone who faded a layer down to
   // read the basemap through it has all the more reason to want the feature they clicked to stand out.
   protected selectedOpacity(opacity: number): ExpressionSpecification {
-    return ['case', ['boolean', ['feature-state', 'selected'], false], 1, opacity];
+    return ['case', IS_SELECTED, 1, opacity];
   }
 
   // Selection and hover are transient client-side state, set via feature-state; availability is
@@ -147,7 +203,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
   protected dataColorExpression(): ExpressionSpecification {
     return [
       'case',
-      ['boolean', ['feature-state', 'selected'], false],
+      IS_SELECTED,
       this.style.selectedColor,
       ['boolean', ['feature-state', 'hover'], false],
       this.style.highlightColor,
@@ -160,7 +216,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
   protected strokeColorExpression(): ExpressionSpecification {
     return [
       'case',
-      ['boolean', ['feature-state', 'selected'], false],
+      IS_SELECTED,
       this.style.strokeSelectedColor,
       ['boolean', ['feature-state', 'hover'], false],
       this.style.strokeHighlightColor,
@@ -211,7 +267,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       },
       paint: {
         'line-color': this.strokeColorExpression(),
-        'line-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
+        'line-width': ['case', IS_SELECTED, 2, 1] as const,
         'line-opacity': this.getDefaultOpacity(),
       },
       filter: ['==', ['geometry-type'], 'Polygon'] as const,
@@ -250,7 +306,7 @@ export default abstract class VectorPreviewer extends MapPreviewer {
       paint: {
         'circle-color': this.dataColorExpression(),
         'circle-stroke-color': this.strokeColorExpression(),
-        'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2, 1] as const,
+        'circle-stroke-width': ['case', IS_SELECTED, 2, 1] as const,
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 2, 12, 4] as const,
         'circle-opacity': this.selectedOpacity(this.getDefaultOpacity()),
         'circle-stroke-opacity': this.getDefaultOpacity(),
