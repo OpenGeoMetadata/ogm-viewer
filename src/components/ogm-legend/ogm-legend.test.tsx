@@ -51,6 +51,37 @@ describe('ogm-legend', () => {
     expect(shadowRoot.querySelector('.entry .title')?.textContent).toEqual('Groundwater Elevation');
   });
 
+  // A COG's own title names only its format - see CogResource.label - so a 3DEP DEM's legend would
+  // otherwise read 'Cloud Optimized GeoTIFF' over a ramp of elevations
+  describe('for a layer whose metadata says what its values measure', () => {
+    const DEM = item('usgs-tnm-dem13-n42w092-cog', 'Cloud Optimized GeoTIFF', {
+      colorRamp: 'viridis',
+      colorRampRange: [182.6, 389.1],
+      quantity: { name: 'Elevation', unit: 'meters', datum: 'North American Vertical Datum of 1988' },
+    });
+
+    it('titles the entry with the quantity and its unit instead of the layer title', async () => {
+      const title = (await renderLegend([DEM])).querySelector('.entry .title');
+      expect(title?.textContent).toEqual('Elevation (meters)');
+      expect(title?.getAttribute('title')).toEqual('Elevation (meters)');
+    });
+
+    it('says what the values are measured from', async () => {
+      const shadowRoot = await renderLegend([DEM]);
+      expect(shadowRoot.querySelector('.entry .datum')?.textContent).toEqual('North American Vertical Datum of 1988');
+    });
+
+    it('says nothing about a datum the metadata gave none of', async () => {
+      const shadowRoot = await renderLegend([{ ...DEM, quantity: { name: 'Elevation', unit: 'meters' } }]);
+      expect(shadowRoot.querySelector('.entry .datum')).toBeNull();
+    });
+
+    it('says nothing about a datum for a layer whose metadata says nothing', async () => {
+      const shadowRoot = await renderLegend([RAMPED]);
+      expect(shadowRoot.querySelector('.entry .datum')).toBeNull();
+    });
+  });
+
   // The gap between the labels is coarse enough here that formatValue rounds to whole numbers -
   // see colormap.test.ts for formatValue itself; this only checks the legend hands it the right
   // two numbers, in the right order.

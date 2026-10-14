@@ -50,7 +50,8 @@ export function resourcesFor(record: OgmRecord, requestTransform?: RequestTransf
   if (references.tilejsonUrl) resources.push(new TileJsonResource(id, references.tilejsonUrl, bounds, requestTransform));
   if (references.geojsonUrl) resources.push(new GeoJsonResource(id, references.geojsonUrl, bounds, requestTransform));
   if (references.esriFeatureLayerUrl) resources.push(new EsriFeatureLayerResource(id, references.esriFeatureLayerUrl, bounds, requestTransform));
-  if (references.cogUrl) resources.push(new CogResource(id, references.cogUrl, bounds, requestTransform));
+  // With the record's FGDC, which is where a raster of numbers says what they measure - see CogResource
+  if (references.cogUrl) resources.push(new CogResource(id, references.cogUrl, bounds, requestTransform, references.fgdcUrl));
   if (references.tmsUrl) resources.push(new TmsResource(id, references.tmsUrl, bounds, requestTransform));
   if (references.xyzUrl) resources.push(new XyzResource(id, references.xyzUrl, bounds, requestTransform));
   if (references.esriTiledMapLayerUrl) resources.push(new EsriTiledMapLayerResource(id, references.esriTiledMapLayerUrl, bounds, requestTransform));

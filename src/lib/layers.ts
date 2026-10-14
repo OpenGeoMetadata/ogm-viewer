@@ -2,6 +2,7 @@ import type { LayerSpecification as MapLibreLayerSpecification } from 'maplibre-
 
 import type { ColorRampName } from './colormap';
 import type { LegendImage } from './legend';
+import type { Quantity } from './quantity';
 import type TimeDomain from './time';
 
 // A MapLibre style layer, one piece of a logical layer. Vector layers can have
@@ -34,6 +35,8 @@ export type Layer = {
   // its ends with. A fixed fact about the layer, not something the user chooses, so unlike the ramp
   // itself it has no counterpart on LayerState; it travels with the layer the same way title does.
   colorRampRange?: readonly [min: number, max: number];
+  // Present only for a rampable layer whose record's metadata says what its values measure
+  quantity?: Quantity;
   // Present only for a layer whose background colour has been worked out and can be taken away - a
   // georeferenced scan whose paper colour we managed to detect; see src/lib/background-color.ts. Its
   // presence is what marks a layer as removable at all, the same way defaultColorRamp's marks one as
@@ -62,6 +65,7 @@ export type LayerControl = {
   id: string;
   title: string;
   colorRampRange?: Layer['colorRampRange'];
+  quantity?: Layer['quantity'];
   legendImages?: Layer['legendImages'];
   timeDomain?: Layer['timeDomain'];
 } & LayerState;
@@ -109,6 +113,7 @@ export const toLayerControlItems = (layers: readonly Layer[], states: ReadonlyMa
       visible,
       opacity,
       ...(colorRamp !== undefined && { colorRamp, colorRampRange: layer.colorRampRange }),
+      ...(layer.quantity && { quantity: layer.quantity }),
       ...(layer.backgroundRemovable && { removeBackground }),
       ...(layer.legendImages && { legendImages: layer.legendImages }),
       ...(layer.timeDomain && { time, timeDomain: layer.timeDomain }),

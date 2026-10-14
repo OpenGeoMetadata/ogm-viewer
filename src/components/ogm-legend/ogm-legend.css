@@ -121,3 +121,12 @@ wa-details::part(content) {
   color: var(--wa-color-text-quiet);
   margin-top: var(--wa-space-3xs);
 }
+
+/* What the values are measured from, e.g. a vertical datum. Wrapped rather than cut off like the
+   title above: its name is usually longer than the panel is wide, and the end of it is the part
+   that tells one datum from another. */
+.datum {
+  color: var(--wa-color-text-quiet);
+  font-size: var(--wa-font-size-xs);
+  margin-top: var(--wa-space-3xs);
+}

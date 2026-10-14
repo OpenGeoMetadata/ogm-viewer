@@ -1,6 +1,6 @@
-import { fetchOrThrow } from './errors';
+import { readMetadataDocument } from './metadata-document';
 import type { References } from './references';
-import { resolveRequest, type RequestTransform } from './request';
+import type { RequestTransform } from './request';
 
 // What a publisher says one field of a dataset holds: a sentence about the field itself, and - where
 // the values are codes rather than readable text - what each code stands for. Read from whichever
@@ -48,7 +48,7 @@ export function fieldDefinitions(references: References, requestTransform?: Requ
 
 async function read(url: string, references: References, requestTransform?: RequestTransform): Promise<FieldDefinitions | undefined> {
   try {
-    const document = await readDocument(url, requestTransform);
+    const document = await readMetadataDocument(url, requestTransform);
     const definitions = parseFgdc(document) ?? parseIso19110(document);
 
     // A document that parsed but describes nothing, which is most of what ISO 19139 would give us
@@ -67,26 +67,6 @@ async function read(url: string, references: References, requestTransform?: Requ
     console.warn(`Could not read field definitions from ${url}:`, error);
     return undefined;
   }
-}
-
-async function readDocument(url: string, requestTransform?: RequestTransform): Promise<Document> {
-  const { url: resolved, init } = resolveRequest(url, 'metadata', requestTransform);
-  const response = await fetchOrThrow(resolved, init);
-
-  // A file server that wants authentication doesn't have to say so with a status: Stanford's answers
-  // an unauthenticated read with a redirect to the identity provider, fetch follows it, and the
-  // login page arrives with an OK status and HTML in the body. Left alone those bytes parse as a
-  // document describing no fields, which is indistinguishable from a real one that says nothing.
-  // See the same guard, for the same server, in TransformedGeoTIFFSource#request.
-  if (response.headers.get('content-type')?.startsWith('text/html')) {
-    throw new Error(`Asked to sign in before reading ${url}`);
-  }
-
-  const document = new DOMParser().parseFromString(await response.text(), 'application/xml');
-
-  // A browser answers malformed XML with a document containing a <parsererror> rather than throwing
-  if (document.querySelector('parsererror')) throw new Error(`Could not parse ${url} as XML`);
-  return document;
 }
 
 // FGDC's Entity and Attribute section, which is namespace-free - so plain selectors reach it:

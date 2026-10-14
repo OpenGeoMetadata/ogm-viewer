@@ -89,6 +89,14 @@ describe('resourcesFor', () => {
     expect(resourcesFor(record).map(resource => resource.kind)).toEqual(['openindexmap', 'pmtiles']);
   });
 
+  // The FGDC is where a DEM says its values are elevations, and in what unit - see CogResource
+  it("hands a COG the record's FGDC", () => {
+    const fgdc = 'https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/13/TIFF/current/n42w092/USGS_13_n42w092.xml';
+    const record = buildRecord({ 'https://github.com/cogeotiff/cog-spec': 'https://example.com/dem.tif', 'http://www.opengis.net/cat/csw/csdgm': fgdc });
+
+    expect((resourcesFor(record)[0] as CogResource).fgdcUrl).toEqual(fgdc);
+  });
+
   it('offers nothing for a record with no previewable references', () => {
     expect(resourcesFor(buildRecord({ 'http://schema.org/downloadUrl': 'https://example.com/data.zip' }))).toEqual([]);
   });

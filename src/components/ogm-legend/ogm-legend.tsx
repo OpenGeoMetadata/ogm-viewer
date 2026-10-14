@@ -5,6 +5,7 @@ import '@awesome.me/webawesome/dist/components/details/details.js';
 import { colormapSprite, formatValue, rampGradient } from '../../lib/colormap';
 import { imageLegends, type LegendEntry, type LegendImage } from '../../lib/legend';
 import { rampedLayers, type LayerControl } from '../../lib/layers';
+import { quantityLabel } from '../../lib/quantity';
 
 @Component({
   tag: 'ogm-legend',
@@ -103,17 +104,21 @@ export class OgmLegend {
               // one place their absence would otherwise be a type error rather than a filtered row.
               const [min, max] = layer.colorRampRange!;
               const step = max - min;
+              // What the values measure when the record's metadata says, since that's what a reader
+              // of a ramp wants to know; for a COG the layer's own title only names its format
+              const title = layer.quantity ? quantityLabel(layer.quantity) : layer.title;
 
               return (
                 <div class="entry ramp-entry" key={layer.id}>
-                  <span class="title" title={layer.title}>
-                    {layer.title}
+                  <span class="title" title={title}>
+                    {title}
                   </span>
                   <div class="bar" style={this.sprite && { background: rampGradient(this.sprite, layer.colorRamp!) }}></div>
                   <div class="labels">
                     <span class="min">{formatValue(min, step)}</span>
                     <span class="max">{formatValue(max, step)}</span>
                   </div>
+                  {layer.quantity?.datum && <div class="datum">{layer.quantity.datum}</div>}
                 </div>
               );
             })}

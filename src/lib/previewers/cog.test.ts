@@ -309,6 +309,89 @@ describe('CogPreviewer', () => {
     });
   });
 
+  // What a scalar COG's values measure comes from the record's FGDC, which the resource reads - see
+  // src/lib/quantity.test.ts for the reading. What's checked here is how it reaches the layer: from a
+  // document of its own, so before or after the layer is drawn.
+  describe("what a COG's values measure", () => {
+    const ELEVATION = { name: 'Elevation', unit: 'meters', datum: 'North American Vertical Datum of 1988' };
+
+    // A read the test answers when it chooses to, so it can arrive before the COG is drawn or after
+    const metadataFor = (previewer: TestCogPreviewer) => {
+      let answer: (quantity: typeof ELEVATION | undefined) => void = () => {};
+      const read = new Promise<typeof ELEVATION | undefined>(resolve => (answer = resolve));
+      const resource = previewer['resource'] as CogResource;
+      resource.getQuantity = vi.fn(() => read);
+      return { answer, resource };
+    };
+
+    it('puts it on the layer when it has arrived by the time the layer is drawn', async () => {
+      const { previewer } = previewFor();
+      previewer.geotiffToLoad = FAKE_SCALAR_GEOTIFF;
+      metadataFor(previewer).answer(ELEVATION);
+      await previewer.preview();
+
+      expect(previewer.previewLayers[0].quantity).toEqual(ELEVATION);
+    });
+
+    it('puts it on the layer once it arrives after the layer is drawn, and says the layer changed', async () => {
+      const { previewer } = previewFor();
+      previewer.geotiffToLoad = FAKE_SCALAR_GEOTIFF;
+      const onLayersChanged = vi.fn();
+      previewer.onLayersChanged = onLayersChanged;
+      const { answer } = metadataFor(previewer);
+      await previewer.preview();
+      expect(previewer.previewLayers[0].quantity).toBeUndefined();
+
+      answer(ELEVATION);
+      await vi.waitFor(() => expect(onLayersChanged).toHaveBeenCalledTimes(1));
+      expect(previewer.previewLayers[0].quantity).toEqual(ELEVATION);
+    });
+
+    // An RGB scan's values are colors, with no ramp and no legend entry to title
+    it('leaves an ordinary COG without one, whatever its metadata says', async () => {
+      const { previewer } = previewFor();
+      const onLayersChanged = vi.fn();
+      previewer.onLayersChanged = onLayersChanged;
+      const { answer } = metadataFor(previewer);
+      await previewer.preview();
+      answer(ELEVATION);
+      await Promise.resolve();
+
+      expect(previewer.previewLayers[0].quantity).toBeUndefined();
+      expect(onLayersChanged).not.toHaveBeenCalled();
+    });
+
+    it('leaves the layer as it is when the metadata says nothing', async () => {
+      const { previewer } = previewFor();
+      previewer.geotiffToLoad = FAKE_SCALAR_GEOTIFF;
+      const onLayersChanged = vi.fn();
+      previewer.onLayersChanged = onLayersChanged;
+      const { answer } = metadataFor(previewer);
+      await previewer.preview();
+      answer(undefined);
+      await Promise.resolve();
+
+      expect(previewer.previewLayers[0]).not.toHaveProperty('quantity');
+      expect(onLayersChanged).not.toHaveBeenCalled();
+    });
+
+    // A theme change draws the preview again into a rebuilt style, and a legend that lost its title
+    // until the metadata was read a second time would flicker for no reason
+    it('keeps it across a redraw', async () => {
+      const { map, previewer } = previewFor();
+      previewer.geotiffToLoad = FAKE_SCALAR_GEOTIFF;
+      metadataFor(previewer).answer(ELEVATION);
+      await previewer.preview();
+
+      await previewer.clearPreview();
+      metadataFor(previewer);
+      previewer.attach(map as unknown as MapLibreMap, style);
+      await previewer.preview();
+
+      expect(previewer.previewLayers[0].quantity).toEqual(ELEVATION);
+    });
+  });
+
   // Every COG on the page decodes through the same workers: a pool each would put a multiple of the
   // pool size in workers on a results page of overview maps. See src/lib/decoder.ts.
   it('decodes through the pool shared with every other COG', () => {
