@@ -21,7 +21,7 @@ import { closestAcrossShadows, findElement, getElement } from '../../lib/element
 import { referenceError, TimeoutError, type PreviewError, isWebGLError, WebGLUnavailableError } from '../../lib/errors';
 import GlobeControl from '../../lib/globe-control';
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
-import { dedupeFeatures } from '../../lib/features';
+import { dedupeFeatures, identified } from '../../lib/features';
 import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
 import { createMap, fitBounds, openingCamera, setBasemap, whenSized } from '../../lib/maps';
 import { isLayerDrawn, rampedLayers, resolveLayerState, timedLayers, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
@@ -856,9 +856,17 @@ export class OgmMap {
   // Restyle one of the preview's own features. Every path into here starts outside the map - a
   // pointer event, a layer control, the popup - and the map is not there for all of that time: it
   // is built in componentDidLoad and taken down in disconnectedCallback. Nothing to restyle then.
+  //
+  // A feature with no id has no state to set - MapLibre refuses it with an error event that says
+  // nothing on the page - so a selection of one is drawn by its properties instead, and a hover of
+  // one isn't drawn at all; see VectorPreviewer#matchSelection.
   private setFeatureState(feature: MapGeoJSONFeature, state: { hover?: boolean; selected?: boolean }) {
     if (!this.map) return;
-    this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, state);
+    if (identified(feature)) {
+      this.map.setFeatureState({ source: feature.source, id: feature.id, sourceLayer: feature.sourceLayer }, state);
+    } else if (state.selected !== undefined) {
+      this.previewer?.matchSelection(state.selected ? feature : undefined);
+    }
   }
 
   // Create a new popup and set its content and location

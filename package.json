@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@mapbox/vector-tile": "^2.0.4",
+    "@maplibre/maplibre-gl-style-spec": "^26.4.4",
     "@playwright/test": "^1.60.0",
     "@stencil/core": "^4.43.4",
     "@stencil/playwright": "^0.4.3",
