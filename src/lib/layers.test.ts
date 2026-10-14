@@ -149,6 +149,16 @@ describe('toLayerControlItems', () => {
     expect(Object.keys(vector).sort()).toEqual(['id', 'opacity', 'title', 'visible']);
   });
 
+  // What the legend titles the ramp with, once the record's metadata has said what the values are
+  it('carries what the values measure for a layer whose metadata says', () => {
+    const quantity = { name: 'Elevation', unit: 'meters', datum: 'North American Vertical Datum of 1988' };
+    const [scalar] = toLayerControlItems([{ ...scalarLayer, quantity }], new Map());
+    expect(scalar.quantity).toEqual(quantity);
+
+    const [unsaid] = toLayerControlItems([scalarLayer], new Map());
+    expect(unsaid).not.toHaveProperty('quantity');
+  });
+
   // Same reasoning as the ramp above, and it matters more here: the panel decides whether to draw the
   // background toggle at all by whether this key is there, so false and absent are different answers
   it('carries the background toggle only for a layer whose background can be removed', () => {

@@ -10,6 +10,7 @@ import { DEFAULT_COLOR_RAMP } from '../colormap';
 import { decoderPool } from '../decoder';
 import { openGeoTIFF } from '../geotiff';
 import { isLayerDrawn, type LayerState, type PreviewStyleLayer } from '../layers';
+import type { Quantity } from '../quantity';
 import type { MapLibreStyle } from '../themes/maplibre';
 
 // How long to wait for deck.gl to read the GeoTIFF's header when the record declared no bounding box
@@ -69,6 +70,9 @@ export default class CogPreviewer extends MapPreviewer {
   // through our own scalar pipeline (src/lib/cog-pipeline.ts) instead of upstream's;
   // there is deliberately nowhere else that re-derives the same answer.
   protected valueRange: ScalarRange | undefined;
+
+  // What this COG's values measure (if it's raster data, like a DEM)
+  protected quantity: Quantity | undefined;
 
   // Whether any tile of this COG has been drawn, which is what tells a COG that can't be drawn at
   // all from one tile of it that couldn't. Reset per attach, alongside everything else a fresh load
@@ -145,6 +149,7 @@ export default class CogPreviewer extends MapPreviewer {
       // rampable to the panel and to resolveLayerState. this.valueRange is already known by the
       // time this runs; see preview() for why the ordering has to be that way round.
       ...(this.valueRange && { defaultColorRamp: DEFAULT_COLOR_RAMP, colorRampRange: this.valueRange }),
+      ...(this.valueRange && this.quantity && { quantity: this.quantity }),
     });
 
     return [];
@@ -164,10 +169,25 @@ export default class CogPreviewer extends MapPreviewer {
   // preview() the same way either order; the difference is that it no longer leaves a phantom layer
   // registered for a COG that was never actually readable.
   async preview(): Promise<void> {
+    // Kick off the metadata read; no need to await and block rendering
+    void this.readQuantity();
+
     this.geotiff = await this.loadGeoTIFF();
     this.valueRange = isScalarSampleFormat(this.geotiff.cachedTags) ? await scalarRange(this.geotiff, this.decoderPool) : undefined;
     await super.preview();
     this.drawDeckLayer();
+  }
+
+  // Read the metadata to figure out what the values measure, and update the layer
+  protected async readQuantity() {
+    const quantity = await this.resource.getQuantity();
+    if (!quantity) return;
+    this.quantity = quantity;
+
+    const layer = this.previewLayers.find(previewLayer => previewLayer.id === this.getLayerId());
+    if (!layer?.colorRampRange || layer.quantity) return;
+    layer.quantity = quantity;
+    this.onLayersChanged?.();
   }
 
   protected async loadGeoTIFF(): Promise<GeoTIFF> {

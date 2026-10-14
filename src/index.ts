@@ -24,6 +24,8 @@ export { References, REFERENCE_URIS, type LabelledLinks, type ReferenceName, typ
 // points at, where it points at one that a browser can actually read. Used by the attribute table
 // to name a clicked feature's fields and decode its coded values.
 export { fieldDefinitions, type FieldDefinition, type FieldDefinitions } from './lib/field-definitions';
+// What a raster's values measure, read from the same FGDC. Used by the legend to title a COG's color ramp.
+export { quantityLabel, rasterQuantity, type Quantity } from './lib/quantity';
 
 // Applied to every request a Resource makes on its own - and, once its previewer attaches to a
 // map, to MapLibre's own tile and style requests too. Pass one to a Resource's constructor, to
