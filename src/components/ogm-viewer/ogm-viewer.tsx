@@ -18,6 +18,7 @@ export class OgmViewer {
   // MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default.
   @Prop() darkBasemap?: string;
   @Prop() lightBasemap?: string;
+  @Prop() beforeId?: string;
   @Prop() hideTitle: boolean = false;
   // Applied to the record fetch itself, and passed down to every resource built from it - see
   // Resource.requestTransform. A DOM property, like previewer on <ogm-preview>: set it before or
@@ -114,6 +115,7 @@ export class OgmViewer {
                 theme={this.theme}
                 darkBasemap={this.darkBasemap}
                 lightBasemap={this.lightBasemap}
+                beforeId={this.beforeId}
                 record={this.record}
                 requestTransform={this.requestTransform}
                 sidebar-padding={this.sidebarPadding}

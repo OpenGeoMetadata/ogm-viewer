@@ -5,7 +5,7 @@ import type Resource from '../resources/resource';
 import Previewer from './previewer';
 import { isLayerDrawn, resolveLayerState, type LayerState, type Layer, type PreviewStyleLayer } from '../layers';
 import type { LegendEntry } from '../legend';
-import { type MapLibreStyle } from '../themes/maplibre';
+import { defaultBeforeId, type MapLibreStyle } from '../themes/maplibre';
 
 // MapLibre doesn't bundle the id with the source, but we need to
 type AddSourceObject = SourceSpecification & { id: string };
@@ -50,6 +50,14 @@ export default abstract class MapPreviewer extends Previewer {
   // description has been read, which is inside preview(). <ogm-map> reads this again once preview()
   // has resolved, and before it fits the camera - see applyViewConstraints.
   minZoom?: number;
+
+  // The basemap layer this preview is drawn underneath, so that the basemap's labels can still be
+  // read over the data rather than being covered by it. Only a request: a basemap with
+  // no layer by this name draws the preview on top instead, the same as leaving this empty does - see
+  // resolvedBeforeId. On every preview rather than on the map, since the previewer is what puts the
+  // layers there; <ogm-previews> sets it on the previews it builds from a record, and a preview built
+  // by hand can set its own. Read when the preview is drawn, so a change shows on the next draw.
+  beforeId?: string = defaultBeforeId;
 
   // Only what every preview on a map needs, which is somewhere to point: not MapResource, because
   // not everything drawn on a map is a tile source. A georeferenced scan is a IIIF manifest with
@@ -186,6 +194,7 @@ export default abstract class MapPreviewer extends Previewer {
     });
 
     const layers = await this.createLayers();
+    const beforeId = this.resolvedBeforeId;
 
     layers.forEach(layer => {
       this.layerIds.push(layer.id);
@@ -201,8 +210,16 @@ export default abstract class MapPreviewer extends Previewer {
       // here already - and skipping for it would leave that one drawing while the one we just built
       // never got a context at all. Replace it instead.
       if (existing) this.map.removeLayer(layer.id);
-      this.map.addLayer(layer);
+
+      // Keep label (symbol) layers on top; use beforeId for everything else
+      this.map.addLayer(layer, layer.type === 'symbol' ? undefined : beforeId);
     });
+  }
+
+  // Guard against beforeId values that aren't actually in the basemap
+  protected get resolvedBeforeId(): string | undefined {
+    const beforeId = this.beforeId;
+    return beforeId && this.map.getLayer(beforeId) ? beforeId : undefined;
   }
 
   // Remove preview layers and sources

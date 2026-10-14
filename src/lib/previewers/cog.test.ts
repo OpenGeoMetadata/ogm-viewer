@@ -6,7 +6,7 @@ import { scalarGetTileData } from '../cog-pipeline';
 import RasterPreviewer from './raster';
 import CogResource from '../resources/cog';
 import { DEFAULT_COLOR_RAMP } from '../colormap';
-import type { MapLibreStyle } from '../themes/maplibre';
+import { defaultBeforeId, type MapLibreStyle } from '../themes/maplibre';
 
 // Just enough of a MapLibre map to record what the previewer does. setPaintProperty and
 // setLayoutProperty both throw: MapLibre never learns this layer's id at all, since deck.gl draws
@@ -36,6 +36,13 @@ class FakeMap {
   }
   addControl(control: unknown) {
     this._controls.push(control);
+  }
+
+  // Whether every tile the basemap asked for has arrived, which is what MapLibre means by it - and
+  // what @deck.gl/maplibre waits on before it places the layer under beforeId
+  styleLoaded = true;
+  isStyleLoaded() {
+    return this.styleLoaded;
   }
 
   // Enough of MapLibre's event emitter for the projection watch in CogPreviewer. once() is on()
@@ -433,6 +440,79 @@ describe('CogPreviewer', () => {
       await previewer.clearPreview();
 
       expect(map.listenerCount('projectiontransition')).toEqual(0);
+    });
+  });
+
+  // The COG goes underneath the basemap's labels like every other preview, by way of deck.gl's own
+  // beforeId rather than MapLibre's. See MapPreviewer.beforeId and CogPreviewer.placeOnceIdle.
+  describe('beforeId', () => {
+    it('hands deck.gl the basemap layer to draw underneath', async () => {
+      const { map, previewer } = previewFor();
+      map.layers.set(defaultBeforeId, { id: defaultBeforeId, type: 'symbol' });
+      await previewer.preview();
+
+      expect(previewer.overlay.lastLayers[0].props.beforeId).toEqual(defaultBeforeId);
+    });
+
+    // deck.gl passes a missing name straight to MapLibre, which raises an error on every draw
+    it("hands it nothing when the basemap has no layer by that name, so it's drawn on top", async () => {
+      const { previewer } = previewFor();
+      await previewer.preview();
+
+      expect(previewer.overlay.lastLayers[0].props.beforeId).toBeUndefined();
+    });
+
+    it('hands it nothing when told to draw on top', async () => {
+      const { map, previewer } = previewFor();
+      map.layers.set(defaultBeforeId, { id: defaultBeforeId, type: 'symbol' });
+      previewer.beforeId = '';
+      await previewer.preview();
+
+      expect(previewer.overlay.lastLayers[0].props.beforeId).toBeUndefined();
+    });
+
+    // deck.gl only moves its layer into place while the map's style counts as loaded, which it
+    // doesn't until the basemap's tiles have all arrived - and after a theme change, they haven't
+    describe('drawn before the basemap has finished loading', () => {
+      it('hands the overlay its layer again once the map is idle', async () => {
+        const { map, previewer } = previewFor();
+        map.styleLoaded = false;
+        await previewer.preview();
+
+        const before = previewer.overlay.props.length;
+        map.styleLoaded = true;
+        map.emit('idle');
+
+        expect(previewer.overlay.props.length).toEqual(before + 1);
+        expect(previewer.overlay.lastLayers).toHaveLength(1);
+      });
+
+      // A slider dragged before the basemap settles draws on every step
+      it('waits once however many times it is drawn', async () => {
+        const { map, previewer } = previewFor();
+        map.styleLoaded = false;
+        await previewer.preview();
+        previewer.applyLayerState(new Map([['stanford-vq494qx9344-cog', { visible: true, opacity: 0.5 }]]));
+        previewer.applyLayerState(new Map([['stanford-vq494qx9344-cog', { visible: true, opacity: 0.4 }]]));
+
+        expect(map.listenerCount('idle')).toEqual(1);
+      });
+
+      it('stops waiting once the preview is cleared', async () => {
+        const { map, previewer } = previewFor();
+        map.styleLoaded = false;
+        await previewer.preview();
+        await previewer.clearPreview();
+
+        expect(map.listenerCount('idle')).toEqual(0);
+      });
+    });
+
+    it("doesn't wait for anything when the basemap has already loaded", async () => {
+      const { map, previewer } = previewFor();
+      await previewer.preview();
+
+      expect(map.listenerCount('idle')).toEqual(0);
     });
   });
 

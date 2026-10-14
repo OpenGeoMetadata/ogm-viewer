@@ -196,6 +196,7 @@ export default class CogPreviewer extends MapPreviewer {
 
   async clearPreview() {
     this.stopWatchingProjection();
+    if (this.attached) this.map.off('idle', this.handleIdle);
     await super.clearPreview();
     this.deckOverlay?.setProps({ layers: [] });
     this.geotiff = undefined;
@@ -215,7 +216,33 @@ export default class CogPreviewer extends MapPreviewer {
   protected drawDeckLayer() {
     if (!this.deckOverlay || !this.drawnState || !this.geotiff) return;
     this.deckOverlay.setProps({ layers: [this.createDeckLayer(this.geotiff, this.drawnState)] });
+    if (!this.map.isStyleLoaded()) this.placeOnceIdle();
   }
+
+  /**
+   * Hand deck.gl the layer again once the map has settled, so that it ends up under beforeId after all.
+   *
+   * @deck.gl/maplibre only puts its layer where beforeId says while the map reports its style loaded,
+   * and MapLibre only reports that once every tile the basemap has asked for has arrived. A layer
+   * handed over before then stays wherever it already was. On a first draw that's nowhere, and deck.gl
+   * draws it over the whole basemap in the meantime. After a theme change it's wherever setStyle()
+   * left it: that keeps deck.gl's layer through the swap and builds the new basemap up around it, and
+   * the COG was seen under Positron's roads that way. Once the map is idle its style counts as loaded,
+   * and the same layer handed over again is moved into place.
+   *
+   * Remove this when @deck.gl/maplibre places its layers as soon as the style document has loaded.
+   *
+   * Taken off first, so that a run of draws - a slider being dragged - leaves one listener, not one each.
+   */
+  protected placeOnceIdle() {
+    this.map.off('idle', this.handleIdle);
+    this.map.once('idle', this.handleIdle);
+  }
+
+  // Bound for the same reason as handleProjectionTransition
+  private handleIdle = () => {
+    this.drawDeckLayer();
+  };
 
   // COGLayer's own generic parameter tracks the shape getTileData/renderTile produce and consume,
   // and the two branches below produce different shapes - so each is its own `new COGLayer(...)`
@@ -253,6 +280,10 @@ export default class CogPreviewer extends MapPreviewer {
       // _GlobeView standing on its own would want 'front'. See visgl/deck.gl#9592.
       parameters: { depthCompare: 'always' as const, cullMode: 'back' as const },
       pool: this.decoderPool,
+      // Underneath the basemap's labels, as every other preview is; see MapPreviewer.beforeId. Checked
+      // against the basemap first like theirs, because deck.gl hands it to MapLibre as it is - and a
+      // name the basemap doesn't have raises an error on the map every time the layer is drawn.
+      beforeId: this.resolvedBeforeId,
     };
 
     // No getTileData/renderTile: deck.gl-geotiff runs its own inferred pipeline, and - because none

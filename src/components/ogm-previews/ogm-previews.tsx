@@ -9,6 +9,7 @@ import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import { resourcesFor } from '../../lib/resources/factory';
 import { previewersForResources, type AnyPreviewer } from '../../lib/previewers/factory';
 import type { RequestTransform } from '../../lib/request';
+import { defaultBeforeId } from '../../lib/themes/maplibre';
 
 @Component({
   tag: 'ogm-previews',
@@ -30,6 +31,10 @@ export class OgmPreviews {
   // Passed to resourcesFor() when building this record's previews; see Resource.requestTransform.
   // Previewers handed over directly carry their own, by way of the resources they were built from.
   @Prop() requestTransform?: RequestTransform;
+  // The basemap layer every map preview built from this record is drawn underneath; see
+  // MapPreviewer.beforeId. Undefined keeps this library's own default, and an empty string draws
+  // previews on top of the whole basemap. Previewers handed over directly carry their own.
+  @Prop() beforeId?: string;
   @Prop() sidebarPadding: number;
   @State() private recordPreviewers: AnyPreviewer[] = [];
   @Event() previewsLoading: EventEmitter<void>;
@@ -71,12 +76,28 @@ export class OgmPreviews {
     this.previewsLoading.emit();
     try {
       const previewers = await previewersForResources(resourcesFor(record, this.requestTransform));
+      this.applyBeforeId(previewers, this.beforeId);
       // A newer record started building while this one was waiting; that one's answer is the keeper
       if (build === this.pending) this.recordPreviewers = previewers;
     } finally {
       // Always paired with the emit above, even when superseded: ogm-viewer counts these
       this.previewsLoaded.emit();
     }
+  }
+
+  // Onto the previews already built, for them to draw with next time - a new beforeId doesn't move
+  // what is already on the map. Back to the library's own default when unset again, since these
+  // previews are ours and that is the value they were built with.
+  @Watch('beforeId')
+  protected onBeforeIdChange(beforeId?: string) {
+    this.applyBeforeId(this.recordPreviewers, beforeId ?? defaultBeforeId);
+  }
+
+  // Map previews only, since nothing else is drawn over a basemap. Undefined leaves each one the
+  // default it was built with.
+  private applyBeforeId(previewers: AnyPreviewer[], beforeId?: string) {
+    if (beforeId === undefined) return;
+    for (const previewer of previewers) if (previewer.renderer === 'map') previewer.beforeId = beforeId;
   }
 
   // Render as tabs for switching between previews.
