@@ -29,13 +29,13 @@ const buildRecord = (previewable: boolean) =>
   });
 
 // The element itself, for a test that goes on to hand it a second record
-const mountPreviews = async (record?: OgmRecord, previewers?: AnyPreviewer[]) => {
+const mountPreviews = async (record?: OgmRecord, previewers?: AnyPreviewer[], beforeId?: string) => {
   const container = document.createElement('div');
   document.body.appendChild(container);
   // The mounted <ogm-map> logs a swallowed WebGL init error; keep test output clean
   const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-  await stencilRender(<ogm-previews record={record} previewers={previewers}></ogm-previews>, container);
-  const el = container.firstElementChild as HTMLElement & { record?: OgmRecord; componentOnReady?: () => Promise<unknown> };
+  await stencilRender(<ogm-previews record={record} previewers={previewers} beforeId={beforeId}></ogm-previews>, container);
+  const el = container.firstElementChild as HTMLElement & { record?: OgmRecord; beforeId?: string; componentOnReady?: () => Promise<unknown> };
   await el.componentOnReady?.();
   await flush();
   consoleError.mockRestore();
@@ -212,6 +212,46 @@ describe('ogm-previews', () => {
       const shadowRoot = await renderPreviews(undefined, []);
 
       expect(shadowRoot.querySelector('wa-tab-group')).toBeNull();
+    });
+  });
+
+  // The basemap layer map previews are drawn underneath. Set on the previews themselves, since they
+  // are what put the layers on the map; see MapPreviewer.beforeId.
+  describe('beforeId', () => {
+    const drawnBeforeIds = (el: HTMLElement) =>
+      Array.from((el.shadowRoot as ShadowRoot).querySelectorAll('ogm-preview'))
+        .map(preview => (preview as HTMLElement & { previewer: AnyPreviewer }).previewer)
+        .map(previewer => (previewer.renderer === 'map' ? previewer.beforeId : null));
+
+    it('is handed to every map preview built from the record', async () => {
+      const el = await mountPreviews(buildRecord(true), undefined, 'water');
+
+      expect(drawnBeforeIds(el)).toEqual(['water']);
+    });
+
+    it("leaves them the library's own default when there is none", async () => {
+      const el = await mountPreviews(buildRecord(true));
+
+      expect(drawnBeforeIds(el)).toEqual(['watername_ocean']);
+    });
+
+    it('is handed over again when it changes, and the default comes back when it is unset', async () => {
+      const el = await mountPreviews(buildRecord(true), undefined, 'water');
+
+      el.beforeId = '';
+      expect(drawnBeforeIds(el)).toEqual(['']);
+
+      el.beforeId = undefined;
+      expect(drawnBeforeIds(el)).toEqual(['watername_ocean']);
+    });
+
+    // Previews built by hand say where they go themselves
+    it('leaves previews that were handed over with their own', async () => {
+      const previewers = buildPreviewers();
+      previewers.forEach(previewer => previewer.renderer === 'map' && (previewer.beforeId = 'roads'));
+      const el = await mountPreviews(undefined, previewers, 'water');
+
+      expect(drawnBeforeIds(el)).toEqual(['roads', 'roads']);
     });
   });
 });

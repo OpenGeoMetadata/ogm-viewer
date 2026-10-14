@@ -193,6 +193,7 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmPreviews {
+        "beforeId"?: string;
         "darkBasemap"?: string;
         "lightBasemap"?: string;
         "previewers"?: AnyPreviewer[];
@@ -221,6 +222,7 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmViewer {
+        "beforeId"?: string;
         "darkBasemap"?: string;
         /**
           * @default false
@@ -692,6 +694,7 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface OgmPreviews {
+        "beforeId"?: string;
         "darkBasemap"?: string;
         "lightBasemap"?: string;
         "onPreviewsLoaded"?: (event: OgmPreviewsCustomEvent<void>) => void;
@@ -724,6 +727,7 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface OgmViewer {
+        "beforeId"?: string;
         "darkBasemap"?: string;
         /**
           * @default false
@@ -803,6 +807,7 @@ declare namespace LocalJSX {
         "theme": 'light' | 'dark';
         "darkBasemap": string;
         "lightBasemap": string;
+        "beforeId": string;
         "sidebarPadding": number;
     }
     interface OgmSidebarAttributes {
@@ -817,6 +822,7 @@ declare namespace LocalJSX {
         "theme": 'light' | 'dark';
         "darkBasemap": string;
         "lightBasemap": string;
+        "beforeId": string;
         "hideTitle": boolean;
     }
 

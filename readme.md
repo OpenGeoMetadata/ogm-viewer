@@ -78,6 +78,16 @@ You can find basemaps that don't require an API key to use offered by [OpenFreeM
 
 Both attributes are also DOM properties, so they can be set from JavaScript the same way `theme` can. They're supported everywhere `theme` is - `<ogm-viewer>`, `<ogm-preview>`, `<ogm-previews>`, `<ogm-map>`, `<ogm-locator>`, and `<ogm-overview>` - and GeoBlacklight uses them to let a site configure its own basemaps.
 
+#### Drawing previews under the basemap's labels
+
+Previews are drawn underneath the basemap's labels, so place names stay readable over the data. A preview's own labels still go on top. Which basemap layer previews go under is set with `before-id`; it defaults to `watername_ocean`, which in CARTO's basemaps is underneath most text labels but above everything else. If you use a different basemap, set `before-id` to the layer you want previews drawn under:
+
+```html
+<ogm-viewer record-url="https://example.com/record.json" light-basemap="https://example.com/my-style.json" before-id="boundaries"></ogm-viewer>
+```
+
+On a basemap that has no layer by that name, previews are drawn on top of the whole basemap, as they are with `before-id=""`. `before-id` is supported on `<ogm-viewer>` and `<ogm-previews>`, and a change to it applies the next time a preview is drawn - a new record, or a change of theme or basemap. A previewer you build yourself has a `beforeId` property of its own instead, with the same default.
+
 ### Colors
 
 You can style the viewer's colors by setting CSS custom properties on its element.

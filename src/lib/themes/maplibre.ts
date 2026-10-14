@@ -41,6 +41,13 @@ export type MapLibreStyle = {
 export const darkBasemapStyle = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 export const lightBasemapStyle = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
+// The basemap layer previews are drawn underneath by default: the first of the labels in CARTO's
+// Positron and Voyager GL styles, with nothing above it but more labels. Data drawn under it covers
+// the roads and boundaries but leaves every label readable over the top. Dark Matter has the same
+// layer one place higher, under its river names, so previews cover those there. Any other basemap
+// without a layer by this name draws previews on top instead; see MapPreviewer.beforeId.
+export const defaultBeforeId = 'watername_ocean';
+
 // What a result's number is drawn in when neither an app nor the palette has said. A CSS font stack,
 // unlike the glyph name below: the numbers are drawn into an image of our own rather than handed to
 // MapLibre, which is also the only reason they can be bold at all - see markerImage. Web Awesome's own
