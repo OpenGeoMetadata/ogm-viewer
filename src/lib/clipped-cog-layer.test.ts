@@ -1,4 +1,6 @@
-import { describe, it, expect, vi } from '@stencil/vitest';
+import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
+import { COGLayer } from '@developmentseed/deck.gl-geotiff';
+import { Texture } from '@luma.gl/core';
 
 import ClippedCOGLayer, { cutlineUniforms, PreciseCutline, type Cutline, type CutlineUniforms } from './clipped-cog-layer';
 
@@ -113,5 +115,64 @@ describe('cutlineUniforms', () => {
 
   it('works each box out once', () => {
     expect(cutlineUniforms(CUTLINE, false)).toBe(cutlineUniforms(CUTLINE, false));
+  });
+});
+
+// What deck.gl leaves behind when a sheet of a mosaic leaves the view: the layer is finalized with its
+// tiles still loaded, and its TileLayer empties its tileset without unloading any of them
+describe('ClippedCOGLayer going away', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  // A layer whose tile layer holds these tiles, as RasterTileLayer's does when the layer is removed
+  const layerHolding = (tiles: { content: unknown }[], props: object) => {
+    const layer = new ClippedCOGLayer({ id: 'sheet', geotiff: 'https://example.com/sheet.tif', ...props } as never);
+    vi.spyOn(layer, 'getSubLayers').mockReturnValue([{ state: { tileset: { tiles } } }] as never);
+    return layer as unknown as { finalizeState(context: unknown): void };
+  };
+
+  // A texture as COGLayer's own pipeline uploads one, which it frees with destroy()
+  const texture = () => Object.assign(Object.create(Texture.prototype), { destroy: vi.fn() }) as Texture;
+
+  it('unloads every tile still holding something, through a pipeline handed in', () => {
+    vi.spyOn(COGLayer.prototype, 'finalizeState').mockImplementation(() => {});
+    const onTileUnload = vi.fn();
+    const held = [{ content: { texture: 'a' } }, { content: null }, { content: { texture: 'b' } }];
+
+    layerHolding(held, { getTileData: vi.fn(), renderTile, onTileUnload }).finalizeState({});
+
+    expect(onTileUnload.mock.calls.map(([tile]) => tile)).toEqual([held[0], held[2]]);
+  });
+
+  it('frees the textures of the pipeline COGLayer works out for itself', () => {
+    vi.spyOn(COGLayer.prototype, 'finalizeState').mockImplementation(() => {});
+    const data = { texture: texture(), mask: texture() };
+
+    layerHolding([{ content: data }], {}).finalizeState({});
+
+    expect(data.texture.destroy).toHaveBeenCalledTimes(1);
+    expect(data.mask.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  // COGLayer's own finalize aborts what's still loading, and RasterTileLayer's lets go of the rest
+  it('unloads them before COGLayer finalizes anything of its own', () => {
+    const onTileUnload = vi.fn();
+    let unloadedByThen = -1;
+    vi.spyOn(COGLayer.prototype, 'finalizeState').mockImplementation(() => {
+      unloadedByThen = onTileUnload.mock.calls.length;
+    });
+
+    layerHolding([{ content: {} }, { content: {} }], { getTileData: vi.fn(), renderTile, onTileUnload }).finalizeState({});
+
+    expect(unloadedByThen).toEqual(2);
+  });
+
+  it('has nothing to unload for a layer that never drew a tile', () => {
+    vi.spyOn(COGLayer.prototype, 'finalizeState').mockImplementation(() => {});
+    const onTileUnload = vi.fn();
+    const layer = new ClippedCOGLayer({ id: 'sheet', geotiff: 'https://example.com/sheet.tif', getTileData: vi.fn(), renderTile, onTileUnload } as never);
+
+    (layer as unknown as { finalizeState(context: unknown): void }).finalizeState({});
+
+    expect(onTileUnload).not.toHaveBeenCalled();
   });
 });

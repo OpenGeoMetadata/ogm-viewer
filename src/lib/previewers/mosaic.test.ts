@@ -568,6 +568,28 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect((await previewer.sheetLayer(0)).props.opacity).toEqual(0.25);
     });
 
+    // deck.gl's own inheritance of a parent's visibility doesn't reach a scan's tiles; see createSheetLayer
+    it('hides every sheet of it, scans as well as DEM tiles', async () => {
+      const { previewer } = previewerFor();
+      previewer.geotiffs.set(tif('n40w105'), SCAN);
+      await drawn(previewer);
+
+      previewer.applyLayerState(new Map([[MOSAIC_ROW, { visible: false, opacity: 0.8 }]]));
+
+      expect((await previewer.sheetLayer(0)).props.visible).toBe(false);
+      expect((await previewer.sheetLayer(1)).props.visible).toBe(false);
+    });
+
+    it('shows them all again', async () => {
+      const { previewer } = previewerFor();
+      await drawn(previewer);
+
+      previewer.applyLayerState(new Map([[MOSAIC_ROW, { visible: false, opacity: 0.8 }]]));
+      previewer.applyLayerState(new Map([[MOSAIC_ROW, { visible: true, opacity: 0.8 }]]));
+
+      expect((await previewer.sheetLayer(0)).props.visible).toBe(true);
+    });
+
     it('hides the mosaic as a whole', async () => {
       const { previewer } = previewerFor();
       await drawn(previewer);

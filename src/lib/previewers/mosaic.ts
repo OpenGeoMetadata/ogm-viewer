@@ -236,8 +236,15 @@ export default class IndexMapMosaic {
   }
 
   // One sheet of the mosaic, drawn just as CogPreviewer draws a COG on its own - minus the bounds and
-  // drawing reports, which the outlines already give. Opacity is the sheet's own because MosaicLayer
-  // doesn't hand it down; visibility is inherited from the mosaic.
+  // drawing reports, which the outlines already give.
+  //
+  // Opacity and visibility are both the sheet's own, rather than left to the mosaic: MosaicLayer hands
+  // neither down. deck.gl does skip drawing a layer whose parent is hidden, but it can't be relied on
+  // to know which layer that is. A sheet is rebuilt on every change to the mosaic, and its tiles are
+  // only redrawn - and only then told who their parent is now - if a prop deck.gl compares has changed;
+  // function props aren't compared. A DEM's tiles are redrawn anyway, since its ramp hands it a new
+  // renderTile each time, but a scan's aren't, so they went on answering to the mosaic as it was before
+  // it was hidden, and went on being drawn.
   //
   // Every sheet is clipped to its outline, which is the part of it the index map says is the sheet's.
   // A scanned map, as HTMC's are, has a margin around the map - the collar, with its title, scale and
@@ -255,6 +262,7 @@ export default class IndexMapMosaic {
     const shared = {
       id: `${this.id}-${sheet.id}`,
       geotiff: data.geotiff,
+      visible: isLayerDrawn(state),
       opacity: state.opacity,
       parameters: GLOBE_PARAMETERS,
       pool: this.decoderPool,

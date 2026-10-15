@@ -1,4 +1,5 @@
-import { WebMercatorViewport, type Viewport } from '@deck.gl/core';
+import { WebMercatorViewport, type LayerContext, type Viewport } from '@deck.gl/core';
+import type { _Tile2DHeader as Tile2DHeader } from '@deck.gl/geo-layers';
 import { COGLayer } from '@developmentseed/deck.gl-geotiff';
 import type { MinimalTileData, RenderTileResult } from '@developmentseed/deck.gl-raster';
 
@@ -136,6 +137,8 @@ const isGlobe = (viewport: Viewport) => (viewport as { resolution?: number }).re
  * against every tile drawn flat after that in the wrong units, and all of them discarded.
  * RasterTileLayer picks the mesh's space at the same moment and by the same test, so the two can't
  * disagree; tiles already drawn keep the mesh and the box they were drawn with.
+ *
+ * It also frees what its tiles hold when it goes away, which COGLayer doesn't; see finalizeState.
  */
 export default class ClippedCOGLayer<DataT extends MinimalTileData = DefaultData> extends COGLayer<DataT> {
   static layerName = 'ClippedCOGLayer';
@@ -150,5 +153,35 @@ export default class ClippedCOGLayer<DataT extends MinimalTileData = DefaultData
       const props = cutlineUniforms(cutline, isGlobe(this.context.viewport));
       return result && { ...result, renderPipeline: [...(result.renderPipeline ?? []), { module: PreciseCutline, props }] };
     };
+  }
+
+  /**
+   * Free what the tiles still loaded hold, as the layer goes away.
+   *
+   * A tile that leaves the layer's cache is unloaded through onTileUnload, which is where COGLayer frees
+   * the textures its own pipeline uploaded, and where a pipeline handed in frees its own. A tile still in
+   * the cache when the layer itself is removed never is: deck.gl's TileLayer empties its tileset on
+   * finalize without unloading anything in it. A COG drawn on its own is removed once per preview, but a
+   * sheet of a mosaic is removed every time it leaves the view - and the textures of every sheet ever
+   * panned past stayed on the GPU, a hundred or so more for each new view of an HTMC index map.
+   *
+   * deck.gl finalizes a layer before the layers it drew, so the tiles are all still here to unload.
+   */
+  finalizeState(context: LayerContext) {
+    this.releaseLoadedTiles();
+    super.finalizeState(context);
+  }
+
+  // Unload every tile that has something loaded, the same way the cache would have
+  protected releaseLoadedTiles() {
+    const unload = this._onTileUnloadCallback();
+    if (!unload) return;
+
+    for (const sublayer of this.getSubLayers()) {
+      const { tileset } = (sublayer.state ?? {}) as { tileset?: { tiles: Tile2DHeader<DataT>[] } };
+      for (const tile of tileset?.tiles ?? []) {
+        if (tile.content) unload(tile);
+      }
+    }
   }
 }
