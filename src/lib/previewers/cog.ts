@@ -1,4 +1,4 @@
-import { MapLibreOverlay as DeckOverlay } from '@deck.gl/maplibre';
+import type { MapLibreOverlay as DeckOverlay } from '@deck.gl/maplibre';
 import { COGLayer } from '@developmentseed/deck.gl-geotiff';
 import type { DecoderPool, GeoTIFF } from '@developmentseed/geotiff';
 import type { AddLayerObject, LngLatBoundsLike, MapLibreMap } from 'maplibre-gl';
@@ -8,6 +8,7 @@ import { isScalarSampleFormat, releaseScalarTile, scalarGetTileData, scalarRange
 import type CogResource from '../resources/cog';
 import { DEFAULT_COLOR_RAMP } from '../colormap';
 import { decoderPool } from '../decoder';
+import { deckOverlay } from '../deck-overlay';
 import { openGeoTIFF } from '../geotiff';
 import { isLayerDrawn, type LayerState, type PreviewStyleLayer } from '../layers';
 import type { Quantity } from '../quantity';
@@ -360,14 +361,9 @@ export default class CogPreviewer extends MapPreviewer {
     return await Promise.race([this.geotiffBoundsLoaded ?? timeout, timeout]);
   }
 
-  // The overlay every deck previewer on this map draws into. MapLibre offers no way to ask what
-  // controls it already has, so this reads the private list rather than adding a second overlay.
+  // The overlay every deck previewer on this map draws into; see src/lib/deck-overlay.ts. A method of
+  // its own so a test can hand over an overlay instead.
   protected getDeckOverlay(): DeckOverlay {
-    const existing = this.map._controls.find(control => control instanceof DeckOverlay);
-    if (existing) return existing;
-
-    const overlay = new DeckOverlay({ interleaved: true });
-    this.map.addControl(overlay);
-    return overlay;
+    return deckOverlay(this.map);
   }
 }

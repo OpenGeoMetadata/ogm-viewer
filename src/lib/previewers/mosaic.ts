@@ -1,4 +1,4 @@
-import { MapLibreOverlay as DeckOverlay } from '@deck.gl/maplibre';
+import type { MapLibreOverlay as DeckOverlay } from '@deck.gl/maplibre';
 import { MosaicLayer } from '@developmentseed/deck.gl-geotiff';
 import type { DecoderPool, GeoTIFF } from '@developmentseed/geotiff';
 import type { MapLibreMap } from 'maplibre-gl';
@@ -7,6 +7,7 @@ import ClippedCOGLayer from '../clipped-cog-layer';
 import { isScalarSampleFormat, releaseScalarTile, scalarGetTileData, scalarRange, scalarRenderTile, type ScalarRange, type ScalarTileData } from '../cog-pipeline';
 import { DEFAULT_COLOR_RAMP, type ColorRampName } from '../colormap';
 import { decoderPool } from '../decoder';
+import { deckOverlay } from '../deck-overlay';
 import { openGeoTIFF } from '../geotiff';
 import { isLayerDrawn, type Layer, type LayerState } from '../layers';
 import { mosaicMinZoom, mosaicSheets, type MosaicSheet } from '../mosaic';
@@ -424,13 +425,9 @@ export default class IndexMapMosaic {
     return decoderPool();
   }
 
-  // The overlay every deck previewer on this map draws into; see CogPreviewer.getDeckOverlay
+  // The overlay every deck previewer on this map draws into; see src/lib/deck-overlay.ts. A method of
+  // its own so a test can hand over an overlay instead.
   protected getDeckOverlay(map: MapLibreMap): DeckOverlay {
-    const existing = map._controls.find(control => control instanceof DeckOverlay);
-    if (existing) return existing;
-
-    const overlay = new DeckOverlay({ interleaved: true });
-    map.addControl(overlay);
-    return overlay;
+    return deckOverlay(map);
   }
 }
