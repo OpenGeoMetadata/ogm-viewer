@@ -51,6 +51,8 @@ export type MosaicHost = {
   layersChanged: () => void;
   // Something to tell the reader about the view, or undefined to stop
   notice: (notice: string | undefined) => void;
+  // Whether the mosaic is still drawing what's in view - see MapPreviewer.onLoading
+  loading: (loading: boolean) => void;
 };
 
 const isAbort = (error: unknown) => (error as { name?: unknown } | null)?.name === 'AbortError';
@@ -94,6 +96,11 @@ export default class IndexMapMosaic {
 
   // The row as last listed, so a range or a title that arrives late can be written into it
   protected row: Layer | undefined;
+
+  // The MosaicLayer last handed to deck.gl, which deck.gl draws as it is - so asking it whether it has
+  // loaded is asking about what's on the map. And what was last said about it; see syncLoading.
+  protected deckLayer: MosaicLayer<MosaicSheet, SheetData> | undefined;
+  private loading = false;
 
   // The values the ramp is stretched across, for a mosaic of floats or signed integers. Starts as the
   // first sheet's and follows the sheets in view after that; see stretchToView. Kept across a basemap
@@ -198,7 +205,9 @@ export default class IndexMapMosaic {
     this.stopWatching();
     this.deckOverlay?.setProps({ layers: [] });
     this.host?.notice(undefined);
+    this.setLoading(false);
     this.host = undefined;
+    this.deckLayer = undefined;
   }
 
   // Hand deck.gl the mosaic as it should now be drawn. Rebuilt rather than mutated, as CogPreviewer's
@@ -206,7 +215,8 @@ export default class IndexMapMosaic {
   protected drawDeckLayer() {
     const host = this.host;
     if (!host || !this.deckOverlay || !this.drawnState) return;
-    this.deckOverlay.setProps({ layers: [this.createDeckLayer(host, this.drawnState)] });
+    this.deckLayer = this.createDeckLayer(host, this.drawnState);
+    this.deckOverlay.setProps({ layers: [this.deckLayer] });
     if (!host.map.isStyleLoaded()) this.placeOnceIdle();
   }
 
@@ -392,8 +402,35 @@ export default class IndexMapMosaic {
     map.on('zoomend', this.handleZoom);
     map.off('projectiontransition', this.handleProjectionTransition);
     map.on('projectiontransition', this.handleProjectionTransition);
+    map.off('render', this.handleRender);
+    map.on('render', this.handleRender);
     map.off('remove', this.stopWatching);
     map.once('remove', this.stopWatching);
+  }
+
+  /**
+   * Say whether the sheets in view are still on their way, so the reader can be shown the map is
+   * still loading rather than left to pan off before it has finished.
+   *
+   * Asked of deck.gl after every frame the map draws, which is what deck.gl draws with: a tile arriving
+   * asks for a frame, so the last one to arrive is followed by a frame that finds everything in. The
+   * MosaicLayer has loaded once every sheet in view has been opened and every one of its tiles in view
+   * has arrived - deck.gl's TileLayer counts a tile as loaded only once the layers it drew have, all
+   * the way down. A sheet that failed to open counts as done, so one bad sheet can't hold the spinner.
+   *
+   * Nothing is loading while the mosaic is switched off, or zoomed out past its floor, where no sheet
+   * is asked for at all.
+   */
+  protected syncLoading() {
+    const drawn = this.drawnState !== undefined && isLayerDrawn(this.drawnState);
+    this.setLoading(drawn && this.deckLayer !== undefined && !this.deckLayer.isLoaded);
+  }
+
+  // Once each way per wait, however many frames say the same thing
+  private setLoading(loading: boolean) {
+    if (loading === this.loading) return;
+    this.loading = loading;
+    this.host?.loading(loading);
   }
 
   // Bound instance properties rather than methods, so off() has the same function to remove that on() was given
@@ -402,9 +439,12 @@ export default class IndexMapMosaic {
     if (!map) return;
     map.off('zoomend', this.handleZoom);
     map.off('projectiontransition', this.handleProjectionTransition);
+    map.off('render', this.handleRender);
     map.off('idle', this.handleIdle);
     map.off('remove', this.stopWatching);
   };
+
+  private handleRender = () => this.syncLoading();
 
   private handleZoom = () => this.syncNotice();
 

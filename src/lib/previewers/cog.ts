@@ -80,6 +80,11 @@ export default class CogPreviewer extends MapPreviewer {
   // attempt starts over. See reportTileError.
   protected anyTileDrawn = false;
 
+  // The COGLayer last handed to deck.gl, which deck.gl draws as it is - so asking it whether it has
+  // loaded is asking about what's on the map. And what was last said about it; see syncLoading.
+  protected deckLayer: COGLayer | COGLayer<ScalarTileData> | undefined;
+  private loading = false;
+
   attach(map: MapLibreMap, style: MapLibreStyle): this {
     super.attach(map, style);
     this.deckOverlay = this.getDeckOverlay();
@@ -88,6 +93,7 @@ export default class CogPreviewer extends MapPreviewer {
     this.geotiffBoundsLoaded = new Promise(resolve => (this.resolveGeotiffBounds = resolve));
     this.anyTileDrawn = false;
     this.watchProjection();
+    this.watchLoading();
     return this;
   }
 
@@ -131,6 +137,45 @@ export default class CogPreviewer extends MapPreviewer {
   private handleProjectionTransition = () => {
     this.drawDeckLayer();
   };
+
+  /**
+   * Say whether the tiles in view are still on their way, so the reader can be shown the map is still
+   * loading after a pan or a zoom. The first of them is what the load deadline waits on - see
+   * reportTileDrawn - but nothing said the rest were still arriving, and a large COG fills in a tile at
+   * a time long after that.
+   *
+   * Asked of deck.gl after every frame the map draws, as IndexMapMosaic.syncLoading does for the sheets
+   * of a mosaic: a tile arriving asks for a frame, so the last one to arrive is followed by a frame that
+   * finds them all in. A tile that failed counts as in - deck.gl resolves it empty - so one bad tile
+   * can't hold the spinner up. Nothing is loading while the layer is switched off.
+   */
+  protected syncLoading() {
+    const drawn = this.drawnState !== undefined && isLayerDrawn(this.drawnState);
+    this.setLoading(drawn && this.deckLayer !== undefined && !this.deckLayer.isLoaded);
+  }
+
+  // Once each way per wait, however many frames say the same thing
+  private setLoading(loading: boolean) {
+    if (loading === this.loading) return;
+    this.loading = loading;
+    this.onLoading?.(loading);
+  }
+
+  // Taken off first, for the same reason watchProjection's listener is
+  protected watchLoading() {
+    this.map.off('render', this.handleRender);
+    this.map.on('render', this.handleRender);
+    this.map.off('remove', this.stopWatchingLoading);
+    this.map.once('remove', this.stopWatchingLoading);
+  }
+
+  private stopWatchingLoading = () => {
+    if (!this.attached) return;
+    this.map.off('render', this.handleRender);
+    this.map.off('remove', this.stopWatchingLoading);
+  };
+
+  private handleRender = () => this.syncLoading();
 
   // Nothing for MapLibre to fetch or draw: deck.gl reads the COG itself, through the source opened in
   // preview() rather than through MapLibre's transformRequest.
@@ -197,9 +242,12 @@ export default class CogPreviewer extends MapPreviewer {
 
   async clearPreview() {
     this.stopWatchingProjection();
+    this.stopWatchingLoading();
+    this.setLoading(false);
     if (this.attached) this.map.off('idle', this.handleIdle);
     await super.clearPreview();
     this.deckOverlay?.setProps({ layers: [] });
+    this.deckLayer = undefined;
     this.geotiff = undefined;
     this.valueRange = undefined;
   }
@@ -216,7 +264,8 @@ export default class CogPreviewer extends MapPreviewer {
   // tiles already decoded are kept rather than fetched again.
   protected drawDeckLayer() {
     if (!this.deckOverlay || !this.drawnState || !this.geotiff) return;
-    this.deckOverlay.setProps({ layers: [this.createDeckLayer(this.geotiff, this.drawnState)] });
+    this.deckLayer = this.createDeckLayer(this.geotiff, this.drawnState);
+    this.deckOverlay.setProps({ layers: [this.deckLayer] });
     if (!this.map.isStyleLoaded()) this.placeOnceIdle();
   }
 

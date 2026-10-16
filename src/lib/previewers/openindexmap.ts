@@ -147,6 +147,7 @@ export default class OpenIndexMapPreviewer extends GeoJsonPreviewer {
       beforeId: () => (this.outlineLayerId && this.map.getLayer(this.outlineLayerId) ? this.outlineLayerId : this.resolvedBeforeId),
       layersChanged: () => this.onLayersChanged?.(),
       notice: notice => this.onNotice?.(notice),
+      loading: loading => this.onLoading?.(loading),
     };
   }
 

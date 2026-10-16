@@ -131,6 +131,12 @@ export class OgmMap {
   // exactly one clear has to follow, or the spinner is stuck on or turned off early.
   private tilesLoading: boolean = false;
 
+  // Whether a preview that paints itself has said it is still drawing what's in view; see
+  // MapPreviewer.onLoading. A flag of its own beside tilesLoading rather than folded into it, since each
+  // is one mapLoading/mapIdle pair of its own, and MapLibre going idle says nothing about what deck.gl
+  // is still waiting on.
+  private previewLoading: boolean = false;
+
   // Resolves once the current attempt has an answer - the preview's first tile arrived, or the
   // deadline gave up on it - which is what the spinner is held up by. Starts resolved, since there
   // is nothing to wait for until a load is under way, and every path that ends an attempt resolves
@@ -230,6 +236,7 @@ export class OgmMap {
 
     // Nothing is going to arrive now, and the count this was added to outlives us
     this.settleTileLoading();
+    this.setPreviewLoading(false);
     if (this.map) this.map.remove();
   }
 
@@ -288,6 +295,10 @@ export class OgmMap {
     this.previewDrawn = false;
     this.notice = undefined;
 
+    // Whatever the last preview was still drawing, it won't say when it's done: its own hook is bound
+    // to it, and goes quiet once it is no longer the preview
+    this.setPreviewLoading(false);
+
     // Indicate loading state so we can show the spinner
     this.mapLoading.emit();
 
@@ -320,6 +331,11 @@ export class OgmMap {
     };
     previewer.onNotice = notice => {
       if (this.previewer === previewer) this.notice = notice;
+    };
+    // And what such a preview is still waiting on after a pan or a zoom - the map's own tile events
+    // only ever hear about the map's own sources
+    previewer.onLoading = loading => {
+      if (this.previewer === previewer) this.setPreviewLoading(loading);
     };
     // A preview whose layers can still change after they are drawn - a georeferenced scan works its
     // background colour out from a thumbnail it has to fetch, and only then has a toggle to offer.
@@ -514,6 +530,15 @@ export class OgmMap {
     if (!this.tilesLoading) return;
     this.tilesLoading = false;
     this.mapIdle.emit();
+  }
+
+  // The preview has said it is drawing, or that it has finished. Once each way per wait, however often
+  // it says so, since <ogm-viewer> counts the events and every mapLoading needs exactly one mapIdle.
+  private setPreviewLoading(loading: boolean) {
+    if (loading === this.previewLoading) return;
+    this.previewLoading = loading;
+    if (loading) this.mapLoading.emit();
+    else this.mapIdle.emit();
   }
 
   // Something of the current preview is on the map. Reached from the map's own tile events above for

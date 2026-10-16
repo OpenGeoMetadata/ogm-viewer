@@ -443,6 +443,74 @@ describe('CogPreviewer', () => {
     });
   });
 
+  // So the spinner can say the tiles in view are still on their way after a pan; see syncLoading
+  describe('saying it is loading', () => {
+    // What deck.gl would answer about the layer on the map, which these tests decide
+    const answers = (previewer: TestCogPreviewer, loaded: boolean) => Object.defineProperty(previewer.overlay.lastLayers[0], 'isLoaded', { get: () => loaded, configurable: true });
+
+    const loadingPreview = async () => {
+      const { map, previewer } = previewFor();
+      const onLoading = vi.fn();
+      previewer.onLoading = onLoading;
+      await previewer.preview();
+      return { map, previewer, onLoading };
+    };
+
+    it('says so while the tiles in view are on their way, and says when they are in', async () => {
+      const { map, previewer, onLoading } = await loadingPreview();
+
+      answers(previewer, false);
+      map.emit('render');
+      answers(previewer, true);
+      map.emit('render');
+
+      expect(onLoading.mock.calls).toEqual([[true], [false]]);
+    });
+
+    it('says each once, however many frames go by', async () => {
+      const { map, previewer, onLoading } = await loadingPreview();
+
+      answers(previewer, false);
+      map.emit('render');
+      map.emit('render');
+      map.emit('render');
+
+      expect(onLoading.mock.calls).toEqual([[true]]);
+    });
+
+    it('says nothing is loading once the reader switches the layer off', async () => {
+      const { map, previewer, onLoading } = await loadingPreview();
+      answers(previewer, false);
+      map.emit('render');
+
+      previewer.applyLayerState(new Map([['stanford-vq494qx9344-cog', { visible: false, opacity: 0.8 }]]));
+      answers(previewer, false);
+      map.emit('render');
+
+      expect(onLoading).toHaveBeenLastCalledWith(false);
+    });
+
+    it('says it is done when the preview is cleared mid-load, and stops listening', async () => {
+      const { map, previewer, onLoading } = await loadingPreview();
+      answers(previewer, false);
+      map.emit('render');
+
+      await previewer.clearPreview();
+
+      expect(onLoading.mock.calls).toEqual([[true], [false]]);
+      expect(map.listenerCount('render')).toEqual(0);
+    });
+
+    // A theme change attaches the preview to the same map again, with no clearPreview between
+    it('listens once however many times it is attached', async () => {
+      const { map, previewer } = previewFor();
+      previewer.attach(map as unknown as MapLibreMap, style);
+      await previewer.preview();
+
+      expect(map.listenerCount('render')).toEqual(1);
+    });
+  });
+
   // The COG goes underneath the basemap's labels like every other preview, by way of deck.gl's own
   // beforeId rather than MapLibre's. See MapPreviewer.beforeId and CogPreviewer.placeOnceIdle.
   describe('beforeId', () => {

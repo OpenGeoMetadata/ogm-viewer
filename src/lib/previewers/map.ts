@@ -99,6 +99,12 @@ export default abstract class MapPreviewer extends Previewer {
   // to zoom. Undefined clears whatever was last said. Set by whoever draws this preview.
   onNotice?: (notice: string | undefined) => void;
 
+  // Where a preview that paints itself says it is still drawing what's in view, and then that it has
+  // finished: what MapLibre's own tile events say for everything MapLibre draws, which a deck.gl layer
+  // never raises - the sheets of a mosaic opening and filling in after a pan. Called with true when a
+  // wait begins and false when it ends. Set by whoever draws this preview.
+  onLoading?: (loading: boolean) => void;
+
   // Fill in whatever the drawn features don't carry, for the popup a click opens. A preview whose
   // data holds every attribute has nothing to add and answers with what it was given; one that asks
   // its service for only the fields it draws with has the rest a request away, and a click is when

@@ -657,6 +657,68 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
     });
   });
 
+  // So the spinner can say the sheets in view are still on their way; see IndexMapMosaic.syncLoading
+  describe('saying it is loading', () => {
+    // What deck.gl would answer about the mosaic on the map, which these tests decide
+    const answers = (previewer: TestIndexMapPreviewer, loaded: boolean) => Object.defineProperty(previewer.overlay.mosaic, 'isLoaded', { get: () => loaded, configurable: true });
+
+    it('says so while the sheets in view are on their way, and says when they are in', async () => {
+      const { map, previewer } = previewerFor();
+      const onLoading = vi.fn();
+      previewer.onLoading = onLoading;
+      await drawn(previewer);
+
+      answers(previewer, false);
+      map.emit('render');
+      answers(previewer, true);
+      map.emit('render');
+
+      expect(onLoading.mock.calls).toEqual([[true], [false]]);
+    });
+
+    it('says each once, however many frames go by', async () => {
+      const { map, previewer } = previewerFor();
+      const onLoading = vi.fn();
+      previewer.onLoading = onLoading;
+      await drawn(previewer);
+
+      answers(previewer, false);
+      map.emit('render');
+      map.emit('render');
+      map.emit('render');
+
+      expect(onLoading.mock.calls).toEqual([[true]]);
+    });
+
+    it('says nothing is loading once the reader switches the mosaic off', async () => {
+      const { map, previewer } = previewerFor();
+      const onLoading = vi.fn();
+      previewer.onLoading = onLoading;
+      await drawn(previewer);
+      answers(previewer, false);
+      map.emit('render');
+
+      previewer.applyLayerState(new Map([[MOSAIC_ROW, { visible: false, opacity: 0.8 }]]));
+      answers(previewer, false);
+      map.emit('render');
+
+      expect(onLoading).toHaveBeenLastCalledWith(false);
+    });
+
+    it('says it is done when the preview is cleared mid-load', async () => {
+      const { map, previewer } = previewerFor();
+      const onLoading = vi.fn();
+      previewer.onLoading = onLoading;
+      await drawn(previewer);
+      answers(previewer, false);
+      map.emit('render');
+
+      await previewer.clearPreview();
+
+      expect(onLoading.mock.calls).toEqual([[true], [false]]);
+    });
+  });
+
   describe('clearPreview', () => {
     it('takes the mosaic off the overlay, says nothing more, and stops watching the map', async () => {
       const { map, previewer } = previewerFor();
@@ -670,6 +732,7 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect(onNotice).toHaveBeenLastCalledWith(undefined);
       expect(map.listenerCount('zoomend')).toEqual(0);
       expect(map.listenerCount('projectiontransition')).toEqual(0);
+      expect(map.listenerCount('render')).toEqual(0);
     });
 
     // A theme change draws the preview again with no clearPreview between
@@ -680,6 +743,7 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
 
       expect(map.listenerCount('zoomend')).toEqual(1);
       expect(map.listenerCount('projectiontransition')).toEqual(1);
+      expect(map.listenerCount('render')).toEqual(1);
     });
   });
 });
