@@ -97,6 +97,14 @@ describe('resourcesFor', () => {
     expect((resourcesFor(record)[0] as CogResource).fgdcUrl).toEqual(fgdc);
   });
 
+  // ...and where an index map of DEM tiles says the same of its sheets, for a mosaic of them
+  it("hands an index map the record's FGDC", () => {
+    const fgdc = 'https://www.sciencebase.gov/catalog/file/get/4f70aa9fe4b058caae3f8de5?f=__disk__e4%2F8a%2F44';
+    const record = buildRecord({ 'https://openindexmaps.org': 'https://example.com/index.json', 'http://www.opengis.net/cat/csw/csdgm': fgdc });
+
+    expect((resourcesFor(record)[0] as OpenIndexMapResource).fgdcUrl).toEqual(fgdc);
+  });
+
   it('offers nothing for a record with no previewable references', () => {
     expect(resourcesFor(buildRecord({ 'http://schema.org/downloadUrl': 'https://example.com/data.zip' }))).toEqual([]);
   });
