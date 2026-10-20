@@ -35,6 +35,8 @@
 "Millionth Map (Index Map, Overlapping Polygons)","https://raw.githubusercontent.com/geoblacklight/geoblacklight/be395f5d12a75c7f643baf550ace66efd387f602/spec/fixtures/solr_documents/index-map-v1-complex.json"
 "Dalian (Index Map, Polygons, Mixed Availability)","https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/8f9ce62bdc4b60f821c80199aa6061d5bc4793fd/metadata-aardvark/zz/075/gp/2099/geoblacklight.json"
 "Hopkins (Index Map, Points)","https://gist.githubusercontent.com/thatbudakguy/dcf881807aea33739a8cbb8fcefa42d0/raw/67b80876bdd17c21d654024bc77a1e4ece8a7fb6/hopkins.json"
+"CA 1:24k Topos (Index Map of COGs)", "https://raw.githubusercontent.com/OpenGeoMetadata/gov.usgs.htmc/refs/heads/main/metadata-aardvark/htmc/index-maps/usgs-htmc-index-ca-24000.json"
+"3DEP 1 Arc-Second DEMs (Index Map of DEM COGs)", "https://raw.githubusercontent.com/OpenGeoMetadata/gov.usgs.tnm/refs/heads/main/metadata-aardvark/dem1/usgs-tnm-index-dem1.json"
 "Isles (IIIF v2 Manifest, Complex Geometry)","https://raw.githubusercontent.com/geoblacklight/geoblacklight/9f7dbb4c36dc0b8e88fb9be5282d7b1663858829/spec/fixtures/solr_documents/complex-geom.json"
 "Siberia (IIIF v3 Manifest, Multi-image)","https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/8f9ce62bdc4b60f821c80199aa6061d5bc4793fd/metadata-aardvark/hj/948/rn/6493/geoblacklight.json"
 "NY & NJ (IIIF Image)","https://raw.githubusercontent.com/geoblacklight/geoblacklight/refs/heads/main/spec/fixtures/solr_documents/public_iiif_princeton.json"
