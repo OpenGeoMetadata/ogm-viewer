@@ -75,6 +75,7 @@ const drawablePreviewer = () => ({
   inspectable: true,
   minZoom: undefined as number | undefined,
   onNotice: undefined as ((notice: string | undefined) => void) | undefined,
+  onLoading: undefined as ((loading: boolean) => void) | undefined,
   url: 'http://example.com/data.json',
   sourceIds: [] as string[],
   previewLayers: [],
@@ -652,6 +653,66 @@ describe('ogm-map', () => {
     expect(el.shadowRoot?.querySelector('wa-callout.notice')?.textContent).toContain('Zoom in');
     // Telling a reader how to use the view they're in, rather than warning them about it
     expect(noticeVariants(el)).toEqual(['brand']);
+  });
+
+  // The sheets of a mosaic, opened and drawn by deck.gl after a pan, which MapLibre's own tile events
+  // never hear about - so the preview says when it is still drawing, and the spinner goes by that too
+  describe('while a preview that draws itself is still drawing', () => {
+    const drawingPreview = async () => {
+      const { el } = await renderMap();
+      const map = loadingMap();
+      const previewer = drawablePreviewer();
+      Object.assign(el, { map, layersControl: fakeLayersControl(), previewer });
+      await styleLoads(el, map);
+
+      // Only what's said after the preview's own first load
+      const said: string[] = [];
+      el.addEventListener('mapLoading', () => said.push('start'));
+      el.addEventListener('mapIdle', () => said.push('stop'));
+      return { el, map, previewer, said };
+    };
+
+    it('says the map is loading until the preview says it is done', async () => {
+      const { previewer, said } = await drawingPreview();
+
+      previewer.onLoading?.(true);
+      expect(said).toEqual(['start']);
+
+      previewer.onLoading?.(false);
+      expect(said).toEqual(['start', 'stop']);
+    });
+
+    // <ogm-viewer> counts the events, so a preview saying it twice mustn't leave the spinner up
+    it('says each once, however often the preview repeats itself', async () => {
+      const { previewer, said } = await drawingPreview();
+
+      previewer.onLoading?.(true);
+      previewer.onLoading?.(true);
+      previewer.onLoading?.(false);
+      previewer.onLoading?.(false);
+
+      expect(said).toEqual(['start', 'stop']);
+    });
+
+    it('settles a wait the last preview left unfinished when the next one loads, and stops listening to it', async () => {
+      const { el, map, previewer, said } = await drawingPreview();
+      previewer.onLoading?.(true);
+
+      Object.assign(el, { previewer: drawablePreviewer() });
+      await styleLoads(el, map);
+      previewer.onLoading?.(true);
+
+      expect(said.filter(event => event === 'start').length).toEqual(said.filter(event => event === 'stop').length);
+    });
+
+    it('settles on the way out, so the count it was added to does not keep the spinner up', async () => {
+      const { el, previewer, said } = await drawingPreview();
+      previewer.onLoading?.(true);
+
+      (el as unknown as { disconnectedCallback: () => void }).disconnectedCallback();
+
+      expect(said).toEqual(['start', 'stop']);
+    });
   });
 
   // A WMTS layer's <LegendURL>s ride on its row in the layers panel, the way a COG's ramp does

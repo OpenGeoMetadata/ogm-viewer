@@ -130,6 +130,7 @@ export class OgmMap {
   // tiles because it drives mapLoading/mapIdle, which <ogm-viewer> counts: every time this is set,
   // exactly one clear has to follow, or the spinner is stuck on or turned off early.
   private tilesLoading: boolean = false;
+  private previewLoading: boolean = false;
 
   // Resolves once the current attempt has an answer - the preview's first tile arrived, or the
   // deadline gave up on it - which is what the spinner is held up by. Starts resolved, since there
@@ -230,6 +231,7 @@ export class OgmMap {
 
     // Nothing is going to arrive now, and the count this was added to outlives us
     this.settleTileLoading();
+    this.setPreviewLoading(false);
     if (this.map) this.map.remove();
   }
 
@@ -287,6 +289,7 @@ export class OgmMap {
     this.clearLoadDeadline();
     this.previewDrawn = false;
     this.notice = undefined;
+    this.setPreviewLoading(false);
 
     // Indicate loading state so we can show the spinner
     this.mapLoading.emit();
@@ -320,6 +323,9 @@ export class OgmMap {
     };
     previewer.onNotice = notice => {
       if (this.previewer === previewer) this.notice = notice;
+    };
+    previewer.onLoading = loading => {
+      if (this.previewer === previewer) this.setPreviewLoading(loading);
     };
     // A preview whose layers can still change after they are drawn - a georeferenced scan works its
     // background colour out from a thumbnail it has to fetch, and only then has a toggle to offer.
@@ -514,6 +520,14 @@ export class OgmMap {
     if (!this.tilesLoading) return;
     this.tilesLoading = false;
     this.mapIdle.emit();
+  }
+
+  // Emit the appropriate events if the preview loading state changed
+  private setPreviewLoading(loading: boolean) {
+    if (loading === this.previewLoading) return;
+    this.previewLoading = loading;
+    if (loading) this.mapLoading.emit();
+    else this.mapIdle.emit();
   }
 
   // Something of the current preview is on the map. Reached from the map's own tile events above for

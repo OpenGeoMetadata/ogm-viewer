@@ -45,7 +45,8 @@ export function resourcesFor(record: OgmRecord, requestTransform?: RequestTransf
   // and it labels each sheet once. A tileset can't: a tile holds only the pieces of a sheet that fall
   // inside it, and MapLibre labels every piece, so a sheet traced from a coastline is named on every
   // island in every tile.
-  if (references.indexMapUrl) resources.push(new OpenIndexMapResource(id, references.indexMapUrl, bounds, requestTransform));
+  // With the record's FGDC, which says what the sheets' values measure when they're drawn as a mosaic
+  if (references.indexMapUrl) resources.push(new OpenIndexMapResource(id, references.indexMapUrl, bounds, requestTransform, references.fgdcUrl));
   if (references.pmtilesUrl) resources.push(new PMTilesResource(id, references.pmtilesUrl, bounds, requestTransform));
   if (references.tilejsonUrl) resources.push(new TileJsonResource(id, references.tilejsonUrl, bounds, requestTransform));
   if (references.geojsonUrl) resources.push(new GeoJsonResource(id, references.geojsonUrl, bounds, requestTransform));
