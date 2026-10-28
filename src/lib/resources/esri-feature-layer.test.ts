@@ -509,6 +509,14 @@ describe('EsriFeatureLayerResource#getBounds', () => {
     expect(await resourceFor(QUERYABLE, recordBounds).getBounds()).toBe(recordBounds);
   });
 
+  it('still reports the layer’s own extent when the record carried bounds', async () => {
+    const recordBounds = new LngLatBounds([0, 0], [1, 1]);
+    const reported = (await resourceFor(QUERYABLE, recordBounds).getReportedBounds()) as LngLatBounds;
+
+    expect(reported.getWest()).toEqual(-82.45);
+    expect(reported.getNorth()).toEqual(35.62);
+  });
+
   it('takes the extent the query reports when the layer own cannot be converted', async () => {
     // A layer stored in a state plane grid reports its extent in that grid, which we have no
     // projection library to convert; the query answers in degrees whatever the layer is stored in

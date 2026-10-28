@@ -14,8 +14,8 @@ import { isLayerDrawn, type LayerState, type PreviewStyleLayer } from '../layers
 import type { Quantity } from '../quantity';
 import type { MapLibreStyle } from '../themes/maplibre';
 
-// How long to wait for deck.gl to read the GeoTIFF's header when the record declared no bounding box
-// of its own. A COG that never answers must not leave the map spinning with nowhere to point.
+// How long to wait for deck.gl to read the GeoTIFF's header, which is where the COG's own extent comes
+// from. A COG that never answers must not leave the map spinning with nowhere to point.
 const HEADER_TIMEOUT = 10_000;
 
 // The tile deck.gl hands to onTileUnload, narrowed to the one field this file reads. Only the scalar
@@ -402,9 +402,11 @@ export default class CogPreviewer extends MapPreviewer {
   // The record's own bounding box when it has one, since that needs no waiting. Otherwise the COG's,
   // which means waiting on deck.gl to read its header.
   async getBounds(): Promise<LngLatBoundsLike | undefined> {
-    const declared = await super.getBounds();
-    if (declared) return declared;
+    return (await super.getBounds()) ?? (await this.getReportedBounds());
+  }
 
+  // The COG's own extent, which only deck.gl can read for us - see CogResource#getBounds
+  async getReportedBounds(): Promise<LngLatBoundsLike | undefined> {
     const timeout = new Promise<undefined>(resolve => setTimeout(() => resolve(undefined), HEADER_TIMEOUT));
     return await Promise.race([this.geotiffBoundsLoaded ?? timeout, timeout]);
   }

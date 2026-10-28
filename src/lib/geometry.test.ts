@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from '@stencil/vitest';
 import { LngLatBounds } from 'maplibre-gl';
 import {
   bboxToBounds,
+  boundsOverlap,
   boundsToBbox,
   boundsToGeoJSON,
   clampToHemisphere,
@@ -198,6 +199,160 @@ describe('readBounds', () => {
   // MapLibre throws on these rather than saying so, and a camera nobody can point is worth reporting
   it('should read nothing from a box that reaches past a pole', () => {
     expect(readBounds([-30, -100, 30, 100])).toBeUndefined();
+  });
+});
+
+describe('boundsOverlap', () => {
+  // The archive and the record from https://github.com/OpenGeoMetadata/ogm-viewer/issues/208
+  const ARCHIVE: [[number, number], [number, number]] = [
+    [-123.532115, 36.893111],
+    [-121.208298, 38.864317],
+  ];
+
+  it('should find two boxes that share some ground', () => {
+    expect(
+      boundsOverlap(ARCHIVE, [
+        [-122.5, 37.5],
+        [-120, 40],
+      ]),
+    ).toBe(true);
+  });
+
+  it('should find a box inside another', () => {
+    expect(
+      boundsOverlap(ARCHIVE, [
+        [-122.5, 37.5],
+        [-122.4, 37.6],
+      ]),
+    ).toBe(true);
+  });
+
+  it('should find nothing in common with a box elsewhere in the world', () => {
+    expect(
+      boundsOverlap(ARCHIVE, [
+        [0, 0],
+        [1, 1],
+      ]),
+    ).toBe(false);
+  });
+
+  it('should find nothing in common with a box above or below it at the same longitudes', () => {
+    expect(
+      boundsOverlap(ARCHIVE, [
+        [-123, 40],
+        [-122, 41],
+      ]),
+    ).toBe(false);
+    expect(
+      boundsOverlap(ARCHIVE, [
+        [-123, 30],
+        [-122, 31],
+      ]),
+    ).toBe(false);
+  });
+
+  // A point record sitting on the edge of the data is still on the data
+  it('should count boxes that only touch as overlapping', () => {
+    expect(
+      boundsOverlap(ARCHIVE, [
+        [-121.208298, 38],
+        [-120, 39],
+      ]),
+    ).toBe(true);
+    expect(
+      boundsOverlap(ARCHIVE, [
+        [-121.208298, 38.864317],
+        [-121.208298, 38.864317],
+      ]),
+    ).toBe(true);
+  });
+
+  it('should find a box on either side of the antimeridian inside one that crosses it', () => {
+    const aleutians = bboxToBounds('ENVELOPE(170.0,-170.0,54.0,50.0)')!;
+
+    expect(
+      boundsOverlap(aleutians, [
+        [175, 51],
+        [176, 52],
+      ]),
+    ).toBe(true);
+    expect(
+      boundsOverlap(aleutians, [
+        [-175, 51],
+        [-174, 52],
+      ]),
+    ).toBe(true);
+    expect(
+      boundsOverlap(
+        [
+          [175, 51],
+          [176, 52],
+        ],
+        aleutians,
+      ),
+    ).toBe(true);
+  });
+
+  // Read the numbers as a number line and 170..-170 is the 340 degrees of everywhere else
+  it('should find nothing in common between a box that crosses the antimeridian and one across the world from it', () => {
+    expect(
+      boundsOverlap(bboxToBounds('ENVELOPE(170.0,-170.0,54.0,50.0)')!, [
+        [0, 51],
+        [1, 52],
+      ]),
+    ).toBe(false);
+  });
+
+  // Pan east from Greenwich and a camera answers in the 500s
+  it('should find a box written past 180 where the same place written plainly is', () => {
+    expect(
+      boundsOverlap(
+        [
+          [0.5, 0.5],
+          [0.6, 0.6],
+        ],
+        [
+          [360, 0],
+          [361, 1],
+        ],
+      ),
+    ).toBe(true);
+    expect(
+      boundsOverlap(
+        [
+          [-122.5, 37.5],
+          [-122.4, 37.6],
+        ],
+        [
+          [237.5, 37.5],
+          [237.6, 37.6],
+        ],
+      ),
+    ).toBe(true);
+  });
+
+  it('should find anything at the same latitudes inside a box that goes all the way round', () => {
+    expect(
+      boundsOverlap(
+        [
+          [-180, -85],
+          [180, 85],
+        ],
+        ARCHIVE,
+      ),
+    ).toBe(true);
+    expect(
+      boundsOverlap(
+        [
+          [-200, -10],
+          [200, 10],
+        ],
+        [
+          [100, 0],
+          [101, 1],
+        ],
+      ),
+    ).toBe(true);
   });
 });
 

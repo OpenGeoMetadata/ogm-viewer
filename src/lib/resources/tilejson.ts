@@ -47,8 +47,7 @@ export default class TileJsonResource extends MapResource {
 
   // Used to zoom the map to the data once loaded; bounds are optional in TileJSON, and
   // without them we leave the camera wherever it already is
-  async getBounds() {
-    if (this.bounds) return this.bounds;
+  async getReportedBounds() {
     const metadata = await this.getMetadata();
     if (!metadata.bounds) return undefined;
     return [

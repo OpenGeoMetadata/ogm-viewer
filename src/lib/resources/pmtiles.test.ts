@@ -69,4 +69,42 @@ describe('PMTilesResource', () => {
 
     expect(addSpy).toHaveBeenCalledWith(archiveOf(resource));
   });
+
+  // The archive and the disjoint box from https://github.com/OpenGeoMetadata/ogm-viewer/issues/208
+  describe('bounds', () => {
+    const header = { minLon: -123.532115, minLat: 36.893111, maxLon: -121.208298, maxLat: 38.864317 };
+    const recordBounds: [[number, number], [number, number]] = [
+      [0, 0],
+      [1, 1],
+    ];
+    const headerOf = (resource: PMTilesResource) => vi.spyOn(archiveOf(resource), 'getHeader').mockResolvedValue(header);
+
+    it('frames the map on the box the record carried, without reading the header', async () => {
+      const resource = new PMTilesResource('id', URL, recordBounds);
+      const getHeader = headerOf(resource);
+
+      expect(await resource.getBounds()).toBe(recordBounds);
+      expect(getHeader).not.toHaveBeenCalled();
+    });
+
+    it('falls back on the extent in its header when the record carried none', async () => {
+      const resource = new PMTilesResource('id', URL);
+      headerOf(resource);
+
+      expect(await resource.getBounds()).toEqual([
+        [-123.532115, 36.893111],
+        [-121.208298, 38.864317],
+      ]);
+    });
+
+    it('reports the extent in its header whatever the record said', async () => {
+      const resource = new PMTilesResource('id', URL, recordBounds);
+      headerOf(resource);
+
+      expect(await resource.getReportedBounds()).toEqual([
+        [-123.532115, 36.893111],
+        [-121.208298, 38.864317],
+      ]);
+    });
+  });
 });
