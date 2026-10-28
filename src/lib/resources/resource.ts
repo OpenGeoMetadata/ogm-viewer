@@ -70,15 +70,20 @@ export default abstract class Resource {
     }
   }
 
-  // The bounds handed over at construction, without whatever a subclass would go and read for
-  // itself. For a caller that needs an answer now rather than soon; see MapPreviewer.declaredBounds.
+  // Bounds provided explicitly at construction time and stored.
   get declaredBounds(): LngLatBoundsLike | undefined {
     return this.bounds;
   }
 
-  // Async because subclasses may do operations to calculate it
+  // Explicit bounds if provided, otherwise the ones derived from the data.
+  // Async because subclasses may do operations to calculate it.
   async getBounds(): Promise<LngLatBoundsLike | undefined> {
-    if (this.bounds) return this.bounds;
+    return this.bounds ?? (await this.getReportedBounds());
+  }
+
+  // Bounds derived from the data itself, either by reading header information
+  // or parsing the entire geometry. Subclasses override.
+  async getReportedBounds(): Promise<LngLatBoundsLike | undefined> {
     return undefined;
   }
 }

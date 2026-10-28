@@ -48,9 +48,7 @@ export default class GeoJsonResource extends VectorResource {
 
   // Used to zoom the map to the data once loaded. Subclasses that read from a service may not be
   // able to work out bounds at all, so the camera can be left where it is.
-  async getBounds(): Promise<LngLatBoundsLike | undefined> {
-    if (this.bounds) return this.bounds;
-
+  async getReportedBounds(): Promise<LngLatBoundsLike | undefined> {
     const data = await this.getData();
     const bounds = geojsonExtent(data);
     return [

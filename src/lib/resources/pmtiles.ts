@@ -77,9 +77,9 @@ export default class PMTilesResource extends Resource {
     return header.tileType === TileType.Mvt || header.tileType === TileType.Mlt;
   }
 
-  // Used to zoom the map to the data once loaded
-  async getBounds() {
-    if (this.bounds) return this.bounds;
+  // Used to zoom the map to the data once loaded. MapLibre asks for no tile outside these, so a camera
+  // pointed anywhere else draws nothing at all.
+  async getReportedBounds() {
     const header = await this.getHeader();
     return [
       [header.minLon, header.minLat],

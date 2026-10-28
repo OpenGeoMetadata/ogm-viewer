@@ -628,6 +628,21 @@ describe('CogPreviewer', () => {
         [-122.1, 37.5],
       ]);
     });
+
+    it("still reports the COG's own extent when the record carried a bounding box", async () => {
+      const { previewer } = previewFor([
+        [0, 0],
+        [1, 1],
+      ]);
+      await previewer.preview();
+
+      previewer.overlay.lastLayers[0].props.onGeoTIFFLoad({}, { geographicBounds: { west: -122.2, south: 37.4, east: -122.1, north: 37.5 } });
+
+      expect(await previewer.getReportedBounds()).toEqual([
+        [-122.2, 37.4],
+        [-122.1, 37.5],
+      ]);
+    });
   });
 
   // deck.gl only finds out a COG can't be drawn once its tiles start arriving, which is after

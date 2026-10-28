@@ -85,6 +85,9 @@ const drawablePreviewer = () => ({
   applyLayerState: vi.fn(),
   clearPreview: vi.fn(async () => {}),
   getBounds: vi.fn(async () => bounds),
+  // What the record said, and what the data says for itself; see fitToReportedBounds
+  declaredBounds: undefined as number[][] | undefined,
+  getReportedBounds: vi.fn(async (): Promise<number[][] | undefined> => undefined),
   expandFeatures: vi.fn(async (features: MapGeoJSONFeature[]) => features),
   tileLoaded: vi.fn(),
   absorbTileError: vi.fn(() => false),
@@ -653,6 +656,137 @@ describe('ogm-map', () => {
     expect(el.shadowRoot?.querySelector('wa-callout.notice')?.textContent).toContain('Zoom in');
     // Telling a reader how to use the view they're in, rather than warning them about it
     expect(noticeVariants(el)).toEqual(['brand']);
+  });
+
+  // https://github.com/OpenGeoMetadata/ogm-viewer/issues/208: a PMTiles archive asks for no tile
+  // outside the extent in its header, so a map framed on a box somewhere else drew nothing, waited out
+  // its deadline and blamed the server
+  describe('when the record’s bounding box misses the data altogether', () => {
+    const archive = [
+      [-123.532115, 36.893111],
+      [-121.208298, 38.864317],
+    ];
+    let consoleWarn: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    });
+
+    afterEach(() => consoleWarn.mockRestore());
+
+    const drawWith = async (declared: number[][] | undefined, reported: () => Promise<number[][] | undefined>) => {
+      const { el } = await renderMap();
+      const map = loadingMap();
+      const previewer = { ...drawablePreviewer(), declaredBounds: declared, getBounds: vi.fn(async () => declared ?? (await reported())), getReportedBounds: vi.fn(reported) };
+      const reportedError = vi.fn();
+      el.addEventListener('previewError', reportedError);
+      Object.assign(el, { map, layersControl: fakeLayersControl(), previewer });
+
+      await styleLoads(el, map);
+      await settle();
+      return { el, map, previewer, reportedError };
+    };
+
+    it('frames the map on the data instead', async () => {
+      const { map } = await drawWith(bounds, async () => archive);
+
+      expect(map.fitBounds).toHaveBeenCalledTimes(2);
+      expect(map.fitBounds).toHaveBeenLastCalledWith(archive, expect.anything());
+    });
+
+    // Not an error: the reader has the data in front of them, and the record is what wants fixing
+    it('says so over the map, as a warning', async () => {
+      const { el, reportedError } = await drawWith(bounds, async () => archive);
+
+      expect(noticeTexts(el)).toEqual([expect.stringContaining('bounding box doesn’t overlap the data')]);
+      expect(noticeVariants(el)).toEqual(['warning']);
+      expect(reportedError).not.toHaveBeenCalled();
+    });
+
+    it('puts both boxes in the console, for whoever has the record to fix', async () => {
+      await drawWith(bounds, async () => archive);
+
+      expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('(0, 0, 1, 1)'));
+      expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('(-123.532115, 36.893111, -121.208298, 38.864317)'));
+    });
+
+    it('keeps it apart from what the preview has to say about the view', async () => {
+      const { el, previewer } = await drawWith(bounds, async () => archive);
+      previewer.onNotice?.('Zoom in to see this layer’s features.');
+      await settle();
+
+      expect(noticeVariants(el)).toEqual(['brand', 'warning']);
+      previewer.onNotice?.(undefined);
+      await settle();
+      expect(noticeVariants(el)).toEqual(['warning']);
+    });
+
+    it('takes the notice down for the next preview', async () => {
+      const { el, map } = await drawWith(bounds, async () => archive);
+      Object.assign(el, { previewer: drawablePreviewer() });
+      await settle();
+
+      expect(map.fitBounds).toHaveBeenLastCalledWith(bounds, expect.anything());
+      expect(noticeTexts(el)).toEqual([]);
+    });
+
+    // Some of the data is in view, and whether it is framed well is not the record being wrong
+    it('keeps to the record’s box when it overlaps the data at all', async () => {
+      const { el, map } = await drawWith(bounds, async () => [
+        [0.9, 0.9],
+        [5, 5],
+      ]);
+
+      expect(map.fitBounds).toHaveBeenCalledTimes(1);
+      expect(map.fitBounds).toHaveBeenCalledWith(bounds, expect.anything());
+      expect(noticeTexts(el)).toEqual([]);
+    });
+
+    it('asks nothing of a preview whose record gave no box, which is framed on the data already', async () => {
+      const { el, map, previewer } = await drawWith(undefined, async () => archive);
+
+      expect(previewer.getReportedBounds).not.toHaveBeenCalled();
+      expect(map.fitBounds).toHaveBeenCalledTimes(1);
+      expect(noticeTexts(el)).toEqual([]);
+    });
+
+    it('keeps to the record’s box when the data has no extent to give', async () => {
+      const { el, map } = await drawWith(bounds, async () => undefined);
+
+      expect(map.fitBounds).toHaveBeenCalledTimes(1);
+      expect(noticeTexts(el)).toEqual([]);
+    });
+
+    // The data drew; failing to read where it says it is doesn't undo that
+    it('keeps to the record’s box, and raises nothing, when the data’s extent can’t be read', async () => {
+      const { el, map, reportedError } = await drawWith(bounds, async () => {
+        throw new TypeError('Failed to fetch');
+      });
+
+      expect(map.fitBounds).toHaveBeenCalledTimes(1);
+      expect(noticeTexts(el)).toEqual([]);
+      expect(reportedError).not.toHaveBeenCalled();
+    });
+
+    it('leaves a map that has moved on to another preview where it is', async () => {
+      const { el } = await renderMap();
+      const map = loadingMap();
+      let answer: (bounds: number[][]) => void = () => {};
+      const previewer = { ...drawablePreviewer(), declaredBounds: bounds, getReportedBounds: vi.fn(() => new Promise<number[][]>(resolve => (answer = resolve))) };
+      Object.assign(el, { map, layersControl: fakeLayersControl(), previewer });
+
+      // Not awaited: the load is held up on the answer, which only comes once the reader has moved on
+      const loading = styleLoads(el, map);
+      await settle();
+      Object.assign(el, { previewer: drawablePreviewer() });
+      await settle();
+
+      answer(archive);
+      await loading;
+
+      expect(map.fitBounds).not.toHaveBeenCalledWith(archive, expect.anything());
+      expect(noticeTexts(el)).toEqual([]);
+    });
   });
 
   // The sheets of a mosaic, opened and drawn by deck.gl after a pan, which MapLibre's own tile events

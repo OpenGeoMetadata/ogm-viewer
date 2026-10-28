@@ -262,9 +262,7 @@ export default class EsriFeatureLayerResource extends GeoJsonResource {
 
   // Used to zoom the map to the data once loaded. The layer publishes its own extent, which is
   // cheaper and more accurate than measuring the features we happened to read.
-  async getBounds() {
-    if (this.bounds) return this.bounds;
-
+  async getReportedBounds() {
     const extent = esriExtentToBounds((await this.getMetadata()).extent);
     if (extent) return extent;
 

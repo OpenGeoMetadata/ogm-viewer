@@ -22,7 +22,7 @@ import { referenceError, TimeoutError, type PreviewError, isWebGLError, WebGLUna
 import GlobeControl from '../../lib/globe-control';
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import { dedupeFeatures, identified } from '../../lib/features';
-import { mercatorBbox, type PixelWindow } from '../../lib/geometry';
+import { boundsOverlap, boundsToBbox, mercatorBbox, readBounds, type PixelWindow } from '../../lib/geometry';
 import { createMap, fitBounds, openingCamera, setBasemap, whenSized } from '../../lib/maps';
 import { isLayerDrawn, rampedLayers, resolveLayerState, timedLayers, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
 import LayersControl from '../../lib/layers-control';
@@ -55,6 +55,15 @@ const BASEMAP_GRACE = 250;
 // basemap that came up and then lost tiles is still a basemap, and a reader looking at roads under
 // the preview doesn't need to be told part of them is missing.
 const NO_BASEMAP = 'The basemap could not be loaded.';
+
+// Error message shown when there's zero overlap between data and provided bounds
+const MISPLACED_BOUNDS = 'This record’s bounding box doesn’t overlap the data, so the map shows the data’s own extent instead.';
+
+// String description of bounds from a record, for printing in errors
+const describeBounds = (bounds: LngLatBoundsLike): string => {
+  const read = readBounds(bounds);
+  return read ? boundsToBbox(read).join(', ') : JSON.stringify(bounds);
+};
 
 // The zoom a tile was requested at, as written into its URL
 const tileZoom = (tile: Tile): number => tile.tileID.canonical.z;
@@ -95,6 +104,7 @@ export class OgmMap {
   // What the current preview has to say about the view it is being drawn in - see
   // MapPreviewer.onNotice. Not an error: it sits over the map rather than in place of it.
   @State() notice?: string;
+  @State() boundsNotice?: string;
   @State() basemapNotice?: string;
   @State() failedBasemap?: string;
 
@@ -289,6 +299,7 @@ export class OgmMap {
     this.clearLoadDeadline();
     this.previewDrawn = false;
     this.notice = undefined;
+    this.boundsNotice = undefined;
     this.setPreviewLoading(false);
 
     // Indicate loading state so we can show the spinner
@@ -362,6 +373,9 @@ export class OgmMap {
       // Fit to the preview's bounds; the spinner stays up until the map finishes moving
       const bounds = await this.previewer.getBounds();
       if (bounds) await this.fitMapBounds(bounds);
+
+      // Unless those were the record's, and the data says it is somewhere else entirely
+      await this.fitToReportedBounds(previewer);
 
       // The camera has arrived, but the data it was pointed at may not have. Keep the spinner up
       // until the preview's first tile lands or its deadline expires, so that a preview which never
@@ -612,6 +626,24 @@ export class OgmMap {
   // bounds into, so only the theme's gap is left for fitMapBounds to add.
   async fitMapBounds(bounds: LngLatBoundsLike) {
     return await fitBounds(this.map, this.mapTheme, bounds);
+  }
+
+  // Use bounds derived from the data itself to fit the map
+  protected async fitToReportedBounds(previewer: MapPreviewer) {
+    const declared = previewer.declaredBounds;
+    if (!declared) return;
+
+    const reported = await previewer.getReportedBounds().catch(error => {
+      console.warn(`Could not read the extent of ${previewer.url}:`, error);
+      return undefined;
+    });
+    if (!reported || boundsOverlap(declared, reported) || this.previewer !== previewer) return;
+
+    console.warn(
+      `The record's bounding box for ${previewer.url} (${describeBounds(declared)}) doesn't overlap the extent the data reports for itself (${describeBounds(reported)}); showing the data instead.`,
+    );
+    this.boundsNotice = MISPLACED_BOUNDS;
+    await this.fitMapBounds(reported);
   }
 
   // When padding is changed, move the map over to make room for the sidebar
@@ -946,12 +978,18 @@ export class OgmMap {
       <Host class={waScope(this.theme)}>
         <div class={`container ${waScope(this.theme)}`}>
           <div id="map"></div>
-          {(this.notice || this.basemapNotice) && (
+          {(this.notice || this.boundsNotice || this.basemapNotice) && (
             <div class="notices">
               {this.notice && (
                 <wa-callout class="notice" variant="brand" size="s">
                   <wa-icon slot="icon" name="info-circle-fill"></wa-icon>
                   {this.notice}
+                </wa-callout>
+              )}
+              {this.boundsNotice && (
+                <wa-callout class="notice bounds-notice" variant="warning" size="s">
+                  <wa-icon slot="icon" name="exclamation-triangle-fill"></wa-icon>
+                  {this.boundsNotice}
                 </wa-callout>
               )}
               {this.basemapNotice && (

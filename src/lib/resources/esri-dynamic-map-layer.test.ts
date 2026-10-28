@@ -88,6 +88,16 @@ describe('EsriDynamicMapLayerResource#getBounds', () => {
     expect(await resourceFor(SERVICE, stub, recordBounds).getBounds()).toBe(recordBounds);
   });
 
+  // So that a record whose box misses the service altogether can be caught; see <ogm-map>
+  it('still reports the service’s own extent when the record carried bounds', async () => {
+    const recordBounds = new LngLatBounds([0, 0], [1, 1]);
+    const stub = { fullExtent: { xmin: -91.5, ymin: 36.9, xmax: -87.4, ymax: 42.5, spatialReference: { wkid: 4326 } } };
+    const reported = (await resourceFor(SERVICE, stub, recordBounds).getReportedBounds()) as LngLatBounds;
+
+    expect(reported.getWest()).toEqual(-91.5);
+    expect(reported.getNorth()).toEqual(42.5);
+  });
+
   it('has no bounds when the service reports an extent we cannot convert', async () => {
     const stub = { fullExtent: { xmin: 189000, ymin: 4800000, xmax: 761000, ymax: 5472000, spatialReference: { wkid: 26915 } } };
     expect(await resourceFor(SERVICE, stub).getBounds()).toBeUndefined();

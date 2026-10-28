@@ -135,6 +135,20 @@ export const boundsToBbox = (bounds: LngLatBounds): [number, number, number, num
   return [wrapLongitude(west), south, wrapLongitude(east), north];
 };
 
+// Whether two boxes share any ground at all, edges included
+export const boundsOverlap = (a: LngLatBoundsLike, b: LngLatBoundsLike): boolean => {
+  const [first, second] = [readBounds(a), readBounds(b)];
+  if (!first || !second) return true;
+  if (first.getSouth() > second.getNorth() || second.getSouth() > first.getNorth()) return false;
+  const span = (bounds: LngLatBounds): [number, number] => {
+    const west = wrapLongitude(bounds.getWest());
+    return [west, west + (bounds.getEast() - bounds.getWest())];
+  };
+  const [[west1, east1], [west2, east2]] = [span(first), span(second)];
+  if (east1 - west1 >= 360 || east2 - west2 >= 360) return true;
+  return [-360, 0, 360].some(shift => west2 + shift <= east1 && west1 <= east2 + shift);
+};
+
 // Convert a geographic coordinate to EPSG:3857 (Web Mercator) meters
 export const lngLatToMercator = (lngLat: LngLatLike): [number, number] => {
   // MercatorCoordinate is normalized to 0..1, with y increasing southward

@@ -347,6 +347,13 @@ export default abstract class MapPreviewer extends Previewer {
     return await this.resource.getBounds();
   }
 
+  // Where the data says it is, whatever the record said: the extent getBounds() falls back on when
+  // the record gave none. Asked for separately so <ogm-map> can catch a record whose bounding box
+  // misses the data altogether - see fitToReportedBounds. Undefined for a preview with nothing to say.
+  async getReportedBounds(): Promise<LngLatBoundsLike | undefined> {
+    return await this.resource.getReportedBounds();
+  }
+
   // Create MapLibre sources for the preview
   protected abstract createSources(): Promise<AddSourceObject[]>;
 

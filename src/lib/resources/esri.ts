@@ -51,8 +51,7 @@ export default abstract class EsriResource extends RasterResource {
 
   // Used to zoom the map to the data once loaded. ArcGIS publishes the extent it can draw, which
   // is a good fallback when the record didn't carry a bounding box of its own.
-  async getBounds() {
-    if (this.bounds) return this.bounds;
+  async getReportedBounds() {
     const metadata = await this.getMetadata();
     return esriExtentToBounds(metadata.fullExtent ?? metadata.extent);
   }
