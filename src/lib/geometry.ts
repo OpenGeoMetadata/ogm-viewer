@@ -5,6 +5,8 @@ export const ENVELOPE_REGEX = /^ENVELOPE\((?<west>[^,]+),(?<east>[^,]+),(?<north
 
 const MERCATOR_EXTENT = 20037508.342789244;
 
+const WORLD_SIZE = 512;
+
 // Carry crossing east edges past 180 so MapLibre frames the short span across the antimeridian.
 const unwrapEast = (west: number, east: number) => (east < west ? east + 360 : east);
 
@@ -112,6 +114,13 @@ export const mercatorBbox = (coords: LngLatLike[]) => {
   const xs = points.map(([x]) => x);
   const ys = points.map(([, y]) => y);
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)].join(',');
+};
+
+// Width and height of a WGS84 box in pixels at zoom 0; both double with each zoom level.
+export const pixelSpan = ([west, south, east, north]: [number, number, number, number]): [width: number, height: number] => {
+  const southwest = MercatorCoordinate.fromLngLat([west, south]);
+  const northeast = MercatorCoordinate.fromLngLat([east, north]);
+  return [Math.abs(northeast.x - southwest.x) * WORLD_SIZE, Math.abs(northeast.y - southwest.y) * WORLD_SIZE];
 };
 
 // Expand the query by the tiler buffer so shapes just outside a tile can still paint inside it.
