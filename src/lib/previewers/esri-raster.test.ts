@@ -187,7 +187,10 @@ describe('EsriRasterPreviewer#inspect', () => {
     const previewer = dynamicPreviewer();
     await previewer.preview();
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ results: [identifyResult] }) }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ results: [identifyResult] })),
+    );
     const features = await previewer.inspect(WINDOW);
     vi.unstubAllGlobals();
 
@@ -201,7 +204,10 @@ describe('EsriRasterPreviewer#inspect', () => {
     const previewer = dynamicPreviewer();
     await previewer.preview();
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ results: [identifyResult] }) }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ results: [identifyResult] })),
+    );
     const features = await previewer.inspect(WINDOW);
     vi.unstubAllGlobals();
 
@@ -213,7 +219,10 @@ describe('EsriRasterPreviewer#inspect', () => {
     await previewer.preview();
 
     const results = [{ attributes: { EPISODE: 'Illinois' }, geometry: null }];
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ results }) }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ results })),
+    );
     const features = await previewer.inspect(WINDOW);
     vi.unstubAllGlobals();
 

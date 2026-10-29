@@ -195,7 +195,7 @@ beforeEach(() => {
   index = INDEX_MAP;
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => ({ ok: true, status: 200, json: async () => index })),
+    vi.fn(async () => Response.json(index)),
   );
 });
 

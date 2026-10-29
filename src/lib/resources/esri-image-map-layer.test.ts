@@ -23,7 +23,7 @@ const resourceFor = (stub: EsriMetadata = {}) => {
 };
 
 const stubIdentify = (body: unknown) => {
-  const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => body });
+  const fetchMock = vi.fn().mockImplementation(async () => Response.json(body));
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 };

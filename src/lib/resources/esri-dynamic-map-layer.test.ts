@@ -162,7 +162,10 @@ describe('EsriDynamicMapLayerResource#inspect', () => {
         },
       },
     ];
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ results }) }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ results })),
+    );
 
     const features = await resourceFor().inspect(WINDOW);
 
@@ -172,7 +175,10 @@ describe('EsriDynamicMapLayerResource#inspect', () => {
   });
 
   it('has no features when the service drew nothing there', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ results: [] }) }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ results: [] })),
+    );
     expect(await resourceFor().inspect(WINDOW)).toEqual([]);
   });
 });

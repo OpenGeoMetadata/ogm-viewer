@@ -82,7 +82,7 @@ const DOCUMENT: GeoJSON.FeatureCollection = {
 
 let fetches: ReturnType<typeof vi.fn>;
 beforeEach(() => {
-  fetches = vi.fn(async () => ({ ok: true, status: 200, json: async () => DOCUMENT }));
+  fetches = vi.fn(async () => Response.json(DOCUMENT));
   vi.stubGlobal('fetch', fetches);
 });
 

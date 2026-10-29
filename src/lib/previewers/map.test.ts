@@ -122,7 +122,7 @@ describe('MapPreviewer#beforeId', () => {
       };
       vi.stubGlobal(
         'fetch',
-        vi.fn(async () => ({ ok: true, status: 200, json: async () => document })),
+        vi.fn(async () => Response.json(document)),
       );
     });
 

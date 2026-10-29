@@ -374,7 +374,7 @@ describe('ogm-attributes', () => {
 
       it('falls back to the properties when the picture it expected turns out not to exist', async () => {
         vi.spyOn(console, 'warn').mockImplementation(() => {});
-        vi.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 403, statusText: 'Forbidden' } as unknown as Response);
+        vi.spyOn(global, 'fetch').mockResolvedValue(new Response(null, { status: 403, statusText: 'Forbidden' }));
 
         const { root } = await renderSheet([sheet({ label: 'SHEET 3', iiifUrl: 'https://purl.stanford.edu/kh108fv7858/iiif/manifest' })]);
 
@@ -428,7 +428,7 @@ describe('ogm-attributes', () => {
 
     it("reads a picture out of the sheet's IIIF manifest when it has none of its own", async () => {
       const thumbnail = 'https://stacks.stanford.edu/image/iiif/kh108fv7858/full/!400,400/0/default.jpg';
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 200, json: async () => ({ thumbnail: { '@id': thumbnail } }) } as unknown as Response);
+      const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async () => Response.json({ thumbnail: { '@id': thumbnail } }));
       const iiifUrl = 'https://purl.stanford.edu/kh108fv7858/iiif/manifest';
 
       const { root } = await renderSheet([sheet({ label: 'SHEET 3', iiifUrl })]);

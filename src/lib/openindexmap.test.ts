@@ -43,12 +43,7 @@ const UNHELD_SHEET = {
 const labels = (properties: Record<string, unknown>) => describeSheet(properties).map(({ label }) => label);
 const row = (properties: Record<string, unknown>, label: string) => describeSheet(properties).find(field => field.label === label);
 
-const respondWith = (body: unknown) =>
-  vi.spyOn(global, 'fetch').mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: async () => body,
-  } as unknown as Response);
+const respondWith = (body: unknown) => vi.spyOn(global, 'fetch').mockImplementation(async () => Response.json(body));
 
 describe('describeSheet', () => {
   it('names the properties the spec defines rather than showing their keys', () => {
@@ -209,7 +204,7 @@ describe('sheetThumbnail', () => {
 
   it('goes without rather than failing when the manifest refuses to be read', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 403, statusText: 'Forbidden' } as unknown as Response);
+    vi.spyOn(global, 'fetch').mockResolvedValue(new Response(null, { status: 403, statusText: 'Forbidden' }));
 
     expect(await sheetThumbnail({ iiifUrl: 'https://example.com/manifest.json' })).toBeUndefined();
   });
