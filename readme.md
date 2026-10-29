@@ -13,6 +13,14 @@ You can add the viewer to your project by including the following script tag in 
 <script type="module" src="https://unpkg.com/ogm-viewer"></script>
 ```
 
+That URL will point to the latest released version automatically. To point to a stable version, you can supply it in the URL:
+
+```html
+<script type="module" src="https://unpkg.com/ogm-viewer@1.6.0"></script>
+```
+
+### Using a bundler
+
 If using a bundler, you can install it via npm:
 
 ```bash
@@ -25,7 +33,9 @@ Then add it to your entrypoint file:
 import 'ogm-viewer';
 ```
 
-That one import is all of it, whichever way you installed it: the theme and the icons the viewer's own chrome is drawn with are part of the bundle, so there is no stylesheet to import beside it, nothing to copy into your app's assets, and no bundler configuration to add.
+### Content Security Policy
+
+The viewer delegates tile-decoding work to a web worker, so pages that set a Content Security Policy need `blob:` in their `worker-src` (or `child-src`, `script-src`, or `default-src` as appropriate). The actual decoding is a WebAssembly module, so `script-src` also needs `'wasm-unsafe-eval'`. The WebAssembly module and the viewer's icons are drawn using data URLs, so `connect-src` needs `data:` as well.
 
 ## Usage
 
@@ -35,7 +45,7 @@ Once installed, the viewer can be used in your HTML as a web component:
 <ogm-viewer record-url="https://example.com/record.json"></ogm-viewer>
 ```
 
-The `record-url` attribute should point to a valid [OpenGeoMetadata Aardvark](https://opengeometadata.org/ogm-aardvark/) record in JSON format.
+The `record-url` attribute should point to an [OpenGeoMetadata Aardvark](https://opengeometadata.org/ogm-aardvark/) record in JSON format.
 
 You can also programmatically set the record URL using JavaScript:
 
@@ -44,7 +54,16 @@ const viewer = document.querySelector('ogm-viewer');
 viewer.recordUrl = 'https://example.com/record.json';
 ```
 
-When the record URL changes, the viewer will automatically fetch and display the record data. Setting it to `undefined`, or removing the attribute, clears the viewer.
+When the record URL changes, the viewer will automatically fetch and display the record data. Setting it to `undefined` or removing the attribute clears the viewer.
+
+The viewer components provided by this library don't have an intrinsic size, so you'll need to set one in CSS:
+
+```css
+ogm-viewer {
+  width: 600px;
+  height: 400px;
+}
+```
 
 ### Dark mode support
 
@@ -58,11 +77,13 @@ To programmatically control dark mode, you can use the `theme` attribute with a 
 
 ### Basemaps
 
-By default, the viewer draws on one of [CARTO](https://carto.com/basemaps)'s basemaps: Dark Matter in dark mode, Positron in light mode. To use a different one for either mode, set `dark-basemap` and/or `light-basemap` to a URL for a [MapLibre style document](https://maplibre.org/maplibre-style-spec/), from CARTO or anywhere else:
+By default, the viewer draws on one of [CARTO](https://carto.com/basemaps)'s basemaps: Dark Matter in dark mode, Positron in light mode. To use a different one for either mode, set `dark-basemap` and/or `light-basemap` to a URL for a [MapLibre style document](https://maplibre.org/maplibre-style-spec/):
 
 ```html
-<ogm-viewer record-url="https://example.com/record.json" light-basemap="https://api.maptiler.com/maps/basic-v2/style.json?key=your-key"></ogm-viewer>
+<ogm-viewer record-url="https://example.com/record.json" light-basemap="https://api.maptiler.com/maps/basic-v2/style.json></ogm-viewer>
 ```
+
+Both attributes are also DOM properties, so they can be set from JavaScript the same way `theme` can.
 
 CARTO watermarks a basemap requested without an API key. If you have [your own CARTO API key](https://carto.com/basemaps/apikey/), build the full style URL yourself and pass that:
 
@@ -76,17 +97,17 @@ CARTO watermarks a basemap requested without an API key. If you have [your own C
 
 You can find basemaps that don't require an API key to use offered by [OpenFreeMap](https://openfreemap.org/quick_start/).
 
-Both attributes are also DOM properties, so they can be set from JavaScript the same way `theme` can. They're supported everywhere `theme` is - `<ogm-viewer>`, `<ogm-preview>`, `<ogm-previews>`, `<ogm-map>`, `<ogm-locator>`, and `<ogm-overview>` - and GeoBlacklight uses them to let a site configure its own basemaps.
+#### Layer order
 
-#### Drawing previews under the basemap's labels
+By default, previews are drawn underneath the basemap's labels, so place names stay readable over the data. You can choose which layer the preview is inserted before using `before-id`; it defaults to `watername_ocean`, which in CARTO's basemaps is underneath most text labels but above everything else.
 
-Previews are drawn underneath the basemap's labels, so place names stay readable over the data. A preview's own labels still go on top. Which basemap layer previews go under is set with `before-id`; it defaults to `watername_ocean`, which in CARTO's basemaps is underneath most text labels but above everything else. If you use a different basemap, set `before-id` to the layer you want previews drawn under:
+You can set `before-id` to the layer you want previews drawn under, either in the default basemap or in one you provide:
 
 ```html
-<ogm-viewer record-url="https://example.com/record.json" light-basemap="https://example.com/my-style.json" before-id="boundaries"></ogm-viewer>
+<ogm-viewer record-url="https://example.com/record.json" before-id="boundaries"></ogm-viewer>
 ```
 
-On a basemap that has no layer by that name, previews are drawn on top of the whole basemap, as they are with `before-id=""`. `before-id` is supported on `<ogm-viewer>` and `<ogm-previews>`, and a change to it applies the next time a preview is drawn - a new record, or a change of theme or basemap. A previewer you build yourself has a `beforeId` property of its own instead, with the same default.
+If `before-id` is empty or there is no layer in the basemap with that ID, the preview is drawn on top of everything.
 
 ### Colors
 
@@ -123,17 +144,7 @@ Here are the supported properties and what they apply to:
 | `--ogm-padding`                | Gap kept between the data and the view edge (pixels)    |
 | `--ogm-overview-padding`       | Gap for locator and overview maps (pixels)              |
 
-By default, the viewer uses styles from [Web Awesome](https://webawesome.com/) that match the current mode (dark or light).
-
-You usually only need the four `--ogm-*-color` properties, plus `--ogm-text-color`. The rest are derived:
-
-- Each outline comes from the color it outlines, moved away from the basemap: darker in light mode, lighter in dark mode. A color you name is used in both modes, but its outline follows the mode, so one declaration reads on either basemap.
-- The label halo comes from `--ogm-text-color`, as black or white — whichever contrasts more, the same choice CSS `contrast-color()` makes. It doesn't consult the mode, because the text color already did.
-- The disc a numbered result sits on comes from the same color, sunk to a fixed depth rather than moved by a step, so the numeral on it is legible on either basemap. The numeral's own color follows from the disc, the same way a halo follows from its text.
-
-A numbered marker is drawn as one image — a disc with its numeral on it — rather than as a circle with text over it. That's what keeps every marker the same size at every zoom, keeps a numeral from ever landing on the marker next to it, and lets the numerals be bold: `--ogm-font-family` names a glyph set the basemap has to serve, while `--ogm-marker-font` is an ordinary CSS stack this library draws with itself.
-
-`--ogm-marker-*`, `--ogm-stroke-*` and `--ogm-text-halo-color` are there if you want particular ones instead. Like the other colors, one you name is used in both modes.
+By default, the viewer uses styles from [Web Awesome](https://webawesome.com/) that match the current mode (dark or light). Some properties are derived from others by darkening or lightening them, if not provided explicitly.
 
 ### Restricted content
 
@@ -141,7 +152,7 @@ For previews of data that need authentication to access, you can set a custom `r
 
 ```javascript
 viewer.requestTransform = (url, resourceType) => {
-  // If we aren't requesting something from the restricted area, don't do anything
+  // If we aren't requesting something from the restricted server, skip this
   if (!url.startsWith('https://geo.my-domain.edu/restricted/')) return undefined;
 
   // Otherwise, add an Authorization header with a bearer token
@@ -149,43 +160,91 @@ viewer.requestTransform = (url, resourceType) => {
 };
 ```
 
-If you're building a `Resource` by hand instead, pass the same kind of function as its last constructor argument (or to `resourcesFor`, if you're building several from a record):
+The `requestTransform` will be applied to all requests made by the viewer, including metadata and tiles, as well as the requests for the MapLibre basemap. You may want to delegate to additional functions that can handle these different cases based on what is being requested.
 
-```javascript
-import { GeoJsonResource } from 'ogm-viewer/lib';
+### Cooperative gestures
 
-const resource = new GeoJsonResource('my-layer', 'https://example.com/restricted/data.json', undefined, requestTransform);
+`<ogm-preview>`, `<ogm-locator>`, and `<ogm-overview>` all require a reader to hold Ctrl (⌘ on a Mac) to zoom the map with the scroll wheel, and a second finger to pan it on a touchscreen, so that a map sitting inside a page doesn't steal the scroll a reader meant for the page around it. Set `cooperative-gestures` to `false` on any of them to turn this off and answer to the wheel and a single touch right away:
+
+```html
+<ogm-locator record-url="https://example.com/record.json" cooperative-gestures="false"></ogm-locator>
 ```
-
-The `requestTransform` will be applied to all requests made by the viewer for that resource, including metadata and tiles, as well as the requests for the MapLibre basemap. The one exception to this is Georeferenced maps using the Allmaps plugin – there's currently no way to fetch these using authentication (see below for more).
 
 ### Georeferenced maps
 
-A scanned map with a [IIIF Georeference Annotation](https://iiif.io/api/extension/georef/) is previewable two ways: as an image to page through, and as a layer warped onto the map. Both come from one `IIIFManifestResource`, so `<ogm-viewer>` shows them as two tabs, image first.
+A scanned map with a [IIIF Georeference Annotation](https://iiif.io/api/extension/georef/) is previewable two ways: as an image and as a layer warped onto the map. Both come from one `IIIFManifestResource`, but `<ogm-viewer>` shows them as two separate preview tabs.
 
-The viewer finds the annotation itself, looking in this order:
+The viewer looks for the annotation in this order:
 
 1. Inside the manifest, following the annotation pages a canvas links until it finds one.
-2. Failing that, a `dct_references_s` key of `https://iiif.io/api/extension/georef/1/context.json` pointing at a standalone annotation.
+2. A `dct_references_s` key of `https://iiif.io/api/extension/georef/1/context.json` pointing at a standalone annotation.
 
-When a record has both, the copy in the manifest wins. Only the first canvas is inspected, so a paged object with an annotation per page is left alone for now.
+When a record has both, the copy in the manifest wins. Only the first canvas is inspected, so a paged object with an annotation per page is left alone as of now.
 
-The map tab is drawn flat, has no globe button, and can't be tilted. These are constraints based on Allmaps' rendering engine, which is used to warp the image. There's also no way to hook into Allmaps' tile requests, so if the annotation points at a restricted image, it won't be able to fetch it. The viewer will still show the image tab, but the map tab will be blank.
+The map tab doesn't support the globe view or pan/tilt. These are constraints based on Allmaps' rendering engine, which is used to warp the image. There's also no way to hook into Allmaps' tile requests, so if the annotation points at a restricted image, it won't be able to fetch it. The viewer will still show the image tab, but the map tab will be blank.
 
-To build a preview by hand, the manifest resource takes the standalone annotation URL as its last argument, and works out the rest:
+### Locator maps
 
-```javascript
-import { GeoreferencePreviewer, IIIFManifestResource } from 'ogm-viewer/lib';
+To show where a single record is on earth, you can use the `<ogm-locator>` component. Give it a `record-url` and it uses the record's geometry or bounding box to draw an outline on a map:
 
-const resource = new IIIFManifestResource('my-map', manifestUrl, undefined, undefined, annotationUrl);
-if (await resource.isGeoreferenced()) {
-  document.querySelector('ogm-preview').previewer = new GeoreferencePreviewer(resource);
-}
+```html
+<ogm-locator record-url="https://example.com/record.json"></ogm-locator>
 ```
 
-### Components
+### Overviews
 
-If you're building your own viewer, you can adopt `<ogm-viewer>`'s components individually.
+For showing where several records are, you can use the `<ogm-overview>` component. Pass it a list of `OgmRecord` objects and it will draw a numbered marker on the globe representing each record.
+
+```js
+await customElements.whenDefined('ogm-overview');
+
+document.querySelector('ogm-overview').records = [record1, record2];
+```
+
+When the markers are hovered, the record's outline is drawn on the map, like in a locator map. The `highlightChange` event says which record it is, so you can use this information to take other actions too.
+
+```js
+overview.addEventListener('highlightChange', event => console.log(event.detail));
+```
+
+To highlight a record explicitly, set `highlighted` to either its number in the list (counted from one), or the id of the record it came from. Anything else will clear the current highlight. Setting `highlighted` to explicitly highlight a record doesn't fire `highlightChange`, so you won't get an infinite loop.
+
+```js
+overview.highlighted = 3;
+```
+
+#### Geosearch
+
+If you add the `geosearch` attribute to an overview, a reader can search using the map by holding shift and dragging a box over it.
+
+```html
+<ogm-overview geosearch></ogm-overview>
+```
+
+The area drawn is reported via the `boundsChange` event.
+
+```javascript
+document.querySelector('ogm-overview').addEventListener('boundsChange', event => {
+  // west, south, east, north - with east numerically west of west for a box crossing the antimeridian
+  console.log('New bounds:', event.detail);
+});
+```
+
+If a search is executed externally, you can set the `search-bounds` attribute to reflect it on the map. It's drawn as a box and framed by the camera. It will accept an `ENVELOPE` string, or anything else MapLibre reads as bounds.
+
+```html
+<ogm-overview search-bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-overview>
+```
+
+If you want to move the camera to a specific area, you can set the `view-bounds` attribute the same way. This won't draw a box and will try to fit the exact bounds provided, without applying any padding.
+
+```html
+<ogm-overview view-bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-overview>
+```
+
+### Advanced usage
+
+If you're building your own viewer, you can adopt `<ogm-viewer>`'s components individually. The viewer is populated with `Previewer`s, each of which wraps a single `Resource` containing data and renders it to a provided map or image canvas.
 
 The easiest way to render a single preview without the full viewer is to use the `<ogm-preview>` component with a `Previewer` and corresponding `Resource`. For example, to preview a GeoJSON resource:
 
@@ -199,118 +258,13 @@ const resource = new GeoJsonResource('my-layer', 'https://example.com/data.json'
 document.querySelector('ogm-preview').previewer = new GeoJsonPreviewer(resource);
 ```
 
-Note that `previewer` is a DOM property, not an attribute — await for the element to be defined and then set it in JavaScript.
+Note that `previewer` is a DOM property, not an attribute — you have to await for the element to be defined and then set it in JavaScript.
 
-For more than one preview, `<ogm-previews>` renders the same tab strip `<ogm-viewer>` uses. Hand it a `record` and it works out what that record offers; hand it `previewers` and it uses those instead:
+For more than one preview, `<ogm-previews>` renders the same tab strip `<ogm-viewer>` uses. Pass it a `record` and it works out what that record offers; pass it `previewers` and it uses those directly instead:
 
 ```javascript
 document.querySelector('ogm-previews').previewers = [new GeoJsonPreviewer(geoJsonResource), new OpenIndexMapPreviewer(indexMapResource)];
 ```
-
-`record` and `previewers` are DOM properties too. Neither component has an intrinsic size, so the embedding page should set it via CSS.
-
-#### Field definitions
-
-When a record has a reference to an FGDC or ISO 19110 metadata document describing its data's fields, the
-attribute table names each field from it and reads coded values as what they stand for - so a road
-whose `access` is `1` reads "Unrestricted public access (1)", and hovering or tabbing to the field's
-name explains what the field itself holds. The sidebar also gets a "Fields" tab listing every documented
-field.
-
-#### Cooperative gestures
-
-`<ogm-preview>`, `<ogm-locator>`, and `<ogm-overview>` all require a reader to hold Ctrl (⌘ on a Mac) to zoom the map with the scroll wheel, and a second finger to pan it on a touchscreen, so that a map sitting inside a page doesn't steal the scroll a reader meant for the page around it. Set `cooperative-gestures` to `false` on any of them to turn this off and answer to the wheel and a single touch right away:
-
-```html
-<ogm-locator record-url="https://example.com/record.json" cooperative-gestures="false"></ogm-locator>
-```
-
-#### Locator maps
-
-To show where a single record is on earth, you can use the `<ogm-locator>` component. Give it a `record-url` and it fetches and draws that record's full geometry (`locn_geometry`) or its bounding box (`dcat_bbox`) if there's no geometry available - the same URL and format `<ogm-viewer>` takes:
-
-```html
-<ogm-locator record-url="https://example.com/record.json"></ogm-locator>
-```
-
-If you already have an `OgmRecord`, hand it over directly instead:
-
-```js
-await customElements.whenDefined('ogm-locator');
-
-document.querySelector('ogm-locator').record = record;
-```
-
-`record` is a DOM property, not an attribute; `recordUrl` is both, so either can be set from HTML or JavaScript. If you've built a `LocationPreviewer` yourself, set `previewer` instead to override them.
-
-Like the other components, `<ogm-locator>` has no intrinsic size, so the embedding page should give it one:
-
-```css
-ogm-locator {
-  height: 250px;
-}
-```
-
-#### Overviews and geosearch
-
-For showing where several records are and searching/filtering them, you can use the `<ogm-overview>` component. Hand it a list of `OgmRecord`s as `records` and it draws a numbered marker for each one, in the order you gave them.
-
-```js
-await customElements.whenDefined('ogm-overview');
-
-document.querySelector('ogm-overview').records = [record1, record2];
-```
-
-Nothing of a record is drawn but its number, at the middle of its extent. A record with no geometry still takes up its number, so the numbers keep matching the rows in the list beside the map. Hand it a list of `LocationPreviewer`s you built and those are numbered instead of the records (GeoBlacklight does this).
-
-A user's pointer over a number highlights that record and draws its geometry or bounding box temporarily. The `highlightChange` event says which record it is, so you can use this information to update other parts of the page.
-
-```js
-overview.addEventListener('highlightChange', event => markRow(event.detail?.place));
-```
-
-The event detail carries the result's place in the list (counted from one) and the id of the record it came from and is `null` once the pointer has left every number.
-
-To highlight a record explicitly, set `highlighted` to either its number in the list (counted from one), or the id of the record it came from. Anything else will clear the current highlight. Setting `highlighted` to explicitly highlight a record doesn't fire `highlightChange`, so you won't get an infinite loop.
-
-```js
-overview.highlighted = record.id; // or 3, or undefined to clear it
-```
-
-Enable `geosearch` and a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through the `boundsChange` event. The help text in the viewer about how to search can be controlled with `searchHelpText`.
-
-```html
-<ogm-overview geosearch></ogm-overview>
-```
-
-```javascript
-document.querySelector('ogm-overview').addEventListener('boundsChange', event => {
-  // west, south, east, north - with east numerically west of west for a box crossing the antimeridian
-  console.log('New bounds:', event.detail);
-});
-```
-
-Set `search-bounds` to the area a search is currently filtered to. It's drawn as a box and the camera frames it, with the same gap everything else on the map gets. It will accept an `ENVELOPE` string, or anything else MapLibre reads as bounds — and being a string, it can come from an attribute:
-
-```html
-<ogm-overview search-bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-overview>
-```
-
-Set `view-bounds` to where the map should open in place of the whole world, when there's no active search and no results of its own to frame - a catalog's home page, say. Given in the same form as `search-bounds`:
-
-```html
-<ogm-overview view-bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-overview>
-```
-
-### Content Security Policy
-
-The viewer runs work off the main thread in web workers: MapLibre's own, and one pool that decodes Cloud Optimized GeoTIFF tiles. Both are built from source the bundle carries rather than from files of their own, so a page that sets a Content-Security-Policy needs `blob:` in `worker-src` - or in whichever of `child-src`, `script-src` or `default-src` it falls back to. In a document with an opaque origin, such as a sandboxed iframe, the decoder uses a `data:` URL instead, which a policy would have to allow in the same place.
-
-Without either, the map cannot be drawn at all, and COG tiles are decoded on the main thread: slower, but still drawn.
-
-Decoding those tiles needs `'wasm-unsafe-eval'` in `script-src` as well, wherever it happens: the LZW and LERC decoders are WebAssembly modules, and a policy that won't instantiate one fails the preview rather than slowing it down - the alert in place of the map quotes the directive that stopped it.
-
-The icons the viewer's chrome is drawn with are carried the same way, as data URLs, and Web Awesome draws an icon by fetching whichever URL it is handed - so `connect-src` needs `data:` as well, or every icon comes out blank. LERC's WebAssembly module is compiled in as a data URL for the same reason and reached the same way, so it needs nothing further. The theme asks for nothing at all: it is adopted as a constructed stylesheet, which no CSP directive covers.
 
 ## Development
 
