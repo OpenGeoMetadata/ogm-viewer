@@ -466,8 +466,8 @@ const DOMAINS_DOCUMENT = `<Domains xmlns:ows='http://www.opengis.net/ows/1.1'>
 describe('WmtsResource#fetchTimeValues', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  const stubFetch = (body: string, ok = true, status = 200) => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok, status, statusText: ok ? 'OK' : 'Not Found', text: async () => body });
+  const stubFetch = (body: string, status = 200) => {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(body, { status }));
     vi.stubGlobal('fetch', fetchMock);
     return fetchMock;
   };
@@ -497,7 +497,7 @@ describe('WmtsResource#fetchTimeValues', () => {
   });
 
   it('fails when the document is not there', async () => {
-    stubFetch('', false, 404);
+    stubFetch('', 404);
     const drawn = await timedLayer();
 
     await expect(resourceFor('').fetchTimeValues(drawn.time!)).rejects.toThrow();

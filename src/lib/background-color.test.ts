@@ -49,7 +49,7 @@ beforeEach(() => {
 
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => ({ ok: true, status: 200, blob: async () => 'a blob' })),
+    vi.fn(async () => new Response(new Blob(['a blob']))),
   );
   vi.stubGlobal(
     'createImageBitmap',
@@ -139,7 +139,7 @@ describe('backgroundColorOf', () => {
   it('raises the failure when the thumbnail does not come back', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({ ok: false, status: 404, statusText: 'Not Found' })),
+      vi.fn(async () => new Response(null, { status: 404, statusText: 'Not Found' })),
     );
 
     await expect(backgroundColorOf(imageFor(), MASK)).rejects.toMatchObject({ name: 'HttpError', status: 404 });

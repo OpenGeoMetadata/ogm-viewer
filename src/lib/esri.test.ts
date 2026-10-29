@@ -337,8 +337,8 @@ describe('throwOnEsriError', () => {
 describe('fetchEsriJson', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  const stubFetch = (body: unknown, ok = true, status = 200) => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok, status, statusText: '', json: async () => body });
+  const stubFetch = (body: unknown, status = 200) => {
+    const fetchMock = vi.fn().mockImplementation(async () => Response.json(body, { status }));
     vi.stubGlobal('fetch', fetchMock);
     return fetchMock;
   };
@@ -365,7 +365,7 @@ describe('fetchEsriJson', () => {
   });
 
   it('raises a failing HTTP status', async () => {
-    stubFetch({}, false, 404);
+    stubFetch({}, 404);
     await expect(fetchEsriJson('https://example.org/MapServer')).rejects.toThrow(HttpError);
   });
 });

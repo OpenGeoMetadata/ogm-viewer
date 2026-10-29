@@ -54,7 +54,7 @@ const tree = (id: number): GeoJSON.Feature => ({
 
 const stubPages = (...pages: unknown[]) => {
   const fetchMock = vi.fn();
-  pages.forEach(page => fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => page }));
+  pages.forEach(page => fetchMock.mockResolvedValueOnce(Response.json(page)));
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 };
@@ -274,8 +274,8 @@ describe('EsriFeatureLayerResource#getQuerySummary', () => {
   it('reads a layer it could not measure at all, rather than failing the preview', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const fetchMock = vi.fn();
-    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Server Error' });
-    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ type: 'FeatureCollection', features: [tree(1)] }) });
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 500, statusText: 'Server Error' }));
+    fetchMock.mockResolvedValueOnce(Response.json({ type: 'FeatureCollection', features: [tree(1)] }));
     vi.stubGlobal('fetch', fetchMock);
 
     expect((await probingResourceFor().getData()).features).toHaveLength(1);
@@ -393,7 +393,7 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
   });
 
   it('fails loudly while nothing has drawn, so an empty map is explained', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, statusText: 'Server Error' });
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(null, { status: 500, statusText: 'Server Error' }));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(resourceFor(POINTS).fetchTile(10, 257, 375)).rejects.toThrow();
@@ -402,8 +402,8 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
   it('gives up quietly on a tile that failed after something already drew', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const fetchMock = vi.fn();
-    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ type: 'FeatureCollection', features: [inMadison] }) });
-    fetchMock.mockResolvedValue({ ok: false, status: 500, statusText: 'Server Error' });
+    fetchMock.mockResolvedValueOnce(Response.json({ type: 'FeatureCollection', features: [inMadison] }));
+    fetchMock.mockImplementation(async () => new Response(null, { status: 500, statusText: 'Server Error' }));
     vi.stubGlobal('fetch', fetchMock);
 
     const resource = resourceFor(POINTS);
@@ -444,7 +444,7 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
   it('keeps the deepest zoom it was cut short at, not the last one it tried', async () => {
     const fetchMock = vi.fn();
     const short = { type: 'FeatureCollection', features: [inMadison], properties: { exceededTransferLimit: true } };
-    [short, short].forEach(page => fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => page }));
+    [short, short].forEach(page => fetchMock.mockResolvedValueOnce(Response.json(page)));
     vi.stubGlobal('fetch', fetchMock);
 
     const resource = resourceFor(POINTS);
