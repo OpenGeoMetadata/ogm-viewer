@@ -4,7 +4,6 @@ import { getElement, findElement } from './elements';
 
 describe('getElement', () => {
   beforeEach(() => {
-    // Reset the DOM before each test
     const window = new Window();
     (global as any).window = window;
     (global as any).document = window.document;
@@ -30,7 +29,6 @@ describe('getElement', () => {
 
 describe('findElement', () => {
   beforeEach(() => {
-    // Reset the DOM before each test
     const window = new Window();
     (global as any).window = window;
     (global as any).document = window.document;

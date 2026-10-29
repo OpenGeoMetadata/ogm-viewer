@@ -5,7 +5,6 @@ import WmtsResource, { type WmtsOptions } from './wmts';
 
 const ENDPOINT = 'https://example.org/wmts/1.0.0/WMTSCapabilities.xml';
 
-// Reads a hand-built capabilities document instead of fetching one
 class TestWmtsResource extends WmtsResource {
   private xml: string;
 
@@ -19,7 +18,6 @@ class TestWmtsResource extends WmtsResource {
   }
 }
 
-// One zoom of the XYZ grid: 2^z square tiles hung from the northwest corner of the world
 const mercatorLevel = (zoom: number, { prefix = '', tileSize = 256 } = {}) => `
   <TileMatrix>
     <ows:Identifier>${prefix}${zoom}</ows:Identifier>
@@ -30,8 +28,6 @@ const mercatorLevel = (zoom: number, { prefix = '', tileSize = 256 } = {}) => `
     <MatrixHeight>${2 ** zoom}</MatrixHeight>
   </TileMatrix>`;
 
-// Tiles per side at each zoom of NASA GIBS' geographic "500m" grid, which halves down from
-// 160x80 tiles of 2.25 degrees and rounds up - so it is neither square nor a quadtree
 const GEOGRAPHIC_LEVELS = [
   [2, 1],
   [3, 2],
@@ -62,10 +58,8 @@ const MERCATOR_SET = tileMatrixSet('GoogleMapsCompatible_Level3', 'urn:ogc:def:c
 
 const GEOGRAPHIC_SET = tileMatrixSet('500m', 'urn:ogc:def:crs:OGC:1.3:CRS84', ZOOMS.map(geographicLevel).join(''));
 
-// GeoServer and friends qualify the level with the grid it belongs to
 const QUALIFIED_SET = tileMatrixSet('EPSG:900913', 'EPSG:900913', ZOOMS.map(zoom => mercatorLevel(zoom, { prefix: 'EPSG:900913:' })).join(''));
 
-// Web Mercator, but with a level that doesn't hold the 2^z by 2^z tiles that zoom has
 const RAGGED_SET = tileMatrixSet(
   'ragged',
   'EPSG:3857',
@@ -133,7 +127,6 @@ describe('WmtsResource#getLayers', () => {
     const resource = resourceFor(capabilities(layer({ links: ['big'] }), bigTiles));
     const [drawn] = await resource.getLayers();
 
-    // Both differ from what MapLibre would assume on its own, which is 512px tiles over zooms 0-22
     expect(drawn.tileSize).toEqual(512);
     expect(drawn.minzoom).toEqual(2);
     expect(drawn.maxzoom).toEqual(3);
@@ -172,8 +165,6 @@ describe('WmtsResource#getLayers', () => {
   it('refuses a layer published only in a geographic grid, naming the grid and its CRS', async () => {
     const resource = resourceFor(capabilities(layer({ links: ['500m'] }), GEOGRAPHIC_SET));
 
-    // Tile indices in a geographic grid address different ground than MapLibre's XYZ ones,
-    // so drawing it would put imagery in the wrong place or fall off the end of a row
     await expect(resource.getLayers()).rejects.toThrow('500m (urn:ogc:def:crs:OGC:1.3:CRS84)');
     await expect(resource.getLayers()).rejects.toThrow(/Web Mercator/);
   });
@@ -197,12 +188,9 @@ describe('WmtsResource#getLayers', () => {
   });
 });
 
-// Deep enough to hold the zoom a city-sized layer starts at
 const DEEP_SET = tileMatrixSet('GoogleMapsCompatible', 'EPSG:3857', Array.from({ length: 20 }, (_, zoom) => mercatorLevel(zoom)).join(''));
 
-// Vienna, as its orthophoto service states it, and as the Aardvark record does
 const VIENNA = boundingBox(16.17, 48.1, 16.58, 48.33);
-// Built the way bboxToBounds builds it from a record's ENVELOPE, since that is what arrives here
 const VIENNA_RECORD = new LngLatBounds([16.133423, 48.106056], [16.626434, 48.3348]);
 
 const boundedLayers = (bbox: string, grid = DEEP_SET, id = 'GoogleMapsCompatible', bounds?: LngLatBoundsLike) =>
@@ -216,8 +204,6 @@ describe('WmtsResource#getLayers extent', () => {
   });
 
   it('starts a city-sized layer at the zoom where it first fills a tile', async () => {
-    // Below this every tile is mostly outside the layer, and a service that draws the empty
-    // part rather than answering 404 paints it over the map
     const [drawn] = await boundedLayers(VIENNA);
 
     expect(drawn.minzoom).toEqual(10);
@@ -231,7 +217,6 @@ describe('WmtsResource#getLayers extent', () => {
   });
 
   it('measures a bounding box that crosses the antimeridian the short way round', async () => {
-    // Two degrees of longitude at the date line, not the 358 that subtracting the corners gives
     const [drawn] = await boundedLayers(boundingBox(179, -0.1, -179, 0.1));
 
     expect(drawn.minzoom).toEqual(8);
@@ -252,7 +237,6 @@ describe('WmtsResource#getLayers extent', () => {
   });
 
   it('prefers the extent the service publishes to the one on the record', async () => {
-    // The record states one extent for everything it references; the service states one per layer
     const [drawn] = await boundedLayers(VIENNA, DEEP_SET, 'GoogleMapsCompatible', [-180, -85, 180, 85]);
 
     expect(drawn.bounds).toEqual([16.17, 48.1, 16.58, 48.33]);
@@ -267,8 +251,6 @@ describe('WmtsResource#getLayers extent', () => {
   });
 });
 
-// Vienna's service, in miniature: tiles sharded over several hosts, only one of which is the
-// host that answered the capabilities request, and every one of them advertised over http
 const SHARDED_TEMPLATES = ['maps1', 'maps2', 'maps'].map(host => `http://${host}.example.org/lb2016/{Style}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.jpeg`);
 
 const shardedLayers = (url: string, templates = SHARDED_TEMPLATES) =>
@@ -276,16 +258,12 @@ const shardedLayers = (url: string, templates = SHARDED_TEMPLATES) =>
 
 describe('WmtsResource#getLayers tile hosts', () => {
   it('keeps only the host that served the capabilities document', async () => {
-    // MapLibre assigns each tile to a host by coordinate and never retries elsewhere, so a
-    // hostname that no longer resolves costs us that share of the tiles for good
     const [drawn] = await shardedLayers('https://maps.example.org/wmts/1.0.0/WMTSCapabilities.xml');
 
     expect(drawn.tileUrls).toEqual(['https://maps.example.org/lb2016/default/GoogleMapsCompatible_Level3/{z}/{y}/{x}.jpeg']);
   });
 
   it('reaches that host over https when that is how the capabilities came back', async () => {
-    // A document served over https can still advertise http tiles, which the browser blocks
-    // as mixed content
     const [drawn] = await shardedLayers('https://maps.example.org/wmts/1.0.0/WMTSCapabilities.xml');
 
     expect(drawn.tileUrls[0].startsWith('https://')).toBe(true);
@@ -312,7 +290,6 @@ describe('WmtsResource#getLayers tile hosts', () => {
   });
 });
 
-// The pair NASA GIBS publishes in the default style of every colormapped layer, as it writes them
 const GIBS_LEGENDS = `
   <LegendURL xlink:href='https://gibs.earthdata.nasa.gov/legends/GHRSST_Sea_Surface_Temperature_H.svg' height='86' xlink:type='simple' xlink:title='GIBS Color Map Legend: Horizontal' format='image/svg+xml' xlink:role='http://earthdata.nasa.gov/gibs/legend-type/horizontal' width='378'/>
   <LegendURL xlink:href='https://gibs.earthdata.nasa.gov/legends/GHRSST_Sea_Surface_Temperature_V.svg' height='288' xlink:type='simple' xlink:title='GIBS Color Map Legend: Vertical' format='image/svg+xml' xlink:role='http://earthdata.nasa.gov/gibs/legend-type/vertical' width='135'/>`;
@@ -335,7 +312,6 @@ describe('WmtsResource#getLayers legends', () => {
     ]);
   });
 
-  // The tiles are drawn in the default style, so its legend is the one that explains them
   it('reads the legend of the style marked default, not of the first one listed', async () => {
     const other = '<LegendURL format="image/png" xlink:href="https://tiles.example.org/legends/contrast.png"/>';
     const drawn = await legendLayer(style('contrast', other, false) + style('default', GIBS_LEGENDS, true));
@@ -354,7 +330,6 @@ describe('WmtsResource#getLayers legends', () => {
     expect(drawn.legendImages?.map(image => image.url)).toEqual(['https://tiles.example.org/legends/first.png']);
   });
 
-  // GeoWebCache can publish a style's legend per range of scales
   it('keeps the scales a legend is limited to', async () => {
     const legends = `
       <LegendURL format="image/png" xlink:href="https://tiles.example.org/legends/overview.png" minScaleDenominator="1000000"/>
@@ -373,7 +348,6 @@ describe('WmtsResource#getLayers legends', () => {
     expect(drawn.legendImages?.[0].url).toEqual('https://example.org/wmts/legends/lights.png');
   });
 
-  // All a legend is good for here is being shown
   it('leaves out a legend that is not an image, and one with no address', async () => {
     const legends = `
       <LegendURL format="text/html" xlink:href="https://tiles.example.org/legends/lights.html"/>
@@ -381,7 +355,6 @@ describe('WmtsResource#getLayers legends', () => {
       <LegendURL format="image/png" xlink:href="https://tiles.example.org/legends/lights.png" width="0" height="wide"/>`;
     const drawn = await legendLayer(style('default', legends, true));
 
-    // A size that isn't a size is left out, rather than reserving no room or NaN of it
     expect(drawn.legendImages).toEqual([{ url: 'https://tiles.example.org/legends/lights.png', format: 'image/png' }]);
   });
 
@@ -392,8 +365,6 @@ describe('WmtsResource#getLayers legends', () => {
   });
 });
 
-// The three tile templates NASA GIBS lists for each of its layers: one that takes a date, and two that
-// only ever draw the default. Plus the ways it offers to describe the layer's dates in full.
 const GIBS_TEMPLATES = [
   'https://gibs.example.org/wmts/epsg3857/best/MODIS/default/{Time}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.jpeg',
   'https://gibs.example.org/wmts/epsg3857/best/MODIS/default/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.jpeg',
@@ -430,8 +401,6 @@ describe('WmtsResource#getLayers time', () => {
     expect(drawn.time?.values).toEqual(DAILY);
   });
 
-  // MapLibre assigns each tile to one of a source's URLs by its coordinates, so a URL that can't be told
-  // the time would show a share of the tiles at the default whatever was picked
   it('draws a layer with a choice of times only through the templates that take one', async () => {
     const drawn = await timedLayer();
 
@@ -454,7 +423,6 @@ describe('WmtsResource#getLayers time', () => {
     expect(drawn.tileUrls[0]).toContain('/2026-10-01/');
   });
 
-  // GEDI's biomass is one four-year composite
   it('offers no choice for a layer published at a single time, and draws it as before', async () => {
     const drawn = await timedLayer({ dimension: timeDimension(['2019-04-18/2019-04-18/P1429D'], '2019-04-18') });
 
@@ -476,7 +444,6 @@ describe('WmtsResource#getLayers time', () => {
     expect(drawn).not.toHaveProperty('time');
   });
 
-  // The only one of GIBS's templates that needs nothing but the grid and the extent
   it('finds where the service describes every time the layer has', async () => {
     const drawn = await timedLayer();
 
@@ -491,7 +458,6 @@ describe('WmtsResource#getLayers time', () => {
   });
 });
 
-// What GIBS's DescribeDomains answers with, cut down to a few runs
 const DOMAINS_DOCUMENT = `<Domains xmlns:ows='http://www.opengis.net/ows/1.1'>
   <SpaceDomain><BoundingBox crs='urn:ogc:def:crs:EPSG::3857' minx='-20037508.342789' miny='-20037508.342789' maxx='20037508.342789' maxy='20037508.342789'/></SpaceDomain>
   <DimensionDomain><ows:Identifier>time</ows:Identifier><Domain>2000-02-24/2000-04-25/P1D,2000-04-28/2000-08-06/P1D,2025-11-10/2026-10-01/P1D</Domain><Size>3</Size></DimensionDomain>

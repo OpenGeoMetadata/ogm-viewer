@@ -23,7 +23,6 @@ import WmsResource from './wms';
 import WmtsResource from './wmts';
 import XyzResource from './xyz';
 
-// A minimal Aardvark record carrying the given references
 const buildRecord = (references: Record<string, string>, extra: Partial<GeoBlacklightSchemaAardvark> = {}) =>
   new OgmRecord({
     id: 'berkeley-s7sq63',
@@ -35,8 +34,6 @@ const buildRecord = (references: Record<string, string>, extra: Partial<GeoBlack
     ...extra,
   });
 
-// Every reference the factory knows how to build something from, with the class it builds and the
-// kind that class reports itself as - which is what chooses the previewer downstream
 const REFERENCES: [string, string, new (...args: never[]) => Resource, ResourceKind][] = [
   ['http://iiif.io/api/image', 'https://example.com/iiif/info.json', IIIFResource, 'iiif-image'],
   ['http://iiif.io/api/presentation#manifest', 'https://example.com/manifest.json', IIIFManifestResource, 'iiif-manifest'],
@@ -57,7 +54,6 @@ const REFERENCES: [string, string, new (...args: never[]) => Resource, ResourceK
 
 describe('resourcesFor', () => {
   it.each(REFERENCES)('builds a resource for the %s reference', (uri, url, expected, kind) => {
-    // The WxS services need an identifier before they'll yield anything; see below
     const record = buildRecord({ [uri]: url }, { gbl_wxsIdentifier_s: 's7sq63' });
     const resources = resourcesFor(record);
 
@@ -66,20 +62,15 @@ describe('resourcesFor', () => {
     expect(resources[0].url).toEqual(url);
     expect(resources[0].id).toEqual('berkeley-s7sq63');
 
-    // A subclass that forgot to override this would be previewed as whatever its parent is: an
-    // index map as plain GeoJSON, a manifest as a single image
     expect(resources[0].kind).toEqual(kind);
   });
 
-  // This order is the tab order, which is the only reason it matters that it's stable
   it('offers resources in the order they should be presented', () => {
     const record = buildRecord(Object.fromEntries(REFERENCES.map(([uri, url]) => [uri, url])), { gbl_wxsIdentifier_s: 's7sq63' });
 
     expect(resourcesFor(record).map(resource => resource.constructor)).toEqual(REFERENCES.map(([, , expected]) => expected));
   });
 
-  // Stanford publishes an index map's sheets both ways, and the tileset labels each sheet once per
-  // piece of it in every tile - every island of a coastline, many times over
   it('opens on an index map rather than the tileset of the same sheets', () => {
     const record = buildRecord({
       'https://github.com/protomaps/PMTiles': 'https://example.com/tiles.pmtiles',
@@ -89,7 +80,6 @@ describe('resourcesFor', () => {
     expect(resourcesFor(record).map(resource => resource.kind)).toEqual(['openindexmap', 'pmtiles']);
   });
 
-  // The FGDC is where a DEM says its values are elevations, and in what unit - see CogResource
   it("hands a COG the record's FGDC", () => {
     const fgdc = 'https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/13/TIFF/current/n42w092/USGS_13_n42w092.xml';
     const record = buildRecord({ 'https://github.com/cogeotiff/cog-spec': 'https://example.com/dem.tif', 'http://www.opengis.net/cat/csw/csdgm': fgdc });
@@ -97,7 +87,6 @@ describe('resourcesFor', () => {
     expect((resourcesFor(record)[0] as CogResource).fgdcUrl).toEqual(fgdc);
   });
 
-  // ...and where an index map of DEM tiles says the same of its sheets, for a mosaic of them
   it("hands an index map the record's FGDC", () => {
     const fgdc = 'https://www.sciencebase.gov/catalog/file/get/4f70aa9fe4b058caae3f8de5?f=__disk__e4%2F8a%2F44';
     const record = buildRecord({ 'https://openindexmaps.org': 'https://example.com/index.json', 'http://www.opengis.net/cat/csw/csdgm': fgdc });
@@ -109,8 +98,6 @@ describe('resourcesFor', () => {
     expect(resourcesFor(buildRecord({ 'http://schema.org/downloadUrl': 'https://example.com/data.zip' }))).toEqual([]);
   });
 
-  // None of this can go on a map, but where the record is can, and that is most of what a reader came
-  // to a map for. Better than an empty viewer.
   describe('a record with nothing to put on a map but somewhere to point', () => {
     const unpreviewable = { 'http://schema.org/downloadUrl': 'https://example.com/data.zip' };
 
@@ -127,8 +114,6 @@ describe('resourcesFor', () => {
       ]);
     });
 
-    // An envelope around a coastline claims the sea as well. locn_geometry is the better answer
-    // wherever a record carries one, which is why the resource takes a shape and not a box.
     it('prefers the record geometry to its bounding box', () => {
       const record = buildRecord(unpreviewable, {
         dcat_bbox: 'ENVELOPE(0,10,10,0)',
@@ -139,9 +124,6 @@ describe('resourcesFor', () => {
       expect((resource.getGeometry() as GeoJSON.Polygon).coordinates[0]).toHaveLength(7);
     });
 
-    // A scan goes on a map only when it also says where on the earth it belongs. An image never does;
-    // a manifest sometimes does, and the only way to find out is to fetch it - so the location is
-    // offered here and previewersForResources takes it back if a map turns up. See ogm-viewer#81.
     it.each([
       ['http://iiif.io/api/image', 'iiif-image'],
       ['http://iiif.io/api/presentation#manifest', 'iiif-manifest'],
@@ -151,8 +133,6 @@ describe('resourcesFor', () => {
       expect(resourcesFor(record).map(resource => resource.kind)).toEqual([kind, 'location']);
     });
 
-    // Only when there is nothing else on the map. A record whose own data draws has no use for an
-    // outline of where that data is.
     it('is not offered alongside a preview that is a map either way', () => {
       const record = buildRecord({ 'http://geojson.org/geojson-spec.html': 'https://example.com/data.json' }, { dcat_bbox: 'ENVELOPE(0,10,10,0)' });
 
@@ -164,7 +144,6 @@ describe('resourcesFor', () => {
     });
   });
 
-  // A WxS endpoint is a catalogue, so without an identifier we don't know what to ask it for
   it.each(['http://www.opengis.net/def/serviceType/ogc/wms', 'http://www.opengis.net/def/serviceType/ogc/wmts'])(
     'skips the %s reference when the record names no layer within it',
     uri => {
@@ -172,9 +151,6 @@ describe('resourcesFor', () => {
     },
   );
 
-  // Asserted through XYZ, which reports back exactly the bounds it was handed. Resources that can
-  // work their own extent out - a PMTiles header, a GeoJSON document - go and read it when the
-  // record didn't say, and that fallback is theirs to test, not the factory's.
   describe('bounds', () => {
     const xyzReference = { 'https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames': 'https://example.com/{z}/{x}/{y}.png' };
 
@@ -192,8 +168,6 @@ describe('resourcesFor', () => {
     });
   });
 
-  // Threaded to every resource kind the same way bounds is; each resource's own tests cover what
-  // it does with it, so one representative of each constructor shape is enough here.
   describe('requestTransform', () => {
     const transform = () => undefined;
 

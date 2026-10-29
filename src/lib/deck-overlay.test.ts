@@ -3,8 +3,6 @@ import type { MapLibreMap } from 'maplibre-gl';
 
 import { deckOverlay } from './deck-overlay';
 
-// Enough of a MapLibre map to hold controls, fire events, and say how big its canvas now is. Its
-// addControl never calls the control's onAdd, so deck.gl itself is never started.
 class FakeMap {
   _controls: unknown[] = [];
   canvas = { width: 1600, height: 812 };
@@ -25,8 +23,6 @@ class FakeMap {
   }
 }
 
-// luma.gl's canvas context, as far as the overlay asks of it: a drawing buffer it can be told the size
-// of, and the default framebuffer, which deck.gl takes the size of the viewport it draws into from
 const fakeContext = (width: number, height: number) => {
   const framebuffer = {
     width,
@@ -39,7 +35,6 @@ const fakeContext = (width: number, height: number) => {
   return { framebuffer, setDrawingBufferSize: vi.fn(), getCurrentFramebuffer: () => framebuffer };
 };
 
-// The overlay with a device of its own, as deck.gl gives it one once it has been added to the map
 const withContext = (overlay: unknown, context: ReturnType<typeof fakeContext>) => {
   Object.assign(overlay as object, { _deck: { device: { canvasContext: context } } });
 };
@@ -56,8 +51,6 @@ describe('deckOverlay', () => {
     expect(map.listeners.get('resize')?.size).toEqual(1);
   });
 
-  // Fullscreen, or a window resized: MapLibre has resized its canvas, and luma.gl's framebuffer has
-  // kept the old size, so deck.gl would draw into a box that size at the bottom left
   it('resizes luma.gl’s framebuffer to the canvas once MapLibre has resized it', () => {
     const map = new FakeMap();
     const context = fakeContext(1600, 812);
@@ -81,7 +74,6 @@ describe('deckOverlay', () => {
     expect(context.framebuffer.resize).not.toHaveBeenCalled();
   });
 
-  // Nothing has been drawn yet, so there's nothing drawn at the wrong size
   it('does nothing before deck.gl has a device', () => {
     const map = new FakeMap();
     deckOverlay(map as unknown as MapLibreMap);

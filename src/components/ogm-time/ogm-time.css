@@ -17,7 +17,6 @@
   min-width: 15rem;
 }
 
-/* A time of day takes more room: Oct 2, 2026, 20:27:40 UTC */
 .panel.tells-time-of-day {
   min-width: 19rem;
 }
@@ -66,7 +65,6 @@ button:focus-visible {
   outline-offset: var(--wa-focus-ring-offset);
 }
 
-/* At the first or last time there is */
 button:disabled {
   cursor: default;
   opacity: 0.4;
@@ -119,8 +117,6 @@ button:disabled {
   color: var(--wa-color-text-quiet);
 }
 
-/* Native fields, in Web Awesome's form-control colors. The calendar a date field opens is the
-   browser's own, which follows the color-scheme the theme sets on the map around this. */
 .date,
 .time {
   background-color: var(--wa-form-control-background-color);
@@ -155,7 +151,7 @@ button:disabled {
   color: var(--wa-color-danger-on-quiet);
 }
 
-/* Read out, not shown: the time a step just moved to, for a reader who can't see the label change */
+/* Announce time changes to screen readers without drawing a second label. */
 .status {
   clip-path: inset(50%);
   height: 1px;

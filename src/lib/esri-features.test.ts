@@ -20,7 +20,6 @@ const tree = (id: number, lng = -89.4, lat = 43.07): GeoJSON.Feature => ({
   properties: { OBJECTID: id, photo_year_label: '1937' },
 });
 
-// The tile over Madison at the zoom the Wisconsin layer is published from
 const Z = 10;
 const X = 257;
 const Y = 375;
@@ -66,8 +65,6 @@ describe('encodeFeatureTile', () => {
   });
 
   it('keeps the service own ids, which is what a selection survives on', () => {
-    // MapLibre works a selection and a hover from a feature id, so a tile dropped and read again
-    // has to come back with the same ones or the highlight lands on whatever is now in that slot
     const tile = decode(encodeFeatureTile([tree(4242)], Z, X, Y, 'OBJECTID') as ArrayBuffer);
 
     expect(tile.layers.esri.feature(0).id).toEqual(4242);
@@ -80,8 +77,6 @@ describe('encodeFeatureTile', () => {
   });
 
   it('hands back its own bytes and nothing else', () => {
-    // pbf finishes into a view over a buffer deliberately allocated larger than the tile, so
-    // handing MapLibre that buffer would hand it whatever else is in there
     const data = encodeFeatureTile([tree(1)], Z, X, Y, 'OBJECTID') as ArrayBuffer;
     const decoded = decode(data);
 
@@ -94,8 +89,6 @@ describe('encodeFeatureTile', () => {
   });
 
   it('drops what the query returned from outside the tile it was asked about', () => {
-    // A spatial relationship can be looser than the box; whatever it let through is clipped here
-    // rather than drawn into a tile it does not belong to
     const elsewhere = tree(2, -110, 40);
 
     expect(encodeFeatureTile([elsewhere], Z, X, Y, 'OBJECTID')).toBeUndefined();
@@ -105,14 +98,11 @@ describe('encodeFeatureTile', () => {
 describe('the esri-features protocol', () => {
   afterEach(() => unregisterFeatureTiler('probe'));
 
-  // Called the way MapLibre calls it: a URL and a controller it can abort
   const request = async (url: string) => {
     const controller = new AbortController();
     return { response: await esriFeatureTile({ url }, controller), controller };
   };
 
-  // What MapLibre does with the buffer it is handed: postMessage transfers it to the worker rather
-  // than copying it, which detaches it here. Anything of ours still pointing at it is now unreadable.
   const transfer = (data: ArrayBuffer) => structuredClone(data, { transfer: [data] });
 
   const tilerFor = (overrides: Partial<EsriFeatureTiler> = {}): EsriFeatureTiler & { calls: number[][]; signals: (AbortSignal | undefined)[] } => {
@@ -163,8 +153,6 @@ describe('the esri-features protocol', () => {
   });
 
   it('lets an abandoned tile stay abandoned', async () => {
-    // MapLibre has its own handling for a tile a reader panned away from; swallowing the abort
-    // would have it treat a cancelled request as a tile of empty ocean
     registerFeatureTiler('probe', {
       async fetchTile() {
         throw Object.assign(new Error('aborted'), { name: 'AbortError' });
@@ -202,7 +190,6 @@ describe('the esri-features protocol', () => {
   });
 
   it('has an empty tile left for the next one after MapLibre has taken one away', async () => {
-    // One shared empty buffer would work exactly once and then throw for every tile of ocean after
     registerFeatureTiler('probe', {
       async fetchTile() {
         return undefined;

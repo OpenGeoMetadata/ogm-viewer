@@ -1,6 +1,3 @@
-/* Field definitions, laid out like the metadata panel's own fields - see ogm-metadata.css - so the
-   two read as one sidebar rather than two. The names come out of somebody's shapefile, so they get
-   the same monospace the attribute table gives them. */
 .field-definitions {
   line-height: var(--wa-line-height-condensed);
   margin: 0;

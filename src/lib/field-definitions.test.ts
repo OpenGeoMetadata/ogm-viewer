@@ -7,15 +7,11 @@ import { References } from './references';
 const FGDC_KEY = 'http://www.opengis.net/cat/csw/csdgm';
 const GCO_KEY = 'http://www.isotc211.org/schemas/2005/gco';
 
-// One read per URL is held for the life of the page, so every test needs a URL of its own rather
-// than the answer another test already cached
 let unique = 0;
 const url = (name: string) => `https://example.com/${name}-${++unique}.xml`;
 
 const referencesFor = (contents: Record<string, string>) => new References(JSON.stringify(contents));
 
-// The Entity and Attribute section of a real CUGIR record, trimmed to two fields. Namespace-free,
-// as FGDC always is.
 const FGDC = `<metadata>
   <eainfo>
     <detailed>
@@ -36,8 +32,6 @@ const FGDC = `<metadata>
   </eainfo>
 </metadata>`;
 
-// A real Stanford feature catalogue, trimmed to one attribute - with the definitionReference kept,
-// because that is the part a descendant search goes wrong on
 const ISO19110 = `<gfc:FC_FeatureCatalogue xmlns:gfc="http://www.isotc211.org/2005/gfc" xmlns:gco="http://www.isotc211.org/2005/gco" xmlns:gmd="http://www.isotc211.org/2005/gmd">
   <gfc:featureType>
     <gfc:FC_FeatureType>
@@ -99,12 +93,9 @@ describe('fieldDefinitions', () => {
         ['3', 'Tompkins County'],
       ]),
     });
-    // A field with no domain carries no codedValues key at all rather than an empty map
     expect(definitions?.get('name')).toEqual({ name: 'NAME', definition: 'Name of the road' });
   });
 
-  // The two halves disagree about case: a GetFeatureInfo response says 'routetype' where the FGDC
-  // describing it says 'ROUTETYPE'
   it('keys fields by their lower-cased name, keeping the name as written', async () => {
     const fgdc = url('case');
     respondWith({ case: FGDC });
@@ -124,15 +115,10 @@ describe('fieldDefinitions', () => {
     expect(definitions?.get('mtfcc')).toEqual({
       name: 'MTFCC',
       definition: 'MAF/TIGER feature class code of the primary feature for the edge',
-      // label holds the code and definition holds its meaning, which reads backwards but is what
-      // the standard says
       codedValues: new Map([['C3023', 'Island']]),
     });
   });
 
-  // The trap this test exists for: an attribute holds its listed values, each of which has a
-  // definition, and a definitionReference citing where the wording came from. Asking the attribute
-  // for "the definition anywhere inside me" finds one of those instead of the field's own.
   it("does not mistake a listed value's meaning or a citation for the field's definition", async () => {
     const iso = url('nested');
     respondWith({ nested: ISO19110 });
@@ -143,8 +129,6 @@ describe('fieldDefinitions', () => {
     expect(definitions?.get('mtfcc')?.definition).not.toContain('Census Bureau');
   });
 
-  // Where a record has both - Stanford's do - the FGDC is at least as complete and is the one that
-  // decodes its values
   it('prefers the FGDC when a record points at both', async () => {
     const fgdc = url('preferred');
     const iso = url('ignored');
@@ -157,7 +141,6 @@ describe('fieldDefinitions', () => {
     expect(fetchSpy.mock.calls.map(([requested]) => requested?.toString())).toEqual([fgdc]);
   });
 
-  // An FGDC that turns out to describe nothing shouldn't cost the record its other document
   it('falls back to the ISO 19110 when the FGDC describes no fields', async () => {
     const fgdc = url('empty');
     const iso = url('fallback');
@@ -175,9 +158,6 @@ describe('fieldDefinitions', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  // Stanford answers an unauthenticated read with a redirect to the identity provider, and the login
-  // page arrives with an OK status. Parsed as XML it describes no fields, which is indistinguishable
-  // from a real document that says nothing - so it is caught by its content type instead.
   it('refuses a login page served in place of the document', async () => {
     const fgdc = url('login');
     respondWith({ login: '<!DOCTYPE html><html><body>Sign in</body></html>' }, 'text/html;charset=utf-8');
@@ -202,8 +182,6 @@ describe('fieldDefinitions', () => {
     expect(await fieldDefinitions(referencesFor({ [FGDC_KEY]: fgdc }))).toBeUndefined();
   });
 
-  // Two consumers ask at different moments - the attribute table on a click, the sidebar on load -
-  // and one document read serves both
   it('reads one document once however many times it is asked for', async () => {
     const fgdc = url('shared');
     const fetchSpy = respondWith({ shared: FGDC });
@@ -217,8 +195,6 @@ describe('fieldDefinitions', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
-  // A refused request shouldn't be the answer for the rest of the session: a session can be
-  // established, or a token renewed, between one attempt and the next
   it('tries again after a failure rather than remembering it', async () => {
     const fgdc = url('retry');
     vi.spyOn(console, 'warn').mockImplementation(() => {});

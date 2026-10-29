@@ -3,16 +3,13 @@ import { resolveRequest } from '../request';
 import MapResource from './map';
 import type { ResourceKind } from './resource';
 
-// A single vector layer in a TileJSON tileset
 interface VectorLayer {
   id: string;
 }
 
-// Vector or raster tileset described in a TileJSON document at a URL
 export default class TileJsonResource extends MapResource {
   readonly kind: ResourceKind = 'tilejson';
 
-  // Metadata parsed from TileJSON document
   private metadata: any;
 
   label() {
@@ -27,7 +24,6 @@ export default class TileJsonResource extends MapResource {
     return undefined;
   }
 
-  // Fetch and memoize metadata
   protected async getMetadata() {
     if (!this.metadata) {
       const { url, init } = resolveRequest(this.url, 'metadata', this.requestTransform);
@@ -37,7 +33,6 @@ export default class TileJsonResource extends MapResource {
     return this.metadata;
   }
 
-  // Determined by filename
   async isVector() {
     const metadata = await this.getMetadata();
     const template = metadata.tiles[0];
@@ -45,8 +40,6 @@ export default class TileJsonResource extends MapResource {
     return pathname.endsWith('.pbf') || pathname.endsWith('.mvt') || pathname.endsWith('.mlt');
   }
 
-  // Used to zoom the map to the data once loaded; bounds are optional in TileJSON, and
-  // without them we leave the camera wherever it already is
   async getReportedBounds() {
     const metadata = await this.getMetadata();
     if (!metadata.bounds) return undefined;
@@ -56,9 +49,7 @@ export default class TileJsonResource extends MapResource {
     ] as [[number, number], [number, number]];
   }
 
-  // TileJSON has no tileSize of its own, though some services add one to the document. Raster
-  // tiles served from a {z}/{x}/{y} template are 256px by convention, so assume that otherwise;
-  // MapLibre would default to 512 and draw them upscaled and blurry.
+  // TileJSON has no standard tileSize; raster XYZ tiles conventionally use 256px.
   async getTileSize(): Promise<number> {
     const metadata = await this.getMetadata();
     return metadata.tileSize ?? 256;

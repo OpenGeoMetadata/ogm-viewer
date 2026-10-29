@@ -5,12 +5,10 @@ import type { EsriMetadata, EsriTileInfo } from '../esri';
 
 const SERVICE = 'https://example.org/arcgis/rest/services/mn_landcover/MapServer';
 
-// Half the width of the Web Mercator plane, where a standard tile pyramid hangs from
 const MERCATOR_EXTENT = 20037508.342789244;
 
 const MINNESOTA = { xmin: -10828034.63, ymin: 5378465.06, xmax: -9951610.44, ymax: 6343784.48, spatialReference: { wkid: 102100, latestWkid: 3857 } };
 
-// The zooms of a standard pyramid: level 0 is the whole world in one tile, and each level halves it
 const pyramidLods = (zooms: number[], tileSize = 256) => zooms.map(level => ({ level, resolution: (2 * MERCATOR_EXTENT) / tileSize / 2 ** level }));
 
 const tileInfo = (overrides: Partial<EsriTileInfo> = {}, tileSize = 256): EsriTileInfo => ({
@@ -22,7 +20,6 @@ const tileInfo = (overrides: Partial<EsriTileInfo> = {}, tileSize = 256): EsriTi
   ...overrides,
 });
 
-// A cache cut on the grid MapLibre draws in
 const XYZ_CACHE: EsriMetadata = {
   capabilities: 'Map,TilesOnly',
   singleFusedMapCache: true,
@@ -31,7 +28,6 @@ const XYZ_CACHE: EsriMetadata = {
   tileInfo: tileInfo(),
 };
 
-// Reads a hand-built service description instead of fetching one
 class TestResource extends EsriTiledMapLayerResource {
   stub: EsriMetadata = {};
 
@@ -50,7 +46,6 @@ describe('EsriTiledMapLayerResource#getRasterSourceSpec', () => {
   it('reads a standard cache as XYZ tiles', async () => {
     const spec = await resourceFor(XYZ_CACHE).getRasterSourceSpec();
 
-    // ArcGIS orders the tile path zoom/row/column, which puts y before x
     expect(spec.tiles).toEqual([`${SERVICE}/tile/{z}/{y}/{x}`]);
     expect(spec.scheme).toEqual('xyz');
     expect(spec.tileSize).toEqual(256);
@@ -85,7 +80,6 @@ describe('EsriTiledMapLayerResource#getRasterSourceSpec', () => {
   });
 
   it('falls back to drawing the map on demand when the cache is on another grid', async () => {
-    // A cache in a state plane projection can't be addressed by z/x/y at all
     const statePlane = {
       ...XYZ_CACHE,
       capabilities: 'Map,Query,Data',
@@ -126,7 +120,6 @@ describe('EsriTiledMapLayerResource#getRasterSourceSpec', () => {
   });
 
   it('gives up on a cache it cannot read from a service that can only serve tiles', async () => {
-    // Nothing left to try: the grid is unreadable and the service won't redraw the map
     const tilesOnly = { ...XYZ_CACHE, capabilities: 'Map,TilesOnly', tileInfo: tileInfo({ spatialReference: { wkid: 26915 } }) };
 
     await expect(resourceFor(tilesOnly).getRasterSourceSpec()).rejects.toThrow(/Web Mercator/);

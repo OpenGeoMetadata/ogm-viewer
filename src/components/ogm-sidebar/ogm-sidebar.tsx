@@ -27,7 +27,6 @@ export class OgmSidebar {
   private tabs: WaTabGroup;
 
   componentWillLoad() {
-    // Don't bother awaiting; let the field definitions come along when ready
     this.loadDefinitions();
   }
 
@@ -42,22 +41,18 @@ export class OgmSidebar {
     if (!record) return;
 
     const definitions = await fieldDefinitions(record.references, this.requestTransform);
-    // Another record may have arrived while this one's metadata was being read
     if (record !== this.record) return;
     this.definitions = definitions;
   }
 
-  // Find the tab group element after the component is loaded
   componentDidLoad() {
     this.tabs = getElement(this.el, 'wa-tab-group') as WaTabGroup;
   }
 
-  // Name of the currently active tab panel in sidebar, if one is active
   get activeTabPanel() {
     return this.tabs?.active || undefined;
   }
 
-  // If open and no active tab, show the info tab
   componentDidUpdate() {
     if (this.open && !this.activeTabPanel) this.tabs.active = 'information';
   }
@@ -65,7 +60,6 @@ export class OgmSidebar {
   render() {
     return (
       <Host class={this.theme && `wa-${this.theme}`}>
-        {/* Contained sliding panel; wa-drawer always renders as a full-viewport modal, which doesn't suit an embeddable widget */}
         <div class={`sidebar ${this.open ? 'open' : ''}`} role="region" aria-label="Sidebar" aria-hidden={this.open ? 'false' : 'true'}>
           <wa-tab-group placement="start">
             <wa-tab slot="nav" panel="information">

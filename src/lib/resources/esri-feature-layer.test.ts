@@ -15,8 +15,6 @@ const QUERYABLE: EsriMetadata = {
   advancedQueryCapabilities: { supportsPagination: true },
 };
 
-// Reads a hand-built layer description and size instead of fetching either, so what a test queues
-// a response for is the read itself. A size of undefined lets the real probe run.
 class TestResource extends EsriFeatureLayerResource {
   stub: EsriMetadata = {};
   size: { count?: number; extent?: EsriExtent } | undefined = { count: 1_000_000 };
@@ -29,8 +27,6 @@ class TestResource extends EsriFeatureLayerResource {
     return this.size ?? (await super.getQuerySummary());
   }
 
-  // Reached through the fields a query asks for everywhere else; named here for the one test that
-  // is about the choice rather than the request
   async outFields() {
     return await this.getOutFields();
   }
@@ -43,15 +39,12 @@ const resourceFor = (stub: EsriMetadata = QUERYABLE, bounds?: LngLatBounds, size
   return resource;
 };
 
-// One that really asks the service how big the layer is, rather than being told. A separate helper
-// because passing undefined for `size` above would take the default instead.
 const probingResourceFor = (stub: EsriMetadata = QUERYABLE) => {
   const resource = resourceFor(stub);
   resource.size = undefined;
   return resource;
 };
 
-// A GeoJSON feature as a service answers with one
 const tree = (id: number): GeoJSON.Feature => ({
   type: 'Feature',
   id,
@@ -59,7 +52,6 @@ const tree = (id: number): GeoJSON.Feature => ({
   properties: { FID: id, Spp_Code: 'ULPU' },
 });
 
-// Answer each query in turn with the given page bodies
 const stubPages = (...pages: unknown[]) => {
   const fetchMock = vi.fn();
   pages.forEach(page => fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => page }));
@@ -124,7 +116,6 @@ describe('EsriFeatureLayerResource#getData', () => {
   });
 
   it('stops after one page when the service cannot page at all', async () => {
-    // Without paging the offset is ignored, so a second request would return the same features
     const stub = { ...QUERYABLE, advancedQueryCapabilities: { supportsPagination: false } };
     const fetchMock = stubPages({ type: 'FeatureCollection', features: [tree(1), tree(2)], exceededTransferLimit: true });
 
@@ -174,7 +165,6 @@ describe('EsriFeatureLayerResource#getData', () => {
       exceededTransferLimit: true,
     });
 
-    // Eleven pages of a thousand would be read if nothing stopped it at ten thousand
     const stub = { ...QUERYABLE, maxRecordCount: 1000 };
     const fetchMock = stubPages(...Array.from({ length: 11 }, () => page(1000)));
 
@@ -197,8 +187,6 @@ describe('EsriFeatureLayerResource fields', () => {
   });
 
   it('reads a layer too large to hold with only the field that identifies a feature', async () => {
-    // The attributes are the payload on a layer this size: 1,749 bytes a feature against 138 for a
-    // geometry and an ObjectID. A click fetches the rest - see getAttributes.
     const fetchMock = stubPages({ type: 'FeatureCollection', features: [tree(1)] });
     await resourceFor(QUERYABLE, undefined, { count: 318_295 }).getData();
 
@@ -232,7 +220,6 @@ describe('EsriFeatureLayerResource#getPaging', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('asks for a standard page where the service will answer with one, and says so', async () => {
-    // 16,000 rather than 2,000 is the difference between one round trip and eight
     const stub = { ...QUERYABLE, standardMaxRecordCount: 16000, advancedQueryCapabilities: { supportsPagination: true, supportsQueryWithResultType: true } };
     const fetchMock = stubPages({ type: 'FeatureCollection', features: [tree(1)] });
     await resourceFor(stub).getData();
@@ -240,8 +227,6 @@ describe('EsriFeatureLayerResource#getPaging', () => {
     const params = new URL(fetchMock.mock.calls[0][0]).searchParams;
     expect(params.get('resultType')).toEqual('standard');
 
-    // Never more than the read is going to keep: a bigger page is bytes spent on features that get
-    // sliced off again
     expect(params.get('resultRecordCount')).toEqual('10000');
   });
 
@@ -332,8 +317,6 @@ describe('EsriFeatureLayerResource#tilesFeatures', () => {
   });
 
   it('tiles a layer that will not say how big it is', async () => {
-    // An empty tile and a warning is a better failure than a stalled browser, and a layer whose
-    // size is a surprise is the one to be careful with
     expect(await resourceFor(QUERYABLE, undefined, {}).tilesFeatures()).toEqual(true);
   });
 });
@@ -343,8 +326,6 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
 
   const POINTS = { ...QUERYABLE, geometryType: 'esriGeometryPoint', tileMaxRecordCount: 8000, advancedQueryCapabilities: { supportsQueryWithResultType: true } };
 
-  // Inside tile 10/257/375, which is the one over Madison. A feature anywhere else is clipped out
-  // of it - see encodeFeatureTile - so a tile test has to answer with something that belongs there.
   const inMadison = { type: 'Feature', id: 1, geometry: { type: 'Point', coordinates: [-89.4, 43.07] }, properties: { FID: 1 } };
 
   it('asks only about the tile box, in the grid MapLibre draws in', async () => {
@@ -357,7 +338,6 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
     expect(params.get('outSR')).toEqual('4326');
     expect(params.get('spatialRel')).toEqual('esriSpatialRelIntersects');
 
-    // The tile's own box, widened by the buffer the tiler keeps features in
     const box = (params.get('geometry') as string).split(',').map(Number).map(Math.round);
     expect(box).toEqual([-9980230, 5321852, -9939871, 5362210]);
   });
@@ -382,7 +362,6 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
   });
 
   it('asks a polygon layer to generalize to what a tile can draw, and a point layer not to', async () => {
-    // An ungeneralized county boundary is most of a tile; a point has no detail to throw away
     const shapes = stubPages({ type: 'FeatureCollection', features: [tree(1)] });
     await resourceFor({ ...POINTS, geometryType: 'esriGeometryPolygon' }).fetchTile(10, 257, 375);
     expect(new URL(shapes.mock.calls[0][0]).searchParams.get('maxAllowableOffset')).toEqual(String(360 / 2 ** 10 / 4096));
@@ -402,7 +381,6 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
   });
 
   it('has no tile for features the service answered with from outside the box', async () => {
-    // Nothing here belongs in a tile over Madison, so nothing is drawn into one
     stubPages({ type: 'FeatureCollection', features: [tree(1)] });
 
     expect(await resourceFor(POINTS).fetchTile(10, 257, 375)).toBeUndefined();
@@ -422,8 +400,6 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
   });
 
   it('gives up quietly on a tile that failed after something already drew', async () => {
-    // A tiled layer makes tens of these; one that went wrong under a preview a reader is already
-    // looking at is worth a line in the console, not an alert over the whole thing
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const fetchMock = vi.fn();
     fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ type: 'FeatureCollection', features: [inMadison] }) });
@@ -447,8 +423,6 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
   });
 
   it('counts the limit off the answer rather than the layer description', async () => {
-    // Which limit applied depends on what the service made of resultType and the record count
-    // factor; a cut-short answer holds exactly the number it was willing to send
     const many = Array.from({ length: 8000 }, (_unused, index) => ({ ...inMadison, id: index }));
     stubPages({ type: 'FeatureCollection', features: many, properties: { exceededTransferLimit: true } });
     const resource = resourceFor(POINTS);
@@ -464,8 +438,6 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
 
     expect(resource.cappedTiles).toEqual({ zoom: 10, limit: 1 });
 
-    // Not the whole-layer read's own flag: that one means a paged read stopped at MAX_FEATURES,
-    // which a tiled layer never does
     expect(resource.truncated).toEqual(false);
   });
 
@@ -479,7 +451,6 @@ describe('EsriFeatureLayerResource#fetchTile', () => {
     await resource.fetchTile(12, 1030, 1503);
     await resource.fetchTile(10, 257, 375);
 
-    // Zooming back out after a deeper tile was cut short doesn't make the shallower one the answer
     expect(resource.cappedTiles?.zoom).toEqual(12);
   });
 
@@ -518,8 +489,6 @@ describe('EsriFeatureLayerResource#getBounds', () => {
   });
 
   it('takes the extent the query reports when the layer own cannot be converted', async () => {
-    // A layer stored in a state plane grid reports its extent in that grid, which we have no
-    // projection library to convert; the query answers in degrees whatever the layer is stored in
     const stub = { ...QUERYABLE, extent: { xmin: 189000, ymin: 4800000, xmax: 761000, ymax: 5472000, spatialReference: { wkid: 26915 } } };
     const size = { count: 318_295, extent: { xmin: -92.9, ymin: 42.4, xmax: -86.7, ymax: 47.1, spatialReference: { wkid: 4326 } } };
     const bounds = (await resourceFor(stub, undefined, size).getBounds()) as LngLatBounds;
@@ -539,7 +508,6 @@ describe('EsriFeatureLayerResource#getBounds', () => {
   });
 
   it('never reads a tiled layer to answer where to point the camera', async () => {
-    // The whole read is what tiling exists to avoid; a camera question is no reason to make it
     const stub = { ...QUERYABLE, extent: undefined };
     const fetchMock = stubPages();
 

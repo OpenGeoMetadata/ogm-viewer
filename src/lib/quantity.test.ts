@@ -5,13 +5,9 @@ import { fieldDefinitions } from './field-definitions';
 import { quantityLabel, rasterQuantity } from './quantity';
 import { References } from './references';
 
-// One read per URL is held for the life of the page, so every test needs a URL of its own rather
-// than the answer another test already cached
 let unique = 0;
 const url = (name: string) => `https://example.com/${name}-${++unique}.xml`;
 
-// A 3DEP 1/3 arc-second tile's FGDC, trimmed to its spatial reference. All the record says about
-// its values is here: its Entity and Attribute section only points at a data dictionary.
 const DEM13 = `<?xml version="1.0" encoding="ISO-8859-1"?>
 <!DOCTYPE metadata SYSTEM "https://www.fgdc.gov/schemas/metadata/fgdc-std-001-1998.dtd">
 <metadata>
@@ -35,8 +31,6 @@ const DEM13 = `<?xml version="1.0" encoding="ISO-8859-1"?>
   </eainfo>
 </metadata>`;
 
-// A 3DEP Seamless 1-Meter cell's, which also describes its one attribute - in a unit spelled its
-// own way, and under a name that says nothing about what it is
 const S1M = `<metadata>
   <spref>
     <vertdef>
@@ -58,7 +52,6 @@ const S1M = `<metadata>
   </eainfo>
 </metadata>`;
 
-// A bathymetric grid's, which measures down from a tidal datum instead
 const BATHYMETRY = `<metadata>
   <spref>
     <vertdef>
@@ -95,7 +88,6 @@ describe('rasterQuantity', () => {
     expect(await rasterQuantity(fgdc)).toEqual({ name: 'Elevation', unit: 'meters', datum: 'North American Vertical Datum of 1988' });
   });
 
-  // The attribute's own unit says the same thing in other words, and its name says nothing at all
   it('goes by the vertical coordinate system even where an attribute names a unit too', async () => {
     const fgdc = url('s1m');
     respondWith({ s1m: S1M });
@@ -110,7 +102,6 @@ describe('rasterQuantity', () => {
     expect(await rasterQuantity(fgdc)).toEqual({ name: 'Depth', unit: 'meters', datum: 'Mean lower low water' });
   });
 
-  // A topobathymetric model stores heights, negative below the datum, whichever systems it defines
   it('prefers altitudes when a document defines depths as well', async () => {
     const fgdc = url('topobathy');
     respondWith({ topobathy: BATHYMETRY.replace('<vertdef>', '<vertdef><altsys><altdatum>NAVD 88</altdatum><altunits>meters</altunits></altsys>') });
@@ -125,8 +116,6 @@ describe('rasterQuantity', () => {
     expect(await rasterQuantity(fgdc)).toEqual({ name: 'Elevation' });
   });
 
-  // Most rasters' FGDC - Stanford's precipitation and land cover grids, a scanned map's - has no
-  // vertical coordinate system, and their values are nothing a vertical datum is about
   it('says nothing about a document with no vertical coordinate system', async () => {
     const fgdc = url('flat');
     respondWith({ flat: '<metadata><spref><horizsys /></spref></metadata>' });
@@ -158,8 +147,6 @@ describe('rasterQuantity', () => {
     expect(await rasterQuantity(fgdc)).toBeUndefined();
   });
 
-  // The sidebar reads the record's FGDC for its field definitions as the record loads, and the
-  // legend reads the same document for this - one request between them
   it('shares one read of the document with fieldDefinitions', async () => {
     const fgdc = url('shared');
     const fetchSpy = respondWith({ shared: S1M });

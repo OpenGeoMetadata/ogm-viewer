@@ -3,8 +3,6 @@ import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
 import WmsResource from './wms';
 import type { RequestTransform } from '../request';
 
-// The GetMap and GetFeatureInfo URLs are built by protected methods, so expose them for testing.
-// A capabilities document is read in rather than fetched, so nothing here touches the network.
 class TestWmsSource extends WmsResource {
   private xml?: string;
 
@@ -29,7 +27,6 @@ class TestWmsSource extends WmsResource {
 
 const ENDPOINT = 'https://geoservices.lib.berkeley.edu/geoserver/wms';
 
-// The part of a capabilities document that lists what GetFeatureInfo can answer with
 const capabilities = (formats: string[]) => `<?xml version="1.0" encoding="UTF-8"?>
 <WMS_Capabilities xmlns="http://www.opengis.net/wms" version="1.3.0">
   <Capability>
@@ -40,7 +37,6 @@ const capabilities = (formats: string[]) => `<?xml version="1.0" encoding="UTF-8
   </Capability>
 </WMS_Capabilities>`;
 
-// NASA GIBS's, which list every request the server takes, and GetFeatureInfo isn't one of them
 const WITHOUT_GET_FEATURE_INFO = `<?xml version="1.0" encoding="UTF-8"?>
 <WMS_Capabilities xmlns="http://www.opengis.net/wms" version="1.3.0">
   <Capability>
@@ -51,18 +47,15 @@ const WITHOUT_GET_FEATURE_INFO = `<?xml version="1.0" encoding="UTF-8"?>
   </Capability>
 </WMS_Capabilities>`;
 
-// What a server can send in place of its capabilities, which says nothing about what it offers
 const EXCEPTION_REPORT = `<?xml version="1.0" encoding="UTF-8"?>
 <ServiceExceptionReport xmlns="http://www.opengis.net/ogc" version="1.3.0">
   <ServiceException>The server is too busy to list its capabilities.</ServiceException>
 </ServiceExceptionReport>`;
 
-// The formats ArcGIS Server publishes; notably not the 'application/json' GeoServer answers to
 const ARCGIS_FORMATS = ['application/vnd.esri.wms_raw_xml', 'application/geo+json', 'text/xml', 'text/html', 'text/plain'];
 
 const GEOSERVER_FORMATS = ['text/plain', 'application/vnd.ogc.gml', 'application/json', 'text/html'];
 
-// A click in the middle of a 51x51 pixel window over Calaveras County
 const options = {
   bbox: '-13416701.09,4600766.56,-13411296.18,4606171.48',
   width: 51,
@@ -71,12 +64,10 @@ const options = {
   y: 25,
 };
 
-// Skips the format negotiation, which is exercised on its own below
 const sourceFor = (overrides = {}) => new TestWmsSource('s7st30', ENDPOINT, { layerIds: [], infoFormat: 'application/json', ...overrides });
 
 describe('WmsSource#tilesUrl', () => {
   it('sends the styles param the spec requires', () => {
-    // GeoServer lets it go missing, but ArcGIS refuses the whole request without it
     expect(sourceFor().map_url().searchParams.get('styles')).toEqual('');
   });
 
@@ -91,7 +82,6 @@ describe('WmsSource#inspectUrl', () => {
 
     expect(params.get('version')).toEqual('1.3.0');
 
-    // 1.3.0 spells these CRS and I,J rather than SRS and X,Y
     expect(params.get('crs')).toEqual('EPSG:3857');
     expect(params.get('i')).toEqual('25');
     expect(params.get('j')).toEqual('25');
@@ -119,7 +109,6 @@ describe('WmsSource#inspectUrl', () => {
     expect(params.get('width')).toEqual('51');
     expect(params.get('height')).toEqual('51');
 
-    // Defaults the layer to the source ID, and asks about it rather than just drawing it
     expect(params.get('layers')).toEqual('s7st30');
     expect(params.get('query_layers')).toEqual('s7st30');
   });
@@ -158,7 +147,6 @@ describe('WmsSource#getInfoFormat', () => {
   });
 
   it('asks for GeoJSON anyway when the capabilities cannot be read, rather than not asking', async () => {
-    // Reading them is what fails here, and the source says so on the way past
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     expect(await infoFormatFor()).toEqual('application/json');
@@ -214,7 +202,6 @@ describe('WmsSource#canInspect', () => {
     return await source.canInspect();
   };
 
-  // THREDDS' ncWMS answers with a chart or XML of its own, and refuses to answer in JSON at all
   it('says no for a server that answers only in formats we cannot read', async () => {
     expect(await canInspect(capabilities(['image/png', 'text/xml']))).toBe(false);
   });
@@ -230,7 +217,6 @@ describe('WmsSource#canInspect', () => {
     expect(warn).toHaveBeenCalled();
   });
 
-  // Asked anyway, it answers a click with an exception report, which the previewer can't read
   it('says no for a server whose capabilities offer no GetFeatureInfo at all', async () => {
     expect(await canInspect(WITHOUT_GET_FEATURE_INFO)).toBe(false);
   });

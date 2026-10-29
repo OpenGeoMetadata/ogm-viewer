@@ -14,15 +14,11 @@ export class OgmViewer {
   @Element() el!: HTMLElement;
   @Prop() recordUrl?: string;
   @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
-  // A caller's own basemap for each mode, as a URL to a MapLibre style document; see
-  // MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default.
   @Prop() darkBasemap?: string;
   @Prop() lightBasemap?: string;
   @Prop() beforeId?: string;
   @Prop() hideTitle: boolean = false;
-  // Applied to the record fetch itself, and passed down to every resource built from it - see
-  // Resource.requestTransform. A DOM property, like previewer on <ogm-preview>: set it before or
-  // alongside recordUrl, since changing it alone doesn't refetch an already-loaded record.
+  /** Set before recordUrl; changing this alone does not refetch the current record. */
   @Prop() requestTransform?: RequestTransform;
   @State() record?: OgmRecord;
   @State() error?: PreviewError;
@@ -32,34 +28,28 @@ export class OgmViewer {
   private loadingCount: number = 0;
   private sidebarPadding: number = 0;
 
-  // Prior to rendering, take the theme and fetch the record if a URL is provided
   async componentWillLoad() {
     adoptWebAwesomeTheme(this.el);
     if (this.recordUrl) return await this.updateRecord();
   }
 
-  // Shift the map/image over when the sidebar is toggled open
   @Listen('sidebarToggled')
   toggleSidebar() {
     this.sidebarOpen = !this.sidebarOpen;
     this.sidebarPadding = this.sidebarOpen ? 400 : 0;
   }
 
-  // When URL changes, fetch the new record
   @Watch('recordUrl')
   async updateRecord() {
     this.record = await this.fetchRecord(this.recordUrl);
   }
 
-  // Can be called externally to set the record directly
   @Method()
   async loadRecord(record: OgmRecord) {
     this.error = undefined;
     this.record = record;
   }
 
-  // Listen for a preview to report loading started. Working out which previews a record even has
-  // can mean reading a remote document, so that wait is counted here too.
   @Listen('previewsLoading')
   @Listen('mapLoading')
   @Listen('imageLoading')
@@ -68,7 +58,6 @@ export class OgmViewer {
     this.loading = true;
   }
 
-  // When all in-flight previews have loaded, clear loading state
   @Listen('previewsLoaded')
   @Listen('mapIdle')
   @Listen('imageLoaded')
@@ -77,17 +66,14 @@ export class OgmViewer {
     this.loading = this.loadingCount > 0;
   }
 
-  // When a new record loads, reset the loading count and loading state
   @Watch('record')
   resetLoading() {
     this.loadingCount = 0;
     this.loading = false;
   }
 
-  // Fetch a record by URL and parse it into an OgmRecord instance.
   private async fetchRecord(recordUrl?: string): Promise<OgmRecord | undefined> {
     this.error = undefined;
-    // No URL means no record, rather than a fetch of one called "undefined"
     if (!recordUrl) return undefined;
     try {
       const { url, init } = resolveRequest(recordUrl, 'metadata', this.requestTransform);

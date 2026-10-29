@@ -1,6 +1,5 @@
 import type { IControl, Map } from 'maplibre-gl';
 
-// A button in the map's control stack that shows and hides the layer panel
 export default class LayersControl implements IControl {
   private container: HTMLElement | undefined;
   private button: HTMLButtonElement | undefined;
@@ -16,8 +15,6 @@ export default class LayersControl implements IControl {
     this.button.type = 'button';
     this.button.addEventListener('click', () => this.onToggle());
 
-    // MapLibre draws control icons as a background image on this span, so it carries no content of
-    // its own and the button's name has to come from the label attributes
     const icon = document.createElement('span');
     icon.className = 'maplibregl-ctrl-icon';
     icon.setAttribute('aria-hidden', 'true');
@@ -34,9 +31,6 @@ export default class LayersControl implements IControl {
     this.button = undefined;
   }
 
-  // Whether the panel is currently showing. Shown as a background tint rather than MapLibre's own
-  // convention of a blue glyph, because a colored icon under the dark-mode `filter: invert(1)` is
-  // exactly what forced the globe-icon and focus-ring workarounds in ogm-map.css.
   setPressed(pressed: boolean) {
     if (!this.button) return;
     const label = pressed ? 'Hide layers' : 'Show layers';
@@ -46,9 +40,7 @@ export default class LayersControl implements IControl {
     this.button.classList.toggle('pressed', pressed);
   }
 
-  // Hidden rather than removed from the map, so that an embedder toggling `hide-layer-controls` at
-  // runtime gets the button back where it was: addControl appends, so removing and re-adding would
-  // drop it to the bottom of the stack.
+  // Hide the control in place so showing it again preserves its position in the stack.
   setHidden(hidden: boolean) {
     if (this.container) this.container.hidden = hidden;
   }

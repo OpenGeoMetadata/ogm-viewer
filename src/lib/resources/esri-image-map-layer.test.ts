@@ -6,10 +6,8 @@ import type { PixelWindow } from '../geometry';
 
 const SERVICE = 'https://example.org/arcgis/rest/services/NAIP/USDA_CONUS_PRIME/ImageServer';
 
-// A 51x51 pixel window ten meters to a pixel, clicked in the middle
 const WINDOW: PixelWindow = { bbox: '-10000,0,-9490,510', width: 51, height: 51, x: 25, y: 25 };
 
-// Reads a hand-built service description instead of fetching one
 class TestResource extends EsriImageMapLayerResource {
   stub: EsriMetadata = {};
 
@@ -24,7 +22,6 @@ const resourceFor = (stub: EsriMetadata = {}) => {
   return resource;
 };
 
-// Answer one identify request with the given body
 const stubIdentify = (body: unknown) => {
   const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => body });
   vi.stubGlobal('fetch', fetchMock);

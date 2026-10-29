@@ -2,7 +2,6 @@ import { render, describe, it, expect, h } from '@stencil/vitest';
 
 import { referenceError } from '../../lib/errors';
 
-// Mock a network failure on load
 const makeError = (url?: string) => referenceError(new TypeError('Failed to fetch'), 'GeoJSON', url);
 
 describe('ogm-alerts', () => {

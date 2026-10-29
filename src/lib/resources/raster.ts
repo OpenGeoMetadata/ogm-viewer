@@ -1,6 +1,5 @@
 import MapResource from './map';
 
-// Tiled raster data, accessed remotely
 export default abstract class RasterResource extends MapResource {
   async isVector() {
     return false;
@@ -14,6 +13,5 @@ export default abstract class RasterResource extends MapResource {
     return 'raster' as const;
   }
 
-  // Protocol identifier for MapLibre
   abstract getScheme(): 'xyz' | 'tms' | undefined;
 }

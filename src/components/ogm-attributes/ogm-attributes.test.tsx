@@ -3,7 +3,6 @@ import type { MapGeoJSONFeature } from 'maplibre-gl';
 
 import type { References } from '../../lib/references';
 
-// A WMS GetFeatureInfo response, where attributes that don't apply to the feature come back null
 const feature = {
   type: 'Feature',
   id: 'cugir007741.1',
@@ -11,7 +10,6 @@ const feature = {
   properties: { region: 5, stat_name: 'EMN - WHITEFACE MT. SMT', ozone: 'Y', pm_2_5: null },
 } as unknown as MapGeoJSONFeature;
 
-// One of the sheets an index map stacks at a point, as a click on the overlap returns them
 const sheet = (properties: Record<string, string>) =>
   ({
     type: 'Feature',
@@ -22,11 +20,8 @@ const sheet = (properties: Record<string, string>) =>
 
 const SHEETS = [sheet({ label: 'SB 24', recId: 'am002175' }), sheet({ label: 'SB 25', recId: 'am002176' })];
 
-// The same stack from a source that names its features nothing we recognize as a label
 const UNLABELED = [sheet({ recId: 'am002175' }), sheet({ recId: 'am002176' })];
 
-// A sheet of the American Geographical Society's Millionth Map, as GeoBlacklight's own fixture
-// carries it, trimmed to the properties this component does something with
 const SHEET = sheet({
   label: 'SB 24',
   title: 'Jaguaribe',
@@ -37,7 +32,6 @@ const SHEET = sheet({
   download: 'https://collections.lib.uwm.edu/digital/download/collection/agdm/id/4878/size/full',
 });
 
-// A second sheet with a picture of its own, for paging between two of them
 const SHEET_WITH_PICTURE = sheet({
   label: 'SB 25',
   title: 'San Jose',
@@ -56,44 +50,29 @@ const keys = (root: HTMLElement) => Array.from(shadow(root).querySelectorAll('tb
 const image = (root: HTMLElement) => shadow(root).querySelector('img.thumbnail');
 const tabs = (root: HTMLElement) => Array.from(shadow(root).querySelectorAll<HTMLElement>('wa-tab'));
 
-// Which view the popup is showing. Both panels are in the document at once - that is what a tab group
-// is - so what a reader can see is the one marked active, not the one that exists.
 const showing = (root: HTMLElement) =>
   Array.from(shadow(root).querySelectorAll<HTMLElement & { active: boolean }>('wa-tab-panel'))
     .filter(panel => panel.active)
     .map(panel => panel.getAttribute('name'));
 
-// The tooltip a documented field's name is wired to. Wiring is what can be checked here - happy-dom
-// delivers no real hover, and the hovering itself is Web Awesome's to get right (see `show` below).
 const definitionFor = (root: HTMLElement, key: string) => {
   const anchor = Array.from(shadow(root).querySelectorAll('tbody .key .defined')).find(span => span.textContent === key);
-  // wa-tooltip resolves the `for` it was given into an aria-labelledby on the anchor pointing at an
-  // id of its own, so the wiring to follow is that one rather than the attribute handed in
   const labelledBy = anchor?.getAttribute('aria-labelledby');
   if (!labelledBy) return undefined;
   return shadow(root).getElementById(labelledBy)?.textContent;
 };
 
-// The one link in the row named by the given key, if it has one
 const cellLink = (root: HTMLElement, key: string) => {
   const row = Array.from(shadow(root).querySelectorAll('tbody tr')).find(tr => tr.querySelector('.key')?.textContent === key);
   const link = row?.querySelector('a');
   return link ? { text: link.textContent, href: link.getAttribute('href') } : undefined;
 };
 
-// A thumbnail read out of a IIIF manifest is two awaits away from the render that asked for it, and
-// the state it sets schedules one more
 const settle = async (waitForChanges: () => Promise<void>) => {
   await waitForChanges();
   await waitForChanges();
 };
 
-// Ask for one of the two views, as a reader's click on its tab would. It has to be the tab group's
-// own `active` rather than an actual click: happy-dom doesn't carry an event on a slotted child into
-// the shadow tree that slots it, and wa-tab-group listens for the click inside its own, so a click
-// lands nowhere (probed, not assumed). Everything downstream of that is real - wa-tab-group's
-// setActiveTab, the wa-tab-show it emits, and the state here that listens for it. The click itself is
-// Web Awesome's to get right, and is checked in a browser instead.
 const show = async (root: HTMLElement, view: 'image' | 'attributes', waitForChanges: () => Promise<void>) => {
   const group = shadow(root).querySelector<HTMLElement & { active: string }>('wa-tab-group');
   if (group) group.active = view;
@@ -197,9 +176,6 @@ describe('ogm-attributes', () => {
       expect(rows(root)).toEqual([['recId', 'am002176']]);
     });
 
-    // The bug this row exists to avoid: while the title lived in the table's own header, a long one
-    // widened the table past the room it had and pushed the paging button out of the popup. A row
-    // above the content has the popup's whole width to shrink the title inside.
     it('keeps the title and the paging out of the table they describe', async () => {
       const { root } = await render(<ogm-attributes features={SHEETS}></ogm-attributes>);
 
@@ -210,15 +186,7 @@ describe('ogm-attributes', () => {
     });
   });
 
-  // An index map's sheets carry properties with names of their own, which is more than a table of raw
-  // keys can say about them
-  // A record can point at an FGDC or ISO 19110 document describing what its fields hold. Reading it
-  // is field-definitions.ts's own concern and tested there; what matters here is what a table does
-  // with the answer, and what it does without one.
   describe("naming fields from the record's own metadata", () => {
-    // All this component does with References is hand it to fieldDefinitions, which reads these two
-    // getters off it; the fetch below is what decides the answer. Each test names a document of its
-    // own, because one read per URL is held for the life of the page.
     const referencesFor = (url: string) => ({ fgdcUrl: url, iso19110Url: undefined }) as unknown as References;
 
     const FGDC = `<metadata><eainfo><detailed>
@@ -230,8 +198,6 @@ describe('ogm-attributes', () => {
       </attr>
     </detailed></eainfo></metadata>`;
 
-    // A document read is a tick further off than a thumbnail: the fetch, its text, the parse, and
-    // then the state that schedules the render. `settle` is built for the shorter of the two.
     const settleDefinitions = async (waitForChanges: () => Promise<void>) => {
       for (let tick = 0; tick < 4; tick++) await waitForChanges();
     };
@@ -250,7 +216,6 @@ describe('ogm-attributes', () => {
       await settleDefinitions(waitForChanges);
 
       expect(definitionFor(root, 'region')).toEqual('The DEC region where the station is located.');
-      // stat_name is in the response but not in the document, so it keeps a plain name
       expect(definitionFor(root, 'stat_name')).toBeUndefined();
       expect(keys(root)).toEqual(['region', 'stat_name', 'ozone', 'pm_2_5']);
     });
@@ -268,12 +233,9 @@ describe('ogm-attributes', () => {
       const { root, waitForChanges } = await render(<ogm-attributes features={[feature]} kind="wms" references={referencesFor('https://example.com/uncoded.xml')} />);
       await settleDefinitions(waitForChanges);
 
-      // REGION is defined but its values aren't coded, so 5 is still 5
       expect(rows(root)).toContainEqual(['region', '5']);
     });
 
-    // The common case by a wide margin: most records point at no such document, or at one no
-    // browser can read
     it('shows exactly what it always did for a record with no metadata to read', async () => {
       const { root, waitForChanges } = await render(<ogm-attributes features={[feature]} kind="wms" />);
       await settleDefinitions(waitForChanges);
@@ -303,7 +265,6 @@ describe('ogm-attributes', () => {
 
     const renderSheet = async (features: MapGeoJSONFeature[]) => {
       const rendered = await render(<ogm-attributes kind="openindexmap" features={features}></ogm-attributes>);
-      // The picture is settled before any of these look, so nothing is asserted against a half-decided view
       await settle(rendered.waitForChanges);
       return rendered;
     };
@@ -326,8 +287,6 @@ describe('ogm-attributes', () => {
         expect(cellLink(root, 'Download')).toEqual({ text: 'Download this map', href: SHEET.properties.download });
       });
 
-      // digHold is a link here but the spec lets it be a plain note, so it goes through the same
-      // autolinking as any other value - which is why its text is the URL and the promoted ones' isn't
       it('leaves one that is only sometimes a link to the autolinker', async () => {
         const { root, waitForChanges } = await renderSheet([SHEET]);
         await showProperties(root, waitForChanges);
@@ -337,8 +296,6 @@ describe('ogm-attributes', () => {
       });
     });
 
-    // The picture is what you want when deciding which sheet you're after, so it's what a sheet opens
-    // on - the properties are a tab away. Both share the popup rather than crowding into it.
     describe('choosing between the picture and the properties', () => {
       it('opens on the picture, pointed where the sheet points', async () => {
         const { root } = await renderSheet([SHEET]);
@@ -348,8 +305,6 @@ describe('ogm-attributes', () => {
         expect(shadow(root).querySelector('a.thumbnail-link')?.getAttribute('href')).toEqual(SHEET.properties.websiteUrl);
       });
 
-      // Both panels are in the document from the start, which is what a tab group is for - it means
-      // coming back to the picture doesn't fetch it again. Only one of them is ever on screen.
       it('shows one or the other, never both', async () => {
         const { root, waitForChanges } = await renderSheet([SHEET]);
         expect(showing(root)).toEqual(['image']);
@@ -372,8 +327,6 @@ describe('ogm-attributes', () => {
         expect(showing(root)).toEqual(['image']);
       });
 
-      // A strip of its own under the header, the same shape <ogm-previews> uses to switch between a
-      // record's previews - not a button over the corner of the picture, which reads as part of it
       it('offers the two views as tabs, in a row of their own', async () => {
         const { root } = await renderSheet([SHEET]);
 
@@ -389,7 +342,6 @@ describe('ogm-attributes', () => {
         expect(shadow(root).querySelector('wa-tab-group')?.classList.contains('topmost')).toBe(false);
       });
 
-      // A reader comparing sheets shouldn't have to ask for the properties again on every one of them
       it('keeps the choice when paging to the next sheet', async () => {
         const { root, waitForChanges } = await renderSheet([SHEET, SHEET_WITH_PICTURE]);
         await showProperties(root, waitForChanges);
@@ -401,7 +353,6 @@ describe('ogm-attributes', () => {
         expect(showing(root)).toEqual(['attributes']);
       });
 
-      // A new click is a fresh question, so it starts where a sheet starts
       it('goes back to the picture for a new set of features', async () => {
         const { root, waitForChanges } = await renderSheet([SHEET]);
         await showProperties(root, waitForChanges);
@@ -413,7 +364,6 @@ describe('ogm-attributes', () => {
         expect(image(root)?.getAttribute('src')).toEqual(SHEET_WITH_PICTURE.properties.thumbUrl);
       });
 
-      // A strip of one tab is a label, not a choice
       it('shows the properties, and no tabs, for a sheet with no picture at all', async () => {
         const { root } = await renderSheet([sheet({ label: 'SB 25' })]);
 
@@ -433,8 +383,6 @@ describe('ogm-attributes', () => {
         expect(keys(root)).toEqual(['Sheet', 'IIIF manifest']);
       });
 
-      // Rather than showing the properties and swapping them out from under the reader once the
-      // manifest answers. Whether there is a picture to wait for is known from the sheet itself.
       it('waits on a picture it knows is coming rather than showing the properties first', async () => {
         vi.spyOn(global, 'fetch').mockReturnValue(new Promise(() => {}) as Promise<Response>);
 
@@ -444,10 +392,6 @@ describe('ogm-attributes', () => {
         expect(showing(root)).toEqual(['image']);
       });
 
-      // Knowing where a picture is isn't having it, and for a sheet carrying its own thumbUrl the
-      // download is the whole wait - there is no manifest to read first. The frame is the picture's
-      // size throughout either way, so what's at stake is whether the reader watches a placeholder
-      // or an empty box.
       it('keeps the placeholder up until the picture has downloaded, not just until it is named', async () => {
         const { root, waitForChanges } = await renderSheet([SHEET]);
 
@@ -461,8 +405,6 @@ describe('ogm-attributes', () => {
         expect(image(root)).not.toBeNull();
       });
 
-      // The same end as a sheet whose manifest named no picture, rather than a placeholder that
-      // shimmers forever over an image that is never going to arrive
       it('falls through to the properties when the picture fails to download', async () => {
         const { root, waitForChanges } = await renderSheet([SHEET]);
 
@@ -484,7 +426,6 @@ describe('ogm-attributes', () => {
       });
     });
 
-    // Which is how Stanford's index maps carry a picture: an iiifUrl per sheet and no thumbUrl anywhere
     it("reads a picture out of the sheet's IIIF manifest when it has none of its own", async () => {
       const thumbnail = 'https://stacks.stanford.edu/image/iiif/kh108fv7858/full/!400,400/0/default.jpg';
       const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 200, json: async () => ({ thumbnail: { '@id': thumbnail } }) } as unknown as Response);
@@ -496,8 +437,6 @@ describe('ogm-attributes', () => {
       expect(image(root)?.getAttribute('src')).toEqual(thumbnail);
     });
 
-    // The same sheet, from a plain GeoJSON layer or a GetFeatureInfo response: nothing tells us those
-    // keys mean what the spec says they mean, and thumbUrl is just another column
     it('leaves a feature from anything else as a table of its own keys', async () => {
       const { root, waitForChanges } = await render(<ogm-attributes features={[SHEET]}></ogm-attributes>);
       await settle(waitForChanges);

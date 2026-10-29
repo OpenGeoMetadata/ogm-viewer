@@ -1,24 +1,13 @@
 import { LngLat, LngLatBounds, MercatorCoordinate, type LngLatBoundsLike, type LngLatLike } from 'maplibre-gl';
 import { wktToGeoJSON } from '@terraformer/wkt';
 
-// Regular expression to match ENVELOPE syntax in bbox strings
 export const ENVELOPE_REGEX = /^ENVELOPE\((?<west>[^,]+),(?<east>[^,]+),(?<north>[^,]+),(?<south>[^,]+)\)$/;
 
-// EPSG:3857 spans this many meters from the origin on both axes
 const MERCATOR_EXTENT = 20037508.342789244;
 
-// Where a box's east edge is, counted onward from its west edge rather than from Greenwich. A box
-// that crosses the antimeridian is written with its east edge numerically west of its west edge -
-// Solr's ENVELOPE syntax and RFC 7946 section 5.2 both say so - and taken at face value that
-// describes the rest of the world instead: the 295 degrees a map of the Bering Strait doesn't cover.
-// Carrying the east edge past 180 rather than wrapping it back keeps the box in one piece, which is
-// what MapLibre needs both to draw an edge the short way round and to frame a camera on the half of
-// the world the record is actually on. It hands back a longitude outside -180..180, which MapLibre
-// reads everywhere it takes one; only a consumer that has to state a coordinate rather than use it
-// needs to wrap it, and none here does.
+// Carry crossing east edges past 180 so MapLibre frames the short span across the antimeridian.
 const unwrapEast = (west: number, east: number) => (east < west ? east + 360 : east);
 
-// Convert LngLatBounds to GeoJSON Polygon
 export const boundsToGeoJSON = (bounds: LngLatBounds) => {
   const [west, south, north] = [bounds.getWest(), bounds.getSouth(), bounds.getNorth()];
   const east = unwrapEast(west, bounds.getEast());
@@ -37,16 +26,13 @@ export const boundsToGeoJSON = (bounds: LngLatBounds) => {
   };
 };
 
-// Everywhere the given extents cover, or nothing if none of them covered anywhere
 export const unionBounds = (extents: (LngLatBoundsLike | undefined)[]): LngLatBounds | undefined => {
   const union = extents.reduce<LngLatBounds>((bounds, extent) => (extent ? bounds.extend(LngLatBounds.convert(extent)) : bounds), new LngLatBounds());
   return union.isEmpty() ? undefined : union;
 };
 
-// How much of the world can face a camera at once
 const HEMISPHERE = 180;
 
-// The most of the world a globe camera can be pointed at
 export const clampToHemisphere = (extent: LngLatBoundsLike): LngLatBounds => {
   const bounds = LngLatBounds.convert(extent);
   const [west, east] = [bounds.getWest(), bounds.getEast()];
@@ -55,34 +41,20 @@ export const clampToHemisphere = (extent: LngLatBoundsLike): LngLatBounds => {
   return new LngLatBounds([middle - HEMISPHERE / 2, bounds.getSouth()], [middle + HEMISPHERE / 2, bounds.getNorth()]);
 };
 
-// Where to look when nothing says where to look. Stops short of the poles because Mercator never
-// reaches them, and nothing this wide is drawn on anything but a flat map.
 export const WORLD: LngLatBoundsLike = [
   [-180, -85],
   [180, 85],
 ];
 
-// Convert an ENVELOPE format string into LngLatBounds
 export const bboxToBounds = (bbox: string) => {
-  // Try to parse bbox in ENVELOPE syntax
   const coords = bbox.match(ENVELOPE_REGEX);
   if (!coords) return;
 
-  // Convert to numbers and create LngLatBounds
   const { west, east, north, south } = coords.groups!;
   return new LngLatBounds([parseFloat(west), parseFloat(south)], [unwrapEast(parseFloat(west), parseFloat(east)), parseFloat(north)]);
 };
 
-/**
- * A camera stated in whichever form one can be given in: the west, south, east, north list
- * boundsToBbox hands back, an ENVELOPE string as `dcat_bbox` holds one, or anything else MapLibre
- * reads as bounds. Nothing at all for a string that says something else, or for numbers that don't
- * describe a box - a camera that can't be pointed is worth reporting rather than guessing at.
- *
- * The east edge is carried past the west the way unwrapEast does, which makes this the inverse of
- * boundsToBbox: a box that crosses the antimeridian is read back as the strait it covers rather than
- * as the rest of the world, so an area a reader asked to search can be handed straight back.
- */
+/** Read bounds or an ENVELOPE string, preserving antimeridian crossings; invalid input is undefined. */
 export const readBounds = (bounds: LngLatBoundsLike | string): LngLatBounds | undefined => {
   const read = typeof bounds === 'string' ? (bboxToBounds(bounds) ?? boundsFromList(bounds)) : convertBounds(bounds);
   if (!read) return undefined;
@@ -91,15 +63,12 @@ export const readBounds = (bounds: LngLatBoundsLike | string): LngLatBounds | un
   return new LngLatBounds([west, read.getSouth()], [unwrapEast(west, read.getEast()), read.getNorth()]);
 };
 
-// The four numbers of a bbox written out, in the west, south, east, north order MapLibre uses for
-// one everywhere else, separated by commas or spaces - the two ways a bbox is written down.
 const boundsFromList = (bbox: string): LngLatBounds | undefined => {
   const edges = bbox.split(/[\s,]+/).filter(edge => edge !== '');
   if (edges.length !== 4 || !edges.every(edge => Number.isFinite(Number(edge)))) return undefined;
   return convertBounds(edges.map(Number) as [number, number, number, number]);
 };
 
-// MapLibre throws on a box it can't read - a latitude past a pole, say - rather than saying so
 const convertBounds = (bounds: LngLatBoundsLike): LngLatBounds | undefined => {
   try {
     return LngLatBounds.convert(bounds);
@@ -108,34 +77,18 @@ const convertBounds = (bounds: LngLatBoundsLike): LngLatBounds | undefined => {
   }
 };
 
-// A longitude already in range is handed back exactly as it came, rather than put through MapLibre's
-// own wrap. That one ends `w === min ? max : w`, so it answers 180 for an edge sitting on -180 - which
-// would flip the west edge of a world-wide box to the far side of the world - and it costs a float's
-// worth of drift on every edge that never needed moving: wrap(-124.41) is -124.40999999999997.
+// Keep in-range edges unchanged; MapLibre's wrap turns -180 into 180 and introduces rounding drift.
 const wrapLongitude = (lng: number) => (lng >= -180 && lng <= 180 ? lng : new LngLat(lng, 0).wrap().lng);
 
-// A box's edges as coordinates that can be stated, rather than as the pair MapLibre draws with.
-// A camera counts its bounds onward from wherever its center has drifted to - pan east from Greenwich
-// and getBounds() answers in the 500s - and carries its east edge past its west the way unwrapEast
-// does. Both are longitudes MapLibre reads and neither is one anybody else can use, so each edge is
-// brought back into range here, with the crossing left where Solr's ENVELOPE syntax and RFC 7946
-// section 5.2 both put it: the east edge numerically west of the west edge. bboxToBounds reads one
-// back, so the two are inverses. West, south, east, north, as MapLibre writes a bbox everywhere else.
-//
-// The latitudes come through untouched: LngLat throws on anything past a pole as it is built, so no
-// bounds MapLibre will hand over has one to bring back.
 export const boundsToBbox = (bounds: LngLatBounds): [number, number, number, number] => {
   const [[west, south], [east, north]] = bounds.toArray();
 
-  // Every meridian on screen at once: world copies on a flat map, or a globe with a pole facing the
-  // camera. No pair of edges can say "all of it and then some", and wrapping these two would land
-  // them both on the same number and so say nothing at all, so the whole range is named outright.
+  // A view spanning the whole world must not wrap both edges onto the same longitude.
   if (east - west >= 360) return [-180, south, 180, north];
 
   return [wrapLongitude(west), south, wrapLongitude(east), north];
 };
 
-// Whether two boxes share any ground at all, edges included
 export const boundsOverlap = (a: LngLatBoundsLike, b: LngLatBoundsLike): boolean => {
   const [first, second] = [readBounds(a), readBounds(b)];
   if (!first || !second) return true;
@@ -149,15 +102,11 @@ export const boundsOverlap = (a: LngLatBoundsLike, b: LngLatBoundsLike): boolean
   return [-360, 0, 360].some(shift => west2 + shift <= east1 && west1 <= east2 + shift);
 };
 
-// Convert a geographic coordinate to EPSG:3857 (Web Mercator) meters
 export const lngLatToMercator = (lngLat: LngLatLike): [number, number] => {
-  // MercatorCoordinate is normalized to 0..1, with y increasing southward
   const { x, y } = MercatorCoordinate.fromLngLat(lngLat);
   return [(x * 2 - 1) * MERCATOR_EXTENT, (1 - y * 2) * MERCATOR_EXTENT];
 };
 
-// Axis-aligned envelope around the given coordinates, as the minx,miny,maxx,maxy
-// string in EPSG:3857 meters that OGC services expect for a BBOX parameter
 export const mercatorBbox = (coords: LngLatLike[]) => {
   const points = coords.map(lngLatToMercator);
   const xs = points.map(([x]) => x);
@@ -165,33 +114,19 @@ export const mercatorBbox = (coords: LngLatLike[]) => {
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)].join(',');
 };
 
-// A tile's own square of the Web Mercator plane, as minx,miny,maxx,maxy in meters.
-//
-// `bufferRatio` widens every edge by that fraction of the tile's own width, for a caller fetching
-// what will be drawn into a tile with a buffer of its own: a symbol or a polygon edge just outside
-// the tile still paints inside it, so a query cut exactly at the tile line comes back missing the
-// features that would have drawn there. Pass the tiler's own buffer divided by its extent and the
-// two boxes are the same box - see encodeFeatureTile.
+// Expand the query by the tiler buffer so shapes just outside a tile can still paint inside it.
 export const tileBbox3857 = (z: number, x: number, y: number, bufferRatio = 0): [number, number, number, number] => {
   const span = (2 * MERCATOR_EXTENT) / 2 ** z;
   const buffer = span * bufferRatio;
 
-  // The pyramid hangs from the northwest corner, so y counts southward from the top
   const west = -MERCATOR_EXTENT + x * span;
   const north = MERCATOR_EXTENT - y * span;
 
   return [west - buffer, north - span - buffer, west + span + buffer, north + buffer];
 };
 
-// How many degrees of longitude a tile spans at the given zoom. Divided by a tile's extent, this is
-// the ground distance of one of its coordinate units - which is as much detail as a service needs
-// to send for a tile drawn at that zoom, and all a generalization tolerance has to be.
 export const tileLngLatSpan = (z: number): number => 360 / 2 ** z;
 
-// How many tiles of the given zoom it takes to cover these bounds - as a fraction rather than a
-// count, because what a caller wants it for is dividing a feature count by it to get a mean
-// density. Never less than one tile in either direction: an extent narrower than a tile still needs
-// one, and a zero would divide a count into infinity.
 export const tilesCovering = (bounds: LngLatBounds, zoom: number): number => {
   const [[west, south], [east, north]] = bounds.toArray();
   const [minX, minY] = lngLatToMercator([west, south]);
@@ -205,10 +140,6 @@ export const tilesCovering = (bounds: LngLatBounds, zoom: number): number => {
   return across * down;
 };
 
-// The small square of the map we ask a service about when inspecting: a width x height grid of
-// pixels laid over an EPSG:3857 bbox, with x,y naming the pixel to ask about, counted from the top
-// left corner. The bbox and the grid describe each other, so a service can locate the pixel either
-// by its place in the grid, as WMS GetFeatureInfo does, or as a coordinate, as ArcGIS does.
 export type PixelWindow = {
   bbox: string; // minx,miny,maxx,maxy in EPSG:3857 meters
   width: number; // grid width in pixels
@@ -217,8 +148,6 @@ export type PixelWindow = {
   y: number; // row to inspect, counted from the top edge
 };
 
-// The EPSG:3857 coordinate at the middle of the window's x,y pixel, along with how many meters
-// across that pixel is - which is also the finest detail worth asking a service to draw back.
 export const pixelWindowCenter = (window: PixelWindow) => {
   const [minX, minY, maxX, maxY] = window.bbox.split(',').map(Number);
   const resolution = (maxX - minX) / window.width;
@@ -229,22 +158,17 @@ export const pixelWindowCenter = (window: PixelWindow) => {
   };
 };
 
-// Convert an EPSG:3857 (Web Mercator) coordinate in meters back to a geographic coordinate
 export const mercatorToLngLat = ([x, y]: GeoJSON.Position): [number, number] => {
   const { lng, lat } = new MercatorCoordinate((x / MERCATOR_EXTENT + 1) / 2, (1 - y / MERCATOR_EXTENT) / 2).toLngLat();
   return [lng, lat];
 };
 
-// Coordinates nest to a different depth for each geometry type - a Point holds a single position,
-// a Polygon holds rings of them - so recurse until we reach a position
 type Positions = GeoJSON.Position | GeoJSON.Position[] | GeoJSON.Position[][] | GeoJSON.Position[][][];
 const mercatorPositionsToLngLat = (coordinates: Positions): Positions => {
   if (typeof coordinates[0] === 'number') return mercatorToLngLat(coordinates as GeoJSON.Position);
   return (coordinates as Positions[]).map(mercatorPositionsToLngLat) as Positions;
 };
 
-// Reproject a GeoJSON geometry from EPSG:3857 meters to geographic coordinates. OGC services
-// answer in the CRS the request asked for, but MapLibre sources are always in degrees.
 export const mercatorGeomToLngLat = (geometry: GeoJSON.Geometry): GeoJSON.Geometry => {
   if (geometry.type === 'GeometryCollection') {
     return { ...geometry, geometries: geometry.geometries.map(mercatorGeomToLngLat) };
@@ -252,8 +176,6 @@ export const mercatorGeomToLngLat = (geometry: GeoJSON.Geometry): GeoJSON.Geomet
   return { ...geometry, coordinates: mercatorPositionsToLngLat(geometry.coordinates) } as GeoJSON.Geometry;
 };
 
-// Convert either WKT or ENVELOPE format geometry to GeoJSON
-// If WKT parsing fails, try ENVELOPE instead
 export const geomToGeoJSON = (geometry: string) => {
   try {
     return wktToGeoJSON(geometry) as GeoJSON.Geometry;

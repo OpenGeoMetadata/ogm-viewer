@@ -7,9 +7,6 @@ import GeoJsonResource from '../resources/geojson';
 import XyzResource from '../resources/xyz';
 import { defaultBeforeId, type MapLibreStyle } from '../themes/maplibre';
 
-// Just enough of a MapLibre map to keep layers in the order MapLibre would: appended, or inserted
-// just ahead of the one named. A name the style doesn't hold is refused the way MapLibre refuses
-// it - an error raised on the map and nothing added - rather than thrown.
 class FakeMap {
   sources = new Map<string, unknown>();
   order: string[];
@@ -44,9 +41,7 @@ class FakeMap {
   }
 }
 
-// What CARTO's own basemaps put either side of the layer previews go under, cut down to one of each
 const CARTO = ['background', 'roads', 'boundary_country_outline', defaultBeforeId, 'place_labels'];
-// Someone else's basemap, which names its layers its own way
 const OTHER = ['background', 'roads', 'place_labels'];
 
 const style = {
@@ -88,8 +83,6 @@ describe('MapPreviewer#beforeId', () => {
     expect(map.order).toEqual(['background', 'roads', 'boundary_country_outline', RASTER, defaultBeforeId, 'place_labels']);
   });
 
-  // MapLibre adds nothing at all for a name it doesn't have, so passing it along regardless would
-  // lose the preview on any basemap that names its layers differently
   it("draws the preview on top of a basemap that has no layer by that name, as though there weren't one", async () => {
     const map = await draw(xyzPreviewer(), OTHER);
 
@@ -113,7 +106,6 @@ describe('MapPreviewer#beforeId', () => {
     expect(map.order).toEqual(['background', RASTER, 'roads', 'boundary_country_outline', defaultBeforeId, 'place_labels']);
   });
 
-  // A theme change draws the same preview again into whatever basemap replaced the last one
   it('asks again of every basemap the preview is drawn into', async () => {
     const previewer = xyzPreviewer();
     await draw(previewer, OTHER);
@@ -142,8 +134,6 @@ describe('MapPreviewer#beforeId', () => {
     const prefix = 'stanford-geojson-geojson-geojson-';
     const ours = (map: FakeMap) => map.order.filter(id => id.startsWith(prefix)).map(id => id.slice(prefix.length));
 
-    // MapLibre places labels from the top of the style down, so ours would give way to the
-    // basemap's wherever the two collide if they went underneath it too
     it('keeps those on top, where they win out over the basemap labels they collide with', async () => {
       const map = await previewGeoJson();
       const labels = map.order.slice(-3).map(id => id.slice(prefix.length));

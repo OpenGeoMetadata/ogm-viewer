@@ -7,179 +7,81 @@ import { isLayerDrawn, resolveLayerState, type LayerState, type Layer, type Prev
 import type { LegendEntry } from '../legend';
 import { defaultBeforeId, type MapLibreStyle } from '../themes/maplibre';
 
-// MapLibre doesn't bundle the id with the source, but we need to
 type AddSourceObject = SourceSpecification & { id: string };
 
-// How the map itself is drawn. A globe unless a preview can't be shown on one.
 export type MapProjection = 'globe' | 'mercator';
 
 export default abstract class MapPreviewer extends Previewer {
   readonly renderer = 'map' as const;
 
-  // The projection this preview needs. Globe reads better for anything worldwide, so it's the default,
-  // and everything MapLibre draws itself keeps it - as does the COG preview, which deck.gl warps onto
-  // the sphere. The one preview that asks for a flat map instead is the georeferenced scan: Allmaps
-  // works its viewport out as though the map were flat. <ogm-map> hides the globe control for anything
-  // but 'globe', so a preview can't be put back into a projection it isn't drawn in.
   readonly projection: MapProjection = 'globe';
 
-  // How long this preview has to put something on the map before whoever draws it calls the load a
-  // failure. Only a floor on patience, not a cap: the deadline is cleared by the first tile that
-  // arrives, so this is how long a preview has to show one sign of life, not how long it has to
-  // finish. A preview that is slow by nature can raise it. See <ogm-map>'s startLoadDeadline for why
-  // waiting on the browser instead isn't enough.
+  // Time allowed for the first tile to arrive; later tiles may continue loading afterward.
   readonly loadTimeout: number = 20_000;
 
-  // How far this preview can be tilted, for the one that can't be tilted as far as MapLibre allows.
-  // Allmaps' viewport takes a bearing but no pitch, so a tilted map draws the warped scan at the wrong
-  // scale - out by a quarter at 30 degrees. deck.gl is handed the whole view state and needs nothing
-  // here. Left undefined otherwise, which is what MapLibre reads as its own default, so there is no
-  // limit of ours to keep in step with theirs.
   readonly maxPitch?: number;
 
-  // How far out this preview can be zoomed, for one that has nothing to draw past a point. A layer
-  // published with a scale dependency is the case: below its minScale the service means for it not
-  // to be drawn at all, so a reader zoomed out past that is looking at an empty map.
-  //
-  // Set only when the whole of what is being previewed still fits on screen at that floor -
-  // otherwise the floor costs the reader the one view that shows what the record covers, which is
-  // worth more than sparing them an empty map they can zoom back out of. Undefined leaves the map's
-  // own floor alone, the same way maxPitch leaves its own tilt limit alone.
-  //
-  // Not readonly, unlike the constraints above it: what a service publishes isn't known until its
-  // description has been read, which is inside preview(). <ogm-map> reads this again once preview()
-  // has resolved, and before it fits the camera - see applyViewConstraints.
   minZoom?: number;
 
-  // The basemap layer this preview is drawn underneath, so that the basemap's labels can still be
-  // read over the data rather than being covered by it. Only a request: a basemap with
-  // no layer by this name draws the preview on top instead, the same as leaving this empty does - see
-  // resolvedBeforeId. On every preview rather than on the map, since the previewer is what puts the
-  // layers there; <ogm-previews> sets it on the previews it builds from a record, and a preview built
-  // by hand can set its own. Read when the preview is drawn, so a change shows on the next draw.
+  /** Basemap layer to draw beneath; an empty or missing layer ID places the preview above the basemap. */
   beforeId?: string = defaultBeforeId;
 
-  // Only what every preview on a map needs, which is somewhere to point: not MapResource, because
-  // not everything drawn on a map is a tile source. A georeferenced scan is a IIIF manifest with
-  // control points, with no tile URL or vector/raster distinction to offer. Subclasses that do want
-  // one narrow this to the resource they actually read.
   declare protected resource: Resource;
 
-  // Set by attach(), before anything is drawn. Not constructor arguments: the map is built by
-  // ogm-map once its own element exists, long after a record's previews have been worked out, and
-  // setStyle() hands back a different style on every theme change.
   protected style: MapLibreStyle;
   protected map: MapLibreMap;
 
-  // Where a failure that arrives after preview() has already resolved goes. Everything MapLibre
-  // draws itself reports one on the map, which ogm-map is already listening to; a preview that
-  // paints with its own WebGL has no such channel, so it is handed one. Set by whoever draws this
-  // preview, and only worth reporting for the failures that mean the preview isn't there - see
-  // CogPreviewer, which has tiles arriving one at a time and most of a viewport's worth of
-  // failures to say nothing about.
+  // Custom renderers use this hook for tile failures that arrive after preview() resolves.
   onError?: (error: unknown) => void;
 
-  // Where a preview that draws itself says it has drawn something, and the counterpart to onError
-  // above: the same two previews that have no MapLibre source to fail on have none to succeed on
-  // either, so the news that they are really on the map has to come from them. Everything MapLibre
-  // draws is watched through the map's own tile events instead. Set by whoever draws this preview.
   onDrawn?: () => void;
 
-  // Where a preview says the logical layers it offers have changed since it drew them: a background
-  // colour it had to fetch a thumbnail for has arrived, and a row in the panel has a control to offer
-  // that it didn't when the panel was built. Only for what settles after preview() has resolved -
-  // anything known by then is already in previewLayers by the time ogm-map reads it. Set by whoever
-  // draws this preview.
   onLayersChanged?: () => void;
 
-  // Where a preview says something about the view it is being asked to draw in: that the layer is
-  // published for closer views than this one, or that what is on the map is only part of it. Not a
-  // failure - nothing went wrong, and the alert a failure raises fills the pane and replaces the
-  // preview it is reporting on, which would leave a reader who only needs to zoom in with nothing
-  // to zoom. Undefined clears whatever was last said. Set by whoever draws this preview.
   onNotice?: (notice: string | undefined) => void;
 
   onLoading?: (loading: boolean) => void;
 
-  // Fill in whatever the drawn features don't carry, for the popup a click opens. A preview whose
-  // data holds every attribute has nothing to add and answers with what it was given; one that asks
-  // its service for only the fields it draws with has the rest a request away, and a click is when
-  // that request is worth making - see EsriFeatureLayerPreviewer.
-  //
-  // The features come from queryRenderedFeatures, so whatever comes back has to keep its source,
-  // sourceLayer and id: that triple is what setFeatureState highlights and what dedupeFeatures
-  // tells one feature from another by.
   async expandFeatures(features: MapGeoJSONFeature[]): Promise<MapGeoJSONFeature[]> {
     return features;
   }
 
-  // A tile of one of this preview's own sources has arrived
   tileLoaded(_sourceId: string, _zoom: number): void {}
 
-  // A tile of one of this preview's own sources failed to arrive
   absorbTileError(_sourceId: string, _zoom: number): boolean {
     return false;
   }
 
-  // The reader has started using a layer's time control, so every time the layer can be drawn at is now
-  // worth knowing - a service may list only its latest up front, and the rest can be a large document
-  // to fetch for a control nobody touches. A preview that learns more says so through onLayersChanged.
-  // Nothing to do for a preview with no time to choose.
   loadTimeDomain(_id: string): void {}
 
-  // Draw a feature with no id as the selected one, or with none given, stop. Feature-state draws every
-  // other selection, and it needs an id; only a tileset someone else cut can be without them, so
-  // nothing to do for any other preview. See VectorPreviewer.
+  // Use a property filter for selected vector-tile features that lack a feature-state ID.
   matchSelection(_feature?: MapGeoJSONFeature): void {}
 
-  // Whether this preview answers for its own drawing through onDrawn. Read rather than assumed,
-  // because the alternative is worse in both directions: a preview held to a deadline it has no way
-  // to satisfy would be called broken while it draws, and one exempted by mistake goes back to
-  // failing silently. See <ogm-map>'s startLoadDeadline.
   readonly reportsDrawing: boolean = false;
 
-  // Named colors this preview needs explained on the map. Most previews draw one ordinary data
-  // color, which needs no key; a preview whose colors carry distinct meanings overrides this.
-  // Answered after attach because the colors belong to the active light/dark theme and may be
-  // replaced by CSS custom properties. A getter rather than stored data keeps a theme change fresh.
   get legendEntries(): LegendEntry[] {
     return [];
   }
 
-  // Stored state for added MapLibre sources and layers to allow for cleanup
   sourceIds: string[] = [];
   layerIds: string[] = [];
 
-  // The logical layers this preview offers the user, in the order they're painted. Subclasses
-  // fill this in from createLayers(), which is the only code that knows how one resource expands
-  // into style layers.
   previewLayers: Layer[] = [];
 
-  // A memo of the last instruction applyLayerState was given, not a source of truth: ogm-map owns
-  // the user's choices, because setStyle empties the style document on every theme change and
-  // every layer they were made about is drawn again from scratch.
+  // The map owns user choices because a style rebuild recreates this previewer's layers.
   private layerState: ReadonlyMap<string, LayerState> = new Map();
 
-  // Bind this preview to the map it draws on and the colors it draws with. Returns itself so a
-  // caller can build and bind in one breath.
   attach(map: MapLibreMap, style: MapLibreStyle): this {
     this.map = map;
     this.style = style;
     return this;
   }
 
-  // Whether this preview has a map to draw on yet. One built for a tab whose map never finished
-  // loading has nothing on any map to clean up.
   protected get attached(): boolean {
     return this.map !== undefined;
   }
 
-  // Add source and preview layers if they don't already exist
   async preview(): Promise<void> {
-    // A preview is drawn more than once: setStyle() rebuilds the style document and takes every
-    // source and layer on it away, and the same previewer draws itself into the new one. What we
-    // record has to describe the document in front of us, not every document we've ever drawn
-    // into, so it starts empty each time rather than accumulating a copy per draw.
     this.sourceIds = [];
     this.layerIds = [];
     this.previewLayers = [];
@@ -188,8 +90,6 @@ export default abstract class MapPreviewer extends Previewer {
 
     sources.forEach(source => {
       const { id, ...sourceSpec } = source as AddSourceObject;
-      // Recorded either way: a source already under this id is one we put there - ids carry the
-      // resource's own id - and clearPreview still has to take it back out.
       this.sourceIds.push(id);
       if (this.map.getSource(id)) return;
       this.map.addSource(id, sourceSpec);
@@ -202,29 +102,20 @@ export default abstract class MapPreviewer extends Previewer {
       this.layerIds.push(layer.id);
       const existing = this.map.getLayer(layer.id);
 
-      // A style layer describes itself completely, so one already under this id is one we put there
-      // and adding it again would change nothing.
       if (existing && layer.type !== 'custom') return;
 
-      // A custom layer is not a description but an object, holding its own WebGL and its own data,
-      // and MapLibre only hands it a context in onAdd. setStyle() keeps custom layers rather than
-      // clearing them with the rest of the document, so after a basemap swap there is a live one
-      // here already - and skipping for it would leave that one drawing while the one we just built
-      // never got a context at all. Replace it instead.
+      // Reattach custom layer objects so onAdd receives the context from the rebuilt style.
       if (existing) this.map.removeLayer(layer.id);
 
-      // Keep label (symbol) layers on top; use beforeId for everything else
       this.map.addLayer(layer, layer.type === 'symbol' ? undefined : beforeId);
     });
   }
 
-  // Guard against beforeId values that aren't actually in the basemap
   protected get resolvedBeforeId(): string | undefined {
     const beforeId = this.beforeId;
     return beforeId && this.map.getLayer(beforeId) ? beforeId : undefined;
   }
 
-  // Remove preview layers and sources
   async clearPreview() {
     if (!this.attached) return;
 
@@ -245,11 +136,6 @@ export default abstract class MapPreviewer extends Previewer {
     this.layerState = new Map();
   }
 
-  // Push the user's choices onto the layers already on the map. Idempotent: every value is
-  // rebuilt from the theme and the requested state rather than read back off the map, so
-  // re-applying it - after a basemap swap, or on every frame of a slider drag - can't compound.
-  // Callers must only call this once the style document itself has loaded, since setPaintProperty
-  // throws before that.
   applyLayerState(states: ReadonlyMap<string, LayerState>) {
     this.layerState = states;
 
@@ -259,26 +145,16 @@ export default abstract class MapPreviewer extends Previewer {
     });
   }
 
-  // Push one style layer's state onto whatever draws it. Through the style document here, because
-  // that is where all but two of our previews live; a preview that paints itself - an Allmaps
-  // warped map, a deck.gl overlay - has no paint property to set and overrides this instead.
   protected applyStyleLayerState(styleLayer: PreviewStyleLayer, state: LayerState) {
-    // A layer the style no longer holds is one a rebuild hasn't finished replacing
     if (!this.map.getLayer(styleLayer.id)) return;
 
-    // An opacity of zero has to hide the layer outright, not just make it invisible:
-    // queryRenderedFeatures skips layers set to `visibility: none` but still reports features
-    // from a layer drawn at zero opacity, which would let a user click what they can't see.
+    // Zero opacity must also hide the layer because transparent features still match rendered queries.
     this.map.setLayoutProperty(styleLayer.id, 'visibility', isLayerDrawn(state) ? 'visible' : 'none');
 
-    // A highlight is drawn for us by the server we asked; dimming it would make the answer
-    // harder to read at exactly the moment the user asked for it
     if (!styleLayer.internal) this.applyOpacity(styleLayer, state.opacity);
   }
 
-  // The style layers a rendered-feature query should consider. Always a subset of layerIds:
-  // queryRenderedFeatures errors and returns nothing for the whole query if it names a layer the
-  // style doesn't hold.
+  // Only query existing layers; MapLibre rejects the whole query if any requested layer is absent.
   get visibleLayerIds(): string[] {
     return this.previewLayers.flatMap(layer => {
       if (!isLayerDrawn(resolveLayerState(layer, this.layerState))) return [];
@@ -286,14 +162,10 @@ export default abstract class MapPreviewer extends Previewer {
     });
   }
 
-  // Whether any of this preview is drawn. A server-drawn raster has no client-side features to
-  // filter a query by, so ogm-map has to ask before offering to inspect one.
   get anyLayerVisible(): boolean {
     return this.previewLayers.some(layer => isLayerDrawn(resolveLayerState(layer, this.layerState)));
   }
 
-  // Write the opacity a style layer carries. Only the property its type owns: MapLibre rejects a
-  // paint property a layer type doesn't define, and fires an error on the map when it does.
   protected applyOpacity(styleLayer: PreviewStyleLayer, opacity: number) {
     switch (styleLayer.type) {
       case 'raster':
@@ -315,7 +187,6 @@ export default abstract class MapPreviewer extends Previewer {
     }
   }
 
-  // Whether one row in particular is drawn (switched on, and not faded all the way out).
   protected layerDrawn(id: string): boolean {
     const layer = this.findPreviewLayer(id);
     return layer !== undefined && isLayerDrawn(resolveLayerState(layer, this.layerState));
@@ -325,38 +196,19 @@ export default abstract class MapPreviewer extends Previewer {
     return this.previewLayers.find(layer => layer.id === id);
   }
 
-  /**
-   * What the record said this covers, answered on the spot: the bounding box the resource was built
-   * with, and nothing that would have to be fetched to know.
-   *
-   * For the one caller that can't wait - a map is built before anything is drawn on it, and building
-   * it already pointed at the record is what saves the reader a look at the whole world first; see
-   * openingCamera. getBounds() below is the better answer and is what the camera settles on, but it
-   * can be a round trip or two away, and a map cannot be built later than it is built.
-   *
-   * Undefined for a record that never said where it is, which leaves the map wherever it opens.
-   */
   get declaredBounds(): LngLatBoundsLike | undefined {
     return this.resource.declaredBounds;
   }
 
-  // Where the map should be pointed to see this preview. The resource usually knows - from the
-  // record's bounding box, or from metadata it reads itself - so only a preview that learns its
-  // extent while drawing, like a warped image, has anything to override here.
   async getBounds(): Promise<LngLatBoundsLike | undefined> {
     return await this.resource.getBounds();
   }
 
-  // Where the data says it is, whatever the record said: the extent getBounds() falls back on when
-  // the record gave none. Asked for separately so <ogm-map> can catch a record whose bounding box
-  // misses the data altogether - see fitToReportedBounds. Undefined for a preview with nothing to say.
   async getReportedBounds(): Promise<LngLatBoundsLike | undefined> {
     return await this.resource.getReportedBounds();
   }
 
-  // Create MapLibre sources for the preview
   protected abstract createSources(): Promise<AddSourceObject[]>;
 
-  // Create MapLibre layers for the preview
   protected abstract createLayers(): Promise<AddLayerObject[]>;
 }

@@ -124,9 +124,6 @@ describe('References', () => {
     });
   });
 
-  // Publishers spell the same URI both ways - Stanford without the trailing slash, Wisconsin,
-  // Berkeley and UT Austin with one - and before keys were canonicalized only the slashed spelling
-  // was recognized, so every Stanford ISO reference was invisible.
   describe('trailing slashes in reference keys', () => {
     it('finds a reference whichever way the record spells the URI', () => {
       const bare = new References(JSON.stringify({ 'http://www.isotc211.org/schemas/2005/gmd': 'http://example.com/iso.xml' }));
@@ -136,7 +133,6 @@ describe('References', () => {
       expect(slashed.metadataLinks).toEqual(bare.metadataLinks);
     });
 
-    // Not just the metadata keys: any of them can arrive either way
     it('tolerates a slash on a previewable reference too', () => {
       const references = new References(JSON.stringify({ 'http://www.opengis.net/def/serviceType/ogc/wms/': 'http://example.com/wms' }));
 
@@ -155,7 +151,6 @@ describe('References', () => {
       expect(references.metadataLinks).toEqual([{ url: 'http://example.com/first.xml', label: 'ISO 19139 metadata' }]);
     });
 
-    // Valid JSON that isn't an object has no keys to canonicalize, and null would throw on the way
     it('treats references that are not an object as no references at all', () => {
       expect(new References(JSON.stringify('http://example.com/iso.xml')).metadataLinks).toEqual([]);
       expect(new References(JSON.stringify(null)).previewable).toBe(false);
@@ -163,8 +158,6 @@ describe('References', () => {
   });
 
   describe('metadata links', () => {
-    // OGM publishes an ISO 19110 feature catalogue under the gco namespace rather than gfc; see
-    // the note on the key in references.ts.
     it('labels an ISO 19110 feature catalogue', () => {
       const contents = {
         'http://www.isotc211.org/schemas/2005/gmd': 'http://example.com/iso19139.xml',
@@ -291,7 +284,6 @@ describe('References', () => {
       expect(references.mapPreviewable).toBe(false);
     });
 
-    // See https://github.com/OpenGeoMetadata/ogm-viewer/issues/80
     describe('IIIF georeference annotations', () => {
       const GEOREF_URI = 'https://iiif.io/api/extension/georef/1/context.json';
       const MANIFEST_URI = 'http://iiif.io/api/presentation#manifest';
@@ -309,7 +301,6 @@ describe('References', () => {
         expect(references.iiifOnly).toBe(false);
       });
 
-      // Control points for an image held somewhere else draw nothing on their own
       it('should not be map previewable with an annotation and nothing to apply it to', () => {
         const references = new References(JSON.stringify({ [GEOREF_URI]: 'http://example.com/annotation.json' }));
 
@@ -317,9 +308,6 @@ describe('References', () => {
         expect(references.previewable).toBe(false);
       });
 
-      // The other direction can't be answered from the references at all: a manifest that carries
-      // its own annotation and names no georef reference takes a fetch to discover, which is
-      // IIIFManifestResource#isGeoreferenced's job rather than this class's
       it('cannot tell from the references alone that a manifest carries its own annotation', () => {
         const references = new References(JSON.stringify({ [MANIFEST_URI]: 'http://example.com/manifest.json' }));
         expect(references.mapPreviewable).toBe(false);

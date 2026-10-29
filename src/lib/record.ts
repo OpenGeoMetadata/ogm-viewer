@@ -1,9 +1,7 @@
 import { References } from './references';
 import { bboxToBounds, boundsToGeoJSON, geomToGeoJSON } from './geometry';
 
-/**
- * Schema for GeoBlacklight. See https://opengeometadata.github.io/aardvark/aardvarkMetadata.html for more details.
- */
+/** Aardvark schema: https://opengeometadata.github.io/aardvark/aardvarkMetadata.html */
 export interface GeoBlacklightSchemaAardvark {
   dct_title_s: string;
   dct_alternative_sm?: string[];
@@ -49,9 +47,6 @@ export interface GeoBlacklightSchemaAardvark {
   gbl_georeferenced_b?: boolean;
 }
 
-/**
- * These are used to map the keys in the record to more user-friendly names.
- */
 export const OGM_FIELD_NAMES = {
   id: 'ID',
   title: 'Title',
@@ -97,21 +92,15 @@ export const OGM_FIELD_NAMES = {
   format: 'Format',
 };
 
-/**
- * Class for representing an OGM Aardvark record parsed from JSON data.
- */
 export default class OgmRecord {
-  // Original JSON data
   json: GeoBlacklightSchemaAardvark;
 
-  // Required
   id: string;
   title: string;
   resourceClass: string[];
   accessRights: 'Public' | 'Restricted';
   mdVersion = 'Aardvark';
 
-  // Optional
   references: References;
   identifier?: string[];
   wxsIdentifier?: string;
@@ -155,7 +144,6 @@ export default class OgmRecord {
       throw new Error('Unsupported metadata version: ' + data.gbl_mdVersion_s);
     }
 
-    // Copy fields with friendlier names
     this.id = data.id;
     this.title = data.dct_title_s;
     this.wxsIdentifier = data.gbl_wxsIdentifier_s;
@@ -189,31 +177,24 @@ export default class OgmRecord {
     this.format = data.dct_format_s;
     this.fileSize = data.gbl_fileSize_s;
 
-    // Parse references from JSON string
     this.references = new References(data.dct_references_s || '{}');
 
-    // Save original JSON data
     this.json = data;
   }
 
-  // Record is restricted if access rights are 'Restricted'
   get restricted() {
     return this.accessRights === 'Restricted';
   }
 
-  // String used for attribution of map layers.
   get attribution() {
     if (this.rightsHolder && this.rightsHolder.length > 0) return this.rightsHolder.join('; ');
     if (this.publishers && this.publishers.length > 0) return this.publishers.join('; ');
     if (this.provider) return this.provider;
   }
 
-  // List of download links with URL and label
   get downloadLinks() {
-    // If multiple download links were provided in the references, use those
     if (this.references.downloadLinks.length > 0) return this.references.downloadLinks;
 
-    // If there is a single download link, generate a label for it
     if (this.references.downloadUrl) {
       let label = this.format || 'Object';
       if (this.fileSize) label += ` (${this.fileSize})`;
@@ -225,25 +206,20 @@ export default class OgmRecord {
       ];
     }
 
-    // Otherwise, return an empty list
     return [];
   }
 
-  // Get the bounding box as LngLatBounds
   getBounds() {
     if (!this.bbox) return;
     return bboxToBounds(this.bbox);
   }
 
-  // Get the geometry as a GeoJSON Polygon
   getGeometry() {
-    // Try locn_geometry first in case we have complex WKT geometry
     if (this.geometry) {
       const geojson = geomToGeoJSON(this.geometry);
       if (geojson) return geojson;
     }
 
-    // If no locn_geometry, fall back to dcat_bbox with ENVELOPE
     if (this.bbox) {
       const bounds = this.getBounds();
       if (bounds) return boundsToGeoJSON(bounds);

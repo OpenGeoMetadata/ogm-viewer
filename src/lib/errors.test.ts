@@ -51,7 +51,6 @@ describe('errors', () => {
       const error = recordError(new Error('boom'), 'http://example.com/r');
       expect(error).toBeInstanceOf(PreviewError);
       expect(error).toBeInstanceOf(Error);
-      // Guards the class-field pitfall where redeclaring `message` blanks the value super() sets.
       expect(error.message).toBeTruthy();
     });
 
@@ -126,8 +125,6 @@ describe('errors', () => {
       expect(error.url).toBe('http://example.com/wms');
     });
 
-    // A deadline expiring says nothing about how the server answered, so the alert must not read as
-    // though one had. The internal message names a tile and a duration; neither belongs on screen.
     it('describes what a timeout means rather than repeating the internal message', () => {
       const error = referenceError(new TimeoutError('a tile of http://example.com/wms', 20_000), 'WMS');
       expect(error.message).not.toContain('20000');

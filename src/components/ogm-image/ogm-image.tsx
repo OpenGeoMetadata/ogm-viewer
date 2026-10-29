@@ -24,16 +24,12 @@ export class OgmImage {
   @Event() imageLoading: EventEmitter<void>;
   @Event() previewError: EventEmitter<PreviewError>;
 
-  // OpenSeadragon viewer instance
   private viewer: Viewer;
 
-  // Where the gap left around a scan comes from, the same place a map's comes from
   private imageTheme: Theme;
 
-  // Guards against reporting more than one error per load attempt
   private errorReported: boolean = false;
 
-  // Before the first frame, so nothing paints unstyled
   componentWillLoad() {
     adoptWebAwesomeTheme(this.el);
   }
@@ -42,18 +38,11 @@ export class OgmImage {
   private fullscreenFallback: boolean = false;
   private fullscreenFallbackElement?: HTMLElement;
 
-  // Set up OpenSeadragon viewer on load
   async componentDidLoad() {
-    // #openseadragon rather than the host for the same reason <ogm-map> reads from its container: it
-    // is the element carrying the Web Awesome scope, and the host has no colors on it to read. What
-    // this one reads is only --ogm-padding, which comes from outside either way, but a Theme pointed
-    // at the host is the shape of the bug that left a standalone map drawing in empty colors.
     const scope = getElement(this.el, '#openseadragon');
     this.imageTheme = new Theme(scope, this.theme);
     this.viewer = new Viewer({
       element: scope,
-      // Given to the viewer rather than set afterwards: OpenSeadragon works out where "home" is from
-      // the margins in place when an image opens, and setMargins() doesn't refit one already open.
       viewportMargins: this.margins(),
       prefixUrl: 'https://cdnjs.cloudflare.com/ajax/libs/openseadragon/6.1.1/images/',
       visibilityRatio: 1,
@@ -67,27 +56,20 @@ export class OgmImage {
       previousButton: getElement(this.el, '.prev'),
     });
 
-    // OpenSeadragon's full-page implementation temporarily removes every child from <body>. A
-    // viewer mounted in this component's shadow root then disappears from document.getElementById,
-    // so OpenSeadragon throws before it can put the image back. Keep the shadow tree together and
-    // ask the browser to fullscreen its host instead.
+    // OpenSeadragon's full-page mode detaches shadow-hosted content; fullscreen the host instead.
     document.addEventListener('fullscreenchange', this.onFullscreenChange);
     document.addEventListener('keydown', this.onFullscreenKeydown);
 
-    // Clear loading state whether we succeeded or failed
     this.viewer.addHandler('open', () => this.imageLoaded.emit());
 
-    // Surface OpenSeaDragon decode errors here
     this.viewer.addHandler('open-failed', event => {
       this.imageLoaded.emit();
       this.reportError(new Error(event.message));
     });
 
-    // The viewer is ready, so whatever preview we were given can be drawn into it
     await this.loadPreview();
   }
 
-  // Destroy the viewer when we are removed from the DOM
   disconnectedCallback() {
     document.removeEventListener('fullscreenchange', this.onFullscreenChange);
     document.removeEventListener('keydown', this.onFullscreenKeydown);
@@ -95,7 +77,6 @@ export class OgmImage {
     this.viewer?.destroy();
   }
 
-  // A different preview to draw. The one leaving closes itself out of the viewer first.
   @Watch('previewer')
   async onPreviewerChange(_previewer: ImagePreviewer, previous?: ImagePreviewer) {
     if (previous) await previous.clearPreview();
@@ -106,24 +87,18 @@ export class OgmImage {
   async onPaddingChange() {
     if (!this.viewer) return;
 
-    // Move the filmstrip if there is one
     const filmstrip = findElement(this.el, '.referencestrip');
     if (filmstrip) filmstrip.style.setProperty('margin-left', `${this.padding}px`);
 
-    // Move the viewer viewport
     return this.viewer.viewport.setMargins(this.margins());
   }
 
-  // The room to leave around a scan: the theme's gap on every edge, and on the left whatever the
-  // sidebar is covering as well. All four edges every time, because OpenSeadragon replaces the whole
-  // set with what it's given rather than merging it, so a margin left out is a margin set to zero.
+  // OpenSeadragon replaces all margins, so every edge must be supplied together.
   private margins() {
     const padding = this.imageTheme.getPadding();
     return { top: padding, bottom: padding, right: padding, left: padding + this.padding };
   }
 
-  // Draw the current preview into the viewer. Reading a manifest is a fetch, so this is where a
-  // IIIF preview first has the chance to fail.
   private async loadPreview() {
     if (!this.previewer || !this.viewer) return;
 
@@ -140,7 +115,6 @@ export class OgmImage {
     }
   }
 
-  // Emit a single preview error per load attempt
   private reportError(error?: unknown) {
     if (this.errorReported || !this.previewer) return;
     this.errorReported = true;
@@ -162,9 +136,7 @@ export class OgmImage {
     this.fullscreen = false;
   }
 
-  // Fullscreen the complete viewer when one contains this image. The menubar owns the hamburger and
-  // the sidebar owns search, metadata, rights, links and the raw record; targeting only <ogm-image>
-  // necessarily hides all of them. A standalone image still fullscreens itself.
+  // Fullscreen the enclosing viewer to keep its menubar and sidebar accessible.
   private fullscreenTarget(): HTMLElement {
     return closestAcrossShadows(this.el, 'ogm-viewer') ?? this.el;
   }
@@ -175,8 +147,6 @@ export class OgmImage {
       return;
     }
 
-    // document.fullscreenElement may be retargeted to an outer shadow host. Our state is updated
-    // from the element's :fullscreen match instead, so the same button remains a reliable exit.
     if (this.fullscreen) {
       await document.exitFullscreen();
       this.fullscreen = false;
@@ -187,8 +157,6 @@ export class OgmImage {
       await this.fullscreenTarget().requestFullscreen();
       this.fullscreen = true;
     } catch {
-      // Fullscreen may be unavailable in an embedding context. A fixed-position host preserves the
-      // same useful full-window view without moving the OpenSeadragon node out of its shadow root.
       this.fullscreenFallbackElement = this.fullscreenTarget();
       this.fullscreenFallbackElement.setAttribute('data-ogm-fullscreen-fallback', '');
       this.fullscreenFallback = true;
@@ -196,9 +164,6 @@ export class OgmImage {
     }
   }
 
-  // The scope goes on #openseadragon as well as on the Host: the palette is established by plain
-  // class selectors, which the stylesheet linked here can't match against its own shadow host. The
-  // controls below and the viewer's own background read from it.
   render() {
     return (
       <Host class={waScope(this.theme)}>

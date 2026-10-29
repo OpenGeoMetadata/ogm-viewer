@@ -12,7 +12,6 @@ import type { EsriMetadata } from '../esri';
 import type { PixelWindow } from '../geometry';
 import type { MapLibreStyle } from '../themes/maplibre';
 
-// Just enough of a MapLibre map to record what the previewer adds, removes and draws
 class FakeMap {
   sources = new Map<string, { type: string; data?: GeoJSON.GeoJSON; tiles?: string[]; scheme?: string; tileSize?: number; minzoom?: number; maxzoom?: number }>();
   layers = new Map<string, { id: string; type: string; source: string }>();
@@ -32,7 +31,6 @@ class FakeMap {
     return this.layers.get(id);
   }
   addLayer(layer: { id: string; type: string; source: string }) {
-    // MapLibre refuses a layer whose source hasn't been added yet
     if (!this.sources.has(layer.source)) throw new Error(`No source ${layer.source} for layer ${layer.id}`);
     this.layers.set(layer.id, layer);
   }
@@ -41,13 +39,11 @@ class FakeMap {
   }
 }
 
-// The previewer only reads the colors used by the highlight
 const style = { opacity: 0.8, strokeSelectedColor: '#0a0', selectedColor: '#0f0', highlightOpacity: 0.8 } as MapLibreStyle;
 
 const SERVICE = 'https://example.org/arcgis/rest/services/Geology/Glacial_Boundaries/MapServer';
 const IMAGE_SERVICE = 'https://example.org/arcgis/rest/services/NAIP/USDA_CONUS_PRIME/ImageServer';
 
-// A window over Illinois, in EPSG:3857 meters, clicked in the middle
 const WINDOW: PixelWindow = { bbox: '-9862640,5235400,-9862130,5235910', width: 51, height: 51, x: 25, y: 25 };
 
 const MERCATOR_EXTENT = 20037508.342789244;
@@ -64,7 +60,6 @@ const XYZ_CACHE: EsriMetadata = {
   },
 };
 
-// Reads a hand-built service description instead of fetching one
 const stubMetadata = <T extends EsriResource>(resource: T, metadata: EsriMetadata) => {
   (resource as unknown as { getMetadata: () => Promise<EsriMetadata> }).getMetadata = async () => metadata;
   return resource;
@@ -95,7 +90,6 @@ describe('EsriRasterPreviewer#preview', () => {
     const previewer = dynamicPreviewer();
     await previewer.preview();
 
-    // Order is paint order: the raster layer first, then the layers that highlight over it
     expect([...map.layers.keys()]).toEqual([
       'glacial-esri-dynamic-map-layer',
       'glacial-esri-dynamic-map-layer-highlight-outlines',
@@ -226,7 +220,6 @@ describe('EsriRasterPreviewer#inspect', () => {
     expect(features).toHaveLength(1);
     expect(features[0].geometry).toBeNull();
 
-    // And the highlight simply has nothing to draw for it
     previewer.highlightFeatures(features);
     expect(map.sources.get('glacial-esri-dynamic-map-layer-highlight')?.data).toEqual({ type: 'FeatureCollection', features: [] });
   });

@@ -11,7 +11,6 @@ const square = (x: number, y: number, size: number) => [
   [x, y],
 ];
 
-// Whether a point falls inside a ring, by counting the edges a ray from it crosses
 const inside = ([px, py]: GeoJSON.Position, ring: GeoJSON.Position[]) => {
   let crossings = 0;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -31,7 +30,6 @@ describe('labelPoint', () => {
     expect(inside(point!, mainland)).toBe(true);
   });
 
-  // A region wrapped around a bay, or New England: the centroid of a C is in the gap
   it('stays inside a shape whose centroid is outside it', () => {
     const c = [
       [0, 0],
@@ -69,7 +67,6 @@ describe('labelPoint', () => {
     expect(inside(point!, square(0, 0, 10))).toBe(true);
   });
 
-  // Those label themselves, at the point or along the line
   it('has nothing to offer a feature with no polygon in it', () => {
     expect(labelPoint({ type: 'Point', coordinates: [1, 2] })).toBeUndefined();
     expect(
@@ -115,7 +112,6 @@ describe('withLabelPoints', () => {
     ],
   });
 
-  // The position is what the symbol-sort-key ranks a stack's labels by, so it has to be the id
   it('numbers every feature by its position, as generateId did, over any id it came with', () => {
     const { features } = withLabelPoints(sheets());
 
@@ -156,8 +152,6 @@ describe('withLabelPoints', () => {
   });
 });
 
-// A feature as queryRenderedFeatures hands one back: its coordinates live behind a getter, so a
-// plain spread of one comes out with no geometry at all
 class RenderedFeature {
   type = 'Feature' as const;
   _geometry: GeoJSON.Geometry = { type: 'Point', coordinates: [5, 5] };
@@ -186,7 +180,6 @@ describe('unmarkLabelPoints', () => {
     expect(unmarked.geometry).toEqual({ type: 'Point', coordinates: [5, 5] });
   });
 
-  // The properties object is the one MapLibre's own tile cache holds
   it('writes to a copy, not to the feature MapLibre handed over', () => {
     const label = rendered(4, { label: 'SF 20', [LABEL_POINT]: true });
 

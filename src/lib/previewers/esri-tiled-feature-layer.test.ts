@@ -79,8 +79,6 @@ const style = {
 const LAYER = 'https://services.arcgis.com/x/arcgis/rest/services/Wisconsin_Historic_Aerial_Imagery/FeatureServer/0';
 const SOURCE = 'wi-esri-feature-layer';
 
-// The Wisconsin layer, as its service describes it: 318,295 points published from level 10 to
-// level 20 of the standard ArcGIS scale table
 const WISCONSIN: EsriMetadata = {
   geometryType: 'esriGeometryPoint',
   minScale: 577790.554289,
@@ -112,7 +110,6 @@ class TestResource extends EsriFeatureLayerResource {
     return this.size;
   }
 
-  // Stands in for a tile the service answered at its own per-request limit
   capped?: { zoom: number; limit: number };
 
   get cappedTiles() {
@@ -152,15 +149,12 @@ describe('EsriTiledFeatureLayerPreviewer#preview', () => {
   });
 
   it('keeps the source id the untiled preview of the same layer would use', () => {
-    // A layer that grows past what a browser will hold changes how it is drawn, not what it is.
-    // The extent outline beside it hangs off the same id, so both come down together.
     expect([...map.sources.keys()]).toEqual([SOURCE, `${SOURCE}-extent`]);
   });
 
   it('names the source layer its tiles carry, on every style layer', () => {
     const tiled = [...map.layers.values()].filter(layer => layer.source === SOURCE);
 
-    // Seven, and a copy of each of the four that draw shapes, for the selected feature
     expect(tiled).toHaveLength(11);
     tiled.forEach(layer => expect(layer['source-layer']).toEqual('esri'));
   });
@@ -181,8 +175,6 @@ describe('EsriTiledFeatureLayerPreviewer#preview', () => {
 
 describe('EsriTiledFeatureLayerPreviewer source zooms', () => {
   it('asks for no tile of a zoom the layer is not published for, or too crowded to draw', () => {
-    // Level 10 of the ArcGIS table is MapLibre zoom 9, and a mean of 318,295 points over Wisconsin
-    // needs zoom 10 before a tile holds few enough to be worth drawing. The higher floor wins.
     expect(map.sources.get(SOURCE)?.minzoom).toEqual(10);
   });
 
@@ -191,7 +183,6 @@ describe('EsriTiledFeatureLayerPreviewer source zooms', () => {
   });
 
   it('puts a floor under a layer whose service publishes no scale at all', async () => {
-    // Most layers publish none, including the largest one in the OpenGeoMetadata corpus
     await build({ ...WISCONSIN, minScale: 0, maxScale: 0 }, { count: 862_441, extent: EXTENT });
 
     expect(map.sources.get(SOURCE)?.minzoom).toBeGreaterThan(9);
@@ -215,8 +206,6 @@ describe('EsriTiledFeatureLayerPreviewer further out than its tiles', () => {
   });
 
   it('draws where the layer is, so a reader told to zoom in can see where to', () => {
-    // Wisconsin needs a camera around zoom 5 to fit and its tiles start at 10, so without this the
-    // record opens on a blank map with nothing on it saying where the data is
     const outline = map.layers.get(`${SOURCE}-extent-outline`);
     const label = map.layers.get(`${SOURCE}-extent-label`);
 
@@ -230,9 +219,7 @@ describe('EsriTiledFeatureLayerPreviewer further out than its tiles', () => {
   });
 
   it('keeps the outline out of the layers panel and off the opacity slider', () => {
-    // It is machinery for reading the layer, not a layer of its own
     const [row] = previewer.previewLayers;
-    // Machinery the same way the copies drawing the selected feature are
     const copies = ['polygons', 'polygon-outlines', 'lines', 'points'].map(suffix => `${SOURCE}-esri-${suffix}-selected`);
 
     expect(row.styleLayers.filter(layer => layer.internal).map(layer => layer.id)).toEqual([...copies, `${SOURCE}-extent-outline`, `${SOURCE}-extent-label`]);
@@ -274,8 +261,6 @@ describe('EsriTiledFeatureLayerPreviewer further out than its tiles', () => {
 });
 
 describe('EsriTiledFeatureLayerPreviewer when the service cuts a tile short', () => {
-  // One dense tile at the zoom a layer starts drawing at is ordinary - one of nine over downtown
-  // Columbus - and it stops being true the moment the reader goes further in
   const noticeAt = async (zoom: number, cappedZoom: number, limit = 8000) => {
     const notice = vi.fn();
     map = new FakeMap();
@@ -289,13 +274,10 @@ describe('EsriTiledFeatureLayerPreviewer when the service cuts a tile short', ()
   };
 
   it('says how far a tile is being cut, at the zoom it happens at', async () => {
-    // The service's own per-request limit, not any cap of ours, and per tile rather than per view:
-    // a screen is covered by several
     expect(await noticeAt(14, 14)).toHaveBeenLastCalledWith('Features are truncated to 8,000 per tile at this zoom level.');
   });
 
   it('reports whatever limit the service applied, which differs between them', async () => {
-    // 32 of the 44 ArcGIS feature layers OpenGeoMetadata points at answer with 4,000, 12 with 8,000
     expect(await noticeAt(14, 14, 4000)).toHaveBeenLastCalledWith(expect.stringContaining('4,000'));
   });
 
@@ -319,8 +301,6 @@ describe('EsriTiledFeatureLayerPreviewer when the service cuts a tile short', ()
   });
 
   it('answers again once the tiles have landed, not only when the camera stops', async () => {
-    // Whether a tile came back short is only known after it comes back, which is after the zoom
-    // that asked for it ended - so the camera alone reports it a whole interaction late
     const notice = vi.fn();
     map = new FakeMap();
     map.zoom = 14;

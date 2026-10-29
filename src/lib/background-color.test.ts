@@ -2,16 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { backgroundColorOf, type ThumbnailSource } from './background-color';
 
-// The canvas is the one thing this project's node environment has none of, and both halves of the
-// work want one: ours to stitch a tiled thumbnail together, and @allmaps/background-color's to clip
-// that thumbnail to the mask and read its pixels back. So a canvas is stubbed - one that records what
-// was drawn into it and what it was clipped to, and hands back pixels a test chose - and everything
-// either side of it runs for real, the detector included. Same approach as colormap.test.ts.
 const IMAGE_SIZE = { width: 4000, height: 3000 };
 const THUMBNAIL_SIZE = { width: 512, height: 384 };
 
-// The mask a georeferencer traced: inset from every edge, which is the case that matters. A mask
-// scaled the wrong way lands entirely off a 512px canvas rather than merely in the wrong place.
 const MASK: [number, number][] = [
   [400, 300],
   [3600, 300],
@@ -22,8 +15,6 @@ const MASK: [number, number][] = [
 const PAPER = [240, 235, 220] as const;
 const PAPER_HEX = '#f0ebdc';
 
-// A canvas's worth of pixels, all the same colour except for one that isn't - enough for a histogram
-// to have a winner, and to tell that it picked the winner rather than the last thing it saw
 const pixels = ({ width, height }: { width: number; height: number }, color: readonly number[] = PAPER): ImageData => {
   const data = new Uint8ClampedArray(width * height * 4);
   for (let index = 0; index < width * height; index++) data.set([...color, 255], index * 4);
@@ -31,7 +22,6 @@ const pixels = ({ width, height }: { width: number; height: number }, color: rea
   return { width, height, data, colorSpace: 'srgb' } as ImageData;
 };
 
-// What a stubbed canvas answers a pixel read with. Swapped out by the test that needs them unreadable.
 let readPixels: (size: { width: number; height: number }) => ImageData;
 
 const bitmaps: { width: number; height: number; closed: boolean }[] = [];
@@ -42,8 +32,6 @@ const bitmap = (size: { width: number; height: number }) => {
   return made;
 };
 
-// Every canvas the run made, in the order they were made: one for a thumbnail that arrived whole - the
-// detector's - and two for a tiled one, the stitching canvas first.
 type FakeCanvas = { width: number; height: number; drawn: { x: number; y: number; width: number }[]; clipped: [number, number][] };
 const canvases: FakeCanvas[] = [];
 
@@ -119,13 +107,6 @@ describe('backgroundColorOf', () => {
     await expect(backgroundColorOf(imageFor(), MASK)).resolves.toEqual(PAPER_HEX);
   });
 
-  // The mask is handed over in the sheet's own coordinates and clips a canvas the size of the
-  // thumbnail, so something has to shrink it to fit. That something is now the detector - this asks
-  // for the sheet's size alongside the mask so it can - and it is the mistake
-  // @allmaps/background-color@1.0.0-beta.1 made the other way round, see the note on it in
-  // background-color.ts. It fails silently: the clipping polygon lands off the canvas, nothing is
-  // drawn, and the histogram comes back empty. So the clip is read back off the canvas rather than
-  // taken on trust.
   it('scales the mask down into the thumbnail rather than up out of it', async () => {
     await backgroundColorOf(imageFor(), MASK);
 
@@ -149,7 +130,6 @@ describe('backgroundColorOf', () => {
   });
 
   it('closes the thumbnail even when the pixels turn out to be unreadable', async () => {
-    // Every pixel transparent, so there is nothing to build a histogram out of
     readPixels = ({ width, height }) => ({ width, height, data: new Uint8ClampedArray(width * height * 4) }) as ImageData;
 
     await expect(backgroundColorOf(imageFor(), MASK)).rejects.toThrow(/histogram is empty/i);
@@ -166,8 +146,6 @@ describe('backgroundColorOf', () => {
   });
 
   describe('an image service that only serves tiles', () => {
-    // What iiif-parser answers with when the service supports no arbitrary region and size: the tiles
-    // of the zoom level nearest the size asked for, which have to be drawn into one bitmap first.
     const grid = [
       [
         { region: { x: 0, y: 0, width: 2000, height: 1500 }, size: { width: 256, height: 192 } },
@@ -195,7 +173,6 @@ describe('backgroundColorOf', () => {
         { x: 256, y: 192, width: 256 },
       ]);
 
-      // The whole grid, not one tile of it: a histogram read off a corner would describe the corner
       expect(read).toMatchObject({ width: 512, height: 384 });
     });
 

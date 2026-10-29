@@ -19,7 +19,6 @@ import {
 } from './esri';
 import { HttpError } from './errors';
 
-// A ring drawn clockwise, which is how Esri writes the outline of a polygon
 const OUTLINE = [
   [0, 0],
   [0, 10],
@@ -28,7 +27,6 @@ const OUTLINE = [
   [0, 0],
 ];
 
-// The same shape drawn counter-clockwise, which is how Esri writes a hole
 const HOLE = [
   [2, 2],
   [4, 2],
@@ -91,7 +89,6 @@ describe('esriExtentToBounds', () => {
   });
 
   it('clamps an extent that reaches past the poles, which a coordinate cannot express', () => {
-    // Web Mercator stops just short of the poles, but services round their extents outward past it
     const bounds = esriExtentToBounds({ xmin: -20037508, ymin: -30000000, xmax: 20037508, ymax: 30000000, spatialReference: { wkid: 3857 } }) as LngLatBounds;
 
     expect(bounds.getSouth()).toBeGreaterThanOrEqual(-90);
@@ -99,7 +96,6 @@ describe('esriExtentToBounds', () => {
   });
 
   it('gives up on a projection it cannot convert, rather than reading the numbers as degrees', () => {
-    // UTM zone 15N, whose eastings would otherwise look like plausible longitudes
     expect(esriExtentToBounds({ xmin: 189000, ymin: 4800000, xmax: 761000, ymax: 5472000, spatialReference: { wkid: 26915 } })).toBeUndefined();
   });
 
@@ -169,7 +165,6 @@ describe('esriGeometryToGeoJSON', () => {
   });
 
   it('keeps a leading counter-clockwise ring rather than dropping it', () => {
-    // Not every service is careful about winding, and a shape with no outline draws nothing
     expect(esriGeometryToGeoJSON({ rings: [HOLE] })).toEqual({ type: 'Polygon', coordinates: [HOLE] });
   });
 
@@ -193,7 +188,6 @@ describe('esriIdentifyResultsToFeatures', () => {
     expect(features[0].properties).toEqual({ EPISODE: 'Wisconsin' });
     expect(features[0].geometry).toEqual({ type: 'Polygon', coordinates: [OUTLINE] });
 
-    // A result can arrive with attributes and no geometry, which the map has nothing to draw for
     expect(features[1].id).toEqual(1);
     expect(features[1].geometry).toBeNull();
   });
@@ -219,20 +213,14 @@ describe('esriQueryFeaturesToGeoJSON', () => {
   });
 });
 
-// Scales from the two layers of this library's own oversized fixture service, which publish levels
-// 10, 11 and 20 of the standard ArcGIS table
 describe('scaleToZoom', () => {
   it('reads a published scale as the MapLibre zoom that draws at it', () => {
-    // Not levels 10, 11 and 20: ArcGIS's table is the one for 256-pixel tiles, and MapLibre draws
-    // 512 of them, so the same ground resolution arrives a zoom earlier. Getting this wrong by one
-    // draws the layer at four times the density its publisher asked for.
     expect(scaleToZoom(577790.554289)).toEqual(9);
     expect(scaleToZoom(288895.277144)).toEqual(10);
     expect(scaleToZoom(564.248588)).toEqual(19);
   });
 
   it('reads no limit as no zoom', () => {
-    // Zero is how ArcGIS writes a layer with no scale dependency, which most layers are
     expect(scaleToZoom(0)).toBeUndefined();
     expect(scaleToZoom(undefined)).toBeUndefined();
     expect(scaleToZoom(-1)).toBeUndefined();
@@ -240,8 +228,6 @@ describe('scaleToZoom', () => {
   });
 
   it('leaves a scale that is not a level of the standard table where it falls', () => {
-    // Only a scale within a thousandth of a level is snapped to it; a round number a publisher
-    // typed themselves is a real fraction of a zoom and stays one
     expect(scaleToZoom(250000)).toBeCloseTo(10.2086, 4);
   });
 
@@ -253,8 +239,6 @@ describe('scaleToZoom', () => {
 
 describe('esriZoomRange', () => {
   it('turns a published scale window into the zooms a style layer is drawn between', () => {
-    // The ceiling is a zoom above what maxScale converts to: ArcGIS still draws a layer at its
-    // maxScale, where MapLibre has already hidden a style layer at its maxzoom
     expect(esriZoomRange({ minScale: 577790.554289, maxScale: 564.248588 })).toEqual({ minzoom: 9, maxzoom: 20 });
   });
 
@@ -299,7 +283,6 @@ describe('hasCapability', () => {
     expect(hasCapability(metadata, 'Map')).toBe(true);
     expect(hasCapability(metadata, 'TilesOnly')).toBe(false);
 
-    // 'Map' shouldn't be found inside 'TilesOnly''s neighbours, nor 'Data' inside 'Metadata'
     expect(hasCapability({ capabilities: 'Metadata' }, 'Data')).toBe(false);
   });
 

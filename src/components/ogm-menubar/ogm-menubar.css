@@ -7,13 +7,11 @@
   border-top: calc(var(--wa-panel-border-width) * 2) solid var(--accent-color);
   border-bottom: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
 
-  /* shadow above map and sidebar */
   position: relative;
   z-index: 701;
   box-shadow: 0 2px 6px 0px var(--wa-color-shadow);
 }
 
-/* Truncate long titles with an ellipsis */
 .title {
   flex: auto;
   font-size: var(--wa-font-size-l);
@@ -23,8 +21,7 @@
   white-space: nowrap;
 }
 
-/* Size the icon glyph directly rather than the button's own font-size, which would inflate
-   the button's whole clickable box (wa-button scales its control height off font-size) */
+/* Size the glyph directly; changing the button font also changes its hit area. */
 .menu-button wa-icon {
   font-size: var(--wa-font-size-xl);
 }

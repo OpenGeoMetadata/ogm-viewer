@@ -82,7 +82,6 @@
         text-align: start;
       }
 
-      /* The row the map says the reader is pointing at; see the highlightChange listener */
       .results li.highlighted button,
       .results li:hover button {
         background: #7fd6ec;
@@ -181,7 +180,6 @@
         });
       }
 
-      // Set up controls
       document.addEventListener('DOMContentLoaded', async () => {
         const recordSelector = document.getElementById('recordSelector');
         const viewer = document.querySelector('ogm-viewer');
@@ -197,7 +195,6 @@
         const loadAllButton = document.getElementById('loadAll');
         const results = document.getElementById('results');
 
-        // Which of the three is on screen, and which of the controls belong to it
         const show = which => {
           viewer.style.display = which === 'viewer' ? 'block' : 'none';
           overview.style.display = which === 'overview' ? 'flex' : 'none';
@@ -215,7 +212,6 @@
         switchOverviewButton.addEventListener('click', () => show('overview'));
         switchLocatorButton.addEventListener('click', () => show('locator'));
 
-        // Dynamically populate the selector
         try {
           await populateRecordSelector(recordSelector);
         } catch (error) {
@@ -223,7 +219,6 @@
           recordSelector.innerHTML = '<option value="">Unable to load records</option>';
         }
 
-        // Load record button
         loadRecordButton.addEventListener('click', async () => {
           const recordUrl = recordInput.value.trim() || recordSelector.value;
           if (!recordUrl) return;
@@ -240,7 +235,6 @@
           }
         });
 
-        // Clear record button
         const clearRecordButton = document.getElementById('clearRecord');
         clearRecordButton.addEventListener('click', async () => {
           recordInput.value = '';
@@ -250,9 +244,6 @@
           await loadRecords([]);
         });
 
-        // Basemap URL override. Each mode remembers its own choice - matching dark-basemap/
-        // light-basemap themselves - so switching theme below shows whichever URL this mode was
-        // last given, and an empty box means this mode is still drawing the library's own default.
         const basemapUrlInput = document.getElementById('basemapUrl');
         const loadBasemapButton = document.getElementById('loadBasemap');
         const basemapPerTheme = { light: undefined, dark: undefined };
@@ -268,7 +259,6 @@
           applyBasemaps();
         });
 
-        // Toggle theme button
         const toggleThemeButton = document.getElementById('toggleTheme');
         toggleThemeButton.addEventListener('click', () => {
           const theme = viewer.theme === 'light' ? 'dark' : 'light';
@@ -278,29 +268,19 @@
           basemapUrlInput.value = basemapPerTheme[theme] ?? '';
         });
 
-        // Hide title checkbox
         const hideTitleCheckbox = document.getElementById('hideTitle');
         hideTitleCheckbox.addEventListener('change', () => {
           viewer.hideTitle = hideTitleCheckbox.checked;
         });
 
-        // Geosearch and bounds display
         const geosearchSelect = document.getElementById('geosearch');
         const boundsOut = document.getElementById('boundsOut');
         const clearFilterButton = document.getElementById('clearFilter');
 
-        // Every result the page is holding, each with the extent a search is answered from, and the area
-        // a search is filtered to. Read once as the records arrive, through the same previewers the map
-        // reads them through - so the boxes searched against are the boxes the numbers are drawn at.
         let loaded = [];
         let filter;
 
-        // Whether two areas meet at all, which is the whole of what filtering by a bounding box is.
-        // Latitudes are a plain comparison. Longitudes have to be squared up first, because either box
-        // can be written across the antimeridian: a search dragged over it comes back as west 175 and
-        // east -175, and a record's own extent carries its east edge past 180 instead. Each is turned
-        // into a span that starts at its west edge and runs east, and then it is a question of whether
-        // either span reaches the other - at any of the three turns of the world where they could.
+        // Compare longitude spans in adjacent world copies to handle antimeridian crossings.
         const span = (west, east) => (east < west ? [west, east + 360] : [west, east]);
         const meets = (search, extent) => {
           const [searchWest, searchSouth, searchEast, searchNorth] = search;
@@ -311,20 +291,12 @@
           return [-360, 0, 360].some(turn => west <= extentEast + turn && extentWest + turn <= east);
         };
 
-        // The results the filter leaves, handed to the map and to the list together so that the numbers
-        // on one are the rows of the other - which is what a page does with a search: a new set of
-        // results, numbered from one. A record with no extent has nothing to search by, so a filter
-        // drops it; with no filter, every record is a result.
         const applyFilter = () => {
           const kept = filter ? loaded.filter(({ extent }) => extent && meets(filter, extent)) : loaded;
           overview.records = kept.map(({ record }) => record);
           renderResults(kept.map(({ record }) => record));
         };
 
-        // Records arriving, measured once. locationsFor leaves a gap where a record says nothing about
-        // where it is, which is the same gap <ogm-overview> would have found for itself. Each extent
-        // comes back as anything MapLibre reads as bounds, so it goes through unionBounds to arrive as
-        // one thing with edges that can be asked for.
         const loadRecords = async records => {
           const extents = await Promise.all(locationsFor(records).map(previewer => previewer?.getBounds()));
           loaded = records.map((record, index) => ({ record, extent: unionBounds([extents[index]]) }));
@@ -343,21 +315,15 @@
           if (!geosearchSelect.checked) setFilter(undefined);
         });
 
-        // Straight back as the active filter, which is the round trip an embedding app makes - and
-        // the only way to see the area being searched drawn on the map
         overview.addEventListener('boundsChange', event => setFilter(event.detail));
 
         clearFilterButton.addEventListener('click', () => setFilter(undefined));
 
-        // The row the map says the reader's pointer is over, marked the way a page would mark it. The
-        // other direction from `highlighted` below: this one is the map telling the list.
         overview.addEventListener('highlightChange', event => {
           const pointed = event.detail?.place;
           [...results.children].forEach((item, index) => item.classList.toggle('highlighted', index + 1 === pointed));
         });
 
-        // A row per result, the way a page would render them beside the map. Hovering one drives
-        // `highlighted` by id, which is what a page holding records has to hand.
         const renderResults = records => {
           results.innerHTML = '';
           records.forEach((record, index) => {
@@ -374,7 +340,6 @@
           });
         };
 
-        // Every record in the selector at once, so there is something to number
         loadAllButton.addEventListener('click', async () => {
           const urls = [...recordSelector.options].map(option => option.value).filter(Boolean);
           const records = await Promise.all(urls.map(async url => new OgmRecord(await (await fetch(url)).json())));

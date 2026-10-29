@@ -1,4 +1,3 @@
-/* Contained sliding panel, replacing Shoelace's <sl-drawer contained no-header> */
 .sidebar {
   position: absolute;
   inset-block: 0;
@@ -22,13 +21,11 @@ wa-tab-group {
   height: 100%;
 }
 
-/* The internal flex wrapper has no height of its own (it sizes to content by default), so
-   without this, ::part(body) never gets a definite cross-axis size to stretch/scroll within */
+/* Give the tab body a definite height so its content can scroll. */
 wa-tab-group::part(base) {
   height: 100%;
 }
 
-/* Fixed tabs on the left side of the sidebar */
 wa-tab-group::part(nav) {
   position: absolute;
   top: 0;
@@ -37,9 +34,7 @@ wa-tab-group::part(nav) {
   border-right: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
 }
 
-/* Prevent tabs from overlapping their content panels. Body is a flex item internally, so it
-   needs an explicit overflow value here - otherwise its default min-height:auto lets long
-   panel content grow the flex item (and the sidebar around it) instead of scrolling inside it. */
+/* Allow the flex body to shrink instead of pushing the panels over the tabs. */
 wa-tab-group::part(body) {
   margin-left: 2.8rem; /* width of the tab nav */
   height: 100%;
@@ -47,7 +42,6 @@ wa-tab-group::part(body) {
   overflow-y: auto;
 }
 
-/* Tabs have large icons; width is pinned so tabs can't grow wider than the nav column above */
 wa-tab::part(base) {
   box-sizing: border-box;
   width: 2.8rem;
@@ -59,7 +53,6 @@ wa-tab wa-icon {
   font-size: var(--wa-font-size-l);
 }
 
-/* Tab content with header */
 wa-tab-panel::part(base) {
   padding: 0;
   margin: 0;

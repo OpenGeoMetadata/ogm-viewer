@@ -1,4 +1,3 @@
-// Map reference URI keys to user-friendly names
 export const REFERENCE_URIS = {
   'https://github.com/cogeotiff/cog-spec': 'COG',
   'http://lccn.loc.gov/sh85035852': 'Data dictionary',
@@ -29,11 +28,9 @@ export const REFERENCE_URIS = {
   'urn:x-esri:serviceType:ArcGIS#TiledMapLayer': 'ArcGIS Tiled Map Layer',
 } as const;
 
-// Specific types for URI values and their friendly names
 export type ReferenceURI = keyof typeof REFERENCE_URIS;
 export type ReferenceName = (typeof REFERENCE_URIS)[ReferenceURI];
 
-// References that are links to metadata
 const METADATA_REFERENCE_URIS = [
   'http://schema.org/url',
   'http://www.opengis.net/cat/csw/csdgm',
@@ -44,41 +41,29 @@ const METADATA_REFERENCE_URIS = [
   'http://lccn.loc.gov/sh85035852',
 ] as const;
 
-// Reference keys are matched exactly, but some records include trailing slashes
-// and some don't in the wild. This lets us be tolerant of that.
 const canonicalUri = (uri: string): string => uri.replace(/\/+$/, '');
 
-// Not every parse gives back an object to read keys off: a record whose dct_references_s is valid
-// JSON but not a JSON object - a bare string, say - would otherwise be kept as-is and answer every
-// lookup with undefined, or throw here for null.
 function canonicalizeKeys(parsed: unknown): ReferencesRecord {
   if (!parsed || typeof parsed !== 'object') return {};
 
   const canonicalized: Record<string, unknown> = {};
   for (const [uri, value] of Object.entries(parsed)) {
     const key = canonicalUri(uri);
-    // A record carrying both spellings of one URI is pathological, but it costs a line to say which
-    // one wins: the first, so a later empty value can't displace a usable one.
     if (!(key in canonicalized)) canonicalized[key] = value;
   }
 
   return canonicalized as ReferencesRecord;
 }
 
-// Special handling for download URLs, can be a single string or an array of objects
 export type LabelledLinks = { url: string; label: string }[];
 type NonDownloadReferenceURI = Exclude<ReferenceURI, 'http://schema.org/downloadUrl'>;
 type DownloadReference = { 'http://schema.org/downloadUrl': string | LabelledLinks };
 
-// Type for the complete references record, all keys are optional
 export type ReferencesRecord = Partial<{ [key in NonDownloadReferenceURI]: string } & DownloadReference>;
 
-// Class that encapsulates references functionality
 export class References {
-  // Underlying object to hold references
   private references: ReferencesRecord;
 
-  // Create a new instance with the JSON string from a record
   constructor(dct_references_s: string) {
     try {
       this.references = canonicalizeKeys(JSON.parse(dct_references_s));
@@ -88,99 +73,78 @@ export class References {
     }
   }
 
-  // The WMS URL, if any
   get wmsUrl() {
     return this.references['http://www.opengis.net/def/serviceType/ogc/wms'];
   }
 
-  // The cloud-optimized GeoTIFF URL, if any
   get cogUrl() {
     return this.references['https://github.com/cogeotiff/cog-spec'];
   }
 
-  // The TMS URL, if any
   get tmsUrl() {
     return this.references['https://wiki.osgeo.org/wiki/Tile_Map_Service_Specification'];
   }
 
-  // The XYZ tiles URL, if any
   get xyzUrl() {
     return this.references['https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames'];
   }
 
-  // The GeoJSON URL, if any
   get geojsonUrl() {
     return this.references['http://geojson.org/geojson-spec.html'];
   }
 
-  // The TileJSON URL, if any
   get tilejsonUrl() {
     return this.references['https://github.com/mapbox/tilejson-spec'];
   }
 
-  // The Index map URL, if any
   get indexMapUrl() {
     return this.references['https://openindexmaps.org'];
   }
 
-  // The PMTiles URL, if any
   get pmtilesUrl() {
     return this.references['https://github.com/protomaps/PMTiles'];
   }
 
-  // The WMTS URL, if any
   get wmtsUrl() {
     return this.references['http://www.opengis.net/def/serviceType/ogc/wmts'];
   }
 
-  // The IIIF image URL, if any
   get iiifImageUrl() {
     return this.references['http://iiif.io/api/image'];
   }
 
-  // The IIIF manifest URL, if any
   get iiifManifestUrl() {
     return this.references['http://iiif.io/api/presentation#manifest'];
   }
 
-  // A standalone IIIF Georeference Annotation, if the record points at one. A manifest can also
-  // carry its own annotation, and when both exist the manifest's is the canonical one - see
-  // IIIFManifestResource#getGeoreferenceAnnotation, which is what actually resolves the two.
   get georeferenceUrl() {
     return this.references['https://iiif.io/api/extension/georef/1/context.json'];
   }
 
-  // The ArcGIS DynamicMapLayer URL, if any
   get esriDynamicMapLayerUrl() {
     return this.references['urn:x-esri:serviceType:ArcGIS#DynamicMapLayer'];
   }
 
-  // The ArcGIS FeatureLayer URL, if any
   get esriFeatureLayerUrl() {
     return this.references['urn:x-esri:serviceType:ArcGIS#FeatureLayer'];
   }
 
-  // The ArcGIS ImageMapLayer URL, if any
   get esriImageMapLayerUrl() {
     return this.references['urn:x-esri:serviceType:ArcGIS#ImageMapLayer'];
   }
 
-  // The ArcGIS TiledMapLayer URL, if any
   get esriTiledMapLayerUrl() {
     return this.references['urn:x-esri:serviceType:ArcGIS#TiledMapLayer'];
   }
 
-  // The FGDC metadata document, if any
   get fgdcUrl() {
     return this.references['http://www.opengis.net/cat/csw/csdgm'];
   }
 
-  // The ISO 19110 feature catalogue, if any
   get iso19110Url() {
     return this.references['http://www.isotc211.org/schemas/2005/gco'];
   }
 
-  // List of download links with URL and label, if using multiple downloads
   get downloadLinks(): LabelledLinks {
     const fieldContents = this.references['http://schema.org/downloadUrl'];
     if (!fieldContents) return [];
@@ -188,17 +152,12 @@ export class References {
     return [];
   }
 
-  // If downloads was specified as a single string, return it
   get downloadUrl(): string | undefined {
     const fieldContents = this.references['http://schema.org/downloadUrl'];
     if (typeof fieldContents === 'string') return fieldContents;
     return;
   }
 
-  // List of metadata links with URL and label. Walks the known metadata URIs rather than whatever
-  // the record happens to hold, so the order is ours rather than the JSON's and every entry is
-  // typed - the download key is the one metadata-shaped value that isn't a bare URL, and the string
-  // check below is what keeps its labelled-link array out.
   get metadataLinks(): LabelledLinks {
     return METADATA_REFERENCE_URIS.flatMap(uri => {
       const url = this.references[uri];
@@ -206,32 +165,26 @@ export class References {
     });
   }
 
-  // True if the record has at least one reference that can be rendered for preview
   get previewable() {
     return this.previewableReferences.some(Boolean);
   }
 
-  // True if the record has a reference that can be rendered on a map
   get mapPreviewable() {
     return this.mapPreviewableReferences.some(Boolean);
   }
 
-  // True if the record has any IIIF references (image or manifest)
   get iiifPreviewable() {
     return this.iiifReferences.some(Boolean);
   }
 
-  // True if the record can only be previewed via IIIF references (image or manifest)
   get iiifOnly() {
     return !this.mapPreviewable && this.iiifPreviewable;
   }
 
-  // Get all references that can be rendered for preview
   private get previewableReferences() {
     return this.mapPreviewableReferences.concat(this.iiifReferences);
   }
 
-  // Get all references that can be rendered on a map
   private get mapPreviewableReferences() {
     return [
       this.wmsUrl,
@@ -251,16 +204,10 @@ export class References {
     ];
   }
 
-  // A georeference annotation draws nothing on its own: it is a set of control points for an image
-  // held somewhere else, so it only makes a record map-previewable when there is also a IIIF
-  // reference for it to apply to. The other direction can't be answered here at all - a manifest
-  // that carries its own annotation and names no georef reference, which is what Stanford's
-  // runtime-generated manifests do, takes a fetch to discover, so IIIFManifestResource does it.
   private get georeferenceReferences() {
     return this.georeferenceUrl && this.iiifPreviewable ? [this.georeferenceUrl] : [];
   }
 
-  // Get all IIIF references (image and manifest)
   private get iiifReferences() {
     return [this.iiifImageUrl, this.iiifManifestUrl];
   }

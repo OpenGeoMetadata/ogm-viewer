@@ -1,8 +1,4 @@
 import { describe, it, expect, afterEach } from '@stencil/vitest';
-// vi from vitest itself rather than from @stencil/vitest, which the other previewer tests take it
-// from: vi.mock below is rewritten and hoisted by vitest's own transform, and that only recognizes
-// the API when it was imported from vitest. The same object either way - @stencil/vitest re-exports
-// it - so nothing else in this file changes.
 import { vi } from 'vitest';
 import { WarpedMapLayer } from '@allmaps/maplibre';
 import type { LngLatBoundsLike, MapLibreMap } from 'maplibre-gl';
@@ -11,17 +7,9 @@ import GeoreferencePreviewer from './georeference';
 import IIIFManifestResource from '../resources/iiif-manifest';
 import type { MapLibreStyle } from '../themes/maplibre';
 
-// Reading pixels out of a thumbnail needs a canvas and a network, neither of which this project's
-// node environment has; background-color.test.ts covers what it does with them. What's exercised here
-// is everything around it: when it is asked, what the panel is told, and what reaches the layer.
 const { backgroundColorOf } = vi.hoisted(() => ({ backgroundColorOf: vi.fn(async () => '#f0ebdc') }));
 vi.mock('../background-color', () => ({ backgroundColorOf }));
 
-// Just enough of a MapLibre map to record what the previewer puts on it. Unlike the other previewer
-// fakes this one has to accept a layer with no source, since that is what a custom layer is - and it
-// refuses a paint property outright, which is what MapLibre does for one. It also carries MapLibre's
-// event API, because that is where @allmaps/maplibre refires the events its renderer emits: the map,
-// not the layer, is how a layer that paints itself can be heard from.
 class FakeMap {
   sources = new Map<string, any>();
   layers = new Map<string, any>();
@@ -54,7 +42,6 @@ class FakeMap {
     return this.layers.get(id);
   }
   addLayer(layer: any) {
-    // A custom layer draws itself and names no source; anything else must name one MapLibre holds
     if (layer.type !== 'custom' && !this.sources.has(layer.source)) throw new Error(`No source ${layer.source} for layer ${layer.id}`);
     this.layers.set(layer.id, layer);
   }
@@ -78,11 +65,6 @@ const annotation = {
   items: [{ type: 'Annotation', motivation: 'georeferencing', body: { type: 'FeatureCollection', features: [] } }],
 };
 
-// Allmaps only works once it has a WebGL2 context, which a fake map has no way to hand it, so the
-// calls the previewer makes on the layer are spied on rather than run. Everything either side of
-// them - which layer goes on the map, what the layers panel is told, what opacity reaches the layer
-// rather than the style - is the previewer's own and is exercised for real.
-// One sheet of a scan, as much of it as detecting a background colour reads
 const warpedMapFor = (mapId = 'map-id') =>
   ({
     mapId,
@@ -96,17 +78,12 @@ const warpedMapFor = (mapId = 'map-id') =>
     ],
   }) as unknown as ReturnType<WarpedMapLayer['getWarpedMap']>;
 
-// What @allmaps/render answers addGeoreferenceAnnotation with: one result per map in the annotation,
-// each either an ok one naming the map it added or a failed one carrying that map's error. Built here
-// rather than written out, because only the two fields the previewer reads are ever interesting.
 const added = (mapId = 'map-id', index = 0) => ({ ok: true as const, mapId, index });
 const failed = (message: string, index = 0) => ({ ok: false as const, error: new Error(message), index });
 
 const previewFor = async () => {
   const addAnnotation = vi.spyOn(WarpedMapLayer.prototype, 'addGeoreferenceAnnotation').mockReturnValue([added()]);
   const setOpacity = vi.spyOn(WarpedMapLayer.prototype, 'setOpacity').mockImplementation(() => {});
-  // setMapOptions delegates to this one, so a single spy catches both the whole-layer push and the
-  // single-sheet catch-up
   const setMapsOptions = vi.spyOn(WarpedMapLayer.prototype, 'setMapsOptions').mockImplementation(() => {});
   const getWarpedMap = vi.spyOn(WarpedMapLayer.prototype, 'getWarpedMap').mockImplementation(() => warpedMapFor());
 
@@ -119,25 +96,19 @@ const previewFor = async () => {
   return { map, previewer, resource, addAnnotation, setOpacity, setMapsOptions, getWarpedMap };
 };
 
-// Allmaps refires its renderer's events on the map, tagged with the layer they came from; a tile is
-// what tells this preview that a sheet's image information is in hand. See handleFirstTile.
 const LAYER_ID = 'bb013fz9675-georeference';
 const firstTile = (map: FakeMap, mapIds: string[] = ['map-id'], layerId = LAYER_ID) => map.fire('firstmaptileloaded', { type: 'firstmaptileloaded', layerId, mapIds });
 
-// The detection is a promise chain started from a listener, so a fired event is not finished with
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
 
 const stateFor = (removeBackground: boolean) => new Map([[LAYER_ID, { visible: true, opacity: 0.8, removeBackground }]]);
 
-// What setMapsOptions was handed for one sheet, whichever of its two forms it was called in
 const optionsFor = (setMapsOptions: ReturnType<typeof vi.spyOn>, mapId = 'map-id') => {
   const [first, second] = setMapsOptions.mock.calls.at(-1) as [unknown, unknown];
   return typeof first === 'function' ? (first as (id: string) => unknown)(mapId) : second;
 };
 
 describe('GeoreferencePreviewer', () => {
-  // restoreAllMocks only undoes the spyOn ones; the detection above is a plain vi.fn() whose calls
-  // would otherwise pile up across the tests that count them
   afterEach(() => {
     vi.restoreAllMocks();
     backgroundColorOf.mockClear();
@@ -164,7 +135,6 @@ describe('GeoreferencePreviewer', () => {
   it('hands the annotation to the layer only after the layer is on the map', async () => {
     const { map, previewer, addAnnotation } = await previewFor();
 
-    // Allmaps builds its renderer in the layer's onAdd and throws if handed an annotation first
     addAnnotation.mockImplementation(() => {
       expect(map.layers.has('bb013fz9675-georeference')).toBe(true);
       return [added()];
@@ -175,12 +145,6 @@ describe('GeoreferencePreviewer', () => {
     expect(addAnnotation).toHaveBeenCalledWith(annotation);
   });
 
-  // A preview is drawn again from scratch on every basemap swap, and MapLibre's setStyle keeps custom
-  // layers rather than clearing them with the rest of the document. So a second draw finds a live
-  // layer already under this id - and leaving it there, as a style layer would want, stranded the
-  // fresh one without the WebGL context MapLibre only hands out in onAdd. Found in the browser:
-  // toggling the theme reported 'Renderer not defined. Add the layer to a map before calling this
-  // function.' and lost the preview.
   it('replaces its layer rather than being skipped for the one a basemap swap left behind', async () => {
     const { map, previewer } = await previewFor();
     await previewer.preview();
@@ -190,7 +154,6 @@ describe('GeoreferencePreviewer', () => {
     const second = map.layers.get('bb013fz9675-georeference');
 
     expect(second).not.toBe(first);
-    // The one on the map has to be the one the previewer will call setOpacity and getBounds on
     expect(second).toBe((previewer as any).layer);
     expect(map.layers.size).toEqual(1);
   });
@@ -201,8 +164,6 @@ describe('GeoreferencePreviewer', () => {
     expect(previewer.label()).not.toEqual(new IIIFManifestResource('bb013fz9675', MANIFEST_URL).label());
   });
 
-  // Only reachable if the manifest stopped being georeferenced between the tab being built and being
-  // opened, since that check is what put this preview on offer at all
   it('fails the preview when the manifest turns out to have no annotation', async () => {
     const { previewer, resource } = await previewFor();
     vi.spyOn(resource, 'getGeoreferenceAnnotation').mockResolvedValue(undefined);
@@ -219,7 +180,6 @@ describe('GeoreferencePreviewer', () => {
     expect(warn).toHaveBeenCalled();
   });
 
-  // A page of annotations can be partly readable, and one bad map is no reason to refuse the rest
   it('still draws when only some of the maps in the annotation are unreadable', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { previewer, addAnnotation } = await previewFor();
@@ -229,17 +189,12 @@ describe('GeoreferencePreviewer', () => {
     expect(warn).toHaveBeenCalled();
   });
 
-  // Allmaps derives its own viewport from the map's centre, bearing and one units-per-pixel scale
-  // read off the unprojected viewport corners, which describes a flat map and not a sphere. Right to
-  // within a percent at the zooms a scan is read at, out by half again by zoom 3, where the warped
-  // map slides off the globe - so this preview asks for the flat map it is really drawn on.
   it('asks for a flat map rather than the globe everything else is drawn on', async () => {
     const { previewer } = await previewFor();
 
     expect(previewer.projection).toEqual('mercator');
   });
 
-  // That same viewport has no pitch, so a tilted map is the same mistake by another route
   it('asks to be held flat, since Allmaps ignores pitch as well as the globe', async () => {
     const { previewer } = await previewFor();
 
@@ -251,14 +206,11 @@ describe('GeoreferencePreviewer', () => {
       const { previewer, setOpacity } = await previewFor();
       await previewer.preview();
 
-      // FakeMap throws from setPaintProperty, so reaching for one would fail this outright
       previewer.applyLayerState(new Map([['bb013fz9675-georeference', { visible: true, opacity: 0.25 }]]));
 
       expect(setOpacity).toHaveBeenCalledWith(0.25);
     });
 
-    // Visibility does go through the style document: MapLibre honours it for a custom layer, short-
-    // circuiting before it validates any property the layer doesn't have
     it('still hides the layer through MapLibre, which handles visibility for a custom layer', async () => {
       const { map, previewer } = await previewFor();
       await previewer.preview();
@@ -276,8 +228,6 @@ describe('GeoreferencePreviewer', () => {
       previewer.onLayersChanged = onLayersChanged;
       await previewer.preview();
 
-      // Nothing on offer until a colour is in hand: a scan whose thumbnail can't be read is better
-      // off with no toggle than with one that does nothing
       expect(previewer.previewLayers[0].backgroundRemovable).toBe(false);
       expect(onLayersChanged).not.toHaveBeenCalled();
 
@@ -289,8 +239,6 @@ describe('GeoreferencePreviewer', () => {
       expect(onLayersChanged).toHaveBeenCalled();
     });
 
-    // Every warped layer on this map reports through the same channel, so the filter that keeps
-    // onDrawn honest has to keep this honest too
     it('ignores a tile that belongs to another layer', async () => {
       const { map, previewer } = await previewFor();
       await previewer.preview();
@@ -302,7 +250,6 @@ describe('GeoreferencePreviewer', () => {
       expect(previewer.previewLayers[0].backgroundRemovable).toBe(false);
     });
 
-    // The event arrives again on every redraw, and a thumbnail is a whole request
     it('reads a sheet only once, however often its tiles are reported', async () => {
       const { map, previewer } = await previewFor();
       await previewer.preview();
@@ -328,8 +275,6 @@ describe('GeoreferencePreviewer', () => {
       expect(optionsFor(setMapsOptions)).toEqual({ removeColor: true, removeColorColor: '#f0ebdc', removeColorThreshold: 1 / 3, removeColorHardness: 0.1 });
     });
 
-    // Zero threshold is what actually switches the shader's branch off; removeColor alone leaves it
-    // computing a distance it then ignores
     it('puts the paper back, threshold and all', async () => {
       const { map, previewer, setMapsOptions } = await previewFor();
       await previewer.preview();
@@ -343,8 +288,6 @@ describe('GeoreferencePreviewer', () => {
       expect(optionsFor(setMapsOptions)).toEqual({ removeColor: false, removeColorColor: '#f0ebdc', removeColorThreshold: 0, removeColorHardness: 0.1 });
     });
 
-    // applyLayerState runs on every frame of an opacity drag, and each of these rebuilds per-map
-    // uniforms and asks for a render
     it('leaves the layer alone when the toggle itself has not moved', async () => {
       const { map, previewer, setMapsOptions } = await previewFor();
       await previewer.preview();
@@ -360,8 +303,6 @@ describe('GeoreferencePreviewer', () => {
       expect(setMapsOptions).not.toHaveBeenCalled();
     });
 
-    // A sheet of a multi-sheet scan can come into view after the reader has already switched the
-    // toggle on, and the panel's state won't change again by itself to come back for it
     it('catches up a sheet whose color arrives after the toggle is already on', async () => {
       const { map, previewer, setMapsOptions } = await previewFor();
       await previewer.preview();
@@ -377,9 +318,6 @@ describe('GeoreferencePreviewer', () => {
       expect(setMapsOptions).toHaveBeenCalledWith(['second-sheet'], expect.objectContaining({ removeColor: true, removeColorColor: '#f0ebdc' }), undefined);
     });
 
-    // A basemap swap rebuilds the style document and draws this preview again from scratch. The
-    // colours are the same scan's, so they are kept - and the row keeps its control rather than
-    // losing it and earning it back a request later.
     it('keeps what it learned across a basemap swap, and re-applies it to the new layer', async () => {
       const { map, previewer, setMapsOptions } = await previewFor();
       await previewer.preview();
@@ -414,8 +352,6 @@ describe('GeoreferencePreviewer', () => {
       expect(warn).toHaveBeenCalledWith(expect.stringMatching(/background color/i), expect.any(Error));
     });
 
-    // Mid-rebuild the layer is an object MapLibre has not handed a context to yet, and every call on
-    // it throws 'Renderer not defined' rather than being ignored
     it('does not reach for a layer the style document no longer holds', async () => {
       const { map, previewer, setMapsOptions } = await previewFor();
       await previewer.preview();
@@ -473,8 +409,6 @@ describe('GeoreferencePreviewer', () => {
     expect(previewer.previewLayers).toEqual([]);
   });
 
-  // Nothing this preview draws passes through a MapLibre source, so whoever is waiting to hear that
-  // it is really on the map can only hear it from here. See MapPreviewer.onDrawn.
   describe('reporting its own drawing', () => {
     const FIRST_TILE = 'firstmaptileloaded';
 
@@ -494,8 +428,6 @@ describe('GeoreferencePreviewer', () => {
       expect(drawn).toBe(1);
     });
 
-    // Every warped layer on one map reports down the same channel, so the news has to be checked
-    // against the layer it is about
     it('ignores a tile drawn by another warped layer on the same map', async () => {
       const { map, previewer } = await previewFor();
       let drawn = 0;
@@ -507,8 +439,6 @@ describe('GeoreferencePreviewer', () => {
       expect(drawn).toBe(0);
     });
 
-    // A theme change draws the same preview again into a rebuilt style document with no clearPreview
-    // between, so the listener has to be replaced rather than added to
     it('reports once per tile after being drawn a second time', async () => {
       const { map, previewer } = await previewFor();
       let drawn = 0;

@@ -1,70 +1,21 @@
-/**
- * Writes src/lib/assets.generated.ts: things a component needs at runtime that used to be files
- * beside it - Web Awesome's default theme, our bootstrap-icons subset, and the colormap sprite
- * scalar COGs are drawn through - as strings and base64 the bundler carries with the rest of the
- * library. And src/lib/lerc-wasm.generated.ts, which is the same idea for the WebAssembly module the
- * LERC decoder needs.
- *
- * All of them used to be (or, for the sprite, would otherwise be) fetched from a URL beside this
- * package's own files, anchored to the module's import.meta.url. That is right for a script tag and
- * for a CDN importmap, and wrong for every app that bundles us: a bundler copies the JavaScript it
- * was asked for, and knows nothing about a sibling directory of assets it was never pointed at. So
- * `npm i ogm-viewer` and `import 'ogm-viewer'` drew the map correctly and everything around it
- * unstyled - serif fallback font, no icons - with a handful of failed requests to explain it.
- * Nothing a consumer can configure fixes that; the files have to be inside the module graph, which
- * is what this puts them there for.
- *
- * Run ahead of Stencil by `npm run build` and `npm start`, rather than checked in, so the tree can
- * never carry a copy of Web Awesome's CSS, of a sprite from @developmentseed/deck.gl-raster, or of
- * lerc's wasm, that disagrees with the version in package.json.
- *
- * Two modules rather than one because of where each ends up. The theme, the icons and the sprite are
- * wanted by any component that draws anything, so they belong in the closure that loads with the
- * library; the wasm is wanted only by a COG that turns out to be LERC-compressed, and it is bigger
- * than all three together, so it gets a module of its own for the bundler to split off and fetch
- * when something finally asks.
- *
- * A step ahead of the compiler rather than a Rollup transform like the decoder worker's in
- * stencil.config.ts, because the two fail differently: that source can be empty in a build that
- * skips the plugin and only costs speed, where an empty theme *is* the unstyled viewer this fixes,
- * with nothing failing to say so. Writing a real module instead leaves one copy of the truth for
- * tsc, for vitest, and for every output target.
- */
+// Inline runtime assets so consuming applications only need the JavaScript bundle.
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 
 import { COLORMAP_INDEX } from '@developmentseed/deck.gl-raster/gpu-modules';
 
-// The stylesheet every component used to link, resolved through Web Awesome's own exports rather
-// than from a path into node_modules, so this holds wherever the package manager hoisted it to.
 const THEME = '@awesome.me/webawesome/dist/styles/themes/default.css';
 
-// Our icons: the subset of bootstrap-icons checked in beside this repo's other assets. Whatever is
-// in that directory is what <wa-icon name="..."> can name - see registerIconLibrary in src/lib/init.ts.
 const ICONS = new URL('../assets/icons/', import.meta.url);
 
-// The 107 named color ramps a scalar COG can be drawn with, as one 256x107 RGBA sprite - see
-// src/lib/colormap.ts. Resolved the same way as THEME, so it holds wherever the package manager put
-// it, and at 16.4 KB small enough to sit in the closure that loads with the library rather than in a
-// module of its own the way lerc's wasm below does.
 const COLORMAP_SPRITE = '@developmentseed/deck.gl-raster/gpu-modules/colormaps.png';
 
-// The half of the LERC decoder that does the work. lerc is emscripten output: its JavaScript half
-// fetches this by URL the first time it decodes anything, looking beside whichever chunk it was
-// bundled into - so as a file it was unreachable from a bundled app and from a worker built out of a
-// blob alike. Resolved through lerc's own exports map, which names it, rather than by a path into
-// node_modules.
 const LERC_WASM = 'lerc/lerc-wasm.wasm';
 
 const OUTPUT = new URL('../src/lib/assets.generated.ts', import.meta.url);
 const LERC_OUTPUT = new URL('../src/lib/lerc-wasm.generated.ts', import.meta.url);
 
-/**
- * One stylesheet's text with every @import it makes inlined in place. CSS requires @import at the
- * top of a sheet, ahead of any rule, so inlining each where it stands preserves the order the
- * cascade would have seen. A file that has already been inlined once collapses to nothing rather
- * than being repeated: layers.css arrives twice, directly and again underneath the palette.
- */
+// Inline imports in cascade order, skipping stylesheets already included.
 const inlineImports = (url, seen = new Set()) => {
   if (seen.has(url.href)) return '';
   seen.add(url.href);
@@ -74,10 +25,7 @@ const inlineImports = (url, seen = new Set()) => {
 
 const css = inlineImports(new URL(import.meta.resolve(THEME)));
 
-// Loudly rather than quietly, both of these: a relative URL that survives into the string is one
-// that will resolve against the embedding page once this is adopted into a shadow root, which is the
-// whole class of bug this script exists to remove. An @import form we don't recognize, or a url()
-// pointing at a file beside the CSS, is Web Awesome telling us its styles moved.
+// Relative URLs would resolve against the embedding page and request files it does not host.
 if (/@import/.test(css)) throw new Error(`${THEME} makes an @import this script doesn't recognize. Check how Web Awesome writes them now, and update scripts/inline-assets.mjs.`);
 if (/url\(\s*['"]?(?!data:)/.test(css))
   throw new Error(`${THEME} now points at a file beside itself, which nothing ships. Check what it wants, and update scripts/inline-assets.mjs.`);
@@ -92,12 +40,7 @@ if (icons.length === 0) throw new Error(`No icons in ${ICONS.pathname}. Every wa
 const spritePath = import.meta.resolve(COLORMAP_SPRITE).replace('file://', '');
 const sprite = readFileSync(spritePath);
 
-// A PNG's width and height are the first two 4-byte big-endian fields of its IHDR chunk, which is
-// always the first chunk - right after the 8-byte signature every PNG opens with. Read rather than
-// trusted, because both numbers are load-bearing for what reads this sprite at runtime:
-// createColormapTexture (@developmentseed/deck.gl-raster) throws on anything but a 256-wide image,
-// and src/lib/colormap.ts indexes rows by COLORMAP_INDEX, which is only correct while there is
-// exactly one row per name that package exports.
+// PNG dimensions are big-endian fields in IHDR, immediately after the eight-byte signature.
 const spriteWidth = sprite.readUInt32BE(16);
 const spriteHeight = sprite.readUInt32BE(20);
 if (spriteWidth !== 256) {
@@ -111,7 +54,6 @@ if (spriteHeight !== Object.keys(COLORMAP_INDEX).length) {
   );
 }
 
-// JSON rather than template literals: both of these carry backticks and backslashes of their own.
 const entries = icons.map(([name, svg]) => `  ${JSON.stringify(name)}: ${JSON.stringify(svg)},`).join('\n');
 
 writeFileSync(
@@ -134,14 +76,10 @@ export const colormapSpriteBase64 = ${JSON.stringify(sprite.toString('base64'))}
 
 const wasm = readFileSync(new URL(import.meta.resolve(LERC_WASM)));
 
-// Loudly rather than quietly: anything that is not a WebAssembly module here fails much later and
-// much less clearly, inside an instantiate call in a decoder worker.
 if (wasm.subarray(0, 4).toString('latin1') !== '\0asm')
   throw new Error(`${LERC_WASM} is not a WebAssembly module. Check what lerc ships now, and update scripts/inline-assets.mjs.`);
 
-// A data URL rather than the bytes, because a URL is the only form lerc's load() takes - it forwards
-// nothing but locateFile to the emscripten module underneath. Base64 rather than a Uint8Array
-// literal for the same reason, and it is the form <wa-icon> already gets its icons in.
+// lerc.load() accepts a URL, so embed the wasm as a data URL.
 writeFileSync(
   LERC_OUTPUT,
   `// Generated by scripts/inline-assets.mjs - do not edit. Read that script for what this is and why

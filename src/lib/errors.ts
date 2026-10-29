@@ -1,15 +1,11 @@
-// Supertype for errors thrown inside ogm-viewer.
 export class PreviewError extends Error {
   title: string;
 
-  // Optional; points to the record or reference URL that raised the error
   url?: string;
 
-  // Retrying definitely won't fix this; don't clear until something else is loaded
   fatal?: boolean;
 }
 
-// The OGM record URL responded with a non-OK HTTP status.
 class RecordLoadError extends PreviewError {
   title = "This record couldn't be loaded";
 
@@ -19,7 +15,6 @@ class RecordLoadError extends PreviewError {
   }
 }
 
-// The OGM record URL fetch failed due to a network error or CORS restriction.
 class RecordNetworkError extends PreviewError {
   title = "This record couldn't be reached";
 
@@ -29,7 +24,6 @@ class RecordNetworkError extends PreviewError {
   }
 }
 
-// The OGM record couldn't be parsed as JSON.
 class RecordParseError extends PreviewError {
   title = "This record couldn't be parsed";
 
@@ -39,7 +33,6 @@ class RecordParseError extends PreviewError {
   }
 }
 
-// Something else went wrong reading the record.
 class RecordReadError extends PreviewError {
   title = "This record couldn't be read";
 
@@ -49,7 +42,6 @@ class RecordReadError extends PreviewError {
   }
 }
 
-// The reference URL responded with a non-OK HTTP status.
 class ReferenceLoadError extends PreviewError {
   constructor(refType: string, status: number, url?: string) {
     super(`The reference URL responded with an error (HTTP ${status}). Check that the URL is correct and the reference is publicly available.`);
@@ -58,7 +50,6 @@ class ReferenceLoadError extends PreviewError {
   }
 }
 
-// The reference URL fetch failed due to a network error or CORS restriction.
 class ReferenceNetworkError extends PreviewError {
   constructor(refType: string, url?: string) {
     super('The server may be unreachable, or it may be blocking cross-origin (CORS) requests from this page.');
@@ -67,7 +58,6 @@ class ReferenceNetworkError extends PreviewError {
   }
 }
 
-// Something else went wrong reading the reference.
 class ReferenceReadError extends PreviewError {
   constructor(refType: string, message: string, url?: string) {
     super(message);
@@ -76,10 +66,6 @@ class ReferenceReadError extends PreviewError {
   }
 }
 
-// Nothing the reference could be drawn from arrived before we stopped waiting. Says what we
-// observed rather than naming a cause, because the two failures that land here look identical from
-// the outside: a host that never answers at all, and a server that answers every tile with a 404 -
-// which MapLibre swallows on purpose, since a missing tile of an XYZ pyramid means "use the parent".
 class ReferenceTimeoutError extends PreviewError {
   constructor(refType: string, url?: string) {
     super('Data failed to load in time. The server may be unreachable or overloaded, or it may not hold the requested data.');
@@ -88,9 +74,6 @@ class ReferenceTimeoutError extends PreviewError {
   }
 }
 
-// Used to report that we stopped waiting for something, rather than that it failed. A carrier like
-// HttpError below: it says which kind of PreviewError to build without the code that raises it
-// having to know about them.
 export class TimeoutError extends Error {
   constructor(what: string, ms: number) {
     super(`Gave up waiting for ${what} after ${ms}ms`);
@@ -98,7 +81,6 @@ export class TimeoutError extends Error {
   }
 }
 
-// Used to re-raise HTTP responses from fetch() with a non-OK status as PreviewErrors
 export class HttpError extends Error {
   readonly status: number;
   readonly statusText: string;
@@ -113,8 +95,6 @@ export class HttpError extends Error {
   }
 }
 
-// Bots, crawlers, and some devices/test setups can hit this; we want to catch
-// and render it nicely to avoid unhandled exception noise
 export class WebGLUnavailableError extends PreviewError {
   title = "This record couldn't be displayed";
   fatal = true;
@@ -125,77 +105,56 @@ export class WebGLUnavailableError extends PreviewError {
   }
 }
 
-// Execute a fetch() and raise HttpError on non-OK status
 export async function fetchOrThrow(url: string, init?: RequestInit): Promise<Response> {
   const response = await fetch(url, init);
   if (!response.ok) throw new HttpError(url, response.status, response.statusText);
   return response;
 }
 
-// Attempt to get a useful HTTP status code from any error. We only keep values
-// over 400 because MapLibre uses code "0", which isn't a real HTTP status.
 function statusOf(error: unknown): number | undefined {
   if (error instanceof HttpError) return error.status;
   const status = (error as { status?: unknown } | null)?.status;
   return typeof status === 'number' && status >= 400 ? status : undefined;
 }
 
-// A fetch() failure to reach the server at all, or a CORS block, rejects with a TypeError. MapLibre
-// reports the same class of failure on its internal tile/data requests with a synthetic status of 0
-// (not a real HTTP status). Treat both as a network error so the user sees the unreachable/CORS
-// message rather than a generic read error or a nonsensical "HTTP 0".
+// MapLibre uses status 0 for network failures; fetch reports them as TypeError.
 function isNetworkError(error: unknown): boolean {
   if (error instanceof TypeError) return true;
   return (error as { status?: unknown } | null)?.status === 0;
 }
 
-// Thrown when trying to initialize a new maplibre map. MapLibre doesn't use anything
-// more specific than 'Error', but it does set the text to a telltale string, so we
-// match on that to distinguish it from other errors.
 export function isWebGLError(error: unknown): boolean {
   return error instanceof Error && error.message.includes('Failed to initialize WebGL');
 }
 
-// Attempt get a useful message from any error.
 function messageOf(error: unknown): string | undefined {
   if (error instanceof Error) return error.message;
   if (typeof error === 'string') return error;
   return undefined;
 }
 
-// Generate a PreviewError when something went wrong loading the record.
 export function recordError(error: unknown, url: string): PreviewError {
   const status = statusOf(error);
   const message = messageOf(error);
 
-  // The request failed to reach the server at all, or was blocked by CORS.
   if (isNetworkError(error)) return new RecordNetworkError(url);
 
-  // If we have an HTTP status code, the server responded.
   if (status !== undefined) return new RecordLoadError(status, url);
 
-  // A SyntaxError here means we got a response but it wasn't valid JSON metadata.
   if (error instanceof SyntaxError) return new RecordParseError(url);
 
-  // Anything else (e.g. an unsupported metadata version thrown by OgmRecord's constructor).
   return new RecordReadError(message ?? 'An unknown error occurred while reading this record.', url);
 }
 
-// Generate a PreviewError when something went wrong loading an individual reference.
 export function referenceError(error: unknown, refType: string, url?: string): PreviewError {
   const status = statusOf(error);
   const message = messageOf(error);
 
-  // Nothing failed; we stopped waiting. Checked first, since this is the one case where we have no
-  // response to describe - not a status, and not a network failure the browser reported.
   if (error instanceof TimeoutError) return new ReferenceTimeoutError(refType, url);
 
-  // The request failed to reach the server at all, or was blocked by CORS.
   if (isNetworkError(error)) return new ReferenceNetworkError(refType, url);
 
-  // If we have an HTTP status code, the server responded.
   if (status !== undefined) return new ReferenceLoadError(refType, status, url);
 
-  // Anything else.
   return new ReferenceReadError(refType, message ?? 'An unknown error occurred while reading this reference.', url);
 }

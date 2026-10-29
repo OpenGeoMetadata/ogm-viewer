@@ -1,13 +1,6 @@
-// What any of our components need of the DOM they are tested in, whichever build they came out of:
-// the gaps happy-dom leaves, and a guarantee that nothing under test reaches the network. Shared by
-// the component project (vitest-setup.ts, which drives dist/components) and the www project (which
-// drives the built lazy bundle), since neither concern has anything to do with the output target.
 import { decodePng, type DecodedImage } from './vitest-decode-png';
 
-// Enough of ElementInternals for Web Awesome's form controls to upgrade. happy-dom implements none
-// of it (checked in 20.9), and <wa-button> reads validity out of it as it connects, so without this
-// every component that renders one throws before its own markup exists to assert on. Nothing here
-// is exercised by a test - it only has to not be undefined. Form behavior is Web Awesome's to test.
+// happy-dom lacks ElementInternals, but Web Awesome reads validity as its controls connect.
 if (!HTMLElement.prototype.attachInternals) {
   HTMLElement.prototype.attachInternals = function attachInternals(this: HTMLElement) {
     return {
@@ -25,28 +18,14 @@ if (!HTMLElement.prototype.attachInternals) {
   };
 }
 
-// Enough of the Web Animations API for <wa-details> to open and close. happy-dom has no
-// Element.animate (checked in 20.9), and Web Awesome slides a details' contents in and out with it -
-// so without this the legend's fold threw from inside the toggle, an unhandled rejection that fails
-// the run. Finishing at once is all a test needs: what is asserted is where the details ends up.
+// Finish animations immediately so details controls settle without a browser animation engine.
 if (!Element.prototype.animate) {
   Element.prototype.animate = function animate() {
     return { finished: Promise.resolve(), cancel: () => {}, finish: () => {} } as unknown as Animation;
   };
 }
 
-// Enough of the image pipeline to turn encoded bytes into pixels, which happy-dom has none of
-// (checked in 20.9): no ImageData, no ImageBitmap, no createImageBitmap, no OffscreenCanvas. Two of
-// those are what @developmentseed/deck.gl-raster's decodeColormapSprite reaches for, so without
-// them every ogm-layers and ogm-legend render in the suite fell into the catch around
-// colormapSprite() - a warning per component, and swatches and legend bars that never carried a
-// gradient to assert on. With these the sprite decodes the way it does in a browser, so those tests
-// see the real ramps. Unlike the ElementInternals stub above, this is exercised: the colors that
-// come out of it are what src/components/ogm-legend/ogm-legend.test.tsx checks.
-//
-// The decoding itself is vitest-decode-png.ts. What's here is only the browser-shaped surface over
-// it, and only as much of that surface as anything under test touches - a canvas that is drawn to
-// once and read back whole, not a renderer.
+// Provide enough image and canvas support to decode the real colormap sprite in happy-dom.
 class TestImageData {
   readonly colorSpace = 'srgb';
 
@@ -71,9 +50,7 @@ class TestImageBitmap {
 class TestCanvasContext {
   constructor(private readonly canvas: TestOffscreenCanvas) {}
 
-  // Replaces rather than composites: every source this sees is an opaque image landing on a blank
-  // canvas, where the two are the same thing. Scaling isn't supported - only the (image, dx, dy)
-  // form of drawImage, which is the one that needs no resampling to be honest about.
+  // Only opaque, unscaled images on a blank canvas are supported by this test surface.
   drawImage(bitmap: TestImageBitmap, dx = 0, dy = 0) {
     const { width, height, data } = bitmap.image;
     for (let y = 0; y < height; y++) {
@@ -117,10 +94,6 @@ if (!globalThis.ImageData) globalThis.ImageData = TestImageData as unknown as ty
 if (!globalThis.ImageBitmap) globalThis.ImageBitmap = TestImageBitmap as unknown as typeof ImageBitmap;
 if (!globalThis.OffscreenCanvas) globalThis.OffscreenCanvas = TestOffscreenCanvas as unknown as typeof OffscreenCanvas;
 
-// Only the source types a caller here actually passes. A Blob is what decodeColormapSprite wraps
-// its bytes in; the raw forms are accepted too, since a test that hands over bytes directly means
-// the same thing by it. Anything else - a canvas, a video frame - would need real rendering behind
-// it, so it says so rather than decoding whatever it can reach.
 if (!globalThis.createImageBitmap) {
   globalThis.createImageBitmap = (async (source: Blob | ArrayBuffer | ArrayBufferView) => {
     if (source instanceof Blob) return new TestImageBitmap(decodePng(new Uint8Array(await source.arrayBuffer())));
@@ -130,12 +103,9 @@ if (!globalThis.createImageBitmap) {
   }) as typeof createImageBitmap;
 }
 
-// Used to intercept requests for fixture data in tests
 const crossOrigin = (url: string | URL): boolean => {
   try {
     const resolved = new URL(String(url), window.location.href);
-    // Every icon in the library is a data URL - see registerIconLibrary in src/lib/init.ts. Nothing
-    // leaves the page for one, so there is nothing here to block, and its origin reads as null.
     if (resolved.protocol === 'data:') return false;
     return resolved.origin !== window.location.origin;
   } catch {
@@ -143,14 +113,12 @@ const crossOrigin = (url: string | URL): boolean => {
   }
 };
 
-// Auto-reject cross-origin fetch requests to keep the test DOM off the network
 const realFetch = globalThis.fetch;
 globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
   const url = typeof input === 'string' || input instanceof URL ? input : input.url;
   return crossOrigin(url) ? Promise.reject(new TypeError('Failed to fetch')) : realFetch(input, init);
 }) as typeof globalThis.fetch;
 
-// Same thing but for XMLHttpRequest; we check at open() and block at send()
 const blocked = new WeakMap<XMLHttpRequest, string>();
 const realOpen = XMLHttpRequest.prototype.open;
 XMLHttpRequest.prototype.open = function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {

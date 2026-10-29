@@ -1,22 +1,15 @@
 @import '~maplibre-gl/dist/maplibre-gl.css';
 
-/* The layer control is positioned against this, so the host has to be the containing block. The
-   precedent is ogm-image, whose control stack is absolutely positioned the same way. */
 :host {
   display: block;
   height: 100%;
   position: relative;
 
-  /* MapLibre's control metrics, which it publishes no custom properties for: each .maplibregl-ctrl
-     group floats to the right with a 10px margin inside the corner container, and each button in a
-     group is 29px square. The layer panel is placed against these, so name them once. */
+  /* Match MapLibre control dimensions, which are not exposed as custom properties. */
   --ogm-control-inset: 10px;
   --ogm-control-size: 29px;
 }
 
-/* Holds the map and the layer panel, and carries the Web Awesome scope for both; see ogm-map.tsx's
-   render. No positioning of its own - it fills the host exactly, so the panel below still resolves
-   its offsets against the same box either way. */
 .container {
   height: 100%;
 }
@@ -27,24 +20,16 @@
   position: relative;
 }
 
-/* Top-right, level with the control stack that opens it but clear of the column those buttons form.
-   Above MapLibre's own corner containers (z-index 2) and well below the sidebar - which slides in
-   from the left, so it no longer covers this. */
 ogm-layers {
   position: absolute;
   inset-block-start: var(--ogm-control-inset);
-  /* Past the button column, then the same gap again that the column keeps from the map's edge */
   inset-inline-end: calc(2 * var(--ogm-control-inset) + var(--ogm-control-size));
   z-index: 3;
   max-width: calc(100% - 3 * var(--ogm-control-inset) - var(--ogm-control-size));
-  /* Keep a tall list from running off the bottom of a short map; the list itself scrolls */
   max-height: calc(100% - 2 * var(--ogm-control-inset));
   display: flex;
 }
 
-/* Top center, the stretch of the top edge the control stack leaves free, and kept clear of that stack's
-   column on either side so it never covers a button. Beneath the layer panel rather than over it: the
-   panel only opens when asked for, and while it's open it's what the reader is using. */
 ogm-time {
   position: absolute;
   inset-block-start: var(--ogm-control-inset);
@@ -54,10 +39,6 @@ ogm-time {
   max-width: calc(100% - 4 * var(--ogm-control-inset) - 2 * var(--ogm-control-size));
 }
 
-/* Bottom-left, the one corner nothing else claims: the layer panel above is top-right, and
-   MapLibre's own attribution control defaults to bottom-right. Unlike the panel, this is never
-   toggled, so there's no button stack of its own to clear - just the same inset the panel keeps
-   from the map's own edge. */
 ogm-legend {
   position: absolute;
   inset-block-end: var(--ogm-control-inset);
@@ -68,34 +49,24 @@ ogm-legend {
   display: flex;
 }
 
-/* Our own control button, drawn the way MapLibre draws its own: the glyph is a background image with
-   its ink baked in at #333 rather than following currentColor, because the dark-mode rule below
-   inverts the whole group - a themed glyph would turn near-white and then invert to black on black.
-   Bootstrap Icons "stack", at 17px inside the 29px button to match the padding of its neighbours. */
+/* Use a fixed glyph color so inverting the dark-mode control group also recolors the icon. */
 .maplibregl-ctrl button.maplibregl-ctrl-layers .maplibregl-ctrl-icon {
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='17' height='17' fill='%23333' viewBox='0 0 16 16'%3E%3Cpath d='m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z'/%3E%3Cpath d='m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z'/%3E%3C/svg%3E");
 }
 
-/* Panel showing. A background tint, not MapLibre's own convention of recoloring the glyph: a colored
-   icon under that same inversion is what forced the globe workaround at the bottom of this file. */
 .maplibregl-ctrl button.maplibregl-ctrl-layers.pressed {
   background-color: rgb(0 0 0 / 10%);
 }
 
-/* Color of the map background ("space" around the globe) */
 .maplibregl-canvas {
   background-color: var(--wa-color-surface-default);
 }
 
-/* Popups live inside #map while the legend is its absolutely positioned sibling at z-index 3.
-   MapLibre gives popup containers no z-index of their own, so lift the whole container - content
-   and tip together - over the legend whenever the two overlap. */
+/* Lift the entire popup, including its tip, above the sibling legend. */
 .maplibregl-popup {
   z-index: 4;
 }
 
-/* Inspection popups. Vertical scrolling (when content is too tall) is handled by the
-   <wa-scroller> inside ogm-attributes, not here - that's what gives it the fading shadow cue. */
 .maplibregl-popup-content {
   max-width: 400px;
   overflow: hidden;
@@ -111,7 +82,6 @@ ogm-legend {
   }
 }
 
-/* Popup tip (the little triangle) */
 .maplibregl-popup-anchor-right .maplibregl-popup-tip {
   border-left-color: var(--wa-color-surface-border);
 }
@@ -132,23 +102,15 @@ ogm-legend {
   border-bottom-color: var(--wa-color-surface-border);
 }
 
-/* Attribution, which both basemaps require. MapLibre draws it as a white pill with near-black text,
-   which lights up the corner of a dark map; on the same surface tokens as the popup above it follows
-   whichever mode the map is drawn in. It isn't inverted the way the button groups below are: this is
-   text on a panel rather than a baked-in glyph, and inversion would take the focus ring's blue with
-   it. */
 .maplibregl-ctrl.maplibregl-ctrl-attrib {
   color: var(--wa-color-text-normal);
   background-color: var(--wa-color-surface-default);
 }
 
-/* Subdued the way MapLibre subdues them; on hover its own `color: inherit` picks up the color above
-   and adds the underline. */
 .maplibregl-ctrl-attrib a {
   color: var(--wa-color-text-quiet);
 }
 
-/* Dark mode map adjustments */
 .wa-dark {
   .tile-border {
     stroke: white;
@@ -158,7 +120,7 @@ ogm-legend {
     filter: invert(1);
   }
 
-  /* Fix for colors appearing orange due to inversion */
+  /* Cancel the hue shift caused by inverting the control group. */
   .maplibregl-ctrl-group button:focus:focus-visible {
     box-shadow: 0 0 2px 2px #ff6900;
   }
@@ -167,29 +129,17 @@ ogm-legend {
     filter: invert(1);
   }
 
-  /* The compact attribution button's "i": MapLibre's own glyph with its ink at #fff rather than the
-     default black. A background image can't read a token, so it's replaced rather than themed - the
-     same reason the layers glyph at the top of this file has its ink baked in. MapLibre's
-     translucent white fill for the button goes as well, or it would wash out the pill underneath. */
+  /* The attribution glyph is an image, so CSS text colors cannot recolor it. */
   .maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-button {
     background-color: transparent;
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='%23fff' fill-rule='evenodd' viewBox='0 0 20 20'%3E%3Cpath d='M4 10a6 6 0 1 0 12 0 6 6 0 1 0-12 0m5-3a1 1 0 1 0 2 0 1 1 0 1 0-2 0m0 3a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0'/%3E%3C/svg%3E");
   }
 
-  /* Attribution showing. MapLibre tints the button black at 5% for this, which is invisible against
-     a dark pill; this is the same tint the layers button uses, turned around. */
   .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
     background-color: rgb(255 255 255 / 10%);
   }
 }
 
-/* What a preview has to say about the view it is being drawn in - see MapPreviewer.onNotice. Over
-   the map rather than in place of it, unlike <ogm-alerts>: a reader told to zoom in still needs the
-   map to zoom. Bottom center, which is the one edge nothing else claims - the layers panel takes the
-   top, the legend the bottom left, and MapLibre's own controls the right. */
-/* Stacked rather than one box, because there can be two and they answer to different things: what
-   the preview has to say about the view it's drawn in, and whether the basemap under it is there at
-   all. Centred as one column so a map with either has it in the same place. */
 .notices {
   position: absolute;
   inset-block-end: var(--ogm-control-inset);
@@ -205,17 +155,11 @@ ogm-legend {
 
 wa-callout.notice {
   box-shadow: var(--wa-shadow-m);
-  /* Held to the column's own width. A flex item's min-width is `auto`, so a line that can't wrap -
-     the basemap URL below - sizes the callout rather than being clipped by it, and the notice ends
-     up wider than the map it's centred over: 129px past both edges of a 380px map, measured. */
+  /* Allow long URLs to shrink within the notice instead of widening it beyond the map. */
   max-width: 100%;
   min-width: 0;
 }
 
-/* The basemap that let this map down, named the way a PreviewError's own URL is named in
-   <ogm-alerts>: quiet, in the code face, and clipped to one line rather than wrapped. The clipping
-   needs the callout above to be held to the column's width, or this line sizes it instead. The whole
-   URL is in the tooltip. */
 .basemap-url {
   margin-block-start: var(--wa-space-3xs);
   font-family: var(--wa-font-family-code);
@@ -226,8 +170,6 @@ wa-callout.notice {
   white-space: nowrap;
 }
 
-/* Both lines sit in the callout's message part, which lays its children out in a row by default -
-   so without this the URL would sit beside the sentence rather than under it. */
 wa-callout.basemap-notice::part(message) {
   display: block;
   min-width: 0;

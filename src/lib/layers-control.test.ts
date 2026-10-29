@@ -4,8 +4,6 @@ import type { Map } from 'maplibre-gl';
 
 import LayersControl from './layers-control';
 
-// onAdd only ever receives the map so a control can bind to it; this one doesn't, so it never reads
-// the argument and a stand-in is enough
 const FAKE_MAP = {} as Map;
 
 const addControl = (onToggle = () => {}) => {
@@ -14,8 +12,6 @@ const addControl = (onToggle = () => {}) => {
 };
 
 describe('LayersControl', () => {
-  // The button carries no styling of its own: every rule that makes it look like map chrome, in both
-  // themes, selects these class names. Getting them wrong would leave an unstyled button on the map.
   it('builds the same DOM as MapLibre draws its own controls with', () => {
     const { container } = addControl();
 
@@ -38,7 +34,6 @@ describe('LayersControl', () => {
     expect(onToggle).toHaveBeenCalledTimes(2);
   });
 
-  // The icon is a background image, so these attributes are the only name the button has
   it('names itself for what pressing it will do', () => {
     const { control, container } = addControl();
     const button = container.querySelector('button') as HTMLButtonElement;
