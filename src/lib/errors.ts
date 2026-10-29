@@ -33,6 +33,15 @@ class RecordParseError extends PreviewError {
   }
 }
 
+class RecordChallengeError extends PreviewError {
+  title = 'This record was blocked';
+
+  constructor(host: string, url: string) {
+    super(`The server at ${host} answered with a bot check instead of the record.`);
+    this.url = url;
+  }
+}
+
 class RecordReadError extends PreviewError {
   title = "This record couldn't be read";
 
@@ -62,6 +71,14 @@ class ReferenceReadError extends PreviewError {
   constructor(refType: string, message: string, url?: string) {
     super(message);
     this.title = `The ${refType} preview couldn't be read`;
+    this.url = url;
+  }
+}
+
+class ReferenceChallengeError extends PreviewError {
+  constructor(refType: string, host: string, url?: string) {
+    super(`The server at ${host} answered with a bot check instead of the data.`);
+    this.title = `The ${refType} preview was blocked`;
     this.url = url;
   }
 }
@@ -105,10 +122,52 @@ export class WebGLUnavailableError extends PreviewError {
   }
 }
 
+export class ChallengeError extends Error {
+  readonly url: string;
+  readonly host: string;
+
+  constructor(url: string) {
+    const host = new URL(url, typeof document === 'undefined' ? undefined : document.baseURI).host;
+    super(`${host} answered ${url} with a bot check instead of its data`);
+    this.name = 'ChallengeError';
+    this.url = url;
+    this.host = host;
+  }
+}
+
+export class SignInError extends Error {
+  readonly url: string;
+
+  constructor(url: string) {
+    super(`Asked to sign in before reading ${url}`);
+    this.name = 'SignInError';
+    this.url = url;
+  }
+}
+
+function isChallenge(response: Response): boolean {
+  return response.headers.get('x-amzn-waf-action') !== null || response.headers.get('cf-mitigated') === 'challenge';
+}
+
+// Throw if we get a bot challenge or an HTML sign-in page
+export function assertData(response: Response, url: string): void {
+  if (isChallenge(response)) throw new ChallengeError(url);
+  if (response.ok && response.headers.get('content-type')?.startsWith('text/html')) throw new SignInError(url);
+}
+
 export async function fetchOrThrow(url: string, init?: RequestInit): Promise<Response> {
   const response = await fetch(url, init);
+  if (isChallenge(response)) throw new ChallengeError(url);
   if (!response.ok) throw new HttpError(url, response.status, response.statusText);
   return response;
+}
+
+// Data sources such as @chunkd wrap the errors they catch, so look through each cause.
+function challengeIn(error: unknown): ChallengeError | undefined {
+  for (let e = error; e instanceof Error; e = e.cause) {
+    if (e instanceof ChallengeError) return e;
+  }
+  return undefined;
 }
 
 function statusOf(error: unknown): number | undefined {
@@ -136,6 +195,9 @@ function messageOf(error: unknown): string | undefined {
 export function recordError(error: unknown, url: string): PreviewError {
   const status = statusOf(error);
   const message = messageOf(error);
+  const challenge = challengeIn(error);
+
+  if (challenge) return new RecordChallengeError(challenge.host, url);
 
   if (isNetworkError(error)) return new RecordNetworkError(url);
 
@@ -149,6 +211,9 @@ export function recordError(error: unknown, url: string): PreviewError {
 export function referenceError(error: unknown, refType: string, url?: string): PreviewError {
   const status = statusOf(error);
   const message = messageOf(error);
+  const challenge = challengeIn(error);
+
+  if (challenge) return new ReferenceChallengeError(refType, challenge.host, url);
 
   if (error instanceof TimeoutError) return new ReferenceTimeoutError(refType, url);
 

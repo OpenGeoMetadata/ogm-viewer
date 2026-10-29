@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
-import { Protocol } from 'pmtiles';
+import { EtagMismatch, Protocol } from 'pmtiles';
 
-import PMTilesResource from './pmtiles';
+import PMTilesResource, { CheckedFetchSource } from './pmtiles';
+import { ChallengeError, SignInError } from '../errors';
 import type { RequestTransform } from '../request';
 
 const URL = 'https://example.com/tiles.pmtiles';
@@ -64,6 +65,78 @@ describe('PMTilesResource', () => {
     const resource = new PMTilesResource('id', URL);
 
     expect(addSpy).toHaveBeenCalledWith(archiveOf(resource));
+  });
+
+  describe('reading the archive', () => {
+    const respondWith = (...responses: Response[]) => {
+      const fetchSpy = vi.spyOn(global, 'fetch');
+      responses.forEach(response => fetchSpy.mockResolvedValueOnce(response));
+      return fetchSpy;
+    };
+    const bytes = (n: number, headers: Record<string, string> = {}, status = 206) => new Response(new Uint8Array(n), { status, headers: { 'content-length': `${n}`, ...headers } });
+    const wafChallenge = () =>
+      new Response(null, { status: 202, headers: { 'x-amzn-waf-action': 'challenge', 'content-type': 'text/html; charset=UTF-8', 'content-length': '0' } });
+
+    it('reads the range it was asked for', async () => {
+      const fetchSpy = respondWith(bytes(16, { etag: '"a"' }));
+      const result = await new CheckedFetchSource(URL).getBytes(100, 16);
+
+      expect(new Headers(fetchSpy.mock.calls[0][1]?.headers).get('range')).toEqual('bytes=100-115');
+      expect(result.data.byteLength).toEqual(16);
+      expect(result.etag).toEqual('"a"');
+    });
+
+    it('sends the headers and credentials it was given', async () => {
+      const fetchSpy = respondWith(bytes(16));
+      await new CheckedFetchSource(URL, new Headers({ Authorization: 'Bearer token' }), 'include').getBytes(0, 16);
+
+      const init = fetchSpy.mock.calls[0][1];
+      expect(new Headers(init?.headers).get('authorization')).toEqual('Bearer token');
+      expect(init?.credentials).toEqual('include');
+    });
+
+    it('refuses a bot check instead of handing its empty body on as the archive', async () => {
+      respondWith(wafChallenge());
+      await expect(new CheckedFetchSource(URL).getBytes(0, 16384)).rejects.toBeInstanceOf(ChallengeError);
+    });
+
+    it('fails to open a challenged archive with the challenge, not a DataView RangeError', async () => {
+      respondWith(wafChallenge());
+      const resource = new PMTilesResource('id', 'https://hgl.harvard.edu/data/public/TG00MIPLC00.pmtiles');
+
+      await expect(resource.isVector()).rejects.toMatchObject({ name: 'ChallengeError', host: 'hgl.harvard.edu' });
+    });
+
+    it('refuses a login page', async () => {
+      respondWith(new Response('<!DOCTYPE html>', { status: 200, headers: { 'content-type': 'text/html;charset=utf-8', 'content-length': '15' } }));
+      await expect(new CheckedFetchSource(URL).getBytes(0, 16384)).rejects.toBeInstanceOf(SignInError);
+    });
+
+    it('reports the status a refused read came back with', async () => {
+      respondWith(new Response('', { status: 403, statusText: 'Forbidden' }));
+      await expect(new CheckedFetchSource(URL).getBytes(0, 16)).rejects.toMatchObject({ name: 'HttpError', status: 403 });
+    });
+
+    it('refuses a whole file handed back for a range read', async () => {
+      respondWith(bytes(4096, {}, 200));
+      await expect(new CheckedFetchSource(URL).getBytes(0, 512)).rejects.toThrow('HTTP Byte Serving');
+    });
+
+    it('asks again for exactly what a small archive holds when the header read runs past its end', async () => {
+      const fetchSpy = respondWith(new Response('', { status: 416, headers: { 'content-range': 'bytes */900' } }), bytes(900));
+      const result = await new CheckedFetchSource(URL).getBytes(0, 16384);
+
+      expect(new Headers(fetchSpy.mock.calls[1][1]?.headers).get('range')).toEqual('bytes=0-899');
+      expect(result.data.byteLength).toEqual(900);
+    });
+
+    it('flags an archive that changed underneath it, so PMTiles reloads and retries', async () => {
+      respondWith(bytes(16, { etag: '"second"' }));
+      const source = new CheckedFetchSource(URL);
+
+      await expect(source.getBytes(0, 16, undefined, '"first"')).rejects.toBeInstanceOf(EtagMismatch);
+      expect(source.mustReload).toBe(true);
+    });
   });
 
   describe('bounds', () => {
