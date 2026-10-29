@@ -2,6 +2,7 @@ import { SourceCache, SourceChunk } from '@chunkd/middleware';
 import { ContentRange, SourceError, SourceView, type Source, type SourceMetadata } from '@chunkd/source';
 import { GeoTIFF } from '@developmentseed/geotiff';
 
+import { assertData, ChallengeError } from './errors';
 import { resolveRequest, type RequestResourceType, type RequestTransform } from './request';
 
 const CHUNK_SIZE = 64 * 1024;
@@ -84,9 +85,10 @@ export class TransformedGeoTIFFSource implements Source {
     const { url, init: transformed } = resolveRequest(this.url.href, resourceType, this.requestTransform);
     const response = await fetch(url, { ...init, ...transformed, headers: { ...init.headers, ...transformed?.headers } });
 
-    // An authentication redirect can return a successful HTML login page instead of TIFF bytes.
-    if (response.ok && response.headers.get('content-type')?.startsWith('text/html')) {
-      throw new SourceError(`Asked to sign in before reading ${this.url.href}`, 401, this);
+    try {
+      assertData(response, this.url.href);
+    } catch (error) {
+      throw new SourceError((error as Error).message, error instanceof ChallengeError ? 403 : 401, this, error);
     }
 
     return response;

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
 import { SourceView } from '@chunkd/source';
 import { GeoTIFF } from '@developmentseed/geotiff';
 
+import { ChallengeError, referenceError } from './errors';
 import { openGeoTIFF, TransformedGeoTIFFSource } from './geotiff';
 import type { RequestTransform } from './request';
 
@@ -137,6 +138,16 @@ describe('TransformedGeoTIFFSource', () => {
       const source = new TransformedGeoTIFFSource(COG_URL, withCookies);
 
       await expect(source.fetch(0, 1023)).rejects.toMatchObject({ code: 401 });
+    });
+
+    it("tells a bot check from a login page, though it's HTML too", async () => {
+      respondWith('', { 'content-type': 'text/html; charset=UTF-8', 'x-amzn-waf-action': 'challenge' }, true, 202);
+      const source = new TransformedGeoTIFFSource('https://hgl.harvard.edu/data/public/G8962_B3_1800_A7.tif');
+
+      const error = await source.head().catch(e => e);
+      expect(error).toMatchObject({ code: 403 });
+      expect(error.cause).toBeInstanceOf(ChallengeError);
+      expect(referenceError(error, 'Cloud Optimized GeoTIFF').title).toBe('The Cloud Optimized GeoTIFF preview was blocked');
     });
 
     it('refuses one on a HEAD too', async () => {

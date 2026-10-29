@@ -1,4 +1,4 @@
-import { fetchOrThrow } from './errors';
+import { assertData, fetchOrThrow } from './errors';
 import { resolveRequest, type RequestTransform } from './request';
 
 const texts = new Map<string, Promise<string>>();
@@ -24,11 +24,7 @@ export async function readMetadataDocument(url: string, requestTransform?: Reque
 async function fetchText(url: string, requestTransform?: RequestTransform): Promise<string> {
   const { url: resolved, init } = resolveRequest(url, 'metadata', requestTransform);
   const response = await fetchOrThrow(resolved, init);
-
-  // An authentication redirect can return a successful HTML login page instead of metadata XML.
-  if (response.headers.get('content-type')?.startsWith('text/html')) {
-    throw new Error(`Asked to sign in before reading ${url}`);
-  }
+  assertData(response, url);
 
   return await response.text();
 }

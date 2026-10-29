@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
 
-import { HttpError, PreviewError, TimeoutError, fetchOrThrow, recordError, referenceError } from './errors';
+import { ChallengeError, HttpError, PreviewError, SignInError, TimeoutError, assertData, fetchOrThrow, recordError, referenceError } from './errors';
+
+// What hgl.harvard.edu sends a request that lacks the cookie its own pages earn.
+const wafChallenge = () => new Response(null, { status: 202, headers: { 'x-amzn-waf-action': 'challenge', 'content-type': 'text/html; charset=UTF-8', 'content-length': '0' } });
 
 describe('errors', () => {
   afterEach(() => vi.restoreAllMocks());
@@ -44,6 +47,38 @@ describe('errors', () => {
       vi.spyOn(global, 'fetch').mockRejectedValueOnce(networkError);
       await expect(fetchOrThrow('http://example.com/cors')).rejects.toBe(networkError);
     });
+
+    it('refuses an AWS WAF challenge, an empty 202 that would otherwise pass for ok', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce(wafChallenge());
+      await expect(fetchOrThrow('https://hgl.harvard.edu/data/public/x.geojson')).rejects.toMatchObject({ name: 'ChallengeError', host: 'hgl.harvard.edu' });
+    });
+
+    it('calls a Cloudflare challenge a challenge rather than an HTTP 403', async () => {
+      vi.spyOn(global, 'fetch').mockResolvedValueOnce(new Response('', { status: 403, headers: { 'cf-mitigated': 'challenge' } }));
+      await expect(fetchOrThrow('http://example.com/x.json')).rejects.toBeInstanceOf(ChallengeError);
+    });
+  });
+
+  describe('assertData', () => {
+    it('lets data through', () => {
+      expect(() => assertData(new Response('{}', { headers: { 'content-type': 'application/json' } }), 'http://example.com/x')).not.toThrow();
+    });
+
+    it('takes a successful HTML response for a login page', () => {
+      expect(() => assertData(new Response('<!DOCTYPE html>', { headers: { 'content-type': 'text/html;charset=utf-8' } }), 'http://example.com/x')).toThrow(SignInError);
+    });
+
+    it("refuses an AWS WAF challenge, an empty 202 that would otherwise pass for ok, and says it's no login page", () => {
+      expect(() => assertData(wafChallenge(), 'https://hgl.harvard.edu/data/public/x.tif')).toThrow(ChallengeError);
+    });
+
+    it('calls a Cloudflare challenge a challenge, whatever its status', () => {
+      expect(() => assertData(new Response('', { status: 403, headers: { 'cf-mitigated': 'challenge' } }), 'http://example.com/x')).toThrow(ChallengeError);
+    });
+
+    it('leaves an HTML error page to the status check', () => {
+      expect(() => assertData(new Response('<html>', { status: 404, headers: { 'content-type': 'text/html' } }), 'http://example.com/x')).not.toThrow();
+    });
   });
 
   describe('recordError', () => {
@@ -77,6 +112,15 @@ describe('errors', () => {
       const error = recordError(new Error('Unsupported metadata version: GeoBlacklight'), 'http://example.com/r');
       expect(error.title).toBe("This record couldn't be read");
       expect(error.message).toContain('Unsupported metadata version');
+    });
+
+    it('says a bot check blocked the record, and which server sent it', () => {
+      const url = 'https://hgl.harvard.edu/catalog/harvard-tg00miplc00/raw';
+      const error = recordError(new ChallengeError(url), url);
+      expect(error.title).toBe('This record was blocked');
+      expect(error.message).toContain('bot check');
+      expect(error.message).toContain('hgl.harvard.edu');
+      expect(error.url).toBe(url);
     });
   });
 
@@ -130,6 +174,20 @@ describe('errors', () => {
       expect(error.message).not.toContain('20000');
       expect(error.message).not.toMatch(/tile/i);
       expect(error.message).toMatch(/in time/);
+    });
+
+    it('says a bot check blocked the preview, and which server sent it', () => {
+      const url = 'https://hgl.harvard.edu/data/public/TG00MIPLC00.pmtiles';
+      const error = referenceError(new ChallengeError(url), 'PMTiles', url);
+      expect(error.title).toBe('The PMTiles preview was blocked');
+      expect(error.message).toContain('bot check');
+      expect(error.message).toContain('hgl.harvard.edu');
+      expect(error.url).toBe(url);
+    });
+
+    it('finds a challenge that a data source wrapped in its own error', () => {
+      const wrapped = new Error('Failed to fetch x.tif', { cause: new ChallengeError('https://hgl.harvard.edu/data/public/x.tif') });
+      expect(referenceError(wrapped, 'Cloud Optimized GeoTIFF').title).toBe('The Cloud Optimized GeoTIFF preview was blocked');
     });
   });
 });
