@@ -1,7 +1,7 @@
 import { describe, it, expect } from '@stencil/vitest';
 import type { MapGeoJSONFeature } from 'maplibre-gl';
 
-import { LABEL_POINT, labelPoint, unmarkLabelPoints, withLabelPoints } from './labels';
+import { LABEL_POINT, labelMinZoom, labelPoint, labelSize, unmarkLabelPoints, withLabelPoints } from './labels';
 
 const square = (x: number, y: number, size: number) => [
   [x, y],
@@ -192,5 +192,108 @@ describe('unmarkLabelPoints', () => {
     const polygon = rendered(4, { label: 'SF 20' });
 
     expect(unmarkLabelPoints([polygon])[0]).toBe(polygon);
+  });
+});
+
+describe('labelSize', () => {
+  it('sets a short label on one line', () => {
+    expect(labelSize('n40w106')).toEqual([3.5, 1.2]);
+  });
+
+  it('wraps a label past ten ems into balanced lines, as MapLibre does', () => {
+    const [width, height] = labelSize('Shadow Mountain 1995 (printed 1998)');
+
+    expect(width).toBeCloseTo(8.75);
+    expect(height).toBeCloseTo(2.4);
+  });
+
+  it('keeps a long label with nowhere to break on one line', () => {
+    expect(labelSize('n0450e1510n0450e1510n0450e1510')).toEqual([15, 1.2]);
+  });
+
+  it('gives CJK glyphs a full em, and breaks between them', () => {
+    expect(labelSize('蕪湖18. 南陵縣')).toEqual([7, 1.2]);
+    expect(labelSize('南陵縣南陵縣南陵縣南陵縣')).toEqual([6, 2.4]);
+  });
+});
+
+describe('labelMinZoom', () => {
+  const sheets = (size: number, properties: GeoJSON.GeoJsonProperties[]): GeoJSON.FeatureCollection => ({
+    type: 'FeatureCollection',
+    features: properties.map((props, i) => ({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [square(-106 + i * size, 39, size)] }, properties: props })),
+  });
+  const labelled = (size: number, label: string, count = 9) =>
+    sheets(
+      size,
+      Array.from({ length: count }, () => ({ label })),
+    );
+
+  it('starts 3DEP’s one-degree tiles near zoom 5, alongside their mosaic', () => {
+    expect(labelMinZoom(labelled(1, 'n40w106'), 14)).toBeCloseTo(5.1, 1);
+  });
+
+  it('waits longer for longer labels on sheets of the same size', () => {
+    expect(labelMinZoom(labelled(0.125, 'Shadow Mountain 1995 (printed 1998)'), 14)).toBeGreaterThan(labelMinZoom(labelled(0.125, 'Palo Alto'), 14));
+  });
+
+  it('waits a zoom longer for text twice the size', () => {
+    const quads = labelled(0.125, 'Palo Alto');
+
+    expect(labelMinZoom(quads, 28) - labelMinZoom(quads, 14)).toBeCloseTo(1);
+  });
+
+  it('waits for a short sheet to be tall enough for its label', () => {
+    const strip: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [0, 0],
+                [10, 0],
+                [10, 0.01],
+                [0, 0.01],
+                [0, 0],
+              ],
+            ],
+          },
+          properties: { label: 'A' },
+        },
+      ],
+    };
+
+    expect(labelMinZoom(strip, 14)).toBeGreaterThan(labelMinZoom(labelled(10, 'A', 1), 14) + 5);
+  });
+
+  it('goes by the typical sheet rather than the largest', () => {
+    const quads = labelled(0.125, 'Palo Alto');
+    const overview: GeoJSON.Feature = { type: 'Feature', geometry: { type: 'Polygon', coordinates: [square(-110, 35, 10)] }, properties: { label: 'Overview' } };
+
+    expect(labelMinZoom({ ...quads, features: [...quads.features, overview] }, 14)).toEqual(labelMinZoom(quads, 14));
+  });
+
+  it('sizes a sheet’s id when it has no label, as the label layer shows', () => {
+    expect(
+      labelMinZoom(
+        sheets(
+          1,
+          Array.from({ length: 3 }, () => ({ id: 'n40w106' })),
+        ),
+        14,
+      ),
+    ).toEqual(labelMinZoom(labelled(1, 'n40w106', 3), 14));
+  });
+
+  it('labels at any zoom when there is nothing to size a label by', () => {
+    expect(labelMinZoom({ type: 'FeatureCollection', features: [] }, 14)).toEqual(0);
+    expect(labelMinZoom(sheets(1, [{}, { label: '' }, null]), 14)).toEqual(0);
+    expect(labelMinZoom({ type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] }, properties: { label: 'Benchmark' } }, 14)).toEqual(0);
+  });
+
+  it('stays within the zooms a MapLibre layer accepts', () => {
+    expect(labelMinZoom(labelled(1e-6, 'Shadow Mountain 1995 (printed 1998)', 1), 14)).toEqual(24);
   });
 });

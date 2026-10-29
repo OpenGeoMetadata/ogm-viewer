@@ -1,4 +1,4 @@
-import { MercatorCoordinate } from 'maplibre-gl';
+import { pixelSpan } from './geometry';
 
 export type MosaicSheet = { id: string; url: string; bbox: [west: number, south: number, east: number, north: number] };
 
@@ -9,8 +9,6 @@ const MOSAIC_SHARE = 0.5;
 const MOST_SHEETS_IN_VIEW = 256;
 
 const VIEW_AREA = 1024 * 768;
-
-const WORLD_SIZE = 512;
 
 const httpUrl = (value: unknown): URL | undefined => {
   if (typeof value !== 'string') return undefined;
@@ -74,17 +72,14 @@ export function offersMosaic(collection: unknown): boolean {
   return geotiffSheets(collection).length >= downloads * MOSAIC_SHARE && mosaicSheets(collection).length >= 2;
 }
 
-const mercatorArea = ([west, south, east, north]: MosaicSheet['bbox']): number => {
-  const southwest = MercatorCoordinate.fromLngLat([west, south]);
-  const northeast = MercatorCoordinate.fromLngLat([east, north]);
-  return Math.abs(northeast.x - southwest.x) * Math.abs(northeast.y - southwest.y);
-};
-
 // Estimate the zoom from median sheet area so a few overview sheets do not dominate it.
 export function mosaicMinZoom(sheets: MosaicSheet[]): number {
-  const areas = sheets.map(sheet => mercatorArea(sheet.bbox)).sort((a, b) => a - b);
+  const areas = sheets
+    .map(sheet => pixelSpan(sheet.bbox))
+    .map(([width, height]) => width * height)
+    .sort((a, b) => a - b);
   const median = areas[Math.floor(areas.length / 2)];
   if (!median) return 0;
 
-  return Math.max(0, Math.round(0.5 * Math.log2(VIEW_AREA / (MOST_SHEETS_IN_VIEW * median * WORLD_SIZE ** 2))));
+  return Math.max(0, Math.round(0.5 * Math.log2(VIEW_AREA / (MOST_SHEETS_IN_VIEW * median))));
 }

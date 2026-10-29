@@ -11,6 +11,7 @@ import {
   mercatorBbox,
   mercatorGeomToLngLat,
   mercatorToLngLat,
+  pixelSpan,
   pixelWindowCenter,
   readBounds,
   tileBbox3857,
@@ -592,6 +593,24 @@ describe('tileBbox3857', () => {
 
     [0, 1].forEach(edge => expect((plain[edge] - buffered[edge]) / width).toBeCloseTo(64 / 4096, 12));
     [2, 3].forEach(edge => expect((buffered[edge] - plain[edge]) / width).toBeCloseTo(64 / 4096, 12));
+  });
+});
+
+describe('pixelSpan', () => {
+  it('measures a box in the pixels MapLibre counts at zoom 0, 512 to the world', () => {
+    const [width, height] = pixelSpan([-180, -85.0511287798066, 180, 85.0511287798066]);
+
+    expect(width).toBeCloseTo(512);
+    expect(height).toBeCloseTo(512);
+  });
+
+  it('stretches a box’s height away from the equator, as Web Mercator does', () => {
+    const [equatorWidth, equatorHeight] = pixelSpan([0, 0, 1, 1]);
+    const [northWidth, northHeight] = pixelSpan([0, 60, 1, 61]);
+
+    expect(equatorWidth).toBeCloseTo(512 / 360);
+    expect(northWidth).toBeCloseTo(equatorWidth);
+    expect(northHeight / equatorHeight).toBeCloseTo(2, 1);
   });
 });
 

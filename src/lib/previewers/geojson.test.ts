@@ -3,7 +3,7 @@ import type { MapGeoJSONFeature, MapLibreMap } from 'maplibre-gl';
 
 import GeoJsonPreviewer from './geojson';
 import OpenIndexMapPreviewer from './openindexmap';
-import { IS_LABEL_POINT, LABEL_POINT } from '../labels';
+import { IS_LABEL_POINT, LABEL_POINT, labelMinZoom } from '../labels';
 import GeoJsonResource from '../resources/geojson';
 import OpenIndexMapResource from '../resources/openindexmap';
 import type { MapLibreStyle } from '../themes/maplibre';
@@ -458,6 +458,20 @@ describe('OpenIndexMapPreviewer#labels', () => {
 
     expect(previewer.previewLayers[1].defaultOpacity).toEqual(style.opacity);
     expect(style.boundsOpacity).toBeLessThan(style.opacity);
+  });
+
+  it('holds the sheet labels back until a sheet can fit its label', async () => {
+    const { map } = await previewIndexMap();
+
+    expect(map.layers.get(indexLayerId('polygon-labels')).minzoom).toEqual(labelMinZoom(DOCUMENT, style.textSize));
+    expect(map.layers.get(indexLayerId('polygon-labels')).minzoom).toBeGreaterThan(0);
+    expect(map.layers.get(indexLayerId('point-labels')).minzoom).toBeUndefined();
+  });
+
+  it('leaves the labels of a plain GeoJSON preview at every zoom', async () => {
+    const { map } = await previewGeoJson();
+
+    expect(map.layers.get(layerId('polygon-labels')).minzoom).toBeUndefined();
   });
 
   it('fades the labels without touching the boundaries, and the boundaries without touching the labels', async () => {

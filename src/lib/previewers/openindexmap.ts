@@ -1,9 +1,10 @@
-import type { LayerSpecification } from 'maplibre-gl';
+import type { LayerSpecification, SymbolLayerSpecification } from 'maplibre-gl';
 
 import GeoJsonPreviewer from './geojson';
 import { previewStyleLayers } from './vector';
 import type IndexMapMosaic from '../index-map-mosaic';
 import type { MosaicHost } from '../index-map-mosaic';
+import { labelMinZoom } from '../labels';
 import type { Layer, LayerState, PreviewStyleLayer } from '../layers';
 import type { LegendEntry } from '../legend';
 import { offersMosaic } from '../mosaic';
@@ -16,6 +17,7 @@ export default class OpenIndexMapPreviewer extends GeoJsonPreviewer {
   protected mosaic: IndexMapMosaic | undefined;
   private mosaicSearch: Promise<void> | undefined;
   private outlinesDrawn = false;
+  private sheetLabelMinZoom = 0;
   protected outlineLayerId: string | undefined;
 
   protected getDefaultOpacity(): number {
@@ -46,9 +48,14 @@ export default class OpenIndexMapPreviewer extends GeoJsonPreviewer {
   }
 
   protected async createLayers(): Promise<LayerSpecification[]> {
+    this.sheetLabelMinZoom = labelMinZoom(await this.resource.getData(), this.style.textSize);
     const layers = await super.createLayers();
     this.outlineLayerId = layers.find(layer => layer.type === 'line')?.id;
     return layers;
+  }
+
+  protected createPolygonLabelLayer(layerId: string): SymbolLayerSpecification {
+    return { ...super.createPolygonLabelLayer(layerId), minzoom: this.sheetLabelMinZoom };
   }
 
   protected createPreviewLayers(layerId: string, geometry: LayerSpecification[], labels: LayerSpecification[]): Layer[] {
