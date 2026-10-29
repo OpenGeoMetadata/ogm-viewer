@@ -1,10 +1,5 @@
 import { describe, it, expect, h, vi, beforeEach, afterEach } from '@stencil/vitest';
 
-// Rendered with Stencil's low-level render rather than @stencil/vitest's `render` wrapper, for the
-// same reason ogm-overview's tests are: the wrapper re-throws whatever a lifecycle method leaves
-// behind. componentDidLoad never gets as far as a map here - happy-dom lays nothing out, so the
-// container never has the box whenSized waits for. What's under test is what happens once a map
-// exists, so one is handed to the component afterwards.
 import { render as stencilRender } from '@stencil/core';
 import type { FitBoundsOptions, LngLatBounds, LngLatBoundsLike } from 'maplibre-gl';
 
@@ -15,10 +10,6 @@ import OgmRecord, { type GeoBlacklightSchemaAardvark } from '../../lib/record';
 import LocationResource from '../../lib/resources/location';
 import MapLibreTheme, { darkBasemapStyle } from '../../lib/themes/maplibre';
 
-// Enough of a MapLibre map to draw one location on, to be pointed at it, and to hang the three
-// controls off. MapLibre's own controls read a good deal of this as they are added - the titles to
-// label themselves with, the zoom limits to grey their buttons at, the projection to show, the
-// container to measure - because addControl below really runs onAdd.
 class FakeMap {
   sources = new Map<string, any>();
   layers = new Map<string, any>();
@@ -30,22 +21,17 @@ class FakeMap {
   keyboard = { disableRotation: vi.fn() };
   touchZoomRotate = { disableRotation: vi.fn() };
 
-  // Enough of the cooperative-gestures handler to be switched on and off
   cooperativeGestures = { enable: vi.fn(), disable: vi.fn() };
   controls: { control: any; position?: string; element: HTMLElement }[] = [];
   listeners: Record<string, ((event: unknown) => void)[]> = {};
   onceListeners: Record<string, ((event: unknown) => void)[]> = {};
 
-  // Written and read back, rather than recorded: which projection the map is in is what decides
-  // whether the camera clamps, and the globe button's own state is read straight off it
   projection: { type: string } | undefined = undefined;
   setProjection = vi.fn((spec: { type: string }) => (this.projection = spec));
   getProjection() {
     return this.projection;
   }
 
-  // Resolving the corner the way Map.addControl does, so where a control lands can be asserted:
-  // whatever it was given, else whatever the control asks for, else top right.
   addControl(control: any, position?: string) {
     this.controls.push({ control, position: position ?? control.getDefaultPosition?.() ?? 'top-right', element: control.onAdd(this) });
   }
@@ -60,9 +46,6 @@ class FakeMap {
     [...(this.onceListeners[event] ?? []).splice(0)].forEach(listener => listener(data));
   }
 
-  // 'moveend' is answered on the spot, because that is the one fitBounds waits on and there is no
-  // camera here to finish moving. Everything else is held until a test fires it - which is what lets
-  // the globe button's wait for a style document be asserted rather than assumed.
   once(event: string, listener: (event: unknown) => void) {
     if (event === 'moveend') return listener({});
     (this.onceListeners[event] ??= []).push(listener);
@@ -89,7 +72,6 @@ class FakeMap {
   cameraForBounds() {
     return { center: [0, 0], zoom: 4 };
   }
-  // How much of a gap the camera can spare comes off the canvas; see fittablePadding
   getCanvas() {
     return { clientWidth: 800, clientHeight: 600 };
   }
@@ -124,7 +106,6 @@ const record = (id: string, fields: Partial<GeoBlacklightSchemaAardvark> = {}) =
 
 const CALIFORNIA = 'ENVELOPE(-124.41,-114.13,42.01,32.53)';
 const THE_WORLD = 'ENVELOPE(-180.0,180.0,85.0,-85.0)';
-// An archipelago and a coastline, so the shape and the box around it are two different claims
 const ISLANDS = 'MULTIPOLYGON(((-124 42,-114 42,-114 32,-124 32,-124 42)),((-160 22,-155 22,-155 19,-160 19,-160 22)))';
 
 type Locator = HTMLElement & {
@@ -163,7 +144,6 @@ afterEach(() => {
   consoleError.mockRestore();
 });
 
-// Mount the component, then hand it the map its own componentDidLoad couldn't build
 const renderLocator = async () => {
   const container = document.createElement('div');
   containers.push(container);
@@ -172,7 +152,6 @@ const renderLocator = async () => {
 
   const el = container.firstElementChild as Locator & { componentOnReady?: () => Promise<unknown> };
   await el.componentOnReady?.();
-  // Anything componentDidLoad reported on the way up is the WebGL gap, not what's under test
   consoleError.mockClear();
 
   const map = new FakeMap();
@@ -183,11 +162,6 @@ const renderLocator = async () => {
 const drawn = (map: FakeMap) => [...map.layers.keys()];
 const framed = (map: FakeMap) => map.fitBounds.mock.calls.at(-1) as [LngLatBoundsLike, FitBoundsOptions];
 
-// Where the camera was pointed, as west, south, east, north. Two shapes arrive: a camera held to what
-// a globe can face is a LngLatBounds, and one that needed no holding is the pair of corners the
-// resource carries. Each is read as it is rather than put through LngLatBounds.convert, because the
-// bounds a component built came out of the built bundle and so is not an instance of the class this
-// file's own import names - convert would take it for an array and hand back something broken.
 const frameOf = (map: FakeMap): [number, number, number, number] => {
   const [bounds] = framed(map);
   if (!Array.isArray(bounds)) return boundsToBbox(bounds as LngLatBounds);
@@ -196,22 +170,17 @@ const frameOf = (map: FakeMap): [number, number, number, number] => {
   return [west, south, east, north];
 };
 
-// One stylesheet's rules as text, which is how a sheet a component adopted can be compared with one
-// this file built: the component came out of the built bundle, so its copy of the library is not the
-// one this file's own imports name - see frameOf above for the same story told about a LngLatBounds.
 const cssOf = (sheet: CSSStyleSheet): string =>
   Array.from(sheet.cssRules)
     .map(rule => rule.cssText)
     .join('\n');
 
-// The Web Awesome theme as a component that took it should carry it
 const webAwesomeTheme = (): string => {
   const root = document.createElement('div').attachShadow({ mode: 'open' });
   adoptWebAwesomeTheme(root.host);
   return cssOf(root.adoptedStyleSheets[0]);
 };
 
-// The basemap's own credit arriving, which is what MapLibre would answer by opening the panel
 const credit = (map: FakeMap) => {
   map.style.stylesheet = {};
   map.style.tileManagers = { basemap: { used: true, getSource: () => ({ attribution: '© CARTO' }) } };
@@ -228,9 +197,6 @@ describe('ogm-locator', () => {
     expect(frameOf(map)).toEqual([-124.41, 32.53, -114.13, 42.01]);
   });
 
-  // Where the map is built already pointed, before there is a style document to draw the shape into:
-  // the record states its own extent, so that much is known that early - and it has to be the view
-  // frame() settles on, or opening there would move the reader twice. See MapPreviewer.declaredBounds.
   it('opens on the view it goes on to frame', async () => {
     const { el, map } = await renderLocator();
     el.record = record('one', { dcat_bbox: CALIFORNIA });
@@ -241,8 +207,6 @@ describe('ogm-locator', () => {
     expect([west, south, east, north]).toEqual(frameOf(map));
   });
 
-  // Which is what "the geometry or the bounding box, as appropriate" means: squaring an archipelago
-  // off to its envelope claims a stretch of ocean the record says nothing about.
   it('draws the shape a record carries rather than the box around it', async () => {
     const { el, map } = await renderLocator();
     el.record = record('one', { locn_geometry: ISLANDS, dcat_bbox: CALIFORNIA });
@@ -273,8 +237,6 @@ describe('ogm-locator', () => {
     expect(map.sources.has('one-location')).toBe(false);
   });
 
-  // A record can be ordinary metadata with nothing to place it by. That is not a failure, so it gets
-  // a map of everywhere rather than an empty pane or a complaint.
   it('shows the world for a record that does not say where it is', async () => {
     const { el, map } = await renderLocator();
     el.record = record('nowhere');
@@ -299,13 +261,10 @@ describe('ogm-locator', () => {
     await el.handleStyleLoad();
 
     expect(map.setProjection).toHaveBeenCalledWith({ type: 'globe' });
-    // The order matters: whether the camera clamps is read off the projection it is pointed in
     expect(map.setProjection.mock.invocationCallOrder[0]).toBeLessThan(map.fitBounds.mock.invocationCallOrder[0]);
     expect(map.setSky).toHaveBeenCalled();
   });
 
-  // A globe camera has no answer for anything wider than the half of the world facing it, and would
-  // leave the camera where it was rather than say so
   it('holds a location wider than a hemisphere to the half of the world around it', async () => {
     const { el, map } = await renderLocator();
     el.record = record('the-world', { dcat_bbox: THE_WORLD });
@@ -315,23 +274,17 @@ describe('ogm-locator', () => {
     expect(drawn(map)).toEqual(['the-world-location-fill', 'the-world-location-outline']);
   });
 
-  // Which is what the globe button is for on a locator: the whole of a record too wide to fit on a
-  // sphere is only visible on a flat map, so switching to one re-frames rather than staying halved.
   it('frames the whole of a wide location once the reader flattens the map', async () => {
     const { el, map } = await renderLocator();
     el.record = record('the-world', { dcat_bbox: THE_WORLD });
     await el.draw();
 
-    // The map is already flat by the time it says so: MapLibre changes the projection and announces
-    // the change afterwards, and what the camera does is read off the map rather than off the news
     map.projection = { type: 'mercator' };
     await el.handleProjectionTransition();
 
     expect(frameOf(map)).toEqual([-180, -85, 180, 85]);
   });
 
-  // MapLibre has two names for a sphere: 'globe' draws as one until it is zoomed in far enough that a
-  // sphere and a flat map are the same picture, and 'vertical-perspective' stays one throughout.
   it('reads a vertical perspective as the globe it is', async () => {
     const { el, map } = await renderLocator();
     el.record = record('the-world', { dcat_bbox: THE_WORLD });
@@ -343,9 +296,6 @@ describe('ogm-locator', () => {
     expect(frameOf(map)).toEqual([-90, -85, 90, 85]);
   });
 
-  // A style loading is itself a projection change: it ends by setting whatever it names, and neither
-  // basemap names anything, so every style document arrives flat. Read as the reader's own choice,
-  // that flattened a globe on every theme swap.
   it('keeps the globe a style document resets on its way in', async () => {
     const { el, map } = await renderLocator();
     el.record = record('one', { dcat_bbox: CALIFORNIA });
@@ -361,11 +311,6 @@ describe('ogm-locator', () => {
     expect(map.setProjection).toHaveBeenCalledWith({ type: 'globe' });
   });
 
-  // The sequence a page that sets the theme as its maps are being built produces, which is what
-  // GeoBlacklight's own theme initializer does: the swap is asked for while the first style document
-  // is still on its way, so that document still lands and raises the flag, and the reset the second
-  // one arrives with falls after it. Taken for the reader reaching for the globe button, that left
-  // the map flat and kept it flat, because the choice was then remembered and put back.
   it('keeps the globe through a swap asked for before its first style had loaded', async () => {
     const { el, map } = await renderLocator();
     el.record = record('one', { dcat_bbox: CALIFORNIA });
@@ -376,12 +321,10 @@ describe('ogm-locator', () => {
     map.fire('style.load');
     await swapped;
 
-    // The first document landing, which puts the globe into it and raises the flag
     await el.handleStyleLoad();
 
     expect(map.setProjection).toHaveBeenLastCalledWith({ type: 'globe' });
 
-    // And then the document the swap asked for, arriving in the projection it names
     map.projection = { type: 'mercator' };
     await el.handleProjectionTransition();
     await el.handleStyleLoad();
@@ -389,8 +332,6 @@ describe('ogm-locator', () => {
     expect(map.setProjection).toHaveBeenLastCalledWith({ type: 'globe' });
   });
 
-  // A style document carries its own projection and neither basemap names one, so every swap arrives
-  // flat - and would take a globe the reader had chosen with it
   it('opens in the projection the reader last chose, after a change of theme', async () => {
     const { el, map } = await renderLocator();
     el.projection = 'mercator';
@@ -410,8 +351,6 @@ describe('ogm-locator', () => {
     expect(options.padding).toBeGreaterThan(el.mapTheme.getPadding());
   });
 
-  // A point is a box with no width, so unasked MapLibre settles for the map's own maxZoom of 22 -
-  // which is a street, on a map whose job is to say roughly where in the world something is
   it('opens no closer than city scale, whatever it was asked to frame', async () => {
     const { el, map } = await renderLocator();
     el.record = record('a-point', { locn_geometry: 'POINT(-122.17 37.43)' });
@@ -432,7 +371,6 @@ describe('ogm-locator', () => {
 
     expect(map.setStyle).toHaveBeenCalledWith(darkBasemapStyle);
 
-    // What setStyle would have emptied, emptied - and then drawn again by the load that follows it
     map.layers.clear();
     map.sources.clear();
     await el.handleStyleLoad();
@@ -440,8 +378,6 @@ describe('ogm-locator', () => {
     expect(drawn(map)).toEqual(['one-location-fill', 'one-location-outline']);
   });
 
-  // GeoBlacklight hands over its own basemap this way - a URL to any style document - and each
-  // mode's override is independent of the other's.
   it('swaps in a caller’s own basemap for the mode it names one for', async () => {
     const { el, map } = await renderLocator();
 
@@ -469,9 +405,6 @@ describe('ogm-locator', () => {
   });
 });
 
-// Mounted with recordUrl set from the start, the way it arrives on a parsed page - componentWillLoad
-// reads it before anything else runs. A plain container rather than renderLocator(): what's under
-// test here is what feeds `record`, not what a map does with it once drawn.
 const mount = async (recordUrl: string) => {
   const container = document.createElement('div');
   containers.push(container);
@@ -482,9 +415,6 @@ const mount = async (recordUrl: string) => {
   return el;
 };
 
-// Long enough for a mocked fetch's own microtasks to have run, so a promise that hasn't settled by
-// now is one that is genuinely still waiting - see init.test.tsx, which does the same for the same
-// reason.
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
 describe('ogm-locator, given a URL instead of a record', () => {
@@ -507,9 +437,6 @@ describe('ogm-locator, given a URL instead of a record', () => {
     expect(fetchSpy.mock.calls[0][0]).toEqual('https://example.com/one.json');
   });
 
-  // Unlike <ogm-viewer>, there is nowhere here to show an error - a locator is read at a glance, not
-  // watched for one to resolve - so the map is left to open on the world instead, the same as a
-  // record that never said where it was.
   it('logs a fetch that fails rather than throwing, and leaves record unset', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue(new Response('not found', { status: 404 }));
 
@@ -535,8 +462,6 @@ describe('ogm-locator, given a URL instead of a record', () => {
 });
 
 describe('ogm-locator controls', () => {
-  // The no-pitch test as much as the zoom one: with no compass there is no control that can turn or
-  // tilt the map, which is what the compass button and its pitch visualiser are for
   it('offers zoom buttons and no compass', async () => {
     const { el, map } = await renderLocator();
     el.addControls();
@@ -592,12 +517,7 @@ describe('ogm-locator cooperative gestures', () => {
   });
 });
 
-// componentDidLoad waits for its container to have a box, which lands in a later task than the one
-// that rendered - so there is a window in which the locator can be taken off the page while it is
-// still waiting. Nothing may start observing the container after that: whenSized gives up only once
-// the container has a box, and a detached one never gets one, so the observer would outlive the component.
 describe('ogm-locator taken off the page while it waits', () => {
-  // Mounted without being handed a map, so componentDidLoad is left where it really parks
   const mount = async () => {
     const container = document.createElement('div');
     containers.push(container);
@@ -609,7 +529,6 @@ describe('ogm-locator taken off the page while it waits', () => {
     return { container, el };
   };
 
-  // Counts what gets observed, since that is the thing that outlives the component
   const countObservers = () => {
     const real = globalThis.ResizeObserver;
     const built: unknown[] = [];
@@ -622,8 +541,6 @@ describe('ogm-locator taken off the page while it waits', () => {
     return { built, restore: () => (globalThis.ResizeObserver = real) };
   };
 
-  // Driven by hand rather than by whatever the environment does with a lifecycle method, so where it
-  // has got to when the locator comes off the page is not left to chance
   const didLoad = async (el: Locator) => {
     void el.componentDidLoad();
     await new Promise(resolve => setTimeout(resolve, 0));

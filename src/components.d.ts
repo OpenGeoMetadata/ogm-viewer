@@ -82,7 +82,7 @@ export namespace Components {
     }
     interface OgmLocator {
         /**
-          * Whether a wheel needs the command key, and a touch drag needs a second finger, before either reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map embedded in a page must not eat the scroll a reader meant for the page around it. A page that gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+          * Require a modifier for scrolling and two fingers for touch dragging.
           * @default true
          */
         "cooperativeGestures": boolean;
@@ -98,7 +98,7 @@ export namespace Components {
     }
     interface OgmMap {
         /**
-          * Whether a wheel needs the command key, and a touch drag needs a second finger, before either reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map embedded in a page must not eat the scroll a reader meant for the page around it. A page that gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+          * Require a modifier for scrolling and two fingers for touch dragging.
           * @default true
          */
         "cooperativeGestures": boolean;
@@ -133,35 +133,27 @@ export namespace Components {
         "record": OgmRecord;
         "theme": 'light' | 'dark';
     }
-    /**
-     * Where several records are: one numbered marker apiece, and optionally a way to search the map for
-     * more of them.
-     * Nothing of a record is drawn but its number. A page of boxes says less than a page of numbers a
-     * reader can find again in the list beside the map, and the only two boxes worth drawing are the ones
-     * that answer a question: which area is being searched, and where the one result something outside has
-     * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
-     */
     interface OgmOverview {
         /**
-          * Whether a wheel needs the command key, and a touch drag needs a second finger, before either reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map embedded in a page must not eat the scroll a reader meant for the page around it. A page that gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+          * Require a modifier for scrolling and two fingers for touch dragging.
           * @default true
          */
         "cooperativeGestures": boolean;
         "darkBasemap"?: string;
         /**
-          * Whether a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through `boundsChange`; nothing here answers it, because what a new area means is the embedding page's to say. The help text is a prop because GeoBlacklight runs the strings for the control this replaces through Rails I18n.
+          * Enable shift-drag selection and report its area through boundsChange.
           * @default false
          */
         "geosearch": boolean;
         /**
-          * Which result to bring forward, as either its place in the list counted from one or the id of the record - or of the resource a previewer draws - that it came from. An attribute hands over a string for either, since an attribute is always one.  The marker changes color and comes to the front, and the result's own extent is drawn around it. The camera doesn't move: something on the page has said which result matters, not where to look.  A reader's pointer over a number does the same thing without being asked, so both can be true at once - of two different results, if a page names one while the pointer is over another. Each is a way of saying the same thing about a row, so each gets the same drawing; see draw.
+          * One-based result number or record/resource ID; matching IDs take precedence.
          */
         "highlighted"?: number | string;
         "lightBasemap"?: string;
         "previewers"?: (LocationPreviewer | undefined)[];
         "records"?: OgmRecord[];
         /**
-          * The area a search is currently filtered to, drawn as a box and framed by the camera. Given as the west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an attribute, so a page rendered by a server can say what its map is filtered to without any JavaScript at all.  It goes on holding: whenever what is drawn changes, the camera returns here rather than re-framing itself around the new set of results. Wins over `viewBounds` when both are given, an active filter being the stronger statement - though in practice a page states one or the other, never both. Leave it unset for a map that should look at whatever it has been given; see `viewBounds` for a default to open on instead of the whole world.
+          * Active search area as bounds or an ENVELOPE string; takes precedence over viewBounds.
          */
         "searchBounds"?: LngLatBoundsLike | string;
         /**
@@ -173,7 +165,7 @@ export namespace Components {
          */
         "theme": 'light' | 'dark';
         /**
-          * Where to point the camera when there is nothing else to look at - no active search, no results - in place of the whole world. Given in the same form as `searchBounds` and read the same way, but nothing about it is drawn: no box, no marker, nothing on the map says it is there.  Framed exactly, with no padding and no ceiling on how far in the camera can zoom - unlike `searchBounds` and the extent of a set of results, which both keep the theme's gap because neither one is a promise about what should fill the frame. This one is: a page that sets it has already chosen the exact box the map should show, so nothing here second-guesses that choice.
+          * Exact opening bounds when no search or results supply an extent.
          */
         "viewBounds"?: LngLatBoundsLike | string;
     }
@@ -193,6 +185,9 @@ export namespace Components {
         "theme": 'light' | 'dark';
     }
     interface OgmPreviews {
+        /**
+          * Undefined uses the default label layer; an empty string places previews above the basemap.
+         */
         "beforeId"?: string;
         "darkBasemap"?: string;
         "lightBasemap"?: string;
@@ -231,6 +226,9 @@ export namespace Components {
         "lightBasemap"?: string;
         "loadRecord": (record: OgmRecord) => Promise<void>;
         "recordUrl"?: string;
+        /**
+          * Set before recordUrl; changing this alone does not refetch the current record.
+         */
         "requestTransform"?: RequestTransform;
         /**
           * @default initialTheme(this.el)
@@ -413,14 +411,6 @@ declare global {
         "boundsChange": [number, number, number, number];
         "highlightChange": { place: number; id: string } | null;
     }
-    /**
-     * Where several records are: one numbered marker apiece, and optionally a way to search the map for
-     * more of them.
-     * Nothing of a record is drawn but its number. A page of boxes says less than a page of numbers a
-     * reader can find again in the list beside the map, and the only two boxes worth drawing are the ones
-     * that answer a question: which area is being searched, and where the one result something outside has
-     * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
-     */
     interface HTMLOgmOverviewElement extends Components.OgmOverview, HTMLStencilElement {
         addEventListener<K extends keyof HTMLOgmOverviewElementEventMap>(type: K, listener: (this: HTMLOgmOverviewElement, ev: OgmOverviewCustomEvent<HTMLOgmOverviewElementEventMap[K]>) => any, options?: boolean | AddEventListenerOptions): void;
         addEventListener<K extends keyof DocumentEventMap>(type: K, listener: (this: Document, ev: DocumentEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
@@ -575,7 +565,7 @@ declare namespace LocalJSX {
     }
     interface OgmLocator {
         /**
-          * Whether a wheel needs the command key, and a touch drag needs a second finger, before either reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map embedded in a page must not eat the scroll a reader meant for the page around it. A page that gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+          * Require a modifier for scrolling and two fingers for touch dragging.
           * @default true
          */
         "cooperativeGestures"?: boolean;
@@ -591,7 +581,7 @@ declare namespace LocalJSX {
     }
     interface OgmMap {
         /**
-          * Whether a wheel needs the command key, and a touch drag needs a second finger, before either reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map embedded in a page must not eat the scroll a reader meant for the page around it. A page that gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+          * Require a modifier for scrolling and two fingers for touch dragging.
           * @default true
          */
         "cooperativeGestures"?: boolean;
@@ -629,40 +619,32 @@ declare namespace LocalJSX {
         "record"?: OgmRecord;
         "theme"?: 'light' | 'dark';
     }
-    /**
-     * Where several records are: one numbered marker apiece, and optionally a way to search the map for
-     * more of them.
-     * Nothing of a record is drawn but its number. A page of boxes says less than a page of numbers a
-     * reader can find again in the list beside the map, and the only two boxes worth drawing are the ones
-     * that answer a question: which area is being searched, and where the one result something outside has
-     * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
-     */
     interface OgmOverview {
         /**
-          * Whether a wheel needs the command key, and a touch drag needs a second finger, before either reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map embedded in a page must not eat the scroll a reader meant for the page around it. A page that gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
+          * Require a modifier for scrolling and two fingers for touch dragging.
           * @default true
          */
         "cooperativeGestures"?: boolean;
         "darkBasemap"?: string;
         /**
-          * Whether a reader can search the map by holding shift and dragging a box over it. The area they drew is reported through `boundsChange`; nothing here answers it, because what a new area means is the embedding page's to say. The help text is a prop because GeoBlacklight runs the strings for the control this replaces through Rails I18n.
+          * Enable shift-drag selection and report its area through boundsChange.
           * @default false
          */
         "geosearch"?: boolean;
         /**
-          * Which result to bring forward, as either its place in the list counted from one or the id of the record - or of the resource a previewer draws - that it came from. An attribute hands over a string for either, since an attribute is always one.  The marker changes color and comes to the front, and the result's own extent is drawn around it. The camera doesn't move: something on the page has said which result matters, not where to look.  A reader's pointer over a number does the same thing without being asked, so both can be true at once - of two different results, if a page names one while the pointer is over another. Each is a way of saying the same thing about a row, so each gets the same drawing; see draw.
+          * One-based result number or record/resource ID; matching IDs take precedence.
          */
         "highlighted"?: number | string;
         "lightBasemap"?: string;
         "onBoundsChange"?: (event: OgmOverviewCustomEvent<[number, number, number, number]>) => void;
         /**
-          * Which result the reader's pointer is over: its place in the list counted from one, and the id of the record - or of the resource a previewer draws - it came from. Null once the pointer has left every number.  Both terms, because a page holds its results in one or the other, and either is enough to light up the row the reader is pointing at - which is the whole of what this is for:    overview.addEventListener('highlightChange', event => mark(event.detail?.id));  The reader's own pointer only. Setting `highlighted` doesn't come back out: a page that has said which result matters already knows, and reporting it would be a loop waiting to be wired.
+          * Report pointer highlights as a one-based place and ID, or null when the pointer leaves.
          */
         "onHighlightChange"?: (event: OgmOverviewCustomEvent<{ place: number; id: string } | null>) => void;
         "previewers"?: (LocationPreviewer | undefined)[];
         "records"?: OgmRecord[];
         /**
-          * The area a search is currently filtered to, drawn as a box and framed by the camera. Given as the west, south, east, north degrees `boundsChange` reports, as an ENVELOPE string in the form `dcat_bbox` holds one, or as anything else MapLibre reads as bounds. A string is read from an attribute, so a page rendered by a server can say what its map is filtered to without any JavaScript at all.  It goes on holding: whenever what is drawn changes, the camera returns here rather than re-framing itself around the new set of results. Wins over `viewBounds` when both are given, an active filter being the stronger statement - though in practice a page states one or the other, never both. Leave it unset for a map that should look at whatever it has been given; see `viewBounds` for a default to open on instead of the whole world.
+          * Active search area as bounds or an ENVELOPE string; takes precedence over viewBounds.
          */
         "searchBounds"?: LngLatBoundsLike | string;
         /**
@@ -674,7 +656,7 @@ declare namespace LocalJSX {
          */
         "theme"?: 'light' | 'dark';
         /**
-          * Where to point the camera when there is nothing else to look at - no active search, no results - in place of the whole world. Given in the same form as `searchBounds` and read the same way, but nothing about it is drawn: no box, no marker, nothing on the map says it is there.  Framed exactly, with no padding and no ceiling on how far in the camera can zoom - unlike `searchBounds` and the extent of a set of results, which both keep the theme's gap because neither one is a promise about what should fill the frame. This one is: a page that sets it has already chosen the exact box the map should show, so nothing here second-guesses that choice.
+          * Exact opening bounds when no search or results supply an extent.
          */
         "viewBounds"?: LngLatBoundsLike | string;
     }
@@ -694,6 +676,9 @@ declare namespace LocalJSX {
         "theme"?: 'light' | 'dark';
     }
     interface OgmPreviews {
+        /**
+          * Undefined uses the default label layer; an empty string places previews above the basemap.
+         */
         "beforeId"?: string;
         "darkBasemap"?: string;
         "lightBasemap"?: string;
@@ -735,6 +720,9 @@ declare namespace LocalJSX {
         "hideTitle"?: boolean;
         "lightBasemap"?: string;
         "recordUrl"?: string;
+        /**
+          * Set before recordUrl; changing this alone does not refetch the current record.
+         */
         "requestTransform"?: RequestTransform;
         /**
           * @default initialTheme(this.el)
@@ -859,14 +847,6 @@ declare module "@stencil/core" {
             "ogm-map": LocalJSX.IntrinsicElements["ogm-map"] & JSXBase.HTMLAttributes<HTMLOgmMapElement>;
             "ogm-menubar": LocalJSX.IntrinsicElements["ogm-menubar"] & JSXBase.HTMLAttributes<HTMLOgmMenubarElement>;
             "ogm-metadata": LocalJSX.IntrinsicElements["ogm-metadata"] & JSXBase.HTMLAttributes<HTMLOgmMetadataElement>;
-            /**
-             * Where several records are: one numbered marker apiece, and optionally a way to search the map for
-             * more of them.
-             * Nothing of a record is drawn but its number. A page of boxes says less than a page of numbers a
-             * reader can find again in the list beside the map, and the only two boxes worth drawing are the ones
-             * that answer a question: which area is being searched, and where the one result something outside has
-             * pointed at actually is. For a single record on a map of its own, see <ogm-locator>.
-             */
             "ogm-overview": LocalJSX.IntrinsicElements["ogm-overview"] & JSXBase.HTMLAttributes<HTMLOgmOverviewElement>;
             "ogm-preview": LocalJSX.IntrinsicElements["ogm-preview"] & JSXBase.HTMLAttributes<HTMLOgmPreviewElement>;
             "ogm-previews": LocalJSX.IntrinsicElements["ogm-previews"] & JSXBase.HTMLAttributes<HTMLOgmPreviewsElement>;

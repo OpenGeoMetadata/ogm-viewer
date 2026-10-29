@@ -3,12 +3,6 @@ import { describe, it, expect } from '@stencil/vitest';
 import { atLightness, contrastColor, shiftLightness } from './color';
 import MapLibreTheme, { darkBasemapStyle, lightBasemapStyle } from './maplibre';
 
-// A theme reading from an element carrying the given custom properties.
-//
-// The properties go on the element the theme reads rather than on an ancestor: happy-dom resolves a
-// custom property declared on the element itself but does not inherit one down the tree. Reaching in
-// from an ancestor - which is how an embedding app actually sets these - is CSS inheritance doing its
-// job, so it belongs in a browser rather than here.
 const themed = (theme: 'light' | 'dark' | undefined, tokens: Record<string, string> = {}, basemaps?: { darkBasemap?: string; lightBasemap?: string }) => {
   const el = document.createElement('div');
   Object.entries(tokens).forEach(([name, value]) => el.style.setProperty(name, value));
@@ -29,8 +23,6 @@ describe('MapLibreTheme', () => {
       expect(theme.getStyle().dataColor).toBe('#8f1414');
     });
 
-    // An app that names a color has said it wants that color; picking a different one in dark mode
-    // would be picking one it never asked for.
     it('honors a single override in both modes', () => {
       const tokens = { '--ogm-data-color': '#8f1414' };
 
@@ -38,9 +30,6 @@ describe('MapLibreTheme', () => {
       expect(themed('dark', tokens).getStyle().dataColor).toBe('#8f1414');
     });
 
-    // Web Awesome documents its palette tokens inline, and Safari leaks the comment into the
-    // computed value, which MapLibre then rejects as an invalid color. An override is the only
-    // remaining path a comment like that could arrive on, e.g. an app setting one to var(--wa-color-*).
     it('strips a comment left in an override value', () => {
       const theme = themed('light', { '--ogm-data-color': '#0a3a1d /* oklch(30% 0.08 150) */' });
 
@@ -48,8 +37,6 @@ describe('MapLibreTheme', () => {
     });
   });
 
-  // The outline isn't a second decision an app has to make. Asserted as a relationship to the color
-  // it came from rather than against a hex, so the shift can be retuned without rewriting this.
   describe('derived stroke colors', () => {
     const tokens = { '--ogm-data-color': '#8f1414' };
 
@@ -59,8 +46,6 @@ describe('MapLibreTheme', () => {
       expect(strokeColor).toBe(shiftLightness(dataColor, -0.26));
     });
 
-    // The direction is what flips between modes, so one named color reads on either basemap - which
-    // an app naming its own stroke could never get, since that override applies to both modes.
     it('outlines it with a lighter version in dark mode', () => {
       const { dataColor, strokeColor } = themed('dark', tokens).getStyle();
 
@@ -83,9 +68,6 @@ describe('MapLibreTheme', () => {
     });
   });
 
-  // The disc a result's number sits on is derived to a lightness rather than by a step, because a
-  // numeral has to be readable on it in either mode. Asserted as that relationship, and as the
-  // guarantee that rests on it, rather than against a hex.
   describe('derived marker colors', () => {
     const tokens = { '--ogm-data-color': '#8f1414', '--ogm-highlight-color': '#e98300' };
 
@@ -95,8 +77,6 @@ describe('MapLibreTheme', () => {
       expect(markerColor).toBe(atLightness(dataColor, 0.7));
     });
 
-    // Which is what a step could not do: the two tokens behind one color start at opposite ends of
-    // the scale, so one step from each would land them either side of where white stops being legible.
     it('sinks it to the same depth in both modes', () => {
       const light = themed('light', tokens).getStyle();
       const dark = themed('dark', tokens).getStyle();
@@ -111,11 +91,6 @@ describe('MapLibreTheme', () => {
       expect(markerHighlightColor).not.toBe(themed('light', tokens).getStyle().markerColor);
     });
 
-    // What the numeral's own color rests on. It is chosen by contrast at the point of drawing, so a
-    // disc that came out dark would put white ink on a map whose other numbers are black. Checked
-    // against our own defaults for each mode - the pale pair a light basemap gets and the
-    // saturated pair a dark one does - and against a hue saturated enough, at this lightness, that
-    // an app naming it would otherwise be the one to break the guarantee.
     it('leaves both discs bright enough for black ink', () => {
       const light = themed('light').getStyle();
       const dark = themed('dark').getStyle();
@@ -136,26 +111,20 @@ describe('MapLibreTheme', () => {
     });
   });
 
-  // The numbers on an overview's markers are drawn by this library rather than by MapLibre, so unlike
-  // every other font here this one is an ordinary CSS stack
   describe('marker font', () => {
     it('takes the page’s own body font, and an override before it', () => {
       expect(themed('light', { '--wa-font-family-body': 'Untitled Sans, sans-serif' }).getStyle().markerFont).toBe('Untitled Sans, sans-serif');
       expect(themed('light', { '--wa-font-family-body': 'Untitled Sans, sans-serif', '--ogm-marker-font': 'Redaction, serif' }).getStyle().markerFont).toBe('Redaction, serif');
     });
 
-    // Unlike textFont, which names a glyph set the basemap's own endpoint has to serve
     it('falls back to something a browser will certainly have', () => {
       expect(themed('light').getStyle().markerFont).toBe('system-ui, sans-serif');
     });
   });
 
-  // A label's halo is derived like an outline is, but to the opposite end of the scale: it isn't a
-  // step away from the text, it's what holds the text apart from the basemap.
   describe('derived text halo', () => {
     it('takes the halo from the text color rather than from the mode', () => {
       expect(themed('light', { '--ogm-text-color': '#101219' }).getStyle().textHaloColor).toBe('#ffffff');
-      // Light text in light mode still gets a dark halo - the text is what the halo answers to
       expect(themed('light', { '--ogm-text-color': '#f1f2f3' }).getStyle().textHaloColor).toBe('#000000');
     });
 
@@ -170,8 +139,6 @@ describe('MapLibreTheme', () => {
       expect(themed('light', named).getStyle().textHaloColor).toBe('#8f1414');
     });
 
-    // Deriving from a color we can't read would hand back the text color itself and swallow the
-    // label, so this is the one case that still reaches for our own default pair
     it('falls back to the default when the text color cannot be read', () => {
       const tokens = { '--ogm-text-color': 'oklch(0.5 0.1 20)' };
 
@@ -179,8 +146,6 @@ describe('MapLibreTheme', () => {
     });
   });
 
-  // MapLibre's text-font names a glyph the basemap style serves, not a CSS font stack, so this one
-  // must not fall through to --wa-font-family-body the way the colors fall through to their tokens.
   describe('label font', () => {
     it('defaults to a glyph name rather than a CSS font stack', () => {
       const theme = themed('light', { '--wa-font-family-body': 'ui-sans-serif, system-ui, sans-serif' });
@@ -207,20 +172,13 @@ describe('MapLibreTheme', () => {
       expect(themed('light', { '--ogm-overview-padding': 'var(--wa-space-3xl)' }).getStyle().overviewPadding).toBe(64);
     });
 
-    // A bounding box and an index map say where a record is; they aren't the thing a reader came to
-    // look at, so they start below whatever drawn data starts at. Asserted as a relationship rather
-    // than as two constants: the point is the ordering, and either default can be retuned.
     it('starts bounds fainter than data by default, and separately from it', () => {
       const { opacity, boundsOpacity } = themed('light').getStyle();
 
       expect(boundsOpacity).toBeLessThan(opacity);
-      // Not derived from it either - raising one leaves the other where the theme put it
       expect(themed('light', { '--ogm-data-opacity': '1' }).getStyle().boundsOpacity).toBe(boundsOpacity);
     });
 
-    // An overview is a whole map read at once rather than a pane filled with one record, so what it
-    // frames starts further in than a preview does. A relationship rather than two constants: the
-    // point is that there's more room, and either default can be retuned.
     it('leaves more room around an overview than around a preview', () => {
       const theme = themed('light');
 
@@ -229,8 +187,6 @@ describe('MapLibreTheme', () => {
   });
 
   describe('basemap', () => {
-    // The component's own answer, not the computed color-scheme: the stylesheet that would set that
-    // is linked inside a shadow root, and may not have loaded when the map is first built.
     it('follows the theme it was given', () => {
       expect(themed('dark').getBaseMapStyle()).toBe(darkBasemapStyle);
       expect(themed('light').getBaseMapStyle()).toBe(lightBasemapStyle);
@@ -245,8 +201,6 @@ describe('MapLibreTheme', () => {
       expect(new MapLibreTheme(document.createElement('div')).getBaseMapStyle()).toBe(lightBasemapStyle);
     });
 
-    // GeoBlacklight hands over its own basemap this way - a URL to any style document. Each mode
-    // takes its override independently, the same as an --ogm-* color.
     it('prefers an app’s own basemap for the mode it named one for', () => {
       const custom = themed('dark', {}, { darkBasemap: 'https://example.com/dark.json', lightBasemap: 'https://example.com/light.json' });
       expect(custom.getBaseMapStyle()).toBe('https://example.com/dark.json');

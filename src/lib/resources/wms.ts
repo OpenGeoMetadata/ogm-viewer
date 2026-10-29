@@ -4,7 +4,6 @@ import type { ResourceKind } from './resource';
 import type { PixelWindow } from '../geometry';
 import { resolveRequest, type RequestTransform } from '../request';
 
-// Base params for WMS GetMap requests, which return raster tiles
 type WmsOptions = {
   layerIds: string[];
   bbox?: string; // minx,miny,maxx,maxy in EPSG:3857
@@ -17,19 +16,12 @@ type WmsOptions = {
   infoFormat?: string;
 };
 
-// The window a GetFeatureInfo request asks about; see PixelWindow for what it describes
 export type GetFeatureInfoOptions = PixelWindow;
 
-// Number of features to ask for when inspecting; the spec defaults this to 1, which
-// hides everything under the cursor but the topmost feature
 const DEFAULT_FEATURE_COUNT = 10;
 
-// GeoJSON info formats, in the order we'd rather have them. All three name the same thing, but a
-// server only answers to the spellings it publishes: ArcGIS takes the OGC-registered one alone,
-// while GeoServer has answered to 'application/json' since long before that was registered.
 const GEOJSON_INFO_FORMATS = ['application/geo+json', 'application/vnd.geo+json', 'application/json'];
 
-// Used when the capabilities document can't be read to find out which formats a server takes
 const DEFAULT_INFO_FORMAT = 'application/json';
 
 const defaultWmsOptions: WmsOptions = {
@@ -39,30 +31,24 @@ const defaultWmsOptions: WmsOptions = {
   tileSize: 256,
   format: 'image/png',
 
-  // Draw every layer with the style the server publishes it with. The spec makes this param
-  // required, and while GeoServer lets it go missing, ArcGIS refuses the request without it.
   styles: '',
   transparent: true,
   version: '1.3.0',
 };
 
-// Data accessed via WMS GetMap requests, which return raster tiles
 export default class WmsResource extends RasterResource {
   readonly kind: ResourceKind = 'wms';
 
   private options: WmsOptions;
 
-  // Memoized metadata via GetCapabilities request
   private metadata: Document;
 
-  // Memoized GetFeatureInfo formats the capabilities list
   private publishedInfoFormats?: string[] | null;
 
   constructor(id: string, url: string, options: WmsOptions, bounds?: LngLatBoundsLike, requestTransform?: RequestTransform) {
     super(id, url, bounds, requestTransform);
     this.options = { ...defaultWmsOptions, ...options };
 
-    // Assume we're using one layer with the given ID if no layer IDs are provided
     if (!this.options.layerIds || this.options.layerIds.length === 0) {
       this.options.layerIds = [id];
     }
@@ -72,7 +58,6 @@ export default class WmsResource extends RasterResource {
     return 'Web Map Service (WMS)';
   }
 
-  // Fetch and memoize WMS GetCapabilities XML document
   protected async getMetadata() {
     if (!this.metadata) {
       const { url, init } = resolveRequest(this.capabilitiesUrl, 'metadata', this.requestTransform);
@@ -87,7 +72,6 @@ export default class WmsResource extends RasterResource {
     return this.tilesUrl;
   }
 
-  // WMS has no specific scheme identifier for MapLibre
   getScheme() {
     return undefined;
   }
@@ -101,22 +85,18 @@ export default class WmsResource extends RasterResource {
     return await fetch(url, init);
   }
 
-  // Whether the server will answer GetFeatureInfo in GeoJSON, the only format the previewer reads
   async canInspect(): Promise<boolean> {
     if (this.options.infoFormat) return true;
     const formats = await this.getPublishedInfoFormats();
     return formats === null || GEOJSON_INFO_FORMATS.some(format => formats.includes(format));
   }
 
-  // The info format to ask GetFeatureInfo for. A server rejects the whole request over a format it
-  // doesn't publish, so read the capabilities and pick one it does.
   protected async getInfoFormat(): Promise<string> {
     if (this.options.infoFormat) return this.options.infoFormat;
     const formats = (await this.getPublishedInfoFormats()) ?? [];
     return GEOJSON_INFO_FORMATS.find(format => formats.includes(format)) ?? DEFAULT_INFO_FORMAT;
   }
 
-  // The formats the capabilities say GetFeatureInfo answers in, or null if they couldn't be read
   protected async getPublishedInfoFormats(): Promise<string[] | null> {
     if (this.publishedInfoFormats === undefined) {
       try {
@@ -131,12 +111,9 @@ export default class WmsResource extends RasterResource {
     return this.publishedInfoFormats;
   }
 
-  // WMS GetMap URL that will fetch tiles for this source
   protected get tilesUrl() {
     const tilesUrl = new URL(this.url);
 
-    // Construct the WMS URL with required parameters
-    // See: https://doc.esri.com/en/arcgis-enterprise/latest/administer/communicating-with-a-wms-service-in-a-web-browser.html?pivots=os-windows
     tilesUrl.searchParams.set('service', 'WMS');
     tilesUrl.searchParams.set('request', 'GetMap');
     tilesUrl.searchParams.set('layers', this.options.layerIds.join(','));
@@ -148,18 +125,15 @@ export default class WmsResource extends RasterResource {
     tilesUrl.searchParams.set('styles', this.options.styles as string);
     tilesUrl.searchParams.set('version', this.options.version as string);
 
-    // This param can't be encoded because MapLibre needs to template it
     let tilesUrlString = tilesUrl.toString();
     tilesUrlString += `&bbox=${this.options.bbox}`;
 
     return tilesUrlString;
   }
 
-  // WMS GetFeatureInfo URL, used to fetch information about features at a specific point
   protected async inspectUrl(inspectOptions: GetFeatureInfoOptions) {
     const inspectUrl = new URL(this.url);
 
-    // Merge the provided options with the instance's options
     const options = { ...this.options, ...inspectOptions };
 
     inspectUrl.searchParams.set('service', 'WMS');
@@ -174,8 +148,6 @@ export default class WmsResource extends RasterResource {
     inspectUrl.searchParams.set('height', String(options.height));
     inspectUrl.searchParams.set('feature_count', String(DEFAULT_FEATURE_COUNT));
 
-    // 1.3.0 renamed SRS to CRS, and renamed the pixel coordinates X,Y to I,J. Servers
-    // do enforce the names for the version they were asked for, so pick them to match.
     if (this.isVersion130) {
       inspectUrl.searchParams.set('crs', options.crs as string);
       inspectUrl.searchParams.set('i', String(Math.round(options.x)));
@@ -189,13 +161,11 @@ export default class WmsResource extends RasterResource {
     return inspectUrl.toString();
   }
 
-  // Whether this source speaks WMS 1.3.0 or later, which changed some param names
   protected get isVersion130() {
     const [major, minor] = (this.options.version as string).split('.').map(Number);
     return major > 1 || (major === 1 && minor >= 3);
   }
 
-  // WMS GetCapabilities URL, used to fetch metadata about the layers
   protected get capabilitiesUrl() {
     const capabilitiesUrl = new URL(this.url);
     capabilitiesUrl.searchParams.set('service', 'WMS');

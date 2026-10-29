@@ -7,10 +7,8 @@ import type { PixelWindow } from '../geometry';
 
 const SERVICE = 'https://example.org/arcgis/rest/services/Geology/Glacial_Boundaries/MapServer';
 
-// A 51x51 pixel window ten meters to a pixel, clicked in the middle
 const WINDOW: PixelWindow = { bbox: '-10000,0,-9490,510', width: 51, height: 51, x: 25, y: 25 };
 
-// Reads a hand-built service description instead of fetching one, and exposes the identify params
 class TestResource extends EsriDynamicMapLayerResource {
   stub: EsriMetadata = {};
 
@@ -35,7 +33,6 @@ describe('EsriDynamicMapLayerResource#getMapLibreSourceUrl', () => {
 
     expect(url).toContain(`${SERVICE}/export?`);
 
-    // MapLibre has to see the braces to substitute the bbox, so this one can't be encoded
     expect(url).toContain('&bbox={bbox-epsg-3857}');
   });
 
@@ -88,7 +85,6 @@ describe('EsriDynamicMapLayerResource#getBounds', () => {
     expect(await resourceFor(SERVICE, stub, recordBounds).getBounds()).toBe(recordBounds);
   });
 
-  // So that a record whose box misses the service altogether can be caught; see <ogm-map>
   it('still reports the service’s own extent when the record carried bounds', async () => {
     const recordBounds = new LngLatBounds([0, 0], [1, 1]);
     const stub = { fullExtent: { xmin: -91.5, ymin: 36.9, xmax: -87.4, ymax: 42.5, spatialReference: { wkid: 4326 } } };
@@ -122,7 +118,6 @@ describe('EsriDynamicMapLayerResource#identifyParams', () => {
   it('asks about the coordinate at the middle of the clicked pixel', () => {
     const params = resourceFor().paramsFor(WINDOW);
 
-    // The window spans 510m over 51 pixels, so the middle of pixel 25 is 255m in from each edge
     expect(JSON.parse(params.geometry)).toEqual({ x: -9745, y: 255, spatialReference: { wkid: 3857 } });
     expect(params.geometryType).toEqual('esriGeometryPoint');
     expect(params.sr).toEqual('3857');
@@ -137,7 +132,6 @@ describe('EsriDynamicMapLayerResource#identifyParams', () => {
   });
 
   it('asks for geometry simplified to the detail the map can show', () => {
-    // A pixel of the window is ten meters across, so finer vertices than that are wasted
     expect(Number(resourceFor().paramsFor(WINDOW).maxAllowableOffset)).toEqual(10);
   });
 

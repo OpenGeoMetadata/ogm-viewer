@@ -4,9 +4,6 @@ import type { Map } from 'maplibre-gl';
 
 import GlobeControl from './globe-control';
 
-// Unlike LayersControl, this one delegates to MapLibre's own control, which reads the projection it
-// should show off the map, asks it for the strings to label itself with, and binds to the events that
-// keep the icon in step when something else changes projection. A stand-in has to answer all of them.
 const FAKE_MAP = {
   getProjection: () => ({ type: 'globe' }),
   _getUIString: (key: string) => key,
@@ -20,8 +17,6 @@ const addControl = () => {
 };
 
 describe('GlobeControl', () => {
-  // Everything visible is MapLibre's; this only checks its work was passed through rather than
-  // replaced, since a subclass that forgot to return super's element would leave nothing on the map
   it("hands back MapLibre's own globe button", () => {
     const { container } = addControl();
 
@@ -46,8 +41,6 @@ describe('GlobeControl', () => {
     expect(container.hidden).toBe(false);
   });
 
-  // Nothing calls it before the map has its controls, but a control that isn't on a map has no
-  // element to hide and shouldn't throw looking for one
   it('does nothing when asked to hide before it has been added to a map', () => {
     expect(() => new GlobeControl().setHidden(true)).not.toThrow();
   });

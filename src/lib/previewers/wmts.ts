@@ -10,7 +10,6 @@ export default class WmtsPreviewer extends RasterPreviewer {
   declare protected resource: WmtsResource;
   protected layers: WmtsLayer[];
 
-  // Time domain tracking for layers that provide it
   private times = new Map<string, WmtsTime>();
   private fullDomains = new Map<string, TimeDomain>();
   private domainRequests = new Set<string>();
@@ -18,8 +17,6 @@ export default class WmtsPreviewer extends RasterPreviewer {
   private reloading = new Set<string>();
   private queuedTimes = new Map<string, string>();
 
-  // WMTS sources have multiple XYZ tile URLs for fallbacks, and each layer
-  // can have different tile size, zoom range, bounds, times, etc.
   protected async createSources(): Promise<AddRasterSourceObject[]> {
     const layers = await this.resource.getLayers();
 
@@ -43,10 +40,6 @@ export default class WmtsPreviewer extends RasterPreviewer {
     }));
   }
 
-  // One layer per source, with the same ID as the source. Each is its own row in the layer
-  // control, titled from the <ows:Title> the service published for people to read rather than the
-  // identifier it uses to address the layer, and carrying whatever legend its style publishes - and the
-  // times it can be drawn at, for a layer with a choice of them.
   protected async createLayers(): Promise<RasterLayerSpecification[]> {
     const layers = await this.resource.getLayers();
 
@@ -76,9 +69,6 @@ export default class WmtsPreviewer extends RasterPreviewer {
     });
   }
 
-  // The user's choices, including the one that isn't a paint property: another time is another set of
-  // tiles. Cheap to call again with nothing changed, which is how it's called - on every frame of an
-  // opacity drag - since a time already drawn or on its way is left alone.
   applyLayerState(states: ReadonlyMap<string, LayerState>) {
     super.applyLayerState(states);
 
@@ -95,9 +85,6 @@ export default class WmtsPreviewer extends RasterPreviewer {
     this.queuedTimes.clear();
   }
 
-  // Read the rest of a layer's times from its service's domains document, once, and hand them to its
-  // row. Along with the ones its capabilities listed rather than in place of them: the two documents are
-  // read at different moments, and a layer kept up to date can gain a time in between.
   loadTimeDomain(id: string): void {
     const time = this.times.get(id);
     if (!time?.domainsUrl || this.domainRequests.has(id)) return;
@@ -118,15 +105,8 @@ export default class WmtsPreviewer extends RasterPreviewer {
       .catch(error => console.warn(`Could not read every time ${time.domainsUrl} describes, so only the ones its capabilities list can be chosen:`, error));
   }
 
-  // Point a layer's source at its tiles for another time.
-  //
-  // MapLibre swaps a source's tiles in place - each keeps showing what it had until its replacement
-  // arrives, so the map doesn't blank between one time and the next - but it doesn't cancel what it had
-  // already asked for. A tile told to reload before its last reload has landed has two requests out, and
-  // shows whichever answers last, so stepping back three days in quick succession could leave the map a
-  // patchwork of all three. So each source has one reload under way at a time: a time asked for while one
-  // is waits for the map to go idle - every tile it wanted in, or failed - and only the latest of those
-  // that waited is drawn then. The control says the time asked for at once; the map catches up.
+  // Serialize time reloads because MapLibre lets overlapping requests finish out of order.
+  // Keep only the latest queued time while the current reload finishes.
   private showTime(id: string, time: string) {
     if (this.reloading.has(id)) {
       this.queuedTimes.set(id, time);
@@ -145,8 +125,6 @@ export default class WmtsPreviewer extends RasterPreviewer {
     this.reloading.add(id);
 
     this.map.once('idle', () => {
-      // The style was rebuilt in the meantime, and this source with it. The one that replaced it started
-      // over at its default, and the state it has is its own.
       if (this.map.getSource(id) !== source) return;
 
       this.reloading.delete(id);

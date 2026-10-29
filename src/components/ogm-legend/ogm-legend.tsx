@@ -14,13 +14,7 @@ import { quantityLabel } from '../../lib/quantity';
 })
 export class OgmLegend {
   @Prop() theme: 'light' | 'dark';
-  // Every layer control the panel would show, not a filtered list handed in from outside: which of
-  // them are rampable, and which of those are actually drawn right now, is this component's own
-  // question to answer, the same way ogm-layers decides for itself which row gets a ramp picker.
   @Prop() layers: LayerControl[] = [];
-  // Discrete, named colors supplied by a previewer whose colors carry meaning of their own. Kept as
-  // data rather than inferred here so this presentation component need not know what an index map is
-  // or where its active theme colors came from.
   @Prop() entries: LegendEntry[] = [];
   @Prop() zoom?: number;
   @Prop() open: boolean = true;
@@ -29,13 +23,9 @@ export class OgmLegend {
 
   @State() private folded: boolean = false;
 
-  // The sprite every entry's gradient bar is drawn from. See ogm-layers.tsx's own sprite field for
-  // why this is loaded in componentWillLoad rather than read synchronously, and why a decode
-  // failure is caught rather than left to fail the component: a legend with no gradients still
-  // labels its ends, which is most of what a legend is for.
+  // A sprite decode failure should leave the legend labels visible.
   @State() private sprite: ImageData | undefined;
 
-  // Legend pictures that wouldn't load, by URL
   @State() private brokenImages: ReadonlySet<string> = new Set();
 
   async componentWillLoad() {
@@ -53,8 +43,6 @@ export class OgmLegend {
     this.brokenImages = new Set([...this.brokenImages, image.url]);
   }
 
-  // Web Awesome's show and hide events bubble, so one from something inside the legend would
-  // otherwise read as the legend itself opening or closing
   private ownEvent(event: Event): boolean {
     return event.target === event.currentTarget;
   }
@@ -100,12 +88,8 @@ export class OgmLegend {
               </div>
             )}
             {ramps.map(layer => {
-              // Checked in `ramps` above; asserted here rather than re-checked, since this is the
-              // one place their absence would otherwise be a type error rather than a filtered row.
               const [min, max] = layer.colorRampRange!;
               const step = max - min;
-              // What the values measure when the record's metadata says, since that's what a reader
-              // of a ramp wants to know; for a COG the layer's own title only names its format
               const title = layer.quantity ? quantityLabel(layer.quantity) : layer.title;
 
               return (

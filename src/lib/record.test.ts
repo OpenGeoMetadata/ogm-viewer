@@ -167,9 +167,6 @@ describe('OgmRecord', () => {
       expect(record.getBounds()).toEqual(new LngLatBounds([-20, -1], [-15, -5]));
     });
 
-    // A record whose extent crosses the date line writes its west edge east of its east edge. The
-    // camera is framed on these bounds, so read literally they would point it at the rest of the
-    // world - a map of the Bering Strait fitted to the Atlantic.
     it('should carry the east edge past 180 for a bbox that crosses the antimeridian', () => {
       const record = new OgmRecord({
         id: '1',
@@ -278,9 +275,6 @@ describe('OgmRecord', () => {
       });
     });
 
-    // Same crossing box, drawn rather than framed. This is the shape a reader is shown when nothing
-    // the record points at can go on a map, so getting it the wrong way round tells them the record
-    // covers everywhere it doesn't.
     it('should return GeoJSON that crosses the antimeridian in one piece', () => {
       const record = new OgmRecord({
         id: '2',

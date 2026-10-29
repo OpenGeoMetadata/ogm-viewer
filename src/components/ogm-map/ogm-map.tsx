@@ -33,42 +33,25 @@ import type { References } from '../../lib/references';
 import { ourResourceType, toMapLibreRequest } from '../../lib/request';
 import MapLibreTheme from '../../lib/themes/maplibre';
 
-// Size in CSS pixels of the window we ask a server about when inspecting. WMS and ArcGIS both
-// locate a click by mapping a pixel grid onto a bbox, which assumes the view is a flat, north-up
-// rectangle - but ours can be rotated, pitched, or drawn as a globe. So we describe a small window
-// around the click rather than the whole viewport, which keeps that assumption true to within a
-// fraction of a pixel. Odd-numbered so the clicked pixel is the exact center of the window.
+// Use a small window around the click; the full viewport may be rotated, pitched, or spherical.
 const QUERY_WINDOW = 51;
 
-// How far out this map can be zoomed when no preview asks for anything closer. Named because
-// applyViewConstraints has to put it back: MapLibre reads an absent floor as its own default of -2,
-// not as the one this map was built with, so a preview with nothing to ask for would otherwise take
-// the map further out than any preview is drawn at.
+// Restore this floor explicitly; MapLibre treats an absent minimum as -2.
 const MIN_ZOOM = 1;
 
-// How long an error that arrived before the style document did is given to be proved wrong, in
-// milliseconds. Only ever waited out by a map that has nothing to draw into, so it is set to be
-// comfortably longer than the gap it is covering rather than tight. See confirmBasemapFailure.
 const BASEMAP_GRACE = 250;
 
-// What a map says about a basemap that never arrived at all. Only that failure is said out loud: a
-// basemap that came up and then lost tiles is still a basemap, and a reader looking at roads under
-// the preview doesn't need to be told part of them is missing.
 const NO_BASEMAP = 'The basemap could not be loaded.';
 
-// Error message shown when there's zero overlap between data and provided bounds
 const MISPLACED_BOUNDS = 'This record’s bounding box doesn’t overlap the data, so the map shows the data’s own extent instead.';
 
-// String description of bounds from a record, for printing in errors
 const describeBounds = (bounds: LngLatBoundsLike): string => {
   const read = readBounds(bounds);
   return read ? boundsToBbox(read).join(', ') : JSON.stringify(bounds);
 };
 
-// The zoom a tile was requested at, as written into its URL
 const tileZoom = (tile: Tile): number => tile.tileID.canonical.z;
 
-// A component for rendering an interactive data preview on a map
 @Component({
   tag: 'ogm-map',
   styleUrl: 'ogm-map.css',
@@ -78,18 +61,11 @@ export class OgmMap {
   @Element() el!: HTMLElement;
   @Prop() previewer: MapPreviewer;
   @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
-  // A caller's own basemap for each mode, as a URL to a MapLibre style document; see
-  // MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default.
   @Prop() darkBasemap?: string;
   @Prop() lightBasemap?: string;
   @Prop() padding: number = 0;
 
-  /**
-   * Whether a wheel needs the command key, and a touch drag needs a second finger, before either
-   * reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map
-   * embedded in a page must not eat the scroll a reader meant for the page around it. A page that
-   * gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
-   */
+  /** Require a modifier for scrolling and two fingers for touch dragging. */
   @Prop() cooperativeGestures: boolean = true;
   @Prop() references?: References;
 
@@ -97,121 +73,77 @@ export class OgmMap {
   @Event() mapLoading: EventEmitter<void>;
   @Event() previewError: EventEmitter<PreviewError>;
 
-  // Layer control panel state tracking
   @State() layerControls: LayerControl[] = [];
   @State() layersPanelOpen: boolean = false;
 
-  // What the current preview has to say about the view it is being drawn in - see
-  // MapPreviewer.onNotice. Not an error: it sits over the map rather than in place of it.
   @State() notice?: string;
   @State() boundsNotice?: string;
   @State() basemapNotice?: string;
   @State() failedBasemap?: string;
 
-  // The zoom the camera last came to rest at
   @State() zoom?: number;
 
-  // Whether the reader has the legend unfolded
   @State() legendOpen: boolean = true;
   protected layersControl: LayersControl;
   private layerState = new Map<string, LayerState>();
 
-  // Needs nothing to build, unlike the layers control, so it exists from the start and
-  // applyViewConstraints can reach for it without minding whether the map has its controls yet
   protected globeControl = new GlobeControl();
 
-  // Used to prevent trying to style layers before the map is ready
   private mapStyleLoaded: boolean = false;
 
-  // Whether the basemap now on its way has already been given up on, so that one failure is answered
-  // with one empty style rather than with one per error MapLibre reports about it. Per attempt, not
-  // per map: a theme swap asks for a real basemap again, and that one gets its own chance to fail.
   private basemapFellBack: boolean = false;
 
-  // Guards against reporting more than one error per load attempt
   private errorReported: boolean = false;
 
-  // The deadline the current load attempt is being held to, and whether it has been met. See
-  // startLoadDeadline.
   private loadDeadline: ReturnType<typeof setTimeout> | undefined = undefined;
   private previewDrawn: boolean = false;
 
-  // Whether tiles of the current preview are still arriving. Held as a flag rather than a count of
-  // tiles because it drives mapLoading/mapIdle, which <ogm-viewer> counts: every time this is set,
-  // exactly one clear has to follow, or the spinner is stuck on or turned off early.
+  // Balance loading/idle events once per loading period, regardless of the number of tiles.
   private tilesLoading: boolean = false;
   private previewLoading: boolean = false;
 
-  // Resolves once the current attempt has an answer - the preview's first tile arrived, or the
-  // deadline gave up on it - which is what the spinner is held up by. Starts resolved, since there
-  // is nothing to wait for until a load is under way, and every path that ends an attempt resolves
-  // it: nothing here may leave the spinner turning forever. See startLoadDeadline.
   private previewSettled: Promise<void> = Promise.resolve();
   private settlePreview: () => void = () => {};
 
-  // MapLibre map instance and popup instance for feature info display
   protected map: MapLibreMap;
   protected mapTheme: MapLibreTheme;
   protected popup: Popup | undefined = undefined;
-  // Watches the popup's contents for a change of size; see createPopup
   protected popupResize: ResizeObserver | undefined = undefined;
   protected attributesEl: HTMLOgmAttributesElement;
   protected hoveredFeature: MapGeoJSONFeature | undefined = undefined;
   protected selectedFeature: MapGeoJSONFeature | undefined = undefined;
 
-  // Before the first frame, so nothing paints unstyled
   componentWillLoad() {
     adoptWebAwesomeTheme(this.el);
   }
 
-  // Set up the mapLibre map and event bindings on load
   async componentDidLoad() {
-    // The theme reads from the element carrying the Web Awesome scope, not from the host: see render
-    // for why the host has no colors on it to read. Everything MapLibre draws is inside this element,
-    // so an --ogm-* override set on the host or on the embedding page still reaches it by inheritance.
     const scope = getElement(this.el, '.container');
     this.mapTheme = new MapLibreTheme(scope, this.theme, { darkBasemap: this.darkBasemap, lightBasemap: this.lightBasemap });
 
-    // Keep attributes outside Stencil render pipeline so that MapLibre can
-    // use the HTML directly for the popup content
     this.attributesEl = document.createElement('ogm-attributes') as HTMLOgmAttributesElement;
     this.attributesEl.features = [];
 
-    // Wait until we're inside an element that actually has a box to draw the map
-    // into, otherwise MapLibre will throw errors
     const container = getElement(this.el, '#map');
     await whenSized(container);
 
-    // Taken back off the page while we waited
     if (!this.el.isConnected) return;
 
-    // In contexts without WebGL (bots, tests, some devices) this can fail.
-    // Display that nicely as an error; re-raise for anything else.
     try {
       this.map = createMap(container, this.mapTheme, {
         minZoom: MIN_ZOOM,
         cooperativeGestures: this.cooperativeGestures,
-        // Read fresh on every request rather than captured once, so it always reflects whichever
-        // previewer is currently attached - including across onPreviewerChange, with no watcher of
-        // our own needed. Applies to the basemap's own style/glyphs/sprites too, not just this
-        // preview's data; see RequestTransform for why a transform has to account for that itself.
+        // Read the current previewer on each request so changing previews also changes authentication.
         transformRequest: (url, resourceType) => toMapLibreRequest(this.previewer?.requestTransform?.(url, ourResourceType(resourceType)), url),
-        // Already looking at the record, rather than at the world for as long as it takes the preview to
-        // draw and loadPreview to fit the camera to it - which is a round trip or two, and every one of
-        // them is spent watching a basemap of somewhere else. Only what the record declared, since that
-        // is the part that can be answered without asking anyone; see MapPreviewer.declaredBounds. A
-        // resource that reads a truer extent for itself is still fitted to that one below.
         ...openingCamera(container, this.mapTheme, this.previewer?.declaredBounds),
       });
     } catch (error) {
       if (!isWebGLError(error)) throw error;
 
-      // Bail out since everything after this needs a map
       this.previewError.emit(new WebGLUnavailableError());
       return;
     }
 
-    // Bound before the controls go on, so the preview still works if that fails
     this.map.on('load', () => this.loadPreview());
     this.map.on('mousemove', this.handleHover.bind(this));
     this.map.on('click', this.handleClick.bind(this));
@@ -223,7 +155,6 @@ export class OgmMap {
     this.zoom = this.map.getZoom();
     this.addControls();
 
-    // Style as a globe with atmosphere once style is loaded and set the flag
     this.map.on('style.load', () => {
       this.mapStyleLoaded = true;
       this.applyViewConstraints();
@@ -231,30 +162,21 @@ export class OgmMap {
     });
   }
 
-  // Clean up the map to prevent warnings/errors when removed from the DOM. The popup comes down
-  // first: MapLibre closes it for us on the way out, and closing it ends an inspection, which reaches
-  // back into the map to clear the highlight and hands the features back to whoever is listening. All
-  // of that wants a map that is still there, so it happens before the map goes rather than during it.
+  // Close the popup before removing the map so inspection cleanup can still use it.
   disconnectedCallback() {
     this.clearLoadDeadline();
     this.destroyPopup();
 
-    // Nothing is going to arrive now, and the count this was added to outlives us
     this.settleTileLoading();
     this.setPreviewLoading(false);
     if (this.map) this.map.remove();
   }
 
-  // What the fullscreen button expands. Under an <ogm-viewer> that's the whole viewer, so the
-  // menubar and sidebar come along with the map; on our own it is just us. Found by walking out
-  // through the shadow roots we sit in rather than by asking the document, which would pick the
-  // first viewer on the page whether or not it is the one we're inside.
   protected getContainer(): HTMLElement {
     const viewerEl = closestAcrossShadows(this.el, 'ogm-viewer');
     return (viewerEl && findElement(viewerEl, '.container')) ?? this.el;
   }
 
-  // Add controls to the map, ordered from top down
   protected addControls() {
     this.map.addControl(
       new NavigationControl({
@@ -277,24 +199,11 @@ export class OgmMap {
     await this.loadPreview();
   }
 
-  // Draw the current preview onto the map.
   async loadPreview() {
     if (!this.previewer || !this.map) return;
 
-    // Nothing can be written into a style document that hasn't loaded: setProjection below and the
-    // addSource every preview draws itself with both throw before it has. Nothing is lost by holding
-    // off, because whichever style is on its way draws the preview as it lands - the map's own load
-    // event for the first one, and the handler onThemeChange registers for every one after it.
-    //
-    // Reached only by a previewer handed to a live standalone <ogm-map>, which is the one way a preview
-    // can arrive mid-load: under <ogm-preview> it is an initial prop, so the watcher never fires in that
-    // window. And it has to be caught here rather than thrown and reported, because Stencil doesn't
-    // await a watcher - what that throws escapes as an unhandled rejection instead of reaching
-    // reportError, leaving nothing drawn and nothing said about it.
     if (!this.mapStyleLoaded) return;
 
-    // Fresh load attempt: allow one error to be reported again for this preview, and put the
-    // deadline the last one was held to back on the clock
     this.errorReported = false;
     this.clearLoadDeadline();
     this.previewDrawn = false;
@@ -302,29 +211,18 @@ export class OgmMap {
     this.boundsNotice = undefined;
     this.setPreviewLoading(false);
 
-    // Indicate loading state so we can show the spinner
     this.mapLoading.emit();
 
-    // Clear layer controls list and state
     this.layerControls = [];
     this.layerState.clear();
     this.layersPanelOpen = false;
     this.layersControl.setPressed(false);
 
-    // Close popup if one is open
     this.destroyPopup();
 
-    // Applied here as well as on style.load, since which preview is attached is what decides these and
-    // that can change without the style document being rebuilt
     this.applyViewConstraints();
 
-    // A preview that paints with its own WebGL - deck.gl's COG overlay, an Allmaps warped scan - has
-    // no MapLibre source to report on, and only finds out how it went once its tiles start arriving,
-    // after preview() below has resolved. So it reports both outcomes itself: a failure gets the same
-    // alert a failed load gets, and a tile drawn is what satisfies the deadline started further down,
-    // in place of the map's own tile events. Both bound to the previewer they came from rather than to
-    // whichever is current, so a tile of the record we just left can't answer for the one that
-    // replaced it.
+    // Custom WebGL previews report drawing and errors themselves because they have no MapLibre source.
     const previewer = this.previewer;
     previewer.onError = error => {
       if (this.previewer === previewer) this.reportError(error);
@@ -338,48 +236,28 @@ export class OgmMap {
     previewer.onLoading = loading => {
       if (this.previewer === previewer) this.setPreviewLoading(loading);
     };
-    // A preview whose layers can still change after they are drawn - a georeferenced scan works its
-    // background colour out from a thumbnail it has to fetch, and only then has a toggle to offer.
-    // Bound the same way, so a colour that arrives for the record we just left cannot rebuild the
-    // panel of the one that replaced it.
     previewer.onLayersChanged = () => {
       if (this.previewer === previewer) this.setupLayerControls();
     };
 
     try {
-      // The style is only known now: it comes out of the theme, and the theme can change under a
-      // preview that is already on screen
       this.previewer.attach(this.map, this.mapTheme.getStyle());
       await this.previewer.preview();
 
-      // Again, for the one constraint a preview can't answer until it has read its own service:
-      // MapPreviewer.minZoom settles inside preview(). Here rather than after the camera is fitted
-      // below, because a floor that clamps the current zoom fires a whole move of its own, and
-      // fitMapBounds is waiting on a moveend that isn't its own to arrive.
       this.applyViewConstraints();
 
-      // The map has been told what to draw, so this is where the wait for it to actually appear
-      // begins. Started before the bounds are fitted rather than after, because the tiles the
-      // default view asks for are already on their way by now. Held onto rather than read again
-      // below, so that a load starting under this one - a theme change mid-flight - can't leave this
-      // attempt waiting on that one's answer instead of its own.
+      // Start waiting before fitting bounds, which can trigger the first tile request.
       this.startLoadDeadline();
       const settled = this.previewSettled;
 
-      // Set up the layer controls
       this.applyLayerState();
       this.setupLayerControls();
 
-      // Fit to the preview's bounds; the spinner stays up until the map finishes moving
       const bounds = await this.previewer.getBounds();
       if (bounds) await this.fitMapBounds(bounds);
 
-      // Unless those were the record's, and the data says it is somewhere else entirely
       await this.fitToReportedBounds(previewer);
 
-      // The camera has arrived, but the data it was pointed at may not have. Keep the spinner up
-      // until the preview's first tile lands or its deadline expires, so that a preview which never
-      // draws spins and then says so, rather than presenting itself as loaded and staying blank.
       await settled;
     } catch (error) {
       console.error(`Error previewing ${this.previewer.url}:`, error);
@@ -389,7 +267,6 @@ export class OgmMap {
     }
   }
 
-  // When the theme or a basemap prop changes, swap the basemap to match.
   @Watch('theme')
   @Watch('darkBasemap')
   @Watch('lightBasemap')
@@ -398,24 +275,15 @@ export class OgmMap {
     this.mapTheme.theme = this.theme;
     this.mapTheme.darkBasemap = this.darkBasemap;
     this.mapTheme.lightBasemap = this.lightBasemap;
-    // The popup reads from sources setStyle is about to drop, so it goes first
     this.destroyPopup();
-    // The panel is still on screen over the window this opens, and a layer can't be styled inside it
     this.mapStyleLoaded = false;
-    // A real basemap is being asked for again, so it gets its own chance to arrive - and its own
-    // chance to be given up on. Clearing the notice with it means a swap that succeeds stops saying
-    // the basemap is missing, and setBasemap below still resolves if this one fails too, because the
-    // empty style it falls back to fires the style.load that it waits on.
     this.basemapFellBack = false;
     this.basemapNotice = undefined;
     this.failedBasemap = undefined;
     await setBasemap(this.map, this.mapTheme);
-    // The same preview, drawn again into the style document the swap just emptied
     await this.loadPreview();
   }
 
-  // A reader gets the changed answer from here on; the handler needs nothing rebuilt to give it, so
-  // there's no draw or frame to redo the way a theme swap needs.
   @Watch('cooperativeGestures')
   onCooperativeGesturesChange() {
     if (!this.map) return;
@@ -423,28 +291,16 @@ export class OgmMap {
     else this.map.cooperativeGestures.disable();
   }
 
-  // Surface MapLibre errors tied to the current preview, deduped to a single alert per load attempt.
-  // Everything else it reports once the style document is up is the basemap's - a tile, a sprite, a
-  // glyph range - and a basemap missing some of those is still a backdrop, so none of it is said out
-  // loud. They arrive often enough (one per tile a CDN drops) that a notice about them would be up
-  // on maps that look perfectly fine.
   protected handleMapError(event: ErrorEvent & { sourceId?: string; tile?: Tile }) {
-    // Nothing but the style document can have failed this early - a map has no sources until a style
-    // document brings them - and that failure is the expensive one, so it is checked before anything
-    // else. See confirmBasemapFailure.
     if (!this.mapStyleLoaded) return this.confirmBasemapFailure();
 
-    // This forces 'idle' to fire so the spinner stops after an error
     if (this.tilesLoading) this.map.triggerRepaint();
 
     const sourceId = event.sourceId ?? '';
     if (!this.previewer?.sourceIds.includes(sourceId)) return;
 
-    // Allow tile failure path for previewers like XYZ where it's expected, because
-    // appropriate zoom isn't known until the request happens
     if (event.tile && this.previewer.absorbTileError(sourceId, tileZoom(event.tile))) return;
 
-    // If we successfully drew at least some tiles, just log the failing ones and let the previewer continue
     if (event.tile && this.previewDrawn) {
       console.warn(`Could not load a tile of ${this.previewer.url}:`, event.error);
       return;
@@ -454,89 +310,42 @@ export class OgmMap {
     this.reportError(event.error);
   }
 
-  // A style document that failed to load, once we're sure that's what happened.
-  //
-  // Worth being sure about: this reads "an error arrived before style.load did", and the sprite and
-  // glyph requests a style document makes for itself can lose that race, so a basemap that is
-  // perfectly fine can raise one of these on its way up. Waiting a beat and asking again costs
-  // nothing - a style that is coming is already on its way, and one that isn't has left the map with
-  // nothing to draw into - and it means the answer doesn't depend on telling MapLibre's error shapes
-  // apart, which differ by what failed and change between versions.
+  // Allow style.load to arrive before treating an early sprite or glyph error as a basemap failure.
   protected confirmBasemapFailure() {
     if (this.basemapFellBack) return;
     this.basemapFellBack = true;
 
     setTimeout(() => {
-      // The style arrived after all, or there is no longer anywhere to put one: this waits out a
-      // window a map can be taken off the page inside, and disconnectedCallback leaves the removed
-      // map in place rather than dropping it, so having one is not the same as being able to write
-      // to one.
       if (this.mapStyleLoaded || !this.map || !this.el.isConnected) return;
       this.fallBackToEmptyBasemap();
     }, BASEMAP_GRACE);
   }
 
-  /**
-   * Draw on an empty basemap, for a map whose real one never arrived.
-   *
-   * Everything downstream of a style document waits on the style.load a failed one never fires:
-   * mapStyleLoaded, and so loadPreview, and so every source a preview adds. So a basemap CDN having
-   * a bad day didn't just cost the backdrop, it abandoned the preview - no spinner, no alert, and not
-   * one request made for the data the reader came for. It also can't be waited out, because there is
-   * no second attempt: MapLibre asks for a style document once.
-   *
-   * Handing over a style document of our own puts all of that back: MapLibre fires style.load for it
-   * like any other, which lets go of loadPreview, and its own `load` follows from the next frame
-   * since that latch was never set. The theme swap does the same thing through setBasemap, which
-   * waits on the same event.
-   *
-   * The basemap is the backdrop and the data is the point, so losing the first is not a reason to
-   * give up on the second - but it is a reason to say so, which the notice does.
-   */
+  // An empty style lets the preview render when the basemap never fires style.load.
   protected fallBackToEmptyBasemap() {
-    // Said before the swap, while the theme is still being asked for the basemap that failed rather
-    // than for the empty one replacing it. Kept apart from `notice`, which belongs to the preview and
-    // is cleared with every load attempt: this one is about the map under the preview, and stays true
-    // until a basemap is asked for again. Named from the theme rather than off the error, which
-    // carries no URL at all for the failure that matters most here (a refused cross-origin request
-    // rejects with a bare TypeError).
     this.basemapNotice = NO_BASEMAP;
     this.failedBasemap = this.mapTheme.getBaseMapStyle();
     this.map.setStyle(this.mapTheme.getFallbackBaseMapStyle());
   }
 
-  // One tile of the current preview arriving is the only proof that the preview is really there, so
-  // it's what the deadline below waits for. MapLibre fires this with a tile on it from one place
-  // only - a tile that finished loading and wasn't aborted - so its presence is the whole test; the
-  // same event without one is describing the source rather than any of its contents.
   protected handleSourceData(event: MapSourceDataEvent) {
     if (!event.tile || !this.previewer?.sourceIds.includes(event.sourceId)) return;
     this.previewer.tileLoaded(event.sourceId, tileZoom(event.tile));
     this.markPreviewDrawn();
   }
 
-  // A tile of the current preview has been asked for. The pair of events around loadPreview covers
-  // the first draw only; this covers every draw after it - a pan, or a zoom past the point where a
-  // tiled source starts cutting tiles - which is otherwise a silent wait while a service is queried
-  // one tile at a time.
-  //
-  // Filtered to the preview's own sources, so panning over a basemap that is still filling in
-  // doesn't claim the preview is loading. Only the first tile of a batch says so: what a reader
-  // waits for is the batch, and the events below say when it is done.
   protected handleSourceDataLoading(event: MapSourceDataEvent) {
     if (this.tilesLoading || !this.previewer?.sourceIds.includes(event.sourceId)) return;
     this.tilesLoading = true;
     this.mapLoading.emit();
   }
 
-  // Everything the map was waiting for has arrived and been drawn
   private settleTileLoading() {
     if (!this.tilesLoading) return;
     this.tilesLoading = false;
     this.mapIdle.emit();
   }
 
-  // Emit the appropriate events if the preview loading state changed
   private setPreviewLoading(loading: boolean) {
     if (loading === this.previewLoading) return;
     this.previewLoading = loading;
@@ -544,45 +353,31 @@ export class OgmMap {
     else this.mapIdle.emit();
   }
 
-  // Something of the current preview is on the map. Reached from the map's own tile events above for
-  // everything MapLibre draws, and from the onDrawn hook for the two previews that draw themselves.
   private markPreviewDrawn() {
     this.previewDrawn = true;
     this.clearLoadDeadline();
   }
 
-  // Hold this load attempt to a deadline, and call it a failure if nothing is drawn by then.
   protected startLoadDeadline() {
     this.clearLoadDeadline();
     if (!this.previewer) return;
     if (!this.previewer.sourceIds.length && !this.previewer.reportsDrawing) return;
 
-    // Already answered, before we even got here: MapLibre starts fetching the moment a source goes
-    // on, so a tile can land - or fail loudly enough to be reported - while preview() is still
-    // adding the rest of them. Arming anyway would hold the spinner for the full deadline over a
-    // preview that has either already drawn or already said what went wrong.
+    // A tile can arrive while preview() is still running, before the deadline is started.
     if (this.previewDrawn || this.errorReported) return;
 
     this.previewSettled = new Promise<void>(resolve => (this.settlePreview = resolve));
 
-    // Held against the previewer this attempt was for, not whichever is current when it expires, so
-    // a preview the user has already moved on from can't accuse the one that replaced it
     const previewer = this.previewer;
     this.loadDeadline = setTimeout(() => {
       this.loadDeadline = undefined;
       if (!this.previewDrawn && this.previewer === previewer) {
         this.reportError(new TimeoutError(`a tile of ${previewer.url}`, previewer.loadTimeout));
       }
-      // Reached whether or not an alert went up: reportError only speaks once per attempt, and a
-      // preview that has since been replaced gets no alert at all, but this attempt is over either
-      // way and whatever is waiting on it has to be let go.
       this.clearLoadDeadline();
     }, previewer.loadTimeout);
   }
 
-  // Ends the current attempt's wait, from any of the four things that can end it: its first tile
-  // arriving, its deadline expiring, an error being reported, or the attempt being abandoned for a
-  // new load or a teardown.
   private clearLoadDeadline() {
     if (this.loadDeadline !== undefined) {
       clearTimeout(this.loadDeadline);
@@ -591,27 +386,13 @@ export class OgmMap {
     this.settlePreview();
   }
 
-  // Emit a single preview error per load attempt
   private reportError(error: unknown) {
     if (this.errorReported || !this.previewer) return;
     this.errorReported = true;
-    // Whatever the deadline was still waiting for, it has nothing left to add: the alert it would
-    // have raised is the one already going up
     this.clearLoadDeadline();
     this.previewError.emit(referenceError(error, this.previewer.label(), this.previewer.url));
   }
 
-  // Draw the map the way the current preview needs it drawn: on a globe unless the preview can't be
-  // shown on one, tilted no further than it can be drawn tilted, and held no further out than it has
-  // anything to draw at. See MapPreviewer.projection, maxPitch and minZoom. The globe control goes
-  // with the projection, since a preview that needs a flat map would only be drawn wrong in whatever
-  // else that button could offer; the pitch needs no such handling, because setMaxPitch is what the
-  // drag gestures and the compass are already bounded by.
-  //
-  // Every limit is set on every call, including back to nothing, so that the preview being replaced
-  // can't leave one of its own behind on a map now showing something else. For the pitch, nothing is
-  // MapLibre's own default and there is no limit of ours to keep in step with theirs; the zoom floor
-  // is the exception, because this map opens with one - see MIN_ZOOM.
   protected applyViewConstraints() {
     if (!this.map) return;
     const projection = this.previewer?.projection ?? 'globe';
@@ -621,14 +402,10 @@ export class OgmMap {
     this.map.setMinZoom(Math.max(MIN_ZOOM, this.previewer?.minZoom ?? MIN_ZOOM));
   }
 
-  // Fit the map to the given bounds; resolve once the move finishes. What the sidebar covers is the
-  // map's own padding (see onPaddingChange), which MapLibre already takes off the space it fits
-  // bounds into, so only the theme's gap is left for fitMapBounds to add.
   async fitMapBounds(bounds: LngLatBoundsLike) {
     return await fitBounds(this.map, this.mapTheme, bounds);
   }
 
-  // Use bounds derived from the data itself to fit the map
   protected async fitToReportedBounds(previewer: MapPreviewer) {
     const declared = previewer.declaredBounds;
     if (!declared) return;
@@ -646,14 +423,12 @@ export class OgmMap {
     await this.fitMapBounds(reported);
   }
 
-  // When padding is changed, move the map over to make room for the sidebar
   @Watch('padding')
   async onPaddingChange() {
     if (!this.map) return;
     return await this.easeMapTo({ padding: { left: this.padding } });
   }
 
-  // Move the map (e.g. when the sidebar moves)
   @Method()
   async easeMapTo(options: EaseToOptions) {
     return await this.map.easeTo(options);
@@ -701,7 +476,6 @@ export class OgmMap {
     this.legendOpen = event.detail;
   }
 
-  // Used when the user toggles the summary checkbox to show/hide all layers at once
   @Listen('allLayersVisibilityChange')
   handleAllLayersVisibilityChange(event: CustomEvent<boolean>) {
     event.stopPropagation();
@@ -709,26 +483,17 @@ export class OgmMap {
     this.commitLayerState(hidden);
   }
 
-  // Show/hide the layers panel
   protected toggleLayersPanel() {
     this.layersPanelOpen = !this.layersPanelOpen;
     this.layersControl.setPressed(this.layersPanelOpen);
   }
 
-  // Remember one row's change, then push everything to the map at once
   private setLayerState(id: string, change: Partial<LayerState>) {
     const hidden = this.recordLayerState(id, change);
     this.commitLayerState(hidden);
   }
 
-  // Update the layer state for a layer; return true if it just changed
-  // to hidden so we can clear popups/highlights
-  //
-  // The starting point for `current` has to be resolveLayerState's own, not a copy of the same two
-  // fields written out here by hand: that copy is how a ramp choice, once LayerState grew one,
-  // would have gone missing on the very next opacity change - `{...current, ...change}` merges the
-  // rest of `current` forward untouched, but only if `current` already had every field a layer
-  // might carry, which a hand-written `{ visible, opacity }` never will once a third one exists.
+  // Merge against all resolved defaults so changing one control preserves the others.
   private recordLayerState(id: string, change: Partial<LayerState>): boolean {
     const layer = this.previewer?.previewLayers.find(previewLayer => previewLayer.id === id);
     if (!layer) return false;
@@ -747,35 +512,26 @@ export class OgmMap {
     if (this.map) this.map.getCanvas().style.cursor = '';
   }
 
-  // Send changes to the layer state to the previewer
   private applyLayerState() {
     if (!this.previewer || !this.mapStyleLoaded) return;
     this.previewer.applyLayerState(this.layerState);
   }
 
-  // Populate the layer controls in the panel
   private setupLayerControls() {
     this.layerControls = getLayerControls(this.previewer?.previewLayers ?? [], this.layerState);
   }
 
-  // Use the crosshair cursor if there's something to inspect
   protected handleHover(event: MapMouseEvent) {
-    // A preview with nothing to answer with never offers. Checked before the raster case below, which
-    // is a question about how to ask rather than whether to.
     if (this.previewer && !this.previewer.inspectable) {
       this.map.getCanvas().style.cursor = '';
       return;
     }
 
-    // A server-drawn preview has no client-side features to test the cursor against, so offer to
-    // inspect anywhere as long as the server will answer at all - and as long as any of it is still
-    // drawn, since a hidden layer has nothing to be asked about
     if (this.previewer instanceof InspectableRasterPreviewer) {
       this.map.getCanvas().style.cursor = this.previewer.canInspect && this.previewer.anyLayerVisible ? 'crosshair' : '';
       return;
     }
 
-    // In the order a click would list them, so what lights up is the feature a click opens at
     const features = dedupeFeatures(this.map.queryRenderedFeatures(event.point, { layers: this.queryableLayerIds }));
 
     if (features.length > 0) {
@@ -787,22 +543,15 @@ export class OgmMap {
     }
   }
 
-  // Show the attributes popup on click
   protected async handleClick(event: MapMouseEvent) {
-    // Clear any existing popup and feature selection
     this.destroyPopup();
 
-    // Get the features, if any, at the clicked point. If none, do nothing. A failed request means
-    // this one click went unanswered, not that the preview is broken, so it stays out of the alerts.
     const features = await this.handleInspection(event.point).catch(error => {
       console.error(`Error inspecting ${this.previewer?.url}:`, error);
       return [];
     });
     if (features.length === 0) return;
 
-    // Create and populate the attributes popup and select the first feature if multiple. What kind of
-    // preview these came from decides how they're described, and goes over first so the popup never
-    // paints a table of raw keys for something it could have named properly.
     this.attributesEl.kind = this.previewer?.kind;
     this.attributesEl.requestTransform = this.previewer?.requestTransform;
     this.attributesEl.references = this.references;
@@ -811,12 +560,9 @@ export class OgmMap {
     this.selectFeature(features[0]);
   }
 
-  // Delegate to server for raster inspection, or query directly for vector
   protected async handleInspection(point: Point): Promise<MapGeoJSONFeature[]> {
     if (!this.previewer) return [];
 
-    // Drawn, but not about anything: a location has one shape and no properties behind it, so a
-    // query would return a feature and the popup would open on an empty table.
     if (!this.previewer.inspectable) return [];
 
     if (this.previewer instanceof InspectableRasterPreviewer) {
@@ -824,14 +570,10 @@ export class OgmMap {
       return dedupeFeatures(await this.previewer.inspect(this.queryWindow(point)));
     }
 
-    // Deduped first, so a preview filling in what its features don't carry asks about each of them
-    // once rather than once per style layer that drew it
     return await this.previewer.expandFeatures(dedupeFeatures(this.map.queryRenderedFeatures(point, { layers: this.queryableLayerIds })));
   }
 
-  // The window around a click to ask a server about. Its corners are in the same CSS pixel space
-  // as the click; let MapLibre unproject them so the geography stays right under any projection,
-  // then take their EPSG:3857 envelope, since that is the CRS we request.
+  // Unproject a local pixel window so inspection works with rotation, pitch, and globe projection.
   protected queryWindow(point: Point): PixelWindow {
     const half = (QUERY_WINDOW - 1) / 2;
     const corners = [
@@ -850,18 +592,12 @@ export class OgmMap {
     };
   }
 
-  // Listen to selection events from the popup and highlight the selected feature. Ours to hear
-  // because MapLibre builds the popup inside the map's own container, which is in our shadow root,
-  // so the event passes through us on its way out - and through no other map. Listened for on the
-  // document instead, as it once was, every <ogm-map> on the page would answer for every popup: a
-  // record change replaces them all at once, and the ones that had not built their maps yet threw.
   @Listen('featureSelected')
   handleFeatureSelected(event: CustomEvent<MapGeoJSONFeature>) {
     if (!this.map) return;
     this.selectFeature(event.detail);
   }
 
-  // Reset styling of the selected feature to unselected state
   protected clearFeatureSelection() {
     if (this.previewer instanceof InspectableRasterPreviewer) {
       this.previewer.clearHighlight();
@@ -872,10 +608,7 @@ export class OgmMap {
     this.selectedFeature = undefined;
   }
 
-  // Set styling of a single feature to selected state, releasing whatever was selected before it
   protected selectFeature(feature: MapGeoJSONFeature) {
-    // A server-drawn raster has no client-side features to restyle, so the previewer outlines the
-    // geometry the server sent back instead - and one highlight replaces the last
     if (this.previewer instanceof InspectableRasterPreviewer) {
       this.previewer.highlightFeatures([feature]);
       return;
@@ -885,27 +618,19 @@ export class OgmMap {
     this.setFeatureState(feature, { selected: true });
   }
 
-  // Set styling of a single feature to hovered state
   protected hoverFeature(feature: MapGeoJSONFeature) {
     this.clearHoveredFeature();
     this.hoveredFeature = feature;
     this.setFeatureState(feature, { hover: true });
   }
 
-  // Clear the hovered feature state
   protected clearHoveredFeature() {
     if (!this.hoveredFeature) return;
     this.setFeatureState(this.hoveredFeature, { hover: false });
     this.hoveredFeature = undefined;
   }
 
-  // Restyle one of the preview's own features. Every path into here starts outside the map - a
-  // pointer event, a layer control, the popup - and the map is not there for all of that time: it
-  // is built in componentDidLoad and taken down in disconnectedCallback. Nothing to restyle then.
-  //
-  // A feature with no id has no state to set - MapLibre refuses it with an error event that says
-  // nothing on the page - so a selection of one is drawn by its properties instead, and a hover of
-  // one isn't drawn at all; see VectorPreviewer#matchSelection.
+  // Features without IDs need a property filter; MapLibre refuses feature-state updates for them.
   private setFeatureState(feature: MapGeoJSONFeature, state: { hover?: boolean; selected?: boolean }) {
     if (!this.map) return;
     if (identified(feature)) {
@@ -915,21 +640,13 @@ export class OgmMap {
     }
   }
 
-  // Create a new popup and set its content and location
   protected createPopup(location: LngLatLike) {
     this.popup = new Popup({ maxWidth: 'none' }).setDOMContent(this.attributesEl).setLngLat(location).addTo(this.map);
 
-    // MapLibre works out which side of the click to put the popup on from how big it is at the time,
-    // and the contents don't stay that size: paging moves to a feature with more properties, and an
-    // index map sheet's thumbnail arrives a fetch after the table it sits above. Left alone the popup
-    // grows off the top of the map. Setting the same position again is what makes MapLibre measure and
-    // place it a second time.
+    // Recalculate the popup anchor when asynchronous content changes its size.
     this.popupResize = new ResizeObserver(() => this.popup?.setLngLat(this.popup.getLngLat()));
     this.popupResize.observe(this.attributesEl);
 
-    // Closing the popup - by the user's click on its X, or by our own remove() - is what ends an
-    // inspection, and the only thing that hands the features back. Emptying the list is what blanks
-    // the table, so paging must not do it: it only moves the highlight from one feature to the next.
     this.popup.on('close', () => {
       this.popup = undefined;
       this.popupResize?.disconnect();
@@ -939,37 +656,15 @@ export class OgmMap {
     });
   }
 
-  // Remove popup from the map. MapLibre fires 'close' from remove(), and only for a popup still on
-  // the map, so the handler above does the rest of the teardown exactly once.
   protected destroyPopup() {
     if (this.popup) this.popup.remove();
   }
 
-  // The layers a click may inspect: only what's actually drawn, and never the previewer's own
-  // machinery. MapLibre answers the whole query with nothing if it names a layer the style lost.
   protected get queryableLayerIds() {
     return this.previewer?.visibleLayerIds || [];
   }
 
-  // The layer panel, the legend and the time control are siblings of #map rather than MapLibre
-  // controls, even though the button that opens the panel is one. MapLibre owns the children of #map,
-  // so anything Stencil renders in there is fighting it for the same DOM - the reason ogm-attributes
-  // has to be built by hand.
-  //
-  // Everything is wrapped in .container because that is where the Web Awesome scope has to go: the
-  // classes waScope() applies are matched by the theme adopted into this root, and a plain class
-  // selector in a shadow root's stylesheet never matches the host of that root. On the Host alone
-  // they would establish nothing, which is what a bare <ogm-map> used to draw with - every color
-  // empty. The panel and the legend need them as much as the map does, and neither is inside #map,
-  // so the scope goes above all three.
-  //
-  // The legend is shown independently of the panel, unlike layersPanelOpen below: it exists to be
-  // read while looking at the map, which is exactly when the panel that would have opened it is
-  // closed. But it is gated the same way the panel is - mounted only when there's something for it
-  // to show, via rampedLayers(this.layerControls), imageLegends() and the previewer's own named
-  // entries rather than unconditionally with the component left to render null on its own. Both
-  // would look right to a reader; only one of them is - see the note on this at the top of
-  // ogm-legend.tsx. The time control is gated the same way, on timedLayers().
+  // Keep Stencil panels outside #map so MapLibre can manage its children without detaching them.
   render() {
     const legendEntries = this.previewer?.legendEntries ?? [];
     const hasLegend = legendEntries.length > 0 || rampedLayers(this.layerControls).length > 0 || imageLegends(this.layerControls, this.zoom).length > 0;

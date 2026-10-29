@@ -2,106 +2,56 @@ import { existsSync } from 'node:fs';
 
 import { Config } from '@stencil/core';
 
-// The worker that decodes COG tiles off the main thread, and the module its bundled source is
-// inlined into - siblings, so the entry is found from whichever id Rollup hands us rather than from
-// anything relative to the working directory. See src/lib/decoder.ts for why the workers start from
-// a string rather than from a file beside this bundle. Ids are matched with their separators
-// normalized, so this holds on Windows too.
 const WORKER_SOURCE_MODULE = 'src/lib/decoder-worker-source.ts';
 const WORKER_ENTRY = 'decoder-worker.ts';
 
-// MapLibre's own worker, and the module it is inlined into. MapLibre 5 carried its worker inside its
-// bundle; 6 publishes it as a module of its own and looks for it beside whichever module asked for
-// it, which bundled is a file nothing publishes - see src/lib/maps.ts for what that costs. So it is
-// bundled and inlined here the same way the decoder worker above is, and started from a blob.
 const MAPLIBRE_WORKER_SOURCE_MODULE = 'src/lib/maplibre-worker-source.ts';
 const MAPLIBRE_WORKER_ENTRY = 'maplibre-gl/dist/maplibre-gl-worker.mjs';
 
-// What each half of that looks like in a built chunk: the file MapLibre asks for when it is left to
-// find its own worker, and the name given to the copy inlined here. See verifyMaplibreWorkerInlined.
 const MAPLIBRE_WORKER_FILE = 'maplibre-gl-worker.mjs';
 const MAPLIBRE_WORKER_MARKER = '//# sourceURL=maplibre-gl-worker.js';
 
-// Upstream's own default pool builds a worker from a URL beside whichever chunk it lands in:
-//
-//   createWorker: () => new Worker(new URL("./worker.js", import.meta.url), { type: "module" })
-//
-// COGLayer reaches for that pool whenever it isn't handed one, so the expression is in the bundle
-// whether or not anything calls it - and no worker.js is published beside the chunks, so a consumer
-// on Vite can't build at all: its worker-import-meta-url plugin resolves the URL as a worker entry
-// while transforming the chunk and stops at a file that isn't there. Replacing the factory with
-// `undefined` leaves defaultDecoderPool() working, just on the main thread, and takes the URL out of
-// the published output. The pool this library actually uses is built in src/lib/decoder.ts.
-//
-// See: https://github.com/OpenGeoMetadata/ogm-viewer/issues/186
-// See: https://github.com/developmentseed/deck.gl-raster/issues/364
+// Remove the unpublished worker URL so consuming bundlers do not try to resolve a missing file.
 const UPSTREAM_POOL_MODULE = '@developmentseed/geotiff/dist/pool/pool.js';
 const UPSTREAM_WORKER_FACTORY = 'createWorker: () => new Worker(new URL("./worker.js", import.meta.url), { type: "module" })';
 const MISSING_WORKER_URL = './worker.js';
 
-// lerc ships two builds of itself, and left alone Rollup takes the wrong one. Its package.json names
-// the CommonJS build in both `main` and `browser`, and its exports map's `default` condition is that
-// same file - so unless the `import` condition is asked for, a bare `lerc` resolves there. Converted
-// back into an ES module, that build carries a static `import "url"` out of the branch it takes under
-// Node, and no browser can resolve a bare `url`: the chunk it lands in throws the moment anything
-// imports it, which is every attempt to decode a LERC tile on the main thread, and it puts a Node
-// builtin into published output where a consumer's bundler has to deal with it too. The ES build is
-// the same library with none of that. Only the main-thread bundles need this; the decoder worker is
-// bundled by Rolldown, which asks for `import` and gets the right file on its own.
-//
-// Not every copy in the tree is that package, though: geotiff.js carries a lerc 3 of its own, which
-// is one plain UMD file and has no ES build to be sent to. Whether the sibling is there is the test,
-// rather than which copy it looks like - the answer is the same either way, and only one of them
-// needs asking.
+// Use the ES build to avoid a Node-only url import; older LERC copies may have no ES build.
 const LERC_MODULE = 'lerc';
 const LERC_COMMONJS = 'LercDecode.js';
 const LERC_MODULE_BUILD = 'LercDecode.es.js';
 
 const normalize = (id: string) => id.replace(/\\/g, '/');
 
-// The sliver of Rollup's plugin context the plugin below needs. Declared rather than imported: Rollup
-// is not a dependency of this package, since Stencil carries its own copy.
 type Resolver = {
   resolve(source: string, importer: string | undefined, options: { skipSelf: boolean }): Promise<{ id: string } | null>;
 };
 
-// Bundled once per process and reused: every output target runs its own Rollup build, and there is
-// nothing in the worker to rebuild between them. A watch session that edits WORKER_ENTRY itself
-// needs restarting, which is a fair trade for a file that is one import.
+// Cache across output targets; restart watch mode after editing a worker entry.
 let bundledWorker: Promise<string> | undefined;
 let bundledMaplibreWorker: Promise<string> | undefined;
 
-// Bundle WORKER_ENTRY into one self-contained ES module, with its dynamically imported codecs
-// inlined: a worker started from a blob URL has no directory to resolve a sibling chunk against, so
-// anything left unbundled would be unreachable. ES rather than IIFE because
-// @developmentseed/lzw-tiff-decoder initializes its wasm with top-level await - see the note on the
-// output targets below - though Rolldown hoists that into the lazy initializer it wraps an inlined
-// dynamic import in, which is what lets a consumer's bundler re-bundle this file as an IIFE.
+// Inline codecs because blob workers cannot resolve sibling chunks; the LZW codec uses top-level await.
 async function bundleDecoderWorker(entry: string): Promise<string> {
   const { rolldown } = await import('rolldown');
 
   const bundle = await rolldown({
     input: entry,
     platform: 'browser',
-    // lerc reaches for node:module in the branch it takes outside a browser. Nothing evaluates it
-    // here, but left to resolve it Rolldown reports a module it couldn't find.
+    // LERC references a Node-only module in an unused branch; leave it unresolved in the browser build.
     external: ['module'],
-    // @developmentseed/geotiff declares itself side-effect free, and the worker's message handler is
-    // nothing but a side effect: shaken, this bundle comes out empty, and every tile would then wait
-    // forever on a worker that registered no listener.
+    // Keep the worker message handler, which the package incorrectly marks as side-effect free.
     treeshake: { moduleSideEffects: () => true },
   });
 
   try {
     const { output } = await bundle.generate({ format: 'esm', codeSplitting: false, minify: true });
-    // Named so devtools lists the worker by something other than its blob URL
     return `${output[0].code}\n//# sourceURL=ogm-decoder-worker.js\n`;
   } finally {
     await bundle.close();
   }
 }
 
-// Replaces the empty placeholder in WORKER_SOURCE_MODULE with the bundled worker
 const inlineDecoderWorker = () => ({
   name: 'ogm-inline-decoder-worker',
   async transform(_code: string, id: string) {
@@ -112,45 +62,27 @@ const inlineDecoderWorker = () => ({
   },
 });
 
-// Bundle MAPLIBRE_WORKER_ENTRY into one self-contained script, with the chunk it shares with the
-// main thread inlined: a worker started from a blob URL has no directory to resolve a sibling
-// against, the same as the decoder worker above.
-//
-// As an IIFE rather than an ES module, which the absence of any top-level await here allows: MapLibre
-// starts its worker as a module and falls back to a classic one where the browser refuses that,
-// which Chromium does for a module worker from a blob URL in a document with no origin - the
-// sandboxed iframe sul-embed embeds us in. A bundle with no imports left in it runs either way. See
-// src/lib/decoder.ts, which meets the same corner from the other side.
+// An import-free IIFE supports MapLibre's fallback to classic workers in sandboxed iframes.
 async function bundleMaplibreWorker(entry: string): Promise<string> {
   const { rolldown } = await import('rolldown');
 
   const bundle = await rolldown({ input: entry, platform: 'browser' });
 
   try {
-    // `name` because the entry has a default export - the worker class - and an IIFE has nowhere to
-    // put one unless it is given a variable to be. Nothing reads it: what the worker is for is the
-    // side effect at the end of that module, where it hands itself to `self`. Left unnamed, Rolldown
-    // warns about the export on every build.
+    // Name the unused default export so Rolldown can emit an IIFE without a warning.
     const { output } = await bundle.generate({ format: 'iife', name: 'maplibreWorker', codeSplitting: false, minify: true });
 
-    // That side effect, which is the whole of what a worker does and the one thing a bundle of it
-    // cannot come out without. Worth asserting because maplibre-gl's package.json lists only its CSS
-    // and its sources under `sideEffects`, so nothing here declares dist/*.mjs to have any: a shake
-    // that took this out would leave a worker that loads, registers no message handler, and answers
-    // nothing - the same silence as no worker at all. See bundleDecoderWorker, which met this.
+    // The worker must register its handler; tree shaking can otherwise leave a script that answers nothing.
     if (!/self\.worker\s*=\s*new/.test(output[0].code)) {
       throw new Error(`The bundled MapLibre worker no longer hands itself to \`self\`. Check what maplibre-gl ships now, and update stencil.config.ts.`);
     }
 
-    // Named so devtools lists the worker by something other than its blob URL, and so a build can
-    // tell whether the worker made it in; see verifyMaplibreWorkerInlined.
     return `${output[0].code}\n${MAPLIBRE_WORKER_MARKER}\n`;
   } finally {
     await bundle.close();
   }
 }
 
-// Replaces the empty placeholder in MAPLIBRE_WORKER_SOURCE_MODULE with MapLibre's bundled worker
 const inlineMaplibreWorker = () => ({
   name: 'ogm-inline-maplibre-worker',
   async transform(this: Resolver, _code: string, id: string) {
@@ -158,8 +90,6 @@ const inlineMaplibreWorker = () => ({
 
     const resolved = await this.resolve(MAPLIBRE_WORKER_ENTRY, id, { skipSelf: true });
 
-    // Loudly rather than quietly, as with the worker factory below: a MapLibre that keeps its worker
-    // somewhere else would otherwise publish a bundle whose every map is empty, and say nothing.
     if (!resolved) {
       throw new Error(`Could not resolve \`${MAPLIBRE_WORKER_ENTRY}\`. Check what maplibre-gl ships now, and update stencil.config.ts.`);
     }
@@ -169,9 +99,6 @@ const inlineMaplibreWorker = () => ({
   },
 });
 
-// Sends `lerc` to its ES build rather than the CommonJS one Rollup would otherwise pick; see
-// LERC_MODULE above for why. Resolution is left to whoever would have done it and the answer
-// redirected, so nothing here has to know where the package was installed.
 const resolveLercAsModule = () => ({
   name: 'ogm-resolve-lerc-as-module',
   async resolveId(this: Resolver, source: string, importer: string | undefined, options: { skipSelf: boolean }) {
@@ -180,12 +107,8 @@ const resolveLercAsModule = () => ({
     const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
     if (!resolved) return null;
 
-    // Already there - a newer lerc whose exports map answers `browser` with the ES build, say - and
-    // this plugin has nothing left to do.
     if (normalize(resolved.id).endsWith(`/${LERC_MODULE_BUILD}`)) return resolved;
 
-    // Loudly rather than quietly, as with the worker factory above: a package laid out differently
-    // must not be left on a build that cannot load in a browser without anyone noticing.
     if (!normalize(resolved.id).endsWith(`/${LERC_COMMONJS}`)) {
       throw new Error(
         `Expected \`${LERC_MODULE}\` to resolve to ${LERC_COMMONJS} or ${LERC_MODULE_BUILD}, and it resolved to ${resolved.id}. Check what it ships now, and update stencil.config.ts.`,
@@ -197,14 +120,11 @@ const resolveLercAsModule = () => ({
   },
 });
 
-// Takes upstream's worker URL out of the bundle; see UPSTREAM_POOL_MODULE above for why
 const stripUpstreamDecoderWorker = () => ({
   name: 'ogm-strip-upstream-decoder-worker',
   transform(code: string, id: string) {
     if (!normalize(id).endsWith(UPSTREAM_POOL_MODULE)) return null;
 
-    // Loudly rather than quietly: a version of the package that words this differently would
-    // otherwise put the URL back in the published bundle and break every consumer on Vite again.
     if (!code.includes(UPSTREAM_WORKER_FACTORY)) {
       throw new Error(`${UPSTREAM_POOL_MODULE} no longer contains the worker factory this build replaces. Check whether it still needs replacing, and update stencil.config.ts.`);
     }
@@ -213,9 +133,6 @@ const stripUpstreamDecoderWorker = () => ({
   },
 });
 
-// The other half of that: nothing may reach the published output asking for a worker.js beside it,
-// however it got there. Cheap enough to check on every build, and the failure it catches is one that
-// only shows up in someone else's build log.
 const verifyNoMissingWorker = () => ({
   name: 'ogm-verify-no-missing-worker',
   generateBundle(_options: unknown, bundle: Record<string, { type: string; code?: string }>) {
@@ -228,12 +145,6 @@ const verifyNoMissingWorker = () => ({
   },
 });
 
-// And the same for MapLibre's: a bundle that carries MapLibre has to carry MapLibre's worker too.
-//
-// Worth checking rather than trusting, because nothing else would say. If the plugin above stops
-// matching - the module renamed, moved, or bundled under a path that no longer ends the way it
-// expects - the placeholder is published as it was written, MapLibre goes back to asking for a file
-// beside the chunk, and every map in the build is empty with nothing thrown and nothing logged.
 const verifyMaplibreWorkerInlined = () => ({
   name: 'ogm-verify-maplibre-worker-inlined',
   generateBundle(_options: unknown, bundle: Record<string, { type: string; code?: string }>) {
@@ -250,43 +161,23 @@ export const config: Config = {
   rollupPlugins: {
     before: [resolveLercAsModule(), inlineDecoderWorker(), inlineMaplibreWorker(), stripUpstreamDecoderWorker(), verifyNoMissingWorker(), verifyMaplibreWorkerInlined()],
   },
-  // Off because the check wants package.json's `module`/`types` pointed at dist/components/index.js,
-  // and for this output target that file is the Stencil runtime, not a barrel - importing it defines
-  // no elements at all. The component entries are what register the library, so package.json names
-  // dist/components/ogm-viewer.js instead, and the validator has no way to be told that.
+  // The validator expects index.js, but this package registers elements through the component entry.
   validatePrimaryPackageOutputTarget: false,
-  buildDist: true, // Always build all targets
+  buildDist: true,
   outputTargets: [
-    // This is the build target used by apps that will consume the viewer. It emits ESM only, which
-    // the `dist` target does not: `dist` also renders a CommonJS copy, and CommonJS cannot represent
-    // the top-level await that @developmentseed/lzw-tiff-decoder uses to initialize its wasm module.
-    // That is what kept the COG previewer - which draws a COG in whatever projection it is in, by
-    // warping it with deck.gl - out of the build.
-    // See https://github.com/OpenGeoMetadata/ogm-viewer/issues/100
-    //
-    // Importing any component entry still defines every element in the library, so embedding is
-    // unchanged: one script tag, or one bare import, and <ogm-viewer> works.
+    // Emit ESM because the wasm decoder uses top-level await, which CommonJS cannot represent.
     {
       type: 'dist-custom-elements',
       generateTypeDeclarations: true,
-      // Without this Stencil generates a bunch of helpers like index2.js in dist/ during tests
-      // and they don't get removed on build, which means they can inadvertently end up in
-      // the npm package. This ensures we don't accidentally ship them.
+      // Clear helpers emitted during tests so they cannot leak into the published package.
       empty: true,
       customElementsExportBehavior: 'auto-define-custom-elements',
-      // Bundle the Stencil runtime rather than leaving bare `@stencil/core/*` specifiers behind.
-      // Without this a browser loading us from a script tag has nothing to resolve them against.
+      // Include the Stencil runtime so browser script imports need no bare-module resolver.
       externalRuntime: false,
-      // Nothing is copied beside the bundle. Everything a component needs at runtime - Web Awesome's
-      // theme, our icons - is compiled into it by scripts/inline-assets.mjs, because an app that
-      // bundles us carries the JavaScript it imported and knows nothing of a directory beside it.
     },
-    // This target is used for the GitHub Pages preview site.
     {
       type: 'www',
       serviceWorker: null,
-      // The demo page's own furniture - its favicon and the records it offers to preview. What the
-      // components themselves need is in the bundle, as above.
       copy: [{ src: '../assets', dest: 'build/assets' }],
     },
   ],

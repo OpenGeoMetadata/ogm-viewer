@@ -4,10 +4,8 @@ import { getElement } from '../../lib/elements';
 import type { LayerControl } from '../../lib/layers';
 import TimeDomain from '../../lib/time';
 
-// MODIS true color, daily, with a gap between its runs - as GIBS lists it, cut down
 const DAILY = TimeDomain.parse(['2000-02-24/2000-04-25/P1D', '2000-04-28/2000-08-06/P1D', '2025-11-10/2026-10-03/P1D']);
 
-// GOES-East GeoColor, every ten minutes
 const GOES = TimeDomain.parse(['2026-08-10T16:30:00Z/2026-08-10T17:30:00Z/PT10M', '2026-09-30T02:40:00Z/2026-10-02T23:30:00Z/PT10M']);
 
 const item = (id: string, title: string, overrides: Partial<LayerControl> = {}): LayerControl => ({ id, title, visible: true, opacity: 1, ...overrides });
@@ -28,12 +26,10 @@ const renderTime = async (layers: LayerControl[]) => {
 
 const label = (shadowRoot: ShadowRoot) => shadowRoot.querySelector('.value .label')?.textContent;
 
-// Longer than the date field is given to settle before what it holds is acted on
 const settle = () => new Promise<void>(resolve => setTimeout(resolve, 700));
 
 const click = (root: HTMLElement, selector: string) => (getElement(root, selector) as HTMLButtonElement).click();
 
-// What a date field does as the reader picks or finishes typing a date
 const typeDate = (root: HTMLElement, value: string) => {
   const field = getElement(root, '.date') as HTMLInputElement;
   field.value = value;
@@ -149,7 +145,6 @@ describe('ogm-time', () => {
       await vi.waitFor(() => expect(changes).toEqual([{ id: 'modis', time: '2026-03-01' }]));
     });
 
-    // Typed segment by segment, a date is a whole one after each: the month first, then the day
     it('draws only the date the field settles on', async () => {
       const { root, changes } = await unfold([MODIS]);
 
@@ -191,7 +186,6 @@ describe('ogm-time', () => {
       expect(changes).toEqual([]);
     });
 
-    // Chrome lets a year be typed that its own calendar wouldn't offer
     it('says how far the layer goes, for a day before its first time or after its last', async () => {
       const { root, shadowRoot } = await unfold([MODIS]);
 
@@ -217,7 +211,6 @@ describe('ogm-time', () => {
       const { shadowRoot } = await unfold([GEOCOLOR]);
       const options = Array.from(shadowRoot.querySelectorAll<HTMLOptionElement>('.time option'));
 
-      // Ten-minutely from midnight to 23:30
       expect(options).toHaveLength(6 * 24 - 2);
       expect(options[0].textContent).toEqual('00:00 UTC');
       expect(options.find(option => option.selected)?.value).toEqual('2026-10-02T18:50:00Z');
@@ -257,7 +250,6 @@ describe('ogm-time', () => {
     });
   });
 
-  // A service can list only some of its times up front - see MapPreviewer.loadTimeDomain
   it('asks for every time a layer offers once the reader starts using its control, and only once', async () => {
     const { root, requests } = await renderTime([MODIS]);
     const control = getElement(root, '.layer');

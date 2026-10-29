@@ -5,33 +5,20 @@ import type { Device, Texture } from '@luma.gl/core';
 
 import { colormapSprite, type ColorRampName } from './colormap';
 
-// SampleFormat values, from @cogeotiff/core's enum - hardcoded rather than imported for the same
-// reason src/lib/lerc.ts hardcodes LERC's compression tag: this library doesn't depend on
-// @cogeotiff/core directly, and these two numbers are unlikely to move.
+// TIFF SampleFormat tags for signed integers and floats; avoid importing a transitive dependency.
 const SAMPLE_FORMAT_INT = 2;
 const SAMPLE_FORMAT_FLOAT = 3;
 
-// Whether a GeoTIFF's samples are read off a color ramp rather than shown as-is: a single band of
-// signed integers or floats, which @developmentseed/deck.gl-geotiff's own inferRenderPipeline
-// refuses outright - "Inferring render pipeline for non-unsigned integers not yet supported" - and
-// which is what most non-imagery COGs actually are: elevation, temperature, an index like NDVI.
-// Multi-band data and unsigned integers (ordinary RGB/RGBA imagery, palette rasters) are left to
-// upstream's own pipeline, which already draws them.
+// Single-band signed and float rasters need a scalar pipeline; upstream only infers unsigned data.
 export function isScalarSampleFormat(cachedTags: CachedTags | undefined): boolean {
   if (!cachedTags || cachedTags.samplesPerPixel !== 1) return false;
   const [format] = cachedTags.sampleFormat;
   return format === SAMPLE_FORMAT_INT || format === SAMPLE_FORMAT_FLOAT;
 }
 
-// The value range a scalar layer's ramp is stretched across - see scalarRange below for how it's
-// found. Read-only past this point: nothing here recomputes it per tile.
 export type ScalarRange = readonly [min: number, max: number];
 
-// The band's own pre-existing statistics when the file carries them (most COGs written by GDAL do),
-// or a value range sampled from the coarsest overview when it doesn't. Never the full resolution
-// image: a DEM the size of a state is exactly the case a fallback like this has to stay cheap for,
-// and the coarsest overview is already downsampled to a handful of tiles - one, for the COG this was
-// measured against, at 131ms including the network read.
+// Sample the coarsest overview when statistics are absent to avoid reading a full-resolution raster.
 export async function scalarRange(geotiff: GeoTIFF, pool?: DecoderPool): Promise<ScalarRange> {
   const stats = geotiff.gdalMetadata?.bandStatistics.get(1);
   if (stats && stats.min !== null && stats.max !== null) return widen(stats.min, stats.max);
@@ -50,22 +37,15 @@ export async function scalarRange(geotiff: GeoTIFF, pool?: DecoderPool): Promise
     if (value > max) max = value;
   }
 
-  // Every sampled pixel was nodata or non-finite - a mask that happens to blank the one tile this
-  // reads from, most likely. [0, 1] is as good a guess as any and, unlike leaving min > max, doesn't
-  // divide LinearRescale by a negative span.
   if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 1];
   return widen(min, max);
 }
 
-// A flat raster - every sampled pixel the same value - would otherwise hand LinearRescale a span of
-// zero, dividing by it in the shader for every pixel. Widened rather than left, so a single-valued
-// layer still draws in the ramp's first color instead of NaN.
+// Widen a constant range to avoid division by zero in the shader.
 function widen(min: number, max: number): ScalarRange {
   return max > min ? [min, max] : [min, min + 1];
 }
 
-// Everything a scalar tile needs GPU-side: the tile's own values, uploaded once as a texture no
-// ramp choice ever has to re-upload, and the ramp sprite every scalar layer on the page shares.
 export type ScalarTileData = {
   width: number;
   height: number;
@@ -74,10 +54,6 @@ export type ScalarTileData = {
   colormapTexture: Texture;
 };
 
-// One colormap texture per Device, not per tile or per layer: the sprite is the same 107 ramps
-// whichever layer is asking, and re-uploading it on every tile would be paying GPU memory bandwidth
-// for a texture that never changes. A Device is not disposed of by anything in this library, so
-// nothing here has to be either.
 const colormapTextures = new WeakMap<Device, Texture>();
 
 async function colormapTexture(device: Device): Promise<Texture> {
@@ -90,12 +66,6 @@ async function colormapTexture(device: Device): Promise<Texture> {
   return texture;
 }
 
-// Fetches, decodes and uploads one tile of a scalar COG - the getTileData half of the pair COGLayer
-// wants; see scalarRenderTile for the other half. Stable across every render a scalar layer goes
-// through: nothing it does depends on which ramp is currently selected, only on the tile itself, so
-// there is nothing to gain and tiles already decoded to lose by rebuilding this per ramp change. The
-// pool, the device and even the image (a GeoTIFF or one of its Overviews) all arrive as arguments -
-// COGLayer resolves which overview level a tile belongs to before calling this.
 export async function scalarGetTileData(
   image: GeoTIFF | Overview,
   options: { device: Device; x: number; y: number; signal?: AbortSignal; pool?: DecoderPool },
@@ -110,9 +80,7 @@ export async function scalarGetTileData(
     format: 'r32float',
     width: array.width,
     height: array.height,
-    // r32float is not linearly filterable without the float32-filterable device feature (WebGL2's
-    // OES_texture_float_linear) - unfiltered, sampling it at a zoom between tile levels reads as
-    // block edges rather than a smooth gradient, so nearest is the fallback, not a refusal to draw.
+    // Linear filtering of r32float requires the optional float32-filterable device feature.
     sampler: filterable ? { minFilter: 'linear', magFilter: 'linear' } : { minFilter: 'nearest', magFilter: 'nearest' },
   });
 
@@ -125,54 +93,23 @@ export async function scalarGetTileData(
   };
 }
 
-// Frees the GPU memory one tile held, once deck.gl has dropped it. deck.gl caches whatever
-// getTileData returned and evicts it without disposing of anything inside, so the r32float upload
-// above outlives the tile unless something destroys it - and an unbounded pan across a large COG
-// leaves every tile it ever decoded resident on the GPU. See the note on onTileUnload in
-// src/lib/previewers/cog.ts for where deck.gl hands this back.
-//
-// The tile's own texture and nothing else: colormapTexture is the ramp sprite shared by every
-// scalar tile on the Device (see colormapTextures above), so destroying it with the first tile
-// evicted would leave every tile still on screen - and every tile decoded afterwards, since the
-// WeakMap would keep handing out the dead one - sampling a destroyed texture.
+// Destroy only the tile texture; the colormap texture is shared by every tile on this device.
 export function releaseScalarTile(data: ScalarTileData | null | undefined) {
   data?.texture.destroy();
 }
 
-// A single band's samples, however the decoder answered: band-separate (LERC always does, and
-// PlanarConfiguration=2 does for any codec) or pixel-interleaved (everything else, and LERC's own
-// codec output for a one-band file is identical either way - there is only one band to separate).
-// @developmentseed/geotiff's own toBandSeparate() does this generally, for any band count, but isn't
-// part of its published API - only its own decoders reach for it - so this is the one-band case of
-// the same idea, small enough to own here.
 function singleBand(array: RasterArray) {
   return array.layout === 'band-separate' ? array.bands[0] : array.data;
 }
 
-// Widens integer samples to float, and rewrites nodata to NaN so DiscardNonFinite below can drop it
-// on the GPU without a value comparison of its own - see that module for why an exact comparison in
-// the shader is the wrong tool. Left alone (same reference, no copy) when it's already Float32 with
-// no nodata to rewrite, which is the common case for a DEM: nothing here needs to touch memory that
-// doesn't need touching.
-//
-// Signed integers arrive here because @developmentseed/geotiff's decoders answer band-separate for
-// LERC regardless of layout, and there is no unsigned-texture format upstream's CreateTexture
-// declares a sampler for (that would need isampler2D/usampler2D) - so both scalar cases upload as
-// float, or not at all. Widening loses no precision for anything this pipeline draws: display, not
-// scientific recomputation, and the values involved are far inside float32's exactly-representable
-// integer range.
 function toScalarValues(raw: RasterTypedArray, nodata: number | null): Float32Array {
   if (raw instanceof Float32Array && nodata === null) return raw;
 
   const values = raw instanceof Float32Array ? raw.slice() : Float32Array.from(raw);
   if (nodata === null) return values;
 
-  // Compared at float32 precision, not as the float64 `nodata` parses to: GDAL_NODATA is decimal
-  // text, and a sentinel written with too few digits parses to a float64 that never equals the
-  // float32 value the pixel actually holds once it's upconverted to a JS double - "-3.4028235e+38"
-  // reads as that exact float64, while the pixel's true value is -3.4028234663852886e+38. Comparing
-  // both at float32 makes them meet either way. (Credit: this exact failure mode, and this fix, are
-  // documented in packages/map/src/cog-dem-source.ts of opengeos/GeoLibre, MIT licensed.)
+  // Compare at float32 precision so rounded GDAL nodata text matches the stored pixels.
+  // Credit: opengeos/GeoLibre, packages/map/src/cog-dem-source.ts (MIT).
   const sentinel = Math.fround(nodata);
   for (let i = 0; i < values.length; i++) {
     if (Math.fround(values[i]) === sentinel) values[i] = NaN;
@@ -180,19 +117,10 @@ function toScalarValues(raw: RasterTypedArray, nodata: number | null): Float32Ar
   return values;
 }
 
-// A shader module of our own, alongside the published ones in @developmentseed/deck.gl-raster: that
-// package ships FilterNoDataVal for this job, but it discards by an exact GPU `==` against a single
-// uniform, which is exactly the comparison toScalarValues above avoids doing on the CPU and for the
-// same reason - and `==` never matches NaN regardless, so it couldn't discard what toScalarValues
-// produces even if the precision problem didn't exist. Nodata is already NaN in the texture by the
-// time this runs; discarding is just noticing that.
+// Nodata has been converted to NaN, which an equality-based shader filter cannot match.
 export const DiscardNonFinite = {
   name: 'ogm-discard-non-finite',
   inject: {
-    // isnan/isinf are GLSL ES 3.00 builtins, which this pipeline already requires: Colormap injects
-    // `precision highp sampler2DArray`, a type that doesn't exist below ES 3.00 (WebGL1). Nothing
-    // upstream produces Infinity - toScalarValues only ever writes finite samples or NaN - but a
-    // consumer's own values are read here too, and isinf costs nothing to also check for.
     'fs:DECKGL_FILTER_COLOR': `
     if (isnan(color.r) || isinf(color.r)) {
       discard;
@@ -201,11 +129,6 @@ export const DiscardNonFinite = {
   },
 };
 
-// Builds the renderTile half of the pair COGLayer wants, closed over the one layer's current ramp
-// and value range - the two things a ramp change actually is. Rebuilt on every such change, unlike
-// scalarGetTileData: a fresh function here costs nothing tiles already decoded, because it never
-// touches the tile cache, only the shader pipeline drawn from it - see the note on updateTriggers
-// where this is called, in src/lib/previewers/cog.ts.
 export function scalarRenderTile(ramp: ColorRampName, range: ScalarRange): (data: ScalarTileData) => RenderTileResult {
   const colormapIndex = COLORMAP_INDEX[ramp];
   const [rescaleMin, rescaleMax] = range;

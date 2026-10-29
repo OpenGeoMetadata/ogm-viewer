@@ -7,7 +7,6 @@ import type { LayerState } from '../layers';
 import type { MapLibreStyle } from '../themes/maplibre';
 import { parseTime } from '../time';
 
-// Just enough of a MapLibre map to record what the previewer adds
 class FakeMap {
   sources = new Map<string, Record<string, unknown>>();
   layers = new Map<string, any>();
@@ -17,7 +16,6 @@ class FakeMap {
     return this.sources.get(id);
   }
   addSource(id: string, spec: Record<string, unknown>) {
-    // Pointed at other tiles the way a raster source is, and keeping a note of each time it was
     const source: Record<string, unknown> & { reloads: string[][] } = {
       ...spec,
       reloads: [],
@@ -31,7 +29,6 @@ class FakeMap {
   once(event: string, listener: () => void) {
     if (event === 'idle') this.idleListeners.push(listener);
   }
-  // Every tile the map was waiting on has arrived
   goIdle() {
     this.idleListeners.splice(0).forEach(listener => listener());
   }
@@ -42,7 +39,6 @@ class FakeMap {
     return this.layers.get(id);
   }
   addLayer(layer: { id: string; type: string; source: string }) {
-    // MapLibre refuses a layer whose source hasn't been added yet
     if (!this.sources.has(layer.source)) throw new Error(`No source ${layer.source} for layer ${layer.id}`);
     this.layers.set(layer.id, layer);
   }
@@ -50,7 +46,6 @@ class FakeMap {
     this.layers.delete(id);
   }
   setPaintProperty(id: string, name: string, value: unknown) {
-    // MapLibre refuses to style a layer the current style doesn't hold
     const layer = this.layers.get(id);
     if (!layer) throw new Error(`No layer ${id} to paint`);
     layer.paint = { ...layer.paint, [name]: value };
@@ -62,7 +57,6 @@ class FakeMap {
   }
 }
 
-// Reading the capabilities document is the resource's job and is tested there
 class StubWmtsResource extends WmtsResource {
   layers: WmtsLayer[] = [];
 
@@ -71,7 +65,6 @@ class StubWmtsResource extends WmtsResource {
   }
 }
 
-// The previewer only reads the opacity
 const style = { opacity: 0.8 } as MapLibreStyle;
 
 const LEGENDS = [
@@ -79,8 +72,6 @@ const LEGENDS = [
   { url: 'https://one.example.org/legends/lights_V.svg', format: 'image/svg+xml', width: 135, height: 288 },
 ];
 
-// A layer served from several tile hosts with a legend, and one on a grid with its own size and
-// limits and no legend
 const LAYERS: WmtsLayer[] = [
   {
     id: 'lights',
@@ -115,7 +106,6 @@ beforeEach(async () => {
 });
 
 describe('WmtsPreviewer#previewLayers', () => {
-  // The service writes <ows:Title> for people to read; its identifier is only an address
   it('names each row from the title the service published', () => {
     expect(previewer.previewLayers.map(layer => layer.title)).toEqual(['Night Lights', 'Orthophoto']);
   });
@@ -126,7 +116,6 @@ describe('WmtsPreviewer#previewLayers', () => {
     expect(previewer.previewLayers.every(layer => layer.defaultOpacity === 0.8)).toBe(true);
   });
 
-  // Every one of them, since which applies depends on the map the legend is drawn over
   it("carries each layer's legend pictures to its own row", () => {
     expect(previewer.previewLayers[0].legendImages).toEqual(LEGENDS);
     expect(previewer.previewLayers[1]).not.toHaveProperty('legendImages');
@@ -173,16 +162,12 @@ describe('WmtsPreviewer#preview', () => {
   });
 
   it('bounds the source to the zooms the grid defines', () => {
-    // Without these MapLibre keeps asking past the end of the grid instead of overzooming
-    // the deepest level it has
     expect(map.sources.get('night-lights-lights')?.maxzoom).toEqual(8);
     expect(map.sources.get('night-lights-ortho')?.minzoom).toEqual(5);
     expect(map.sources.get('night-lights-ortho')?.maxzoom).toEqual(20);
   });
 
   it('bounds the source to the layer extent, and omits the key when there is none', () => {
-    // MapLibre validates the sources it's handed, so an absent extent has to be absent rather
-    // than undefined
     expect(map.sources.get('night-lights-ortho')?.bounds).toEqual([16.17, 48.1, 16.58, 48.33]);
     expect(map.sources.get('night-lights-lights')).not.toHaveProperty('bounds');
   });
@@ -198,7 +183,6 @@ describe('WmtsPreviewer#clearPreview', () => {
   });
 });
 
-// GIBS's MODIS true color in miniature: daily, with a gap, and its full domain described elsewhere
 const TIME: WmtsTime = {
   identifier: 'Time',
   default: '2026-10-01',
@@ -219,7 +203,6 @@ const MODIS: WmtsLayer = {
 
 const ID = 'night-lights-modis';
 
-// What <ogm-map> hands over when the reader picks a time, and nothing else about the layer
 const pick = (time: string) => new Map<string, LayerState>([[ID, { visible: true, opacity: 0.8, time }]]);
 
 const source = () => map.sources.get(ID) as { tiles: string[]; reloads: string[][] };
@@ -252,7 +235,6 @@ describe('WmtsPreviewer with a layer that has a choice of times', () => {
     expect(source().tiles).toEqual(['https://gibs.example.org/MODIS/default/2026-09-30/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpeg']);
   });
 
-  // applyLayerState runs on every frame of an opacity drag
   it('leaves the tiles alone when the time asked for is the one being drawn', () => {
     previewer.applyLayerState(pick('2026-10-01'));
     expect(source().reloads).toHaveLength(0);
@@ -262,7 +244,6 @@ describe('WmtsPreviewer with a layer that has a choice of times', () => {
     expect(source().reloads).toHaveLength(1);
   });
 
-  // MapLibre doesn't cancel the requests a reload replaces, and a tile shows whichever answers last
   it('waits for the tiles of one time before asking for another, and then asks only for the latest', () => {
     previewer.applyLayerState(pick('2026-09-30'));
     previewer.applyLayerState(pick('2026-09-29'));
@@ -292,7 +273,6 @@ describe('WmtsPreviewer with a layer that has a choice of times', () => {
     expect(map.sources.get('night-lights-ortho')?.tiles).toEqual(LAYERS[1].tileUrls);
   });
 
-  // A theme change: setStyle takes every source away, and the same previewer draws itself again
   it('starts again at its default when it is drawn into a new style, whatever the last one was waiting on', async () => {
     previewer.applyLayerState(pick('2026-09-30'));
     map.sources.clear();
@@ -300,7 +280,6 @@ describe('WmtsPreviewer with a layer that has a choice of times', () => {
     await previewer.preview();
     expect(source().tiles).toEqual(MODIS.tileUrls);
 
-    // The wait that belonged to the source that went is over for good, and holds nothing up
     map.goIdle();
     previewer.applyLayerState(pick('2026-09-28'));
     expect(source().reloads).toHaveLength(1);
@@ -319,7 +298,6 @@ describe('WmtsPreviewer with a layer that has a choice of times', () => {
 
       expect(fetchTimeValues).toHaveBeenCalledTimes(1);
       expect(previewer.previewLayers[0].timeDomain?.first).toEqual(parseTime('2000-02-24'));
-      // Along with the times the capabilities listed, which can be newer
       expect(previewer.previewLayers[0].timeDomain?.last).toEqual(parseTime('2026-10-01'));
     });
 

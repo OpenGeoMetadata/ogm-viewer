@@ -2,14 +2,9 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 
 import { isScalarSampleFormat, scalarRange, scalarGetTileData, scalarRenderTile, DiscardNonFinite, type ScalarTileData } from './cog-pipeline';
 
-// colormapSprite() goes through decodeColormapSprite, which needs createImageBitmap and
-// OffscreenCanvas - absent in this project's node test environment, and beside the point here
-// anyway: what matters to cog-pipeline.ts is only that it gets an ImageData-shaped object back.
-// createColormapTexture is left real; it does nothing FakeDevice.createTexture can't stand in for.
 const FAKE_SPRITE = { width: 256, height: 107, data: new Uint8ClampedArray(256 * 107 * 4) } as ImageData;
 vi.mock('./colormap', async importOriginal => ({ ...(await importOriginal()), colormapSprite: vi.fn(async () => FAKE_SPRITE) }));
 
-// SampleFormat values, matching the ones cog-pipeline.ts hardcodes
 const UINT = 1;
 const INT = 2;
 const FLOAT = 3;
@@ -21,12 +16,10 @@ describe('isScalarSampleFormat', () => {
     expect(isScalarSampleFormat(undefined)).toBe(false);
   });
 
-  // Ordinary RGB/RGBA imagery - already drawn by upstream's own pipeline
   it('is false for more than one band, whatever the sample format', () => {
     expect(isScalarSampleFormat(cachedTags([FLOAT], 3))).toBe(false);
   });
 
-  // Unsigned integers are what inferRenderPipeline already handles - nothing for this pipeline to do
   it('is false for a single unsigned-integer band', () => {
     expect(isScalarSampleFormat(cachedTags([UINT], 1))).toBe(false);
   });
@@ -40,8 +33,6 @@ describe('isScalarSampleFormat', () => {
   });
 });
 
-// Stands in for a GeoTIFF or Overview: fetchTile is the only method scalarRange and
-// scalarGetTileData call on it.
 const fakeImage = (array: Partial<ScalarTileData> & Record<string, unknown>) => ({
   fetchTile: vi.fn(async () => ({ array })),
 });
@@ -74,8 +65,6 @@ describe('scalarRange', () => {
     expect(fetchTile).toHaveBeenCalledWith(0, 0, { boundless: false, pool: undefined });
   });
 
-  // The GeoLibre/Math.fround case: a sentinel whose decimal text parses to a float64 that never
-  // equals the pixel's own float32 value unless both are compared at float32 precision
   it('excludes nodata written at less precision than the pixel it matches', async () => {
     const trueSentinel = Math.fround(-3.4028235e38);
     const coarsest = fakeImage({ layout: 'pixel-interleaved', data: Float32Array.from([trueSentinel, 10, 20]), nodata: -3.4028235e38 } as never);
@@ -91,7 +80,6 @@ describe('scalarRange', () => {
     expect(await scalarRange(geotiff as never)).toEqual([3, 4]);
   });
 
-  // LinearRescale divides by (max - min); a flat raster would otherwise divide by zero
   it('widens a flat range so the ramp has a span to stretch across', async () => {
     const geotiff = { gdalMetadata: { bandStatistics: new Map([[1, { min: 42, max: 42, mean: null, std: null, validPercent: null }]]) }, overviews: [], fetchTile: vi.fn() };
 
@@ -106,8 +94,6 @@ describe('scalarRange', () => {
   });
 });
 
-// Enough of a luma.gl Device for scalarGetTileData: it only calls createTexture and
-// isTextureFormatFilterable, and records what it was given.
 class FakeDevice {
   filterable = true;
   textures: { format: string; sampler: unknown; data: unknown }[] = [];
@@ -144,7 +130,6 @@ describe('scalarGetTileData', () => {
 
     const data = await scalarGetTileData(image as never, { device: device as never, x: 0, y: 0 });
 
-    // The tile's own texture, plus the shared colormap sprite texture created alongside it
     expect(device.textures).toHaveLength(2);
     expect(device.textures[0].format).toEqual('r32float');
     expect([...(device.textures[0].data as Float32Array)]).toEqual([1, 2, 3, 4]);
@@ -183,8 +168,6 @@ describe('scalarGetTileData', () => {
     expect(device.textures[0].sampler).toEqual({ minFilter: 'linear', magFilter: 'linear' });
   });
 
-  // r32float is unfilterable-float without the device feature; sampling it as linear anyway reads
-  // as black rather than refusing to draw, so nearest is the fallback rather than a thrown error.
   it('falls back to nearest filtering when the device does not', async () => {
     const device = new FakeDevice();
     device.filterable = false;
@@ -203,7 +186,6 @@ describe('scalarGetTileData', () => {
     const second = await scalarGetTileData(image as never, { device: device as never, x: 1, y: 0 });
 
     expect(first.colormapTexture).toBe(second.colormapTexture);
-    // One for each tile's own data, plus exactly one for the shared colormap sprite
     expect(device.textures).toHaveLength(3);
   });
 });
@@ -211,13 +193,7 @@ describe('scalarGetTileData', () => {
 describe('scalarRenderTile', () => {
   const data: ScalarTileData = { width: 1, height: 1, byteLength: 4, texture: { name: 'tile' } as never, colormapTexture: { name: 'sprite' } as never };
 
-  // scalarRenderTile(ramp, range) itself returns the renderTile function COGLayer wants, which
-  // takes a tile's ScalarTileData and only then produces a pipeline - so every test here has to
-  // call the result, not just build it.
   const pipeline = (ramp: Parameters<typeof scalarRenderTile>[0], range: Parameters<typeof scalarRenderTile>[1]) => {
-    // Non-null: RenderTileResult is a union with an image-only branch that has no renderPipeline,
-    // but scalarRenderTile's own result is always the renderPipeline branch - that's the fact under
-    // test, and the whole reason to import RenderTileResult would be to re-widen away from it.
     return scalarRenderTile(ramp, range)(data).renderPipeline!;
   };
 
@@ -250,8 +226,6 @@ describe('scalarRenderTile', () => {
 });
 
 describe('DiscardNonFinite', () => {
-  // Not runnable GLSL in a unit test - this only guards against losing the substance of the
-  // module while editing around it.
   it('discards both NaN and infinite values', () => {
     const injected = DiscardNonFinite.inject['fs:DECKGL_FILTER_COLOR'];
 

@@ -5,10 +5,8 @@ import type { RequestTransform } from '../request';
 
 const MANIFEST_URL = 'http://example.com/manifest.json';
 
-// A source always points at a manifest URL; the manifest itself is fetched lazily
 const createSource = (requestTransform?: RequestTransform) => new IIIFManifestResource('test-id', MANIFEST_URL, undefined, requestTransform);
 
-// A minimal IIIF v2 manifest with a single image
 const v2Manifest = {
   '@context': 'http://iiif.io/api/presentation/2/context.json',
   '@id': MANIFEST_URL,
@@ -34,7 +32,6 @@ const v2Manifest = {
   ],
 };
 
-// A minimal IIIF v3 manifest with a single image
 const v3Manifest = {
   '@context': 'http://iiif.io/api/presentation/3/context.json',
   'id': MANIFEST_URL,
@@ -141,7 +138,6 @@ describe('IIIFManifestResource', () => {
       items: [{ type: 'Annotation', motivation: 'georeferencing', body: { type: 'FeatureCollection', features: [] } }],
     });
 
-    // A canvas carrying its annotation page whole, so nothing needs dereferencing
     const georeferencedManifest = (annotationId: string) => ({
       ...v3Manifest,
       items: [{ ...v3Manifest.items[0], annotations: [annotationFor(annotationId)] }],
@@ -173,8 +169,6 @@ describe('IIIFManifestResource', () => {
       expect(await sourceWith(ANNOTATION_URL).getGeoreferenceAnnotation()).toEqual(annotationFor('standalone'));
     });
 
-    // The rule when a record names an annotation *and* is served a manifest with one spliced in,
-    // which is what Stanford's purl does, generating manifests at request time
     it("prefers the manifest's own annotation over a standalone one", async () => {
       const fetchSpy = vi
         .spyOn(global, 'fetch')
@@ -183,7 +177,6 @@ describe('IIIFManifestResource', () => {
         );
 
       expect(await sourceWith(ANNOTATION_URL).getGeoreferenceAnnotation()).toEqual(annotationFor('embedded'));
-      // And doesn't pay for the reference it didn't need
       expect(fetchSpy).not.toHaveBeenCalledWith(ANNOTATION_URL, expect.anything());
     });
 
@@ -194,8 +187,6 @@ describe('IIIFManifestResource', () => {
       expect(await sourceWith().getGeoreferenceAnnotation()).toEqual(annotationFor('manifest-level'));
     });
 
-    // Only the first canvas is inspected: a paged object could carry one per page, and a map tab per
-    // page is probably not what anyone wants. See https://github.com/sul-dlss/sul-embed/issues/3124
     it('ignores an annotation on a canvas other than the first', async () => {
       const manifest = {
         ...v3Manifest,
@@ -206,7 +197,6 @@ describe('IIIFManifestResource', () => {
       expect(await sourceWith().getGeoreferenceAnnotation()).toBeUndefined();
     });
 
-    // A v2 manifest hangs annotations off otherContent instead, which nothing here reads yet
     it('does not look for annotations in a v2 manifest', async () => {
       vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(v2Manifest)));
 
@@ -224,8 +214,6 @@ describe('IIIFManifestResource', () => {
       expect(fetchSpy).toHaveBeenCalledWith(ANNOTATION_URL, { headers: { Authorization: 'Bearer token' } });
     });
 
-    // The image preview still works, so neither an unreadable manifest nor an unreadable annotation
-    // is worth failing over - they just mean there's no map to offer
     it('reports no annotation when the manifest cannot be read', async () => {
       vi.spyOn(global, 'fetch').mockRejectedValue(new TypeError('offline'));
 
@@ -243,7 +231,6 @@ describe('IIIFManifestResource', () => {
       expect(warn).toHaveBeenCalled();
     });
 
-    // Both previewers of one manifest ask, and the walk costs at least one fetch and often two
     it('resolves the annotation once however many times it is asked', async () => {
       const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(georeferencedManifest('embedded'))));
       const source = sourceWith();

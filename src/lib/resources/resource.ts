@@ -2,9 +2,7 @@ import type { LngLatBoundsLike } from 'maplibre-gl';
 
 import { resolveRequest, type RequestTransform } from '../request';
 
-// Names the kind of data a resource holds. Previewers are chosen by matching on this string rather
-// than with `instanceof`: a class test only holds when both sides came from the same copy of the
-// module, and it forces every subclass to be tested ahead of its parent to be reachable at all.
+// Use a stable kind string because instanceof fails across separate copies of the library.
 export type ResourceKind =
   | 'cog'
   | 'esri-dynamic-map-layer'
@@ -23,25 +21,17 @@ export type ResourceKind =
   | 'wmts'
   | 'xyz';
 
-// A source of previewable data at a URL
 export default abstract class Resource {
-  // Which kind of data this is; see ResourceKind
   abstract readonly kind: ResourceKind;
 
-  // URL to the remote data source
   url: string;
 
-  // Explicitly provided bounds for the source, if any
   protected bounds: LngLatBoundsLike | undefined;
 
-  // Unique ID for this resource
   id: string;
 
-  // Applied to every request this resource's own code makes and, once a previewer attaches it to
-  // a map, to MapLibre's own requests too - see MapPreviewer.requestTransform.
   readonly requestTransform?: RequestTransform;
 
-  // Store the source URL
   constructor(id: string, url: string, bounds?: LngLatBoundsLike, requestTransform?: RequestTransform) {
     this.id = id;
     this.url = url;
@@ -49,12 +39,10 @@ export default abstract class Resource {
     this.requestTransform = requestTransform;
   }
 
-  // Used to label the tabs for switching between previews, e.g.
   label(): string {
     return this.constructor.name;
   }
 
-  // Check that the URL is valid and accessible
   async test() {
     try {
       const { url, init } = resolveRequest(this.url, 'metadata', this.requestTransform);
@@ -70,19 +58,14 @@ export default abstract class Resource {
     }
   }
 
-  // Bounds provided explicitly at construction time and stored.
   get declaredBounds(): LngLatBoundsLike | undefined {
     return this.bounds;
   }
 
-  // Explicit bounds if provided, otherwise the ones derived from the data.
-  // Async because subclasses may do operations to calculate it.
   async getBounds(): Promise<LngLatBoundsLike | undefined> {
     return this.bounds ?? (await this.getReportedBounds());
   }
 
-  // Bounds derived from the data itself, either by reading header information
-  // or parsing the entire geometry. Subclasses override.
   async getReportedBounds(): Promise<LngLatBoundsLike | undefined> {
     return undefined;
   }

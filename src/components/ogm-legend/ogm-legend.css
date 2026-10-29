@@ -23,7 +23,6 @@
   max-width: none;
 }
 
-/* Folded away, the panel is only as wide as the summary that unfolds it */
 .panel.folded {
   min-width: 0;
 }
@@ -62,8 +61,6 @@ wa-details::part(content) {
   gap: var(--wa-space-xs);
 }
 
-/* The swatch color itself is supplied inline from the MapLibre theme. Its outline stays a panel
-   color rather than a derivative of the fill, so even a very pale configured color has an edge. */
 .swatch {
   border: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
   border-radius: var(--wa-border-radius-s, 0.125rem);
@@ -86,8 +83,6 @@ wa-details::part(content) {
   white-space: nowrap;
 }
 
-/* The gradient itself is an inline style, set from JS once the sprite has decoded - see
-   ogm-legend.tsx. This background is what a bar shows before that, or if it never does. */
 .bar {
   background-color: var(--wa-color-surface-lowered, var(--wa-color-surface-default));
   border-radius: var(--wa-border-radius-s, 0.125rem);
@@ -96,7 +91,7 @@ wa-details::part(content) {
   width: 100%;
 }
 
-/* We can't invert legend pictures because it'd screw up the colors */
+/* Preserve the colors encoded in legend images in both themes. */
 .picture {
   background-color: white;
   border-radius: var(--wa-border-radius-s, 0.125rem);
@@ -112,8 +107,6 @@ wa-details::part(content) {
   max-width: 100%;
 }
 
-/* Min at the start, max at the end - no midpoint label, matching how little space a bar this
-   narrow has to say anything more without crowding. */
 .labels {
   display: flex;
   font-variant-numeric: tabular-nums;
@@ -122,9 +115,6 @@ wa-details::part(content) {
   margin-top: var(--wa-space-3xs);
 }
 
-/* What the values are measured from, e.g. a vertical datum. Wrapped rather than cut off like the
-   title above: its name is usually longer than the panel is wide, and the end of it is the part
-   that tells one datum from another. */
 .datum {
   color: var(--wa-color-text-quiet);
   font-size: var(--wa-font-size-xs);

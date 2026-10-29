@@ -21,27 +21,21 @@ export class OgmMetadata {
   @Prop() fieldNames: string[];
   @State() filteredRecord: OgmRecord;
 
-  // Fields in the provided record that match the fieldNames prop, if provided
-  // Otherwise, use all fields in the record that match our schema
   get availableFields(): OgmMetadataField[] {
     if (!this.fieldNames) return DEFAULT_FIELD_NAMES;
     return this.fieldNames.filter(field => field in this.record) as OgmMetadataField[];
   }
 
-  // Render all fields in the provided partial record
   private renderMetadata(record: Partial<OgmRecord>) {
     return Object.entries(record).map(([name, value]) => {
       return this.renderField(name as OgmMetadataField, value as OgmMetadataValue);
     });
   }
 
-  // Render a single field with its value, using the field name mapping
   private renderField(name: OgmMetadataField, value: OgmMetadataValue) {
-    // Skip empty fields
     if (!value) return;
     if (Array.isArray(value) && !value.length) return;
 
-    // Handle special case for references
     if (name === 'references') return this.renderReferences();
 
     return (
@@ -52,12 +46,10 @@ export class OgmMetadata {
     );
   }
 
-  // Render the value of a field, handling arrays and single values
   private renderFieldValue(value: OgmMetadataValue) {
     return [value].flat().map(v => <dd>{v?.toString()}</dd>);
   }
 
-  // References is a special field with multiple parts
   private renderReferences() {
     const downloadLinks = this.record.downloadLinks;
     const metadataLinks = this.record.references.metadataLinks;
@@ -71,7 +63,6 @@ export class OgmMetadata {
     );
   }
 
-  // Render download links from the references
   private renderDownloadLinks(links: LabelledLinks) {
     if (!links.length) return;
 
@@ -87,7 +78,6 @@ export class OgmMetadata {
     );
   }
 
-  // Render metadata links from the references
   private renderMetadataLinks(links: LabelledLinks) {
     if (!links.length) return;
 
@@ -104,13 +94,10 @@ export class OgmMetadata {
   }
 
   render() {
-    // If no record is provided, do not render anything
     if (!this.record) return;
 
-    // Filter the record to only include available fields
     const record = Object.fromEntries(this.availableFields.map(field => [field, this.record[field]])) as Partial<OgmRecord>;
 
-    // Render the metadata fields
     return (
       <Host class={this.theme && `wa-${this.theme}`}>
         <dl class="record-details">{this.renderMetadata(record)}</dl>

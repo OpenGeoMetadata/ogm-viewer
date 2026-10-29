@@ -1,8 +1,3 @@
-/* Drawn inside a MapLibre popup, which ogm-map caps at 400px wide and which has almost no height to
-   spare: MapLibre puts a popup above or below the point it names, so anything taller than the room on
-   one side of the click has nowhere to go, and an embedded map is often only 400px tall to begin with.
-   So the title and the paging take a row across the top, and below them exactly one of the sheet's
-   picture and its properties - tabbed rather than shown together. */
 :host {
   display: flex;
   flex-direction: column;
@@ -13,14 +8,12 @@
   align-items: center;
   gap: 0.5em;
   padding: 0.2em 0.5em;
-  /* MapLibre draws its close button in the popup's top right corner, over the end of this row */
+  /* Reserve space for MapLibre's close button. */
   padding-right: 1.75em;
   border-bottom: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
 }
 
-/* Takes whatever room the controls leave and gives the excess back as an ellipsis. Without min-width a
-   flex item refuses to shrink below its own content, which is what let one long title push the paging
-   button out of the popup entirely. */
+/* Allow the title to shrink without pushing the paging controls out of the popup. */
 .title {
   flex: 1;
   min-width: 0;
@@ -37,9 +30,6 @@
   flex-shrink: 0;
 }
 
-/* Split the strip between the two of them, the way <ogm-previews> does for a record's previews. The
-   padding is ours: Web Awesome pads a tab 1em 1.5em, which spends a sixth of the popup's height on
-   two words. */
 wa-tab {
   flex: 1 1 0;
   text-align: center;
@@ -51,33 +41,16 @@ wa-tab::part(base) {
   font-size: var(--wa-font-size-s);
 }
 
-/* A panel is themed with 2rem of padding above and below it, which is a fifth of the popup spent on
-   nothing. The view fills its panel here, the same as it does in <ogm-previews>. */
 wa-tab-panel::part(base) {
   padding: 0;
 }
 
-/* A sheet with nothing to call it and no stack to page through gets no header, which puts the tab
-   strip up where MapLibre draws its own close button - measured overlapping the last 20px of the
-   Attributes tab. Stop short of the corner and leave it to it.
-
-   The component says when this is the case rather than the stylesheet asking, because it can't: a
-   :first-child test is wrong in a dev build, where Stencil puts a <style> element in the shadow root
-   ahead of everything the component rendered. */
+/* Leave room for the close button when there is no header above the tabs. */
 wa-tab-group.topmost::part(nav) {
   padding-inline-end: 1.75em;
 }
 
-/* Both views are as wide as the picture, rather than each shrinking to its own contents: the tab
-   strip is as wide as the popup, so a narrower properties table would take the tabs out from under
-   the reader who had just clicked one - measured at 402px on the picture and 309px on the properties
-   of the same sheet, which moves both tabs about 45px sideways.
-
-   400px is the width ogm-map.css caps .maplibregl-popup-content at, and it is bounded by the viewport
-   as well because an embedded map is normally a frame of its own and 100vw is its width. A map
-   deliberately made narrower than 400px inside a wider page is the case this doesn't reach, and there
-   the popup is clipped to the map as any wide popup would be. Only sheets with a picture get a tab
-   group at all, so a popup with nothing but properties in it still shrinks to fit as it always did. */
+/* Keep both tabs the same width so switching views does not resize the popup. */
 wa-tab-group {
   width: min(400px, 100vw);
 }
@@ -87,12 +60,7 @@ wa-scroller {
   overscroll-behavior: none;
 }
 
-/* The frame a sheet's picture is drawn in, held at the full size a picture is allowed whether or not
-   one has arrived yet: the width the tab group settles above, and 240px, which is what the properties
-   are capped at. Reserving it matters most before the picture is there at all - it is a fetch or two
-   behind the popup and an <img> has no size until it has downloaded, so a frame that sized itself to
-   its contents opened 88px tall and jumped to 280px when the picture painted, with MapLibre re-placing
-   the popup under the reader on the way. */
+/* Reserve the image space before it loads to keep the popup from moving. */
 .content {
   position: relative;
   display: flex;
@@ -102,23 +70,16 @@ wa-scroller {
   height: 240px;
 }
 
-/* Stands in for the picture at the size the picture will be given, rather than leaving the frame
-   looking like it failed to draw something. Laid over the <img> rather than shown instead of it,
-   since the <img> has to be in the document to start downloading at all. */
 .pending {
   position: absolute;
   inset: 0;
 }
 
-/* Web Awesome rounds a skeleton to a pill, which suits the word-sized ones it is usually made of and
-   reads as a lozenge at the size of a whole picture. This one stands in for a rectangle. */
 .pending::part(indicator) {
   border-radius: 0;
 }
 
-/* Fits inside the frame above rather than deciding how big it is. The height has to repeat .content's
-   240px rather than being 100% of it: the picture may be wrapped in a link, and a percentage height
-   inside a box that is only as tall as its own contents resolves to no limit at all. */
+/* Use an explicit height because a wrapping link has no height for a percentage to inherit. */
 .thumbnail {
   display: block;
   max-width: 100%;
@@ -132,11 +93,6 @@ wa-scroller {
   display: block;
 }
 
-/* Takes the width it is given rather than shrinking to its own contents. In a tab group that width is
-   the 400px pinned above, and a table that stopped 93px short of the popup's right edge read as a
-   drawing that had failed halfway. A sheet with no picture gets no tab group and no pinned width, and
-   there this changes nothing: a percentage resolves against a width that is already settled, so the
-   popup still shrinks to fit the table as it always did. */
 .attribute-table {
   width: 100%;
   font-family: var(--wa-font-family-code);
@@ -163,7 +119,6 @@ wa-scroller {
   }
 }
 
-/* Styling for attributes with info coming from metadata documents */
 .attribute-table .key .defined {
   cursor: help;
   text-decoration: underline dashed;

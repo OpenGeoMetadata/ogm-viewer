@@ -9,10 +9,8 @@ import { resolveRequest } from '../request';
 export default class GeoJsonResource extends VectorResource {
   readonly kind: ResourceKind = 'geojson';
 
-  // Data parsed from GeoJSON document
   private data: any;
 
-  // Fetch and memoize data. The previewer can call this too.
   async getData() {
     if (!this.data) {
       const { url, init } = resolveRequest(this.url, 'metadata', this.requestTransform);
@@ -26,28 +24,22 @@ export default class GeoJsonResource extends VectorResource {
     return 'GeoJSON';
   }
 
-  // GeoJSON is always a vector resource
   async isVector() {
     return true;
   }
 
-  // GeoJSON is always encoded as JSON
   async getVectorEncoding() {
     return undefined;
   }
 
-  // GeoJSON has a special source type
   async getMapLibreSourceType() {
     return 'geojson' as const;
   }
 
-  // Only one layer in a GeoJSON document
   async getVectorLayers() {
     return ['geojson'];
   }
 
-  // Used to zoom the map to the data once loaded. Subclasses that read from a service may not be
-  // able to work out bounds at all, so the camera can be left where it is.
   async getReportedBounds(): Promise<LngLatBoundsLike | undefined> {
     const data = await this.getData();
     const bounds = geojsonExtent(data);

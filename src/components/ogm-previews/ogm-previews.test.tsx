@@ -1,8 +1,4 @@
 import { describe, it, expect, h, vi } from '@stencil/vitest';
-// Render with Stencil's low-level render directly rather than @stencil/vitest's `render` wrapper: the
-// wrapper re-throws lifecycle errors, and the <ogm-map> mounted inside a preview panel throws when it
-// tries to initialize WebGL (unavailable in the test DOM). Stencil's own safeCall only routes that to
-// console.error, so stencilRender still produces the ogm-previews shadow DOM we want to assert on.
 import { render as stencilRender } from '@stencil/core';
 
 import OgmRecord from '../../lib/record';
@@ -12,7 +8,6 @@ import GeoJsonPreviewer from '../../lib/previewers/geojson';
 import OpenIndexMapPreviewer from '../../lib/previewers/openindexmap';
 import type { AnyPreviewer } from '../../lib/previewers/factory';
 
-// Build a minimal Aardvark record, optionally with a WMS reference that yields one previewable source
 const buildRecord = (previewable: boolean) =>
   new OgmRecord({
     id: 'berkeley-s7sq63',
@@ -28,11 +23,9 @@ const buildRecord = (previewable: boolean) =>
       : {}),
   });
 
-// The element itself, for a test that goes on to hand it a second record
 const mountPreviews = async (record?: OgmRecord, previewers?: AnyPreviewer[], beforeId?: string) => {
   const container = document.createElement('div');
   document.body.appendChild(container);
-  // The mounted <ogm-map> logs a swallowed WebGL init error; keep test output clean
   const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
   await stencilRender(<ogm-previews record={record} previewers={previewers} beforeId={beforeId}></ogm-previews>, container);
   const el = container.firstElementChild as HTMLElement & { record?: OgmRecord; beforeId?: string; componentOnReady?: () => Promise<unknown> };
@@ -44,25 +37,13 @@ const mountPreviews = async (record?: OgmRecord, previewers?: AnyPreviewer[], be
 
 const renderPreviews = async (record?: OgmRecord, previewers?: AnyPreviewer[]) => (await mountPreviews(record, previewers)).shadowRoot as ShadowRoot;
 
-// Previews built by hand rather than worked out from a record - and built in this test's own module
-// realm, not the one the components came from, which is exactly the position an application putting
-// this together itself is in. Nothing downstream may test a class, only the strings they agree on.
 const buildPreviewers = (): AnyPreviewer[] => [
   new GeoJsonPreviewer(new GeoJsonResource('my-layer', 'https://example.com/data.json')),
   new OpenIndexMapPreviewer(new OpenIndexMapResource('my-index', 'https://example.com/index.geojson')),
 ];
 
-// Let Stencil's RAF-based update cycle flush so the nested <ogm-preview> renders its own shadow DOM.
-//
-// Needed after componentOnReady() as well, not just for the nested render. The element is already
-// defined when the vdom creates it, so it upgrades on the spot and componentWillLoad runs before the
-// record prop is assigned - the first render has no previewers and draws nothing. Setting the prop
-// is what starts the real build, by way of @Watch, and that lands a tick later.
 const flush = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
-// Render previews and drill into the single <ogm-preview> to see which preview (map or image) it
-// chose. The record here is built in the test's own module realm and the components come from the
-// built dist bundle; nothing downstream may test a class, only the strings they agree on.
 const renderPreviewChild = async (record: OgmRecord) => {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -78,7 +59,6 @@ const renderPreviewChild = async (record: OgmRecord) => {
   return preview.shadowRoot as ShadowRoot;
 };
 
-// A minimal Aardvark record whose only references are the given previewable ones
 const buildRecordWith = (references: Record<string, string>, id = 'test-record') =>
   new OgmRecord({
     id,
@@ -89,7 +69,6 @@ const buildRecordWith = (references: Record<string, string>, id = 'test-record')
     dct_references_s: JSON.stringify(references),
   });
 
-// Which preview each tab claims to have chosen, and which one is actually on show
 const highlighted = (shadowRoot: ShadowRoot) =>
   Array.from(shadowRoot.querySelectorAll('wa-tab'))
     .filter(tab => tab.active)
@@ -99,9 +78,6 @@ const showing = (shadowRoot: ShadowRoot) =>
     .filter(panel => panel.active)
     .map(panel => panel.name);
 
-// Stand in for the user picking a tab. wa-tab-group does this itself in a browser, through a click
-// handler that wants layout this DOM doesn't do, so the state such a click leaves behind is set by
-// hand here - that state is exactly what a later render has to clear.
 const openTab = (shadowRoot: ShadowRoot, index: number) => {
   Array.from(shadowRoot.querySelectorAll('wa-tab')).forEach((tab, idx) => (tab.active = idx === index));
   Array.from(shadowRoot.querySelectorAll('wa-tab-panel')).forEach((panel, idx) => (panel.active = idx === index));
@@ -138,8 +114,6 @@ describe('ogm-previews', () => {
     expect(previewShadow.querySelector('ogm-map')).toBeNull();
   });
 
-  // A tab is one preview, not one reference: a resource that can be shown more than one way gets a
-  // tab for each, and each of those tabs drives a panel holding exactly one preview.
   it('gives every preview its own tab, and every tab its own panel', async () => {
     const shadowRoot = await renderPreviews(
       buildRecordWith({
@@ -156,10 +130,6 @@ describe('ogm-previews', () => {
     expect(shadowRoot.querySelectorAll('ogm-preview')).toHaveLength(2);
   });
 
-  // A change of record is a change of previews, and the strip has to start over on the first of
-  // them. wa-tab-group tracks which tab is active itself, in a property no render of ours writes,
-  // so a strip left standing across the change went on pointing at the tab the user had picked -
-  // the second of a record that offers other previews there, or none at all.
   it('starts the new record on its first preview, whichever tab was open on the last one', async () => {
     const el = await mountPreviews(
       buildRecordWith({
@@ -183,12 +153,9 @@ describe('ogm-previews', () => {
     consoleError.mockRestore();
 
     expect(showing(shadowRoot)).toEqual(['other-record-iiif-image-image']);
-    // Nothing left drawn as the chosen tab but for the preview actually on show
     expect(highlighted(shadowRoot).filter(panel => !showing(shadowRoot).includes(panel))).toEqual([]);
   });
 
-  // For an application that has the data already and doesn't want the record-driven path. The tab
-  // strip is worth having either way, and there is no record to work anything out from.
   describe('previews handed over rather than worked out from a record', () => {
     it('renders a tab and a panel for each, with no record at all', async () => {
       const shadowRoot = await renderPreviews(undefined, buildPreviewers());
@@ -201,7 +168,6 @@ describe('ogm-previews', () => {
       expect(shadowRoot.querySelectorAll('ogm-preview')).toHaveLength(2);
     });
 
-    // They take the place of a record, rather than being added to whatever it offers
     it('shows only these, even when a previewable record is there too', async () => {
       const shadowRoot = await renderPreviews(buildRecord(true), buildPreviewers());
 
@@ -215,8 +181,6 @@ describe('ogm-previews', () => {
     });
   });
 
-  // The basemap layer map previews are drawn underneath. Set on the previews themselves, since they
-  // are what put the layers on the map; see MapPreviewer.beforeId.
   describe('beforeId', () => {
     const drawnBeforeIds = (el: HTMLElement) =>
       Array.from((el.shadowRoot as ShadowRoot).querySelectorAll('ogm-preview'))
@@ -245,7 +209,6 @@ describe('ogm-previews', () => {
       expect(drawnBeforeIds(el)).toEqual(['watername_ocean']);
     });
 
-    // Previews built by hand say where they go themselves
     it('leaves previews that were handed over with their own', async () => {
       const previewers = buildPreviewers();
       previewers.forEach(previewer => previewer.renderer === 'map' && (previewer.beforeId = 'roads'));

@@ -4,16 +4,12 @@ import TimeDomain, { DAY, dayValue, parseDayValue, parseTime, startOfDay } from 
 
 const at = (text: string) => parseTime(text)!;
 
-// MODIS true color as GIBS lists it, two of its gaps included
 const MODIS = ['2000-02-24/2000-04-25/P1D', '2000-04-28/2000-08-06/P1D', '2025-11-10/2026-10-03/P1D'];
 
-// GOES-East GeoColor, every ten minutes, with the lone frames and gaps a geostationary feed has
 const GOES = ['2026-08-10T16:30:00Z/2026-08-10T16:30:00Z/PT10M', '2026-08-10T17:20:00Z/2026-08-10T17:30:00Z/PT10M', '2026-09-30T02:40:00Z/2026-10-02T23:30:00Z/PT10M'];
 
-// TEMPO, whose scans are lone times, each with how long it stands for written after it
 const TEMPO = ['2026-10-02T18:27:40Z/2026-10-02T18:27:40Z/PT59M41S', '2026-10-02T19:27:40Z/2026-10-02T19:27:40Z/PT59M41S', '2026-10-02T20:27:40Z/2026-10-02T20:27:40Z/PT59M41S'];
 
-// MERRA2's monthly air temperature, which drops a run of lone days in among its months
 const MERRA2 = ['1980-01-01/2023-11-01/P1M', '2025-06-04/2025-06-04/P1M', '2025-06-05/2025-06-05/P1M', '2025-07-01/2026-06-01/P1M'];
 
 describe('parseTime', () => {
@@ -59,7 +55,6 @@ describe('the day helpers', () => {
     expect(parseDayValue('2021-02')).toBeUndefined();
   });
 
-  // Chrome passes through 0002, 0020 and 0201 while a year is typed digit by digit
   it('reads a year below 100 as itself, not one in the 1900s', () => {
     expect(new Date(parseDayValue('0020-10-01')!).getUTCFullYear()).toEqual(20);
   });
@@ -74,13 +69,10 @@ describe('TimeDomain', () => {
       expect(domain.last).toEqual(at('2026-10-03'));
     });
 
-    // What DescribeDomains returns: the whole domain in one string
     it('reads a comma-separated list as well as one value apiece', () => {
       expect(TimeDomain.parse([MODIS.join(',')]).last).toEqual(TimeDomain.parse(MODIS).last);
     });
 
-    // GIBS ends AMSR2's 5-day snow water equivalent three days into a period, and serves that last day
-    // by default
     it('ends a run at the end it was written with, even where the period does not land', () => {
       const domain = TimeDomain.parse(['2025-01-01/2025-09-01/P5D']);
 
@@ -96,7 +88,6 @@ describe('TimeDomain', () => {
       expect(domain.last).toEqual(at('2026-09-30'));
     });
 
-    // GIBS's GRACE layer lists 2020-01-20/2020-01-10/P1M
     it('keeps the start of a run written backwards', () => {
       const domain = TimeDomain.parse(['2020-01-20/2020-01-10/P1M']);
 
@@ -115,7 +106,6 @@ describe('TimeDomain', () => {
       expect(TimeDomain.parse(MODIS).offersChoice).toBe(true);
     });
 
-    // GEDI's biomass, a single four-year composite, as GIBS writes it
     it('offers none for a single time, however long it stands for', () => {
       expect(TimeDomain.parse(['2019-04-18/2019-04-18/P1429D']).offersChoice).toBe(false);
     });
@@ -163,7 +153,6 @@ describe('TimeDomain', () => {
       expect(domain.previous(at('2024-03-01'))).toEqual(at('2024-02-01'));
     });
 
-    // Counted from the start each time, so February's 29th doesn't become every later month's
     it('comes back to the 31st after a shorter month', () => {
       const domain = TimeDomain.parse(['2024-01-31/2024-05-31/P1M']);
 
@@ -186,7 +175,6 @@ describe('TimeDomain', () => {
       expect(domain.next(at('2026-10-02T18:27:40Z'))).toEqual(at('2026-10-02T19:27:40Z'));
     });
 
-    // GRACE lists 2019-03-01/2022-12-01/P1M and then 2020-02-01/2022-07-01/P1M, inside it
     it('finds the nearest time across runs that overlap', () => {
       const domain = TimeDomain.parse(['2019-03-01/2022-12-01/P1M', '2020-01-20/2020-01-10/P1M', '2020-02-01/2022-07-01/P1M']);
 
@@ -196,7 +184,6 @@ describe('TimeDomain', () => {
       expect(domain.last).toEqual(at('2022-12-01'));
     });
 
-    // Any time between the ends can be asked for, so there is no next one to step to
     it('steps to the ends of a continuous range', () => {
       const domain = TimeDomain.parse(['2026-01-01/2026-12-31']);
 
@@ -226,12 +213,10 @@ describe('TimeDomain', () => {
       const domain = TimeDomain.parse(['2026-09-01/2026-09-17/P8D']);
 
       expect(domain.forDay(at('2026-09-12'))).toEqual(at('2026-09-09'));
-      // The last composite still stands for the eight days it started
       expect(domain.forDay(at('2026-09-24'))).toEqual(at('2026-09-17'));
       expect(domain.forDay(at('2026-09-25'))).toBeUndefined();
     });
 
-    // The last of AMSR2's 5-day composites starts three days after the one before it
     it('gets a composite that runs short only for the days it covers', () => {
       const domain = TimeDomain.parse(['2025-01-01/2025-09-01/P5D']);
 
@@ -270,7 +255,6 @@ describe('TimeDomain', () => {
     it('lists every one of them, earliest first', () => {
       const times = TimeDomain.parse(GOES).between(at('2026-10-02'), at('2026-10-02') + DAY);
 
-      // Six an hour, and the last of them twenty minutes short of midnight
       expect(times).toHaveLength(6 * 24 - 2);
       expect(times[0]).toEqual(at('2026-10-02T00:00:00Z'));
       expect(times.at(-1)).toEqual(at('2026-10-02T23:30:00Z'));
@@ -319,13 +303,10 @@ describe('TimeDomain', () => {
       expect(TimeDomain.parse(MERRA2).describe(at('2026-06-01'))).toEqual('June 2026');
     });
 
-    // A lone day dropped into a monthly layer would otherwise read as the month it's in, the same as
-    // the month itself and the other lone days around it
     it('tells a lone day in a monthly layer by its date', () => {
       expect(TimeDomain.parse(MERRA2).describe(at('2025-06-04'))).toEqual('Jun 4, 2025');
     });
 
-    // VIIRS Black Marble, as GIBS lists it
     it('tells a yearly layer’s times by the year', () => {
       expect(TimeDomain.parse(['2012-01-01/2012-01-01/P1Y', '2016-01-01/2016-01-01/P1Y']).describe(at('2016-01-01'))).toEqual('2016');
     });
@@ -345,7 +326,6 @@ describe('TimeDomain', () => {
       expect(TimeDomain.parse(GOES).describeTimeOfDay(at('2026-10-02T08:50:00Z'))).toEqual('08:50');
     });
 
-    // GeoServer writes a daily layer's times out to the millisecond, all of them at midnight
     it('tells times that all fall at midnight by the date alone', () => {
       const domain = TimeDomain.parse(['2016-01-01T00:00:00.000Z/2016-12-31T00:00:00.000Z/P1D']);
 

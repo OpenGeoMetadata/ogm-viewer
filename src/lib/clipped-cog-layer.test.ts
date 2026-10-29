@@ -4,32 +4,23 @@ import { Texture } from '@luma.gl/core';
 
 import ClippedCOGLayer, { cutlineUniforms, PreciseCutline, type Cutline, type CutlineUniforms } from './clipped-cog-layer';
 
-// A pipeline of its own to clip, standing in for whichever one the layer would have drawn with. Handed
-// over as a prop so the layer never has to read a GeoTIFF to work out one of its own.
 const OWN_MODULE = { module: { name: 'own' } };
 const renderTile = vi.fn(() => ({ renderPipeline: [OWN_MODULE] }));
 
-// Only a GlobeViewport has a resolution, which is how deck.gl-raster tells the two apart
 const GLOBE = { resolution: 0 };
 const FLAT = {};
 
-// Tibet's Ngari, say: far enough from the origin in both directions that a float32 can't hold either
-// edge exactly, in degrees or in common space
 const CUTLINE: Cutline = [80.123456789, 31.987654321, 81.123456789, 32.987654321];
 
-// What WebMercatorViewport.projectPosition makes of a longitude and a latitude: deck.gl's common
-// space, 512 units across the world, with the equator at 256 and north upwards
 const commonX = (lng: number) => ((lng + 180) / 360) * 512;
 const commonY = (lat: number) => 256 + (256 / Math.PI) * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
 
-// The box the shader is handed, put back together: where its corner is and how far it reaches
 const reassemble = ({ originHigh, originLow, size }: CutlineUniforms) => {
   const minX = originHigh[0] + originLow[0];
   const minY = originHigh[1] + originLow[1];
   return [minX, minY, minX + size[0], minY + size[1]];
 };
 
-// The layer's render callback as RasterTileLayer would call it, in a view of the given kind
 const layerIn = (viewport: object, cutline?: Cutline) => {
   const layer = new ClippedCOGLayer({ id: 'sheet', geotiff: 'https://example.com/sheet.tif', getTileData: vi.fn(), renderTile, ...(cutline && { cutline }) } as never);
   Object.assign(layer, { context: { viewport } });
@@ -52,7 +43,6 @@ describe('ClippedCOGLayer', () => {
     expect(pipeline.map(({ module }) => module)).toEqual([OWN_MODULE.module, PreciseCutline]);
   });
 
-  // RasterTileLayer builds a globe's mesh in longitude and latitude, and a flat map's in common space
   it('clips in whichever space the mesh is in', () => {
     const globe = layerIn(GLOBE, CUTLINE)._renderTileCallback()!(DATA).renderPipeline[1].props!;
     const flat = layerIn(FLAT, CUTLINE)._renderTileCallback()!(DATA).renderPipeline[1].props!;
@@ -61,7 +51,6 @@ describe('ClippedCOGLayer', () => {
     expect(flat).toBe(cutlineUniforms(CUTLINE, false));
   });
 
-  // deck.gl's GlobeView hands over a WebMercatorViewport past zoom 12, and the callback outlives that
   it('asks which kind of view it is in for each tile, not once for the layer', () => {
     const layer = layerIn(GLOBE, CUTLINE);
     const render = layer._renderTileCallback()!;
@@ -99,8 +88,6 @@ describe('cutlineUniforms', () => {
     expect(maxY).toBeCloseTo(commonY(CUTLINE[3]), 4);
   });
 
-  // The whole point: a float32 of the corner alone is off by up to half its last place, which in
-  // common space is pixels at zoom 18
   it('splits the corner into a float32 and the remainder that float32 cannot hold', () => {
     for (const globe of [true, false]) {
       const { originHigh, originLow } = cutlineUniforms(CUTLINE, globe);
@@ -118,19 +105,15 @@ describe('cutlineUniforms', () => {
   });
 });
 
-// What deck.gl leaves behind when a sheet of a mosaic leaves the view: the layer is finalized with its
-// tiles still loaded, and its TileLayer empties its tileset without unloading any of them
 describe('ClippedCOGLayer going away', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  // A layer whose tile layer holds these tiles, as RasterTileLayer's does when the layer is removed
   const layerHolding = (tiles: { content: unknown }[], props: object) => {
     const layer = new ClippedCOGLayer({ id: 'sheet', geotiff: 'https://example.com/sheet.tif', ...props } as never);
     vi.spyOn(layer, 'getSubLayers').mockReturnValue([{ state: { tileset: { tiles } } }] as never);
     return layer as unknown as { finalizeState(context: unknown): void };
   };
 
-  // A texture as COGLayer's own pipeline uploads one, which it frees with destroy()
   const texture = () => Object.assign(Object.create(Texture.prototype), { destroy: vi.fn() }) as Texture;
 
   it('unloads every tile still holding something, through a pipeline handed in', () => {
@@ -153,7 +136,6 @@ describe('ClippedCOGLayer going away', () => {
     expect(data.mask.destroy).toHaveBeenCalledTimes(1);
   });
 
-  // COGLayer's own finalize aborts what's still loading, and RasterTileLayer's lets go of the rest
   it('unloads them before COGLayer finalizes anything of its own', () => {
     const onTileUnload = vi.fn();
     let unloadedByThen = -1;

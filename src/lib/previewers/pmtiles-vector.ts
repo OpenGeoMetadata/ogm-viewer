@@ -4,7 +4,6 @@ import type { AddVectorSourceObject } from './vector';
 export default class PMTilesVectorPreviewer extends TiledVectorPreviewer {
   protected readonly featuresMayLackIds = true;
 
-  // Only one source for PMTiles
   protected async createSources(): Promise<AddVectorSourceObject[]> {
     return [
       {

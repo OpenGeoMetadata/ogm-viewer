@@ -1,7 +1,6 @@
 :host {
   display: block;
-  /* The host is height-capped by the map, so pass that cap down to the panel and let the list
-     inside it be what scrolls */
+  /* Let the list shrink and scroll within the height the map allows. */
   min-height: 0;
 }
 
@@ -22,7 +21,6 @@
   max-width: 18rem;
 }
 
-/* Only a multi-layer record has this: the count, and one checkbox for the whole list */
 .header {
   align-items: center;
   display: flex;
@@ -41,13 +39,11 @@
   list-style: none;
   margin: 0;
   min-height: 0;
-  /* Tall enough for four rows; a twenty-layer tileset scrolls rather than covering the map */
   max-height: 14rem;
   overflow-y: auto;
   padding: var(--wa-space-2xs);
 }
 
-/* A single-layer record has no header above the list, so the list carries the padding */
 .header + .layers {
   border-top: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
   padding-top: var(--wa-space-2xs);
@@ -88,20 +84,15 @@
   color: var(--wa-color-text-quiet);
   flex: none;
   font-variant-numeric: tabular-nums;
-  /* Room for "100%" so the slider doesn't resize as the value changes */
+  /* Reserve the width of "100%" so adjusting opacity does not resize the slider. */
   min-width: 2.75rem;
   text-align: end;
 }
 
-/* The ramp picker's own row, unlike the two above it: every swatch wants equal width, which align
-   the row itself is a flex container the way .row (opacity, visibility) already is */
 .row:has(.ramps) {
   align-items: stretch;
 }
 
-/* Twelve ramps at four per row fits the panel's own 13-18rem width without crowding a swatch below
-   a size it can still be told apart at. No <legend> - aria-label carries the name instead, since a
-   visible one would repeat the layer's own title immediately above it. */
 .ramps {
   border: none;
   display: grid;
@@ -119,15 +110,10 @@
   display: block;
   outline: var(--wa-panel-border-width) solid var(--wa-color-surface-border);
   outline-offset: -1px;
-  /* Set from JS as an inline gradient once the sprite has decoded; a name-only fallback swatch
-     until then, or if it never does, still works as a picker - just without the preview. */
   background-color: var(--wa-color-surface-lowered, var(--wa-color-surface-default));
 }
 
-/* Radio inputs carry the choice and the keyboard behavior (arrow keys move within the fieldset,
-   same group semantics a native radio group always has); their own box is never drawn, which is
-   why the swatch has to answer :focus-visible and :checked on their behalf. Not display:none or
-   visibility:hidden - either would also drop it from the accessibility tree and the tab order. */
+/* Keep native radio inputs focusable while the swatches provide their visible appearance. */
 .swatch input {
   clip-path: inset(50%);
   height: 1px;
@@ -146,9 +132,6 @@
   outline-offset: 1px;
 }
 
-/* The background toggle's own row. A label wrapping both the box and its text, so the whole thing is
-   a click target; the box itself is styled like the visibility checkbox above, since they are the
-   same kind of control. */
 .background {
   align-items: center;
   cursor: pointer;

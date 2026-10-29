@@ -1,7 +1,4 @@
 /** @vitest-environment happy-dom */
-// A DOM, for the controls at the bottom of the file: MapLibre's own build their buttons as they are
-// added, and there is no way to check what a map ends up offering without letting them. The same
-// reason globe-control.test.ts asks for one.
 import { describe, it, expect, vi, beforeEach, afterEach } from '@stencil/vitest';
 import type { IControl, LngLatBounds, MapLibreMap } from 'maplibre-gl';
 
@@ -18,9 +15,6 @@ const BOUNDS: [[number, number], [number, number]] = [
   [-114.13, 42.01],
 ];
 
-// Enough of a MapLibre map to be pointed somewhere: it can work out a camera, it can be moved, and
-// it reports the move as having finished, which is what fitBounds waits for before resolving. It also
-// answers how big its canvas is, since that is what decides how much of a gap it can spare.
 const fittableMap = (cameraForBounds = vi.fn(() => ({ center: [0, 0], zoom: 4 })), canvas = { clientWidth: 800, clientHeight: 600 }) => ({
   cameraForBounds,
   fitBounds: vi.fn(),
@@ -37,7 +31,6 @@ describe('fitBounds', () => {
     expect(map.once).toHaveBeenCalledWith('moveend', expect.any(Function));
   });
 
-  // So a record's own edges read as edges instead of running off the canvas
   it('should keep the theme’s gap between the bounds and the edge', async () => {
     const map = fittableMap();
     await fitBounds(map as unknown as MapLibreMap, { getPadding: () => 8 } as Theme, BOUNDS);
@@ -45,9 +38,6 @@ describe('fitBounds', () => {
     expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: 8, animate: false });
   });
 
-  // What a caller wants of this one camera, as against the limits it set on the map itself: those
-  // hold for every camera, including the ones a reader drives with a wheel. Asked of the solve as
-  // well as of the move, so the two can't disagree about whether the bounds can be framed at all.
   it('should carry the caller’s own camera options into both the solve and the move', async () => {
     const map = fittableMap();
     await fitBounds(map as unknown as MapLibreMap, theme, BOUNDS, { maxZoom: 12 });
@@ -56,9 +46,6 @@ describe('fitBounds', () => {
     expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING, maxZoom: 12, animate: false });
   });
 
-  // MapLibre has no camera for bounds it can't fit the padding inside, and the guard below reads that
-  // as "leave the camera alone" - so without this a pane shorter than twice the gap would sit at
-  // whatever view it opened on, with what it was pointed at off screen and nothing saying so.
   it('should give up the gap rather than the framing on a map too small for both', async () => {
     const map = fittableMap(undefined, { clientWidth: 300, clientHeight: 120 });
     await fitBounds(map as unknown as MapLibreMap, theme, BOUNDS);
@@ -73,8 +60,6 @@ describe('fitBounds', () => {
     expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: PADDING, animate: false });
   });
 
-  // Zero is not a small map, it is a map nobody can see: held to what a hidden one measures, the
-  // camera it settles on - the one still there when the pane is shown again - would have no gap at all
   it('should ask for the whole gap on a map with no box to measure', async () => {
     const map = fittableMap(undefined, { clientWidth: 0, clientHeight: 0 });
     await fitBounds(map as unknown as MapLibreMap, theme, BOUNDS);
@@ -89,9 +74,6 @@ describe('fitBounds', () => {
     expect(map.fitBounds).not.toHaveBeenCalled();
   });
 
-  // The same non-answer, arriving differently: on a globe MapLibre reads its own undefined and
-  // throws, because the globe solve takes the flat camera and only corrects its zoom. Either way
-  // there is nowhere to point, and neither is the preview's failure to report.
   it('should leave the camera alone when a globe throws over bounds it cannot frame', async () => {
     const map = fittableMap(
       vi.fn(() => {
@@ -105,15 +87,10 @@ describe('fitBounds', () => {
 });
 
 describe('openingCamera', () => {
-  // MapLibre reads these in place of the center and zoom a map would otherwise open on, and points the
-  // camera in the constructor - so the first frame is of the record rather than of the whole world
   it('should hand the bounds and the theme’s gap to the map being built', () => {
     expect(openingCamera(container(800, 600), theme, BOUNDS)).toEqual({ bounds: BOUNDS, fitBoundsOptions: { padding: PADDING } });
   });
 
-  // The container rather than a canvas, because the map that would have one doesn't exist yet: the same
-  // holding to what the box can spare, so a pane shorter than twice the gap opens framed rather than
-  // wherever a camera that couldn't be solved left it. See fittablePadding.
   it('should give up the gap rather than the framing on a container too small for both', () => {
     expect(openingCamera(container(300, 120), theme, BOUNDS)).toEqual({ bounds: BOUNDS, fitBoundsOptions: { padding: 30 } });
   });
@@ -122,15 +99,11 @@ describe('openingCamera', () => {
     expect(openingCamera(container(800, 600), theme, BOUNDS, { maxZoom: 12 })).toEqual({ bounds: BOUNDS, fitBoundsOptions: { padding: PADDING, maxZoom: 12 } });
   });
 
-  // A record that never said where it is leaves the map at whatever view createMap opens on, rather
-  // than being pointed at nothing
   it('should ask for nothing when there is nowhere to point', () => {
     expect(openingCamera(container(800, 600), theme, undefined)).toEqual({});
   });
 });
 
-// Enough of a ResizeObserver to drive by hand: it keeps the callback it was built with, so a test can
-// deliver an observation whenever it wants one rather than waiting on a layout that never happens.
 class FakeResizeObserver {
   static last: FakeResizeObserver | undefined;
   observed: Element[] = [];
@@ -150,14 +123,11 @@ class FakeResizeObserver {
     this.disconnected = true;
   }
 
-  // What the browser would deliver; the first one is the size the map was built at
   deliver(times = 1) {
     for (let i = 0; i < times; i += 1) this.callback();
   }
 }
 
-// Enough of a MapLibre map to be resized and then taken down, holding onto the one-shot listener so
-// a test can fire the 'remove' the real map fires on its way out.
 const resizableMap = () => {
   const listeners: Record<string, () => void> = {};
   return {
@@ -170,11 +140,8 @@ const resizableMap = () => {
   };
 };
 
-// A container is only ever asked how big it is, and a hidden one answers zero
 const container = (clientWidth: number, clientHeight: number) => ({ clientWidth, clientHeight }) as HTMLElement;
 
-// Watch the given container, hand back the map and the observer now watching it, and deliver the
-// first observation - the one that reports the size the map was already built at.
 const track = (element: HTMLElement) => {
   const map = resizableMap();
   trackContainerSize(map as unknown as MapLibreMap, element);
@@ -202,7 +169,6 @@ describe('trackContainerSize', () => {
     expect(observer.observed).toEqual([element]);
   });
 
-  // The map is already that size, and cutting in here would stop the camera opening the preview
   it('should leave the first observation alone', () => {
     const map = resizableMap();
     trackContainerSize(map as unknown as MapLibreMap, container(800, 400));
@@ -219,9 +185,6 @@ describe('trackContainerSize', () => {
     expect(map.redraw).toHaveBeenCalledTimes(1);
   });
 
-  // The one this exists for: MapLibre reads a container with no box as a 400x300 one and resizes the
-  // canvas to match, and deck.gl's overlay copies that size off the shared canvas and stamps it back
-  // once the map is shown again. A hidden map is not a small map, so there is nothing to resize to.
   it('should leave a container with no box alone', () => {
     const { map, observer } = track(container(0, 0));
     observer.deliver();
@@ -240,8 +203,6 @@ describe('trackContainerSize', () => {
     expect(map.resize).toHaveBeenCalledTimes(1);
   });
 
-  // A container on its way to a new size is observed every frame, and each resize reallocates the
-  // drawing buffer; the size it ends at still has to be the size it is left at.
   it('should collapse a burst of observations, ending at the last one', () => {
     const { map, observer } = track(container(800, 400));
     observer.deliver(5);
@@ -251,7 +212,6 @@ describe('trackContainerSize', () => {
     vi.advanceTimersByTime(50);
     expect(map.resize).toHaveBeenCalledTimes(2);
 
-    // Nothing was asked for after that one, so it is the last
     vi.advanceTimersByTime(500);
     expect(map.resize).toHaveBeenCalledTimes(2);
   });
@@ -276,12 +236,9 @@ describe('whenSized', () => {
 
   it('should resolve straight away for an element that already has a box', async () => {
     await expect(whenSized(container(800, 400))).resolves.toBeUndefined();
-    // Nothing to wait for, so nothing to watch either
     expect(FakeResizeObserver.last).toBeUndefined();
   });
 
-  // What a map mounted inside a `display: none` subtree waits on. MapLibre would read the container
-  // as a 400x300 one and build a canvas that size, which deck.gl's overlay then copies as it attaches.
   it('should wait for an element with no box to be given one', async () => {
     const element = container(0, 0);
     let resolved = false;
@@ -290,7 +247,6 @@ describe('whenSized', () => {
     const observer = FakeResizeObserver.last!;
     expect(observer.observed).toEqual([element]);
 
-    // Still nothing to measure: the observation a hidden element delivers is not the one to build on
     observer.deliver();
     await Promise.resolve();
     expect(resolved).toBe(false);
@@ -303,7 +259,6 @@ describe('whenSized', () => {
   });
 });
 
-// A theme is only ever asked for the two gaps, and a location map is framed with the wider one
 const locationTheme = { getPadding: () => 8, getOverviewPadding: () => 64 } as MapLibreTheme;
 
 describe('frameLocation', () => {
@@ -321,8 +276,6 @@ describe('frameLocation', () => {
     expect(map.fitBounds).toHaveBeenCalledWith(BOUNDS, { padding: 64, maxZoom: 12, animate: false });
   });
 
-  // A globe camera has no answer for anything wider than the half of the world facing it: it hands
-  // back nothing and the camera stays put, so half of a wide area is what gets framed instead.
   it('should hold a globe camera to the half of the world it can face', async () => {
     const map = fittableMap();
     await frameLocation(map as unknown as MapLibreMap, locationTheme, WORLD, true);
@@ -339,7 +292,6 @@ describe('frameLocation', () => {
     expect(map.fitBounds).toHaveBeenCalledWith(WORLD, { padding: 64, animate: false });
   });
 
-  // Nothing to clamp, so a globe gets what it was given
   it('should leave an area a globe can face where it is', async () => {
     const map = fittableMap();
     await frameLocation(map as unknown as MapLibreMap, locationTheme, BOUNDS, true);
@@ -358,9 +310,6 @@ describe('openingLocation', () => {
     expect(openingLocation(container(800, 600), locationTheme, BOUNDS, false, { maxZoom: 12 })).toEqual({ bounds: BOUNDS, fitBoundsOptions: { padding: 64, maxZoom: 12 } });
   });
 
-  // The projection these maps open in is the globe, so a wide record has to be held to the half of the
-  // world facing the camera here as well - otherwise the style document landing would re-frame it, and
-  // the reader would open on a jump instead of on the record.
   it('should hold a globe camera to the half of the world it can face', () => {
     const { bounds } = openingLocation(container(800, 600), locationTheme, WORLD, true);
     const framed = bounds as LngLatBounds;
@@ -374,9 +323,6 @@ describe('openingLocation', () => {
   });
 });
 
-// Enough of a map to hang controls on. MapLibre's own read all of this as they are added: the
-// navigation control asks for its titles and for the zoom limits to grey its buttons at, and the
-// globe control asks which projection it should be showing.
 const controllableMap = () => {
   const controls: { control: IControl; element: HTMLElement }[] = [];
   const pending: Record<string, (() => void)[]> = {};
@@ -386,7 +332,6 @@ const controllableMap = () => {
     addControl(control: IControl) {
       controls.push({ control, element: control.onAdd(this as unknown as MapLibreMap) });
     },
-    // Held rather than run, so a test can say when the style arrives
     once(event: string, listener: () => void) {
       (pending[event] ??= []).push(listener);
     },
@@ -412,24 +357,17 @@ describe('readProjection', () => {
     expect(readProjection(inProjection('mercator'))).toEqual('mercator');
   });
 
-  // Either name MapLibre has for a sphere is a globe as far as a camera is concerned: 'globe' draws
-  // as one until it is zoomed in far enough that a sphere and a flat map are the same picture, and
-  // 'vertical-perspective' stays one throughout.
   it('should read either kind of sphere as a globe', () => {
     expect(readProjection(inProjection('globe'))).toEqual('globe');
     expect(readProjection(inProjection('vertical-perspective'))).toEqual('globe');
   });
 
-  // A map has no projection until a style document has arrived to carry one, and that is not the same
-  // answer as flat: a caller with a projection of its own to fall back on has to be able to tell.
   it('should answer with nothing before a style has arrived', () => {
     expect(readProjection(inProjection(undefined))).toBeUndefined();
   });
 });
 
 describe('disableRotation', () => {
-  // `dragRotate: false` looks like it covers this and doesn't: the keyboard's shift+arrows and the
-  // two-finger pinch-rotate are each a handler of their own.
   it('should turn off the two gestures a map option cannot name', () => {
     const map = controllableMap();
     disableRotation(map as unknown as MapLibreMap);
@@ -449,8 +387,6 @@ describe('addLocationControls', () => {
     expect(element.querySelector('.maplibregl-ctrl-compass')).toBeNull();
   });
 
-  // Its click reaches a style document, and asking one that isn't there yet throws. The window
-  // between building a map and the basemap's style landing is easy to click in on a map this small.
   it('should wait for a style document before offering the projection toggle', () => {
     const map = controllableMap();
     addLocationControls(map as unknown as MapLibreMap);
@@ -463,7 +399,6 @@ describe('addLocationControls', () => {
     expect(map.controls[1].element.querySelector('[class^="maplibregl-ctrl-globe"]')).toBeTruthy();
   });
 
-  // A theme swap brings a second style document with it, and the button is already on the map
   it('should offer the projection toggle once, however many styles arrive', () => {
     const map = controllableMap();
     addLocationControls(map as unknown as MapLibreMap);

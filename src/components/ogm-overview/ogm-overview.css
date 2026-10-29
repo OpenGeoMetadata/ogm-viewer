@@ -17,18 +17,10 @@ ogm-alerts {
   inset: 0;
 }
 
-/* Color of the map background ("space" around the globe) */
 .maplibregl-canvas {
   background-color: var(--wa-color-surface-default);
 }
 
-/* The line of text that says how to search, when an embedder has asked for one. Drawn on the same
-   surface tokens as the attribution below rather than out of MapLibre's button chrome, because it
-   carries words instead of a glyph: it deliberately isn't a .maplibregl-ctrl-group, which is both what
-   supplies that chrome and what the dark-mode rules at the end invert wholesale. Text under that
-   inversion would take the focus ring with it - the reason the attribution is left out of it too - so
-   the tokens follow the mode by themselves here and there is no dark-mode rule for this.
-   .maplibregl-ctrl on its own still gives the float and the 10px inset from the corner. */
 .maplibregl-ctrl-geosearch {
   color: var(--wa-color-text-normal);
   background-color: var(--wa-color-surface-default);
@@ -39,33 +31,20 @@ ogm-alerts {
   font-size: var(--wa-font-size-s);
   line-height: var(--wa-line-height-condensed);
   padding: var(--wa-space-2xs) var(--wa-space-s);
-  /* A translated string can run a good deal longer than ours, and this sits over the map: left to run
-     it would cross the whole thing. Held in characters rather than as a share of the map, because
-     MapLibre's corners are absolutely positioned boxes that shrink to fit whatever floats inside
-     them - a percentage here resolves against a width that is itself waiting on this one, and comes
-     out at a column of single words. */
+  /* Constrain translated help text because the absolutely positioned control has no width limit. */
   max-width: 24ch;
 }
 
-/* Out of the way while a box is being drawn - which is why nothing above sets `display`: an author
-   display here would beat the rule the browser has for the attribute. */
 .maplibregl-ctrl-geosearch[hidden] {
   display: none;
 }
 
-/* The rectangle a reader drags to search. MapLibre draws its own in white with a near-black dotted
-   edge, which flares on a dark map and reads as nothing in particular on a light one. On the text
-   token instead it lands as a wash in either mode and needs no rule below. Plainer than the box it
-   will produce, deliberately: this one is under the reader's hand and gone in a second. */
 .maplibregl-boxzoom {
   background-color: var(--wa-color-text-normal);
   border: 2px dashed var(--wa-color-surface-default);
   opacity: 0.4;
 }
 
-/* Attribution, which both basemaps require. MapLibre draws it as a white pill with near-black text,
-   which lights up the corner of a dark map; on the same surface tokens as everything else it follows
-   whichever mode the map is drawn in. */
 .maplibregl-ctrl.maplibregl-ctrl-attrib {
   color: var(--wa-color-text-normal);
   background-color: var(--wa-color-surface-default);
@@ -76,35 +55,26 @@ ogm-alerts {
 }
 
 .wa-dark {
-  /* The zoom and globe buttons, which MapLibre draws as a white pill with near-black glyphs. Turned
-     over wholesale, the same way <ogm-map> and <ogm-locator> do it: those glyphs are background
-     images and can't read a token, so there is nothing here to theme one at a time. The two rules
-     after this are what the inversion costs. */
   .maplibregl-ctrl.maplibregl-ctrl-group {
     filter: invert(1);
   }
 
-  /* Fix for colors appearing orange due to inversion */
+  /* Cancel the hue shift caused by inverting the control group. */
   .maplibregl-ctrl-group button:focus:focus-visible {
     box-shadow: 0 0 2px 2px #ff6900;
   }
 
-  /* The globe button while the map is a globe: MapLibre says so by coloring the glyph, and a colored
-     glyph under the inversion above comes out as its opposite. Turned back here so it doesn't. */
+  /* Undo the group inversion for the colored globe glyph. */
   .maplibregl-ctrl button.maplibregl-ctrl-globe-enabled .maplibregl-ctrl-icon {
     filter: invert(1);
   }
 
-  /* The compact attribution button's "i": MapLibre's own glyph with its ink at #fff rather than the
-     default black. A background image can't read a token, so it's replaced rather than themed.
-     MapLibre's translucent white fill for the button goes as well, or it would wash out the pill. */
+  /* The attribution glyph is an image, so CSS text colors cannot recolor it. */
   .maplibregl-ctrl-attrib .maplibregl-ctrl-attrib-button {
     background-color: transparent;
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='%23fff' fill-rule='evenodd' viewBox='0 0 20 20'%3E%3Cpath d='M4 10a6 6 0 1 0 12 0 6 6 0 1 0-12 0m5-3a1 1 0 1 0 2 0 1 1 0 1 0-2 0m0 3a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0'/%3E%3C/svg%3E");
   }
 
-  /* Attribution showing. MapLibre tints the button black at 5% for this, which is invisible against
-     a dark pill; this is the same tint turned around. */
   .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
     background-color: rgb(255 255 255 / 10%);
   }

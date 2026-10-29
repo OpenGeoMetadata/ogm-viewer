@@ -10,8 +10,6 @@ import type { MapLibreStyle } from '../themes/maplibre';
 type FakeSource = { type: string; data?: GeoJSON.GeoJSON | string };
 type FakeLayer = { 'id': string; 'type': string; 'source': string; 'source-layer'?: string; 'minzoom'?: number; 'maxzoom'?: number };
 
-// Just enough of a MapLibre map to record what the previewer adds and draws, answer where the
-// camera is, and hand back the camera events it listens for
 class FakeMap {
   sources = new Map<string, FakeSource>();
   layers = new Map<string, FakeLayer>();
@@ -19,7 +17,6 @@ class FakeMap {
 
   zoom = 12;
 
-  // What a camera fitted to the previewed bounds would settle on; see MapPreviewer.minZoom
   fitZoom: number | undefined = 12;
 
   getZoom() {
@@ -30,8 +27,6 @@ class FakeMap {
     return this.fitZoom === undefined ? undefined : { zoom: this.fitZoom };
   }
 
-  // A fresh handle each time, over the one stored record, so an assertion on sources still reads
-  // whatever setData last wrote
   getSource(id: string) {
     const stored = this.sources.get(id);
     if (!stored) return undefined;
@@ -95,19 +90,15 @@ const FEATURES: GeoJSON.FeatureCollection = {
   features: [{ type: 'Feature', id: 1, geometry: { type: 'Point', coordinates: [-82.44, 35.61] }, properties: { Spp_Code: 'ULPU' } }],
 };
 
-// The scales this library's own fixture layer publishes: level 10 and level 20 of the standard
-// ArcGIS table, which are MapLibre zooms 9 and 19. See scaleToZoom.
 const SCALED: EsriMetadata = {
   minScale: 577790.554289,
   maxScale: 564.248588,
   extent: { xmin: -92.9, ymin: 42.4, xmax: -86.6, ymax: 47.1, spatialReference: { wkid: 4326 } },
 };
 
-// Hands over features and a layer description it already has, rather than querying a service
 class TestResource extends EsriFeatureLayerResource {
   reads = 0;
 
-  // Whether a click still has anything to ask for, and what it gets when it asks
   slim = false;
   attributes = new Map<string | number, GeoJSON.GeoJsonProperties>();
   attributesFail = false;
@@ -141,8 +132,6 @@ class TestResource extends EsriFeatureLayerResource {
   }
 }
 
-// A feature as queryRenderedFeatures hands one back: its coordinates live behind a getter, so a
-// plain spread of one comes out with no geometry at all
 class RenderedFeature {
   type = 'Feature' as const;
   _geometry: GeoJSON.Geometry = { type: 'Point', coordinates: [-82.44, 35.61] };
@@ -165,7 +154,6 @@ let map: FakeMap;
 let resource: TestResource;
 let previewer: EsriFeatureLayerPreviewer;
 
-// Draw a preview of a layer described the given way, with the camera wherever the caller wants it
 const build = async (description: EsriMetadata = {}, camera: { zoom?: number; fitZoom?: number } = {}) => {
   map = new FakeMap();
   Object.assign(map, camera);
@@ -180,8 +168,6 @@ beforeEach(async () => {
 
 describe('EsriFeatureLayerPreviewer#preview', () => {
   it('hands MapLibre the features rather than a URL to fetch them from', () => {
-    // The query has to be paged, and may need converting, so MapLibre can't fetch it itself. Numbered,
-    // and with a point to label each polygon at, the way any GeoJSON document is handed over.
     expect(map.sources.get('trees-esri-feature-layer')?.data).toBe(withLabelPoints(FEATURES));
   });
 
@@ -224,8 +210,6 @@ describe('EsriFeatureLayerPreviewer with a published scale window', () => {
   it('holds every style layer to the window the service published', async () => {
     await build(SCALED);
 
-    // maxzoom is a zoom above what maxScale converts to: ArcGIS still draws a layer at its
-    // maxScale, where MapLibre has already hidden a style layer at its maxzoom
     map.layers.forEach(layer => {
       expect(layer.minzoom).toEqual(9);
       expect(layer.maxzoom).toEqual(20);
@@ -262,8 +246,6 @@ describe('EsriFeatureLayerPreviewer with a published scale window', () => {
   });
 
   it('answers for its own drawing while there is nothing to draw', async () => {
-    // No visible style layer reads the source out here, so MapLibre never loads a tile of it and
-    // never reports one - and the load deadline would expire on a preview doing as it was told
     const drawn = vi.fn();
     map = new FakeMap();
     map.zoom = 5;
@@ -290,8 +272,6 @@ describe('EsriFeatureLayerPreviewer with a published scale window', () => {
     await build(SCALED, { zoom: 5 });
     expect(map.listenerCount('zoomend')).toEqual(1);
 
-    // What a basemap swap does: the same previewer draws itself into a rebuilt style document,
-    // with no clearPreview in between
     await previewer.preview();
 
     expect(map.listenerCount('zoomend')).toEqual(1);
@@ -306,8 +286,6 @@ describe('EsriFeatureLayerPreviewer#minZoom', () => {
   });
 
   it('asks for no floor when the layer is wider than its own floor would show', async () => {
-    // Wisconsin needs a camera around zoom 5 to fit, and is published from zoom 9 in: a floor here
-    // would cost the reader the only view that shows what the record covers
     await build(SCALED, { zoom: 5, fitZoom: 5.5 });
 
     expect(previewer.minZoom).toBeUndefined();
@@ -335,8 +313,6 @@ describe('EsriFeatureLayerPreviewer#expandFeatures', () => {
 
     const [expanded] = await previewer.expandFeatures([renderedFeature(1)]);
 
-    // The triple setFeatureState works from, and the geometry the highlight is drawn with - which a
-    // spread of a rendered feature would have dropped
     expect(expanded.id).toEqual(1);
     expect(expanded.source).toEqual('trees-esri-feature-layer');
     expect(expanded.sourceLayer).toBeUndefined();

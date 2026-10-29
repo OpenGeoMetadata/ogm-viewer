@@ -6,13 +6,10 @@ import { timedLayers, type LayerControl } from '../../lib/layers';
 import type TimeDomain from '../../lib/time';
 import { DAY, dayValue, describeDay, parseDayValue, parseTime, startOfDay } from '../../lib/time';
 
-// Delay before activating the user's choice in the date field
 const SETTLE_DELAY = 500;
 
-// String description of the start or end of the data, e.g. "Apr 28, 2021" or "Apr 28, 2021, 12:00 UTC"
 const describeEnd = (domain: TimeDomain, time: number): string => (domain.tellsTimeOfDay ? describeDay(time) : domain.describe(time));
 
-// Date and time control for layers that support browsing using it
 @Component({
   tag: 'ogm-time',
   styleUrl: 'ogm-time.css',
@@ -26,10 +23,8 @@ export class OgmTime {
   @Event() layerTimeChange: EventEmitter<{ id: string; time: string }>;
   @Event() layerTimeDomainRequest: EventEmitter<{ id: string }>;
 
-  // The layers whose picker is unfolded
   @State() private open: ReadonlySet<string> = new Set();
 
-  // Messages indicating that we can't show a particular chosen date/time
   @State() private refusals: ReadonlyMap<string, string> = new Map();
 
   private engaged = new Set<string>();
@@ -47,19 +42,16 @@ export class OgmTime {
     });
   }
 
-  // Current date/time previewed for a layer, defaulting to latest it has
   private currentOf(layer: LayerControl): number {
     return parseTime(layer.time!) ?? layer.timeDomain!.last!;
   }
 
-  // Called when someone interacts with the layer, so we can check what data it has
   private engage(id: string) {
     if (this.engaged.has(id)) return;
     this.engaged.add(id);
     this.layerTimeDomainRequest.emit({ id });
   }
 
-  // Called when the user picks a new date/time for the layer
   private choose(layer: LayerControl, time: number) {
     this.unsettle(layer.id);
     this.ask(layer, layer.timeDomain!.format(time));
@@ -76,7 +68,6 @@ export class OgmTime {
     if (!open.has(id)) this.unsettle(id);
   }
 
-  // Fold the picker away and put the focus back on the button that unfolded it
   private close(id: string, event: KeyboardEvent) {
     if (event.key !== 'Escape' || !this.open.has(id)) return;
     event.stopPropagation();
@@ -84,7 +75,6 @@ export class OgmTime {
     this.toggles.get(id)?.focus();
   }
 
-  // A day typed or picked in the date field, acted on once the field has settled
   private pickDay(id: string, value: string) {
     this.unsettle(id);
     this.settling.set(
@@ -96,13 +86,11 @@ export class OgmTime {
     );
   }
 
-  // Handle a newly chosen day
   private settleDay(id: string, value: string) {
     const layer = timedLayers(this.layers).find(each => each.id === id);
     const day = parseDayValue(value);
     if (!layer || day === undefined) return;
 
-    // On another day, keep to the time of day the reader was at
     const domain = layer.timeDomain!;
     const current = this.currentOf(layer);
     const time = domain.forDay(day, current - startOfDay(current));
@@ -114,7 +102,6 @@ export class OgmTime {
     this.refusals = new Map([...this.refusals, [id, this.refusalFor(domain, day)]]);
   }
 
-  // Generate a message saying we don't have that data
   private refusalFor(domain: TimeDomain, day: number): string {
     if (day < startOfDay(domain.first!)) return `No data before ${describeEnd(domain, domain.first!)}.`;
     if (day > domain.last!) return `No data after ${describeEnd(domain, domain.last!)}.`;

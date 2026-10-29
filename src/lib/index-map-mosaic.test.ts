@@ -8,8 +8,6 @@ import { DEFAULT_COLOR_RAMP } from './colormap';
 import OpenIndexMapResource from './resources/openindexmap';
 import type { MapLibreStyle } from './themes/maplibre';
 
-// Enough of a MapLibre map for the outlines, which MapLibre draws, and for the camera and events
-// the mosaic watches. The mosaic itself never reaches the style: deck.gl draws it through an overlay.
 class FakeMap {
   sources = new Map<string, any>();
   layers = new Map<string, any>();
@@ -73,7 +71,6 @@ class FakeMap {
   }
 }
 
-// Records the props the mosaic hands deck.gl, which is the whole of how it's drawn
 class FakeOverlay {
   props: { layers?: any[] }[] = [];
 
@@ -86,7 +83,6 @@ class FakeOverlay {
   }
 }
 
-// A one-degree DEM tile, as 3DEP publishes them: a tiled COG of floats with statistics on record
 const demTile = (min: number, max: number) => ({
   isTiled: true,
   overviews: [{}],
@@ -95,10 +91,8 @@ const demTile = (min: number, max: number) => ({
   gdalMetadata: { bandStatistics: new Map([[1, { min, max, mean: null, std: null, validPercent: null }]]) },
 });
 
-// A scanned topo: three bands of bytes, which upstream's own pipeline draws
 const SCAN = { isTiled: true, overviews: [{}], tileCount: { x: 13, y: 16 }, cachedTags: { sampleFormat: [1, 1, 1], samplesPerPixel: 3 } };
 
-// A GeoTIFF that was never made a COG: one strip after another, and no overviews
 const STRIPPED = { isTiled: false, overviews: [], tileCount: { x: 1, y: 1 } };
 
 const tif = (name: string) => `https://example.com/sheets/${name}.tif`;
@@ -124,7 +118,6 @@ const INDEX_MAP: GeoJSON.FeatureCollection = {
   ],
 };
 
-// What the mosaic is handed in a test instead of deck.gl's overlay and real reads
 type Fakes = { overlay: FakeOverlay; geotiffs: Map<string, unknown>; reads: string[] };
 
 class TestMosaic extends IndexMapMosaic {
@@ -152,11 +145,9 @@ class TestMosaic extends IndexMapMosaic {
   }
 }
 
-// The index map's own preview, with a mosaic of fakes in place of the one it would load
 class TestIndexMapPreviewer extends OpenIndexMapPreviewer implements Fakes {
   overlay = new FakeOverlay();
 
-  // What each sheet's read hands back, by URL; a sheet missing from here fails to open
   geotiffs = new Map<string, unknown>([
     [tif('n40w106'), demTile(1500, 4300)],
     [tif('n40w105'), demTile(1200, 2000)],
@@ -169,7 +160,6 @@ class TestIndexMapPreviewer extends OpenIndexMapPreviewer implements Fakes {
     return new TestMosaic(this.resource, collection, this);
   }
 
-  // The deck.gl layer the mosaic draws a sheet with, once that sheet has been read
   async sheetLayer(index: number) {
     const sheet = this.overlay.mosaic.props.sources[index];
     const data = await this.overlay.mosaic.props.getSource(sheet, {});
@@ -189,10 +179,8 @@ const previewerFor = () => {
   return { map, previewer };
 };
 
-// Everything the look for a mosaic waits on here resolves at once, so it's done by the next task
 const settled = () => new Promise(resolve => setTimeout(resolve, 0));
 
-// Draw the index map, and let it find its mosaic
 const drawn = async (previewer: TestIndexMapPreviewer) => {
   await previewer.preview();
   await settled();
@@ -245,7 +233,6 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect(new TestIndexMapPreviewer(resource).previewId).toEqual(new OpenIndexMapPreviewer(resource).previewId);
     });
 
-    // Nothing worth loading deck.gl for, let alone reading a sheet
     it('looks no further for an index map whose sheets link no GeoTIFFs', async () => {
       index = {
         type: 'FeatureCollection',
@@ -271,7 +258,6 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect(warn).toHaveBeenCalled();
     });
 
-    // The outlines are the index map; a mosaic that can't be had is no reason to fail them
     it('still draws the outlines when the first sheet will not open', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => {});
       const { previewer } = previewerFor();
@@ -281,7 +267,6 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect(titles(previewer)).toEqual(['Geometry', 'Sheet labels']);
     });
 
-    // A theme change draws the outlines again, and what the index map links hasn't changed
     it('looks for a mosaic once, and lists it again straight away when the outlines are drawn again', async () => {
       const { previewer } = previewerFor();
       await drawn(previewer);
@@ -343,8 +328,6 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect(props.maxCacheSize).toEqual(0);
     });
 
-    // Over the fills, so they show only where a sheet has no data, and under the outlines, so the
-    // sheets can still be told apart and the selected one still stands out
     it('draws the mosaic under the sheet outlines', async () => {
       const { previewer } = previewerFor();
       await drawn(previewer);
@@ -375,7 +358,6 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect(layer.props.updateTriggers).toEqual({});
     });
 
-    // So its collar isn't drawn over the edges of the sheets around it
     it('clips a scan to its own outline', async () => {
       const { previewer } = previewerFor();
       previewer.geotiffs.set(tif('n40w106'), SCAN);
@@ -386,8 +368,6 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect(layer.props.cutline).toEqual([-106, 39, -105, 40]);
     });
 
-    // 3DEP's tiles run a few pixels past their degree, and the strip two neighbours share would be
-    // drawn twice below full opacity
     it('clips a DEM tile to its own outline too, keeping its ramp', async () => {
       const { previewer } = previewerFor();
       await drawn(previewer);
@@ -416,7 +396,6 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect(previewer.reads).toEqual([tif('n40w106')]);
     });
 
-    // A sheet that leaves the view and comes straight back can join a read its own departure cancelled
     it('reads a sheet again when a read it joined was abandoned', async () => {
       const { previewer } = previewerFor();
       await drawn(previewer);
@@ -464,7 +443,6 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect(onLayersChanged).toHaveBeenCalledTimes(1);
     });
 
-    // deck.gl drops a setProps made from inside its own update, which is where onViewportLoad is called
     it('redraws the sheets with the new range once deck.gl has finished its update', async () => {
       const { previewer } = previewerFor();
       await drawn(previewer);
@@ -502,7 +480,6 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
     });
   });
 
-  // From the index map's record, which is the only place an index map of 3DEP's tiles can say it
   describe('the legend', () => {
     const ELEVATION = { name: 'Elevation', unit: 'meters', datum: 'North American Vertical Datum of 1988' };
 
@@ -528,7 +505,6 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect(onLayersChanged).toHaveBeenCalled();
     });
 
-    // A scan has no ramp, so no legend for the title to go on
     it('titles nothing for a mosaic of scans', async () => {
       const { previewer } = previewerFor();
       previewer.geotiffs.set(tif('n40w106'), SCAN);
@@ -547,7 +523,6 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect(mosaicRow(previewer)!.title).toEqual('Mosaic');
     });
 
-    // What the colours of the outlines mean says nothing about a mosaic drawn without them
     it('keeps the key to the outlines’ colours to the outlines', async () => {
       const { previewer } = previewerFor();
       await drawn(previewer);
@@ -568,7 +543,6 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect((await previewer.sheetLayer(0)).props.opacity).toEqual(0.25);
     });
 
-    // deck.gl's own inheritance of a parent's visibility doesn't reach a scan's tiles; see createSheetLayer
     it('hides every sheet of it, scans as well as DEM tiles', async () => {
       const { previewer } = previewerFor();
       previewer.geotiffs.set(tif('n40w105'), SCAN);
@@ -605,11 +579,9 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
 
       previewer.applyLayerState(new Map([[previewer.previewLayers[0].id, { visible: true, opacity: 0.3 }]]));
 
-      // Inside the expression that keeps the selected sheet solid
       expect(map.getLayer(`${RESOURCE_ID}-geojson-indexmap-polygons`).paint['fill-opacity']).toContain(0.3);
     });
 
-    // A query naming a layer the style doesn't hold comes back empty for every layer it names
     it('never asks MapLibre about the mosaic on a click', async () => {
       const { previewer } = previewerFor();
       await drawn(previewer);
@@ -644,7 +616,6 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect(onNotice).toHaveBeenLastCalledWith(undefined);
     });
 
-    // An index map with no mosaic is drawn as it always was, which says nothing about zooming
     it('says nothing for an index map with no mosaic', async () => {
       index = { type: 'FeatureCollection', features: INDEX_MAP.features.map(feature => ({ ...feature, properties: { label: 'sheet' } })) };
       const { previewer } = previewerFor();
@@ -657,9 +628,7 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
     });
   });
 
-  // So the spinner can say the sheets in view are still on their way; see IndexMapMosaic.syncLoading
   describe('saying it is loading', () => {
-    // What deck.gl would answer about the mosaic on the map, which these tests decide
     const answers = (previewer: TestIndexMapPreviewer, loaded: boolean) => Object.defineProperty(previewer.overlay.mosaic, 'isLoaded', { get: () => loaded, configurable: true });
 
     it('says so while the sheets in view are on their way, and says when they are in', async () => {
@@ -735,7 +704,6 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       expect(map.listenerCount('render')).toEqual(0);
     });
 
-    // A theme change draws the preview again with no clearPreview between
     it('leaves one listener of each kind after drawing twice', async () => {
       const { map, previewer } = previewerFor();
       await drawn(previewer);

@@ -5,8 +5,6 @@ import { dedupeFeatures, getFeatureTitle, propertyFilter } from './features';
 
 const SOURCE = 'ark-77981-gmgscj87k49-openindexmap';
 
-// An entry as an inspection answers with it: what names the feature, plus enough properties to tell
-// one entry's record from another's in the assertions
 const entry = (overrides: Partial<MapGeoJSONFeature>): MapGeoJSONFeature =>
   ({
     source: SOURCE,
@@ -80,7 +78,6 @@ describe('dedupeFeatures', () => {
   });
 });
 
-// HOT's OpenStreetMap exports, cut without --generate-ids: no ids, and the OSM id among the properties
 describe('dedupeFeatures, for a tileset without ids', () => {
   const HOT = 'hdx-c2334a9d-33ed-46ab-b239-cf99d985fa20';
   const tile = (overrides: Partial<MapGeoJSONFeature>) =>
@@ -153,10 +150,6 @@ describe('propertyFilter', () => {
   });
 });
 
-// Bright Angel as gov.usgs indexes it: fourteen editions of one sheet sharing an outline, listed oldest
-// first so the latest is drawn on top, with one label between them. MapLibre answers top down, layer by
-// layer - the label first, since it is drawn over everything, then the outlines and the fills, each
-// from the top of the stack down.
 describe('dedupeFeatures, for a stack under one label', () => {
   const EDITIONS = [19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6];
 
@@ -167,7 +160,6 @@ describe('dedupeFeatures, for a stack under one label', () => {
   const besideLabel = () => [...EDITIONS.map(outline), ...EDITIONS.map(fill)];
   const ids = (features: MapGeoJSONFeature[]) => features.map(feature => feature.id);
 
-  // Placement decides which edition gets the label, and it was the oldest: the first in the document
   it('lists the stack from the top, whichever edition the label names', () => {
     expect(ids(dedupeFeatures([label(6), ...besideLabel()]))).toEqual(EDITIONS);
     expect(ids(dedupeFeatures([label(12), ...besideLabel()]))).toEqual(EDITIONS);
@@ -177,7 +169,6 @@ describe('dedupeFeatures, for a stack under one label', () => {
     expect(dedupeFeatures([label(6), ...besideLabel()])).toEqual(dedupeFeatures(besideLabel()));
   });
 
-  // A point's label sits above the point, and a long sheet label runs out over its neighbours
   it('keeps a feature the click reached only through its label where the label put it', () => {
     const neighbour = label(23);
 
@@ -198,9 +189,6 @@ describe('getFeatureTitle', () => {
     expect(getFeatureTitle(entry({ id: 12, properties: { TRACT: '000300' } }))).toEqual('Feature');
   });
 
-  // The bug this row exists to avoid: an /identify response has no features until we ask for them, so
-  // we number the answer to have something to draw the selection from, and the first of them read as
-  // "Feature 0" every time - a number the reader has no way to recognize.
   it('says nothing of an id nobody put there', () => {
     expect(getFeatureTitle(entry({ id: 0, properties: { Pixel: '12' } }))).toEqual('Feature');
   });

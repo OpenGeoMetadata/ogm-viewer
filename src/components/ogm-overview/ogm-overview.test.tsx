@@ -1,10 +1,5 @@
 import { describe, it, expect, h, vi, beforeEach, afterEach } from '@stencil/vitest';
 
-// Rendered with Stencil's low-level render rather than @stencil/vitest's `render` wrapper, for the
-// same reason ogm-map's tests are: the wrapper re-throws whatever a lifecycle method leaves behind.
-// componentDidLoad never gets as far as a map here - happy-dom lays nothing out, so the container
-// never has the box whenSized waits for. What's under test is what happens once a map exists, so one
-// is handed to the component afterwards.
 import { render as stencilRender } from '@stencil/core';
 import { LngLat, Point, type FitBoundsOptions, type LngLatBounds, type LngLatBoundsLike } from 'maplibre-gl';
 
@@ -16,10 +11,6 @@ import LocationResource from '../../lib/resources/location';
 import { HIGHLIGHT_BOUNDS, markerImageId, RESULT_MARKERS, RESULT_NUMBERS, SEARCH_BOUNDS } from '../../lib/results';
 import MapLibreTheme, { darkBasemapStyle } from '../../lib/themes/maplibre';
 
-// Enough of a MapLibre map to draw numbered results on, to be pointed at them, and to hang the
-// controls off. MapLibre's own controls read a good deal of this as they are added - the titles to
-// label themselves with, the zoom limits to grey their buttons at, the projection to show, the
-// container to measure - because addControl below really runs onAdd.
 class FakeMap {
   sources = new Map<string, any>();
   layers = new Map<string, any>();
@@ -34,29 +25,20 @@ class FakeMap {
   listeners: Record<string, ((event: unknown) => void)[]> = {};
   onceListeners: Record<string, ((event: unknown) => void)[]> = {};
 
-  // Enough of the box-zoom handler to be switched on and off, and to have been caught mid-gesture
   boxZoom = { enable: vi.fn(), disable: vi.fn(), isEnabled: vi.fn(() => true), isActive: vi.fn(() => false), reset: vi.fn() };
 
-  // Enough of the cooperative-gestures handler to be switched on and off
   cooperativeGestures = { enable: vi.fn(), disable: vi.fn() };
 
-  // Written and read back, rather than recorded: which projection the map is in is what decides
-  // whether the camera clamps, and the globe button's own state is read straight off it
   projection: { type: string } | undefined = undefined;
   setProjection = vi.fn((spec: { type: string }) => (this.projection = spec));
   getProjection() {
     return this.projection;
   }
 
-  // Pixels read as degrees, upside down. Which is all this needs: what matters is which corner of a
-  // drag becomes which edge of the area reported, and the inversion is the part that matters, since
-  // screen y grows downward and latitude grows upward.
   unproject([x, y]: [number, number]) {
     return new LngLat(x, -y);
   }
 
-  // Resolving the corner the way Map.addControl does, so where a control lands can be asserted:
-  // whatever it was given, else whatever the control asks for, else top right.
   addControl(control: any, position?: string) {
     this.controls.push({ control, position: position ?? control.getDefaultPosition?.() ?? 'top-right', element: control.onAdd(this) });
   }
@@ -72,8 +54,6 @@ class FakeMap {
     const [key, bound] = this.delegated(event, layer, listener);
     this.listeners[key] = (this.listeners[key] ?? []).filter(other => other !== bound);
   }
-  // MapLibre takes a layer id in the middle when a listener is only interested in that layer's
-  // features, so the two shapes are told apart the way it tells them apart
   private delegated(event: string, layer: unknown, listener?: (event: unknown) => void): [string, (event: unknown) => void] {
     return listener ? [`${event}:${layer}`, listener] : [event, layer as (event: unknown) => void];
   }
@@ -82,15 +62,11 @@ class FakeMap {
     [...(this.onceListeners[event] ?? []).splice(0)].forEach(listener => listener(data));
   }
 
-  // 'moveend' is answered on the spot, because that is the one fitBounds waits on and there is no
-  // camera here to finish moving. Everything else is held until a test fires it - which is what lets
-  // the globe button's wait for a style document be asserted rather than assumed.
   once(event: string, listener: (event: unknown) => void) {
     if (event === 'moveend') return listener({});
     (this.onceListeners[event] ??= []).push(listener);
   }
 
-  // A marker is a picture now, so the images are as much part of what gets drawn as the layers are
   addImage(id: string, image: any) {
     this.images.set(id, image);
   }
@@ -104,7 +80,6 @@ class FakeMap {
     return [...this.images.keys()];
   }
 
-  // Handed new data rather than taken off and put back, which is what a redraw does now; see drawResults
   getSource(id: string) {
     return this.sources.get(id);
   }
@@ -129,7 +104,6 @@ class FakeMap {
   cameraForBounds() {
     return { center: [0, 0], zoom: 4 };
   }
-  // How much of a gap the camera can spare comes off the canvas; see fittablePadding
   getCanvas() {
     return { clientWidth: 800, clientHeight: 600 };
   }
@@ -213,7 +187,6 @@ afterEach(() => {
   consoleError.mockRestore();
 });
 
-// Mount the component, then hand it the map its own componentDidLoad couldn't build
 const renderOverview = async () => {
   const container = document.createElement('div');
   containers.push(container);
@@ -222,7 +195,6 @@ const renderOverview = async () => {
 
   const el = container.firstElementChild as Overview & { componentOnReady?: () => Promise<unknown> };
   await el.componentOnReady?.();
-  // Anything componentDidLoad reported on the way up is the WebGL gap, not what's under test
   consoleError.mockClear();
 
   const map = new FakeMap();
@@ -230,15 +202,11 @@ const renderOverview = async () => {
   return { el, map };
 };
 
-// One stylesheet's rules as text, which is how a sheet a component adopted can be compared with one
-// this file built: the component came out of the built bundle, so its copy of the library is not the
-// one this file's own imports name - see frameOf below for the same story told about a LngLatBounds.
 const cssOf = (sheet: CSSStyleSheet): string =>
   Array.from(sheet.cssRules)
     .map(rule => rule.cssText)
     .join('\n');
 
-// The Web Awesome theme as a component that took it should carry it
 const webAwesomeTheme = (): string => {
   const root = document.createElement('div').attachShadow({ mode: 'open' });
   adoptWebAwesomeTheme(root.host);
@@ -248,23 +216,15 @@ const webAwesomeTheme = (): string => {
 const MARKER_LAYERS = [RESULT_MARKERS];
 const BOX_LAYERS = (id: string) => [`${id}-fill`, `${id}-outline`];
 
-// Every layer an overview draws, in the order they are drawn in. All of them go on with the first draw
-// and none of them ever comes off: what a redraw changes is the data in them, which is what keeps a
-// highlight from flashing. See drawResults.
 const ALL_LAYERS = [...BOX_LAYERS(SEARCH_BOUNDS), ...BOX_LAYERS(HIGHLIGHT_BOUNDS), ...MARKER_LAYERS];
 
-// Whether one of the two boxes has anything in it. Both stay on the map holding nothing when there is
-// nothing to say, so being there is not the question.
 const drawnBox = (map: FakeMap, id: string) => (map.sources.get(id)?.data.features ?? []).length > 0;
 
 const layerIds = (map: FakeMap) => [...map.layers.keys()];
 const marked = (map: FakeMap) => map.sources.get(RESULT_NUMBERS).data.features.map((feature: GeoJSON.Feature) => feature.properties);
-// A pointer over some of the numbers, and a pointer leaving them, as MapLibre delegates each to a
-// listener bound to that layer. The features arrive in no promised order, so a test can say so.
 const pointAt = (map: FakeMap, ...labels: string[]) => map.fire(`mousemove:${RESULT_MARKERS}`, { features: labels.map(label => ({ properties: { label } })) });
 const pointAway = (map: FakeMap) => map.fire(`mouseleave:${RESULT_MARKERS}`);
 
-// Every number drawn as highlighted, and - where there should only be one - the one of them
 const highlightedLabels = (map: FakeMap): string[] =>
   marked(map)
     .filter((properties: { highlighted: boolean }) => properties.highlighted)
@@ -273,10 +233,6 @@ const highlightedLabel = (map: FakeMap) => highlightedLabels(map)[0];
 
 const framed = (map: FakeMap) => map.fitBounds.mock.calls.at(-1) as [LngLatBoundsLike, FitBoundsOptions];
 
-// Where the camera was pointed, as west, south, east, north. Two shapes arrive: a camera held to what
-// a globe can face is a LngLatBounds, and one that needed no holding is whatever it was given. Each
-// is read as it is rather than put through LngLatBounds.convert, because the bounds a component built
-// came out of the built bundle and so is not an instance of the class this file's own import names.
 const frameOf = (map: FakeMap): [number, number, number, number] => {
   const [bounds] = framed(map);
   if (!Array.isArray(bounds)) return boundsToBbox(bounds as LngLatBounds);
@@ -285,7 +241,6 @@ const frameOf = (map: FakeMap): [number, number, number, number] => {
   return [west, south, east, north];
 };
 
-// Long enough for a setTimeout(0) to have run, so a check deferred that way has had its turn
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
 describe('ogm-overview', () => {
@@ -298,8 +253,6 @@ describe('ogm-overview', () => {
     expect(layerIds(map)).toEqual(ALL_LAYERS);
   });
 
-  // A page of boxes says less than a page of numbers a reader can find again in the list beside the
-  // map. The two boxes that are drawn are the ones that answer a question; see below.
   it('draws nothing of a result but its number', async () => {
     const { el, map } = await renderOverview();
     el.records = [record('one', { dcat_bbox: CALIFORNIA })];
@@ -309,8 +262,6 @@ describe('ogm-overview', () => {
     expect(drawnBox(map, HIGHLIGHT_BOUNDS)).toBe(false);
   });
 
-  // Which is what `locationsFor` hands back, and what the library documents as the way to build these
-  // by hand: a record it could not place is a gap rather than a missing entry
   it('numbers a list of extents with gaps in it', async () => {
     const { el, map } = await renderOverview();
     el.previewers = [
@@ -348,8 +299,6 @@ describe('ogm-overview', () => {
     expect(map.sources.get(RESULT_NUMBERS).data.features[0].geometry.coordinates).toEqual([0, 0]);
   });
 
-  // The number is the row a reader sees beside the map, so closing the gap would point every result
-  // after it at the wrong row
   it('spends a number on a record it has nowhere to put', async () => {
     const { el, map } = await renderOverview();
     el.records = [record('one', { dcat_bbox: CALIFORNIA }), record('nowhere'), record('three', { dcat_bbox: ICELAND })];
@@ -367,7 +316,6 @@ describe('ogm-overview', () => {
     await el.onRecordsChange();
 
     expect(marked(map).map((properties: { label: string }) => properties.label)).toEqual(['1']);
-    // The same layers throughout, in the same order: what a redraw changes is the data in them
     expect(layerIds(map)).toEqual(ALL_LAYERS);
   });
 
@@ -376,7 +324,6 @@ describe('ogm-overview', () => {
     el.records = [];
     await el.load();
 
-    // Held to the half of the world a globe camera can face; see frameLocation
     expect(frameOf(map)).toEqual([-90, -85, 90, 85]);
   });
 
@@ -387,14 +334,10 @@ describe('ogm-overview', () => {
     await el.handleStyleLoad();
 
     expect(map.setProjection).toHaveBeenCalledWith({ type: 'globe' });
-    // The order matters: whether the camera clamps is read off the projection it is pointed in
     expect(map.setProjection.mock.invocationCallOrder[0]).toBeLessThan(map.fitBounds.mock.invocationCallOrder[0]);
     expect(map.setSky).toHaveBeenCalled();
   });
 
-  // A style loading is itself a projection change: it ends by setting whatever it names, and neither
-  // basemap names anything, so every style document arrives flat. Read as the reader's own choice,
-  // that flattened a globe on every theme swap.
   it('keeps the globe a style document resets on its way in', async () => {
     const { el, map } = await renderOverview();
     el.mapStyleLoaded = false;
@@ -409,11 +352,6 @@ describe('ogm-overview', () => {
     expect(map.setProjection).toHaveBeenCalledWith({ type: 'globe' });
   });
 
-  // The sequence a page that sets the theme as its maps are being built produces, which is what
-  // GeoBlacklight's own theme initializer does: the swap is asked for while the first style document
-  // is still on its way, so that document still lands and raises the flag, and the reset the second
-  // one arrives with falls after it. Taken for the reader reaching for the globe button, that left
-  // the map flat and kept it flat, because the choice was then remembered and put back.
   it('keeps the globe through a swap asked for before its first style had loaded', async () => {
     const { el, map } = await renderOverview();
     el.records = [record('one', { dcat_bbox: CALIFORNIA })];
@@ -424,12 +362,10 @@ describe('ogm-overview', () => {
     map.fire('style.load');
     await swapped;
 
-    // The first document landing, which puts the globe into it and raises the flag
     await el.handleStyleLoad();
 
     expect(map.setProjection).toHaveBeenLastCalledWith({ type: 'globe' });
 
-    // And then the document the swap asked for, arriving in the projection it names
     map.projection = { type: 'mercator' };
     await el.handleProjectionTransition();
     await el.handleStyleLoad();
@@ -446,8 +382,6 @@ describe('ogm-overview', () => {
     expect(map.setProjection).toHaveBeenCalledWith({ type: 'mercator' });
   });
 
-  // A globe camera has no answer for anything wider than the half of the world facing it: it hands
-  // back nothing and leaves the camera where it was, rather than saying so
   it('holds a globe camera to the half of the world it can point at', async () => {
     const { el, map } = await renderOverview();
     el.records = [record('the-world', { dcat_bbox: THE_WORLD })];
@@ -465,16 +399,12 @@ describe('ogm-overview', () => {
     expect(frameOf(map)).toEqual([-180, -85, 180, 85]);
   });
 
-  // Which is what the globe button is for: the whole of a set of results too wide to fit on a sphere
-  // is only visible on a flat map
   it('frames what it drew again when the reader changes projection', async () => {
     const { el, map } = await renderOverview();
     el.records = [record('the-world', { dcat_bbox: THE_WORLD })];
     await el.load();
     const framedOnce = map.fitBounds.mock.calls.length;
 
-    // The map is already flat by the time it says so: MapLibre changes the projection and announces
-    // the change afterwards, and what the camera does is read off the map rather than off the news
     map.projection = { type: 'mercator' };
     await el.handleProjectionTransition();
 
@@ -482,9 +412,6 @@ describe('ogm-overview', () => {
     expect(frameOf(map)).toEqual([-180, -85, 180, 85]);
   });
 
-  // What the map is built already pointed at, before a single previewer has been asked anything: see
-  // MapPreviewer.declaredBounds. They have to be the extents measure() goes on to settle on, or
-  // opening there would move the reader twice instead of saving them the trip in from the world.
   it('opens on the extents it goes on to frame', async () => {
     const { el } = await renderOverview();
     el.records = [record('one', { dcat_bbox: CALIFORNIA }), record('nowhere'), record('two', { locn_geometry: 'POINT(-122.17 37.43)' })];
@@ -495,7 +422,6 @@ describe('ogm-overview', () => {
     expect(opening).toEqual(el.extents);
   });
 
-  // There may be nothing named on the basemap to place a page of results any closer by
   it('opens no closer than city scale, whatever it was asked to frame', async () => {
     const { el, map } = await renderOverview();
     el.records = [record('a-point', { locn_geometry: 'POINT(-122.17 37.43)' })];
@@ -504,8 +430,6 @@ describe('ogm-overview', () => {
     expect(framed(map)[1].maxZoom).toEqual(12);
   });
 
-  // The gap the theme keeps around an overview, which is wider than the one a preview gets: a marker
-  // drawn against the edge of a map this small reads as running off it.
   it('holds what it frames away from the edge of the map', async () => {
     const { el, map } = await renderOverview();
     el.records = [record('one', { dcat_bbox: CALIFORNIA })];
@@ -533,11 +457,6 @@ describe('ogm-overview', () => {
     expect(map.remove).toHaveBeenCalled();
   });
 
-  // What a page preserving this element across a Turbo visit does: detach it from the old document,
-  // then reattach it to the new one, before anything else gets a turn to run. appendChild on an
-  // already-connected element does exactly that in one step - disconnect, then reconnect - which is
-  // what fires disconnectedCallback here rather than a direct call to it. A map that survives keeps
-  // its canvas, its loaded tiles, everything a rebuild would have thrown away and fetched again.
   it('keeps its map when a disconnect is followed by a reconnect, rather than tearing it down', async () => {
     const { el, map } = await renderOverview();
     document.body.appendChild(el);
@@ -558,7 +477,6 @@ describe('ogm-overview search filter', () => {
     await el.onSearchBoundsChange();
 
     expect(frameOf(map)).toEqual([-124.41, 32.53, -114.13, 42.01]);
-    // Only the view of it changed; the results are still on the map, still numbered
     expect(marked(map).map((properties: { label: string }) => properties.label)).toEqual(['1']);
   });
 
@@ -583,8 +501,6 @@ describe('ogm-overview search filter', () => {
     expect(drawnBox(map, SEARCH_BOUNDS)).toBe(false);
   });
 
-  // The same gap everything else gets, which is what makes the box readable as a box - and a reader
-  // who searched one street shouldn't come back to a view of the city, so no zoom limit
   it('gives a search filter the same room it gives everything else', async () => {
     const { el, map } = await renderOverview();
     el.searchBounds = CALIFORNIA;
@@ -620,7 +536,6 @@ describe('ogm-overview search filter', () => {
     expect(framed(map)[1].maxZoom).toEqual(12);
   });
 
-  // Which is how a page rendered by a server says what its map is filtered to, without any JavaScript
   it('takes a filter from an attribute', async () => {
     const { el, map } = await renderOverview();
     el.setAttribute('search-bounds', CALIFORNIA);
@@ -637,12 +552,10 @@ describe('ogm-overview search filter', () => {
     const { el, map } = await renderOverview();
     el.records = [record('one', { dcat_bbox: ICELAND })];
     el.searchBounds = 'somewhere nice';
-    // Whatever the watcher said about it on the way in; what is under test is the load below
     consoleWarn.mockClear();
     await el.load();
 
     expect(consoleWarn).toHaveBeenCalledWith('Could not read searchBounds:', 'somewhere nice');
-    // Once per load, rather than once for the box and again for the camera
     expect(consoleWarn).toHaveBeenCalledTimes(1);
     expect(frameOf(map)).toEqual([-24.55, 63.39, -13.49, 66.57]);
     consoleWarn.mockRestore();
@@ -658,7 +571,6 @@ describe('ogm-overview default view', () => {
     expect(frameOf(map)).toEqual([-124.41, 32.53, -114.13, 42.01]);
   });
 
-  // The whole point of it: a page states where the map should open, not what it should say is there
   it('draws nothing for it', async () => {
     const { el, map } = await renderOverview();
     el.viewBounds = CALIFORNIA;
@@ -668,8 +580,6 @@ describe('ogm-overview default view', () => {
     expect(layerIds(map)).toEqual(ALL_LAYERS);
   });
 
-  // An active filter is a stronger statement than a default opening point - though in practice a
-  // page never states both at once
   it('loses to a search filter when both are given', async () => {
     const { el, map } = await renderOverview();
     el.searchBounds = ICELAND;
@@ -688,8 +598,6 @@ describe('ogm-overview default view', () => {
     expect(frameOf(map)).toEqual([-24.55, 63.39, -13.49, 66.57]);
   });
 
-  // Unlike everything else this frames: a page that set this has already chosen the exact box the
-  // map should show, so nothing here pads it or holds it back from zooming in past city scale
   it('is framed exactly, with no gap and no ceiling on how far in it can zoom', async () => {
     const { el, map } = await renderOverview();
     el.viewBounds = CALIFORNIA;
@@ -721,8 +629,6 @@ describe('ogm-overview default view', () => {
     expect(frameOf(map)).toEqual([-90, -85, 90, 85]);
   });
 
-  // Which is how a page rendered by a server says where its map should default to, without any
-  // JavaScript at all
   it('is read from an attribute', async () => {
     const { el, map } = await renderOverview();
     el.setAttribute('view-bounds', CALIFORNIA);
@@ -755,15 +661,12 @@ describe('ogm-overview highlight', () => {
     return rendered;
   };
 
-  // The colors of a hovered feature, since being pointed at is what is being said - by a page here,
-  // and by the reader's own pointer in the tests below
   it('brings the result it was pointed at to the front, in the colors of a highlight', async () => {
     const { el, map } = await two();
     el.highlighted = 2;
     el.onHighlightedChange();
 
     expect(highlightedLabel(map)).toEqual('2');
-    // It wears a picture of its own, which is what carries the color, and sorts above every other
     const style = el.mapTheme.getStyle();
     expect(marked(map).map((properties: { icon: string }) => properties.icon)).toEqual([markerImageId('1', style), markerImageId('2', style, true)]);
     expect(map.layers.get(RESULT_MARKERS).layout['symbol-sort-key']).toEqual(['case', ['get', 'highlighted'], 1, ['-', 0, ['to-number', ['get', 'label']]]]);
@@ -787,8 +690,6 @@ describe('ogm-overview highlight', () => {
     expect(highlightedLabel(map)).toEqual('2');
   });
 
-  // An attribute is always a string, and Stencil hands one over as it stands for a prop that takes
-  // either a number or a string
   it('highlights a place written down, which is what an attribute hands over', async () => {
     const { el, map } = await two();
     el.setAttribute('highlighted', '2');
@@ -799,7 +700,6 @@ describe('ogm-overview highlight', () => {
     expect(highlightedLabel(map)).toEqual('2');
   });
 
-  // An id we hold is a match; a place is only a count
   it('prefers a result whose id is a number to the row of that number', async () => {
     const { el, map } = await renderOverview();
     el.records = [record('3', { dcat_bbox: CALIFORNIA }), record('1', { dcat_bbox: ICELAND })];
@@ -822,7 +722,6 @@ describe('ogm-overview highlight', () => {
     expect(highlightedLabel(map)).toEqual('1');
   });
 
-  // There is no number on the map to bring forward and no extent to draw around, which is the truth
   it('highlights nothing for a result it has nowhere to put', async () => {
     const { el, map } = await renderOverview();
     el.records = [record('one', { dcat_bbox: CALIFORNIA }), record('nowhere')];
@@ -835,9 +734,6 @@ describe('ogm-overview highlight', () => {
     expect(drawnBox(map, HIGHLIGHT_BOUNDS)).toBe(false);
   });
 
-  // A map with no highlight, rather than one with the wrong highlight. Each of these is a value a page
-  // can plausibly arrive at - a name nothing carries, a row past the end, a row counted from zero, a
-  // number that is no row at all - and none of them may land on a neighbour.
   it('highlights nothing it cannot find', async () => {
     const { el, map } = await two();
 
@@ -850,8 +746,6 @@ describe('ogm-overview highlight', () => {
     }
   });
 
-  // The one it could land on by accident: the row before the end, if a place past the end were let
-  // through and read modulo the list, or if a fractional place were rounded
   it('does not round a place onto the row beside it', async () => {
     const { el, map } = await two();
 
@@ -873,10 +767,6 @@ describe('ogm-overview highlight', () => {
     expect(drawnBox(map, HIGHLIGHT_BOUNDS)).toBe(false);
   });
 
-  // The redraw a hover drives, over and over as the pointer moves down the list beside the map. Nothing
-  // comes off the map to do it: dropping a source drops its tiles on the spot, and taking a marker's
-  // picture off has MapLibre place every symbol on the map again, so either one costs a frame with no
-  // numbers in it - which is what a reader sees as a flash. See drawResults.
   it('takes nothing off the map to move the highlight', async () => {
     const { el, map } = await two();
     const removeLayer = vi.spyOn(map, 'removeLayer');
@@ -895,7 +785,6 @@ describe('ogm-overview highlight', () => {
     expect(removeImage).not.toHaveBeenCalled();
   });
 
-  // Something on the page has said which result matters, not where to look
   it('leaves the camera where it is when the highlight changes', async () => {
     const { el, map } = await two();
     const framedOnce = map.fitBounds.mock.calls.length;
@@ -909,22 +798,18 @@ describe('ogm-overview highlight', () => {
 });
 
 describe('ogm-overview pointer', () => {
-  // The pointer is bound to the layer in componentDidLoad, which never gets as far as a map here; see
-  // renderOverview. Everything else about these is what the reader does.
   const hovering = async () => {
     const rendered = await renderOverview();
     rendered.el.records = [record('one', { dcat_bbox: CALIFORNIA }), record('two', { dcat_bbox: ICELAND })];
     await rendered.el.load();
     rendered.el.followPointer();
 
-    // What a page would be listening for, in the order it arrives
     const reported: unknown[] = [];
     rendered.el.addEventListener('highlightChange', event => reported.push((event as CustomEvent).detail));
 
     return { ...rendered, reported };
   };
 
-  // The reader's own way of asking the same question the `highlighted` prop asks
   it('highlights the number the pointer is over, and draws its extent', async () => {
     const { map } = await hovering();
     pointAt(map, '2');
@@ -942,8 +827,6 @@ describe('ogm-overview pointer', () => {
     expect(drawnBox(map, HIGHLIGHT_BOUNDS)).toBe(false);
   });
 
-  // Markers overlap, and the one the reader can see is the earliest of them, since that is how they are
-  // sorted. MapLibre hands back everything under the pointer without promising an order.
   it('highlights the number drawn on top where two of them overlap', async () => {
     const { map } = await hovering();
     pointAt(map, '2', '1');
@@ -951,7 +834,6 @@ describe('ogm-overview pointer', () => {
     expect(highlightedLabels(map)).toEqual(['1']);
   });
 
-  // Two separate statements about two different rows, and neither is a correction of the other
   it('highlights what the page named and what the pointer is over', async () => {
     const { el, map } = await hovering();
     el.highlighted = 1;
@@ -962,7 +844,6 @@ describe('ogm-overview pointer', () => {
     expect(map.sources.get(HIGHLIGHT_BOUNDS).data.features).toHaveLength(2);
   });
 
-  // The pointer reports every pixel it crosses, and a marker is a good many pixels wide
   it('redraws nothing while the pointer stays on the same number', async () => {
     const { map } = await hovering();
     pointAt(map, '2');
@@ -974,8 +855,6 @@ describe('ogm-overview pointer', () => {
     expect(setData).not.toHaveBeenCalled();
   });
 
-  // Something on the page has said which result matters, not where to look - and a pointer resting on a
-  // number has said even less than that
   it('leaves the camera where it is when the pointer moves', async () => {
     const { map } = await hovering();
     const framed = map.fitBounds.mock.calls.length;
@@ -985,8 +864,6 @@ describe('ogm-overview pointer', () => {
     expect(map.fitBounds.mock.calls.length).toEqual(framed);
   });
 
-  // The place the pointer named now names a different result, and MapLibre won't say so again: it
-  // reports a pointer that moves, and this one is holding still.
   it('forgets what the pointer was over when the results change', async () => {
     const { el, map } = await hovering();
     pointAt(map, '2');
@@ -997,8 +874,6 @@ describe('ogm-overview pointer', () => {
     expect(highlightedLabels(map)).toEqual([]);
   });
 
-  // What a list beside the map needs to light up the row the reader is pointing at. Both terms, since a
-  // page holds its results in one or the other.
   it('says which result the pointer is over, by place and by id', async () => {
     const { map, reported } = await hovering();
     pointAt(map, '2');
@@ -1006,7 +881,6 @@ describe('ogm-overview pointer', () => {
     expect(reported).toEqual([{ place: 2, id: 'two' }]);
   });
 
-  // The id of the resource a previewer draws, which is what that path has instead of a record
   it('names the resource a previewer draws when that is what it was given', async () => {
     const { el, map, reported } = await renderOverview().then(async rendered => {
       rendered.el.previewers = [new LocationPreviewer(new LocationResource('a-resource', { type: 'Point', coordinates: [0, 0] }))];
@@ -1022,7 +896,6 @@ describe('ogm-overview pointer', () => {
     expect(reported).toEqual([{ place: 1, id: 'a-resource' }]);
   });
 
-  // Null rather than undefined, because that is what a CustomEvent carries either way
   it('says so when the pointer leaves', async () => {
     const { map, reported } = await hovering();
     pointAt(map, '2');
@@ -1043,8 +916,6 @@ describe('ogm-overview pointer', () => {
     ]);
   });
 
-  // A page that has said which result matters already knows. Reporting it back is a loop waiting to be
-  // wired, since the obvious handler for this event is the one that sets the prop.
   it('says nothing when the highlight is set from outside', async () => {
     const { el, reported } = await hovering();
     el.highlighted = 2;
@@ -1056,7 +927,6 @@ describe('ogm-overview pointer', () => {
     expect(reported).toEqual([]);
   });
 
-  // Or the row stays lit beside a map that no longer has that marker on it
   it('says the pointer is over nothing when the results change under it', async () => {
     const { el, map, reported } = await hovering();
     pointAt(map, '2');
@@ -1067,7 +937,6 @@ describe('ogm-overview pointer', () => {
     expect(reported).toEqual([{ place: 2, id: 'two' }, null]);
   });
 
-  // A style document is emptied and rebuilt by a theme swap, but a layer listener is the map's own
   it('goes on following the pointer after a theme swap', async () => {
     const { el, map } = await hovering();
 
@@ -1083,8 +952,6 @@ describe('ogm-overview pointer', () => {
 });
 
 describe('ogm-overview controls', () => {
-  // The no-pitch test as much as the zoom one: with no compass there is no control that can turn or
-  // tilt the map, which is what the compass button and its pitch visualiser are for
   it('offers zoom buttons and no compass', async () => {
     const { el, map } = await renderOverview();
     el.addControls();
@@ -1112,8 +979,6 @@ describe('ogm-overview geosearch', () => {
     expect(map.boxZoom.disable).toHaveBeenCalled();
   });
 
-  // Top left because the zoom and globe buttons are top right, and the attribution both basemaps
-  // require is bottom right
   it('puts the help text over the top left of the map', async () => {
     const { el, map } = await renderOverview();
     el.geosearch = true;
@@ -1155,8 +1020,6 @@ describe('ogm-overview geosearch', () => {
     expect(map.boxZoom.enable).not.toHaveBeenCalled();
   });
 
-  // A disabled handler stops being offered the mouseup that would have cleared its rectangle and the
-  // crosshair cursor, so a gesture caught halfway has to be called off first
   it('clears a gesture it was switched off partway through', async () => {
     const { el, map } = await renderOverview();
     el.geosearch = true;
@@ -1195,8 +1058,6 @@ describe('ogm-overview geosearch', () => {
     expect(element.hidden).toBe(false);
   });
 
-  // The whole point of the gesture: what comes out is the box the reader drew, as an area a query can
-  // state. The fake reads pixels as degrees upside down, so the top of the box is its north edge.
   it('reports the area the reader drew, in west, south, east, north', async () => {
     const { el } = await renderOverview();
     const areas: [number, number, number, number][] = [];
@@ -1217,8 +1078,6 @@ describe('ogm-overview geosearch', () => {
     expect(areas).toEqual([[10, -40, 30, -10]]);
   });
 
-  // Which edge is west is decided on screen rather than by longitude: taking the smaller of 175 and
-  // -175 for west would describe the other 350 degrees. See boundsToBbox for the form it comes out in.
   it('reports an area straddling the antimeridian as the strait it covers', async () => {
     const { el, map } = await renderOverview();
     map.unproject = ([x, y]: [number, number]) => new LngLat(x > 0 ? -175 : 175, -y);
@@ -1230,13 +1089,8 @@ describe('ogm-overview geosearch', () => {
     expect(areas).toEqual([[175, -40, -175, -10]]);
   });
 
-  // Screen y and latitude only run together while the pole is off screen. Pan one into view on a globe
-  // and a line of pixels crosses it, so the higher pixel can be the lower latitude - and a box dragged
-  // over the pole would otherwise come out with its south edge north of its north edge, which is a
-  // bbox no query can answer.
   it('reports a box dragged over a pole the right way up', async () => {
     const { el, map } = await renderOverview();
-    // The far side of the pole, where latitude starts coming back down again
     map.unproject = ([, y]: [number, number]) => new LngLat(0, y < 20 ? 80 : 88);
     const areas: [number, number, number, number][] = [];
     el.addEventListener('boundsChange', event => areas.push((event as CustomEvent<[number, number, number, number]>).detail));
@@ -1248,8 +1102,6 @@ describe('ogm-overview geosearch', () => {
     expect([south, north]).toEqual([80, 88]);
   });
 
-  // Under MapLibre's own line between a click and a drag, no rectangle was ever drawn - and a search
-  // the reader got no sight of is one they didn't ask for
   it('reports nothing for a shift-click that never drew a box', async () => {
     const { el } = await renderOverview();
     const areas: unknown[] = [];
@@ -1263,7 +1115,6 @@ describe('ogm-overview geosearch', () => {
   it('says so, and reports nothing, when it cannot read the area drawn', async () => {
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { el, map } = await renderOverview();
-    // A flat map's unproject can hand back a latitude past a pole, which no bounds can hold
     map.unproject = ([x]: [number, number]) => ({ lng: x, lat: 120 }) as LngLat;
     const areas: unknown[] = [];
     el.addEventListener('boundsChange', event => areas.push((event as CustomEvent).detail));
@@ -1312,7 +1163,6 @@ describe('ogm-overview theme', () => {
 
     expect(map.setStyle).toHaveBeenCalledWith(darkBasemapStyle);
 
-    // What setStyle would have emptied, emptied - and then drawn again by the load that follows it
     map.layers.clear();
     map.sources.clear();
     await el.handleStyleLoad();
@@ -1320,8 +1170,6 @@ describe('ogm-overview theme', () => {
     expect(layerIds(map)).toEqual(ALL_LAYERS);
   });
 
-  // GeoBlacklight hands over its own basemap this way - a URL to any style document - and each
-  // mode's override is independent of the other's.
   it('swaps in a caller’s own basemap for the mode it names one for', async () => {
     const { el, map } = await renderOverview();
 
@@ -1335,12 +1183,7 @@ describe('ogm-overview theme', () => {
   });
 });
 
-// componentDidLoad waits for its container to have a box, which lands in a later task than the one
-// that rendered - so there is a window in which the overview can be taken off the page while it is
-// still waiting. Nothing may start observing the container after that: whenSized gives up only once
-// the container has a box, and a detached one never gets one, so the observer would outlive the component.
 describe('ogm-overview taken off the page while it waits', () => {
-  // Mounted without being handed a map, so componentDidLoad is left where it really parks
   const mount = async () => {
     const container = document.createElement('div');
     containers.push(container);
@@ -1352,7 +1195,6 @@ describe('ogm-overview taken off the page while it waits', () => {
     return { container, el };
   };
 
-  // Counts what gets observed, since that is the thing that outlives the component
   const countObservers = () => {
     const real = globalThis.ResizeObserver;
     const built: unknown[] = [];
@@ -1365,8 +1207,6 @@ describe('ogm-overview taken off the page while it waits', () => {
     return { built, restore: () => (globalThis.ResizeObserver = real) };
   };
 
-  // Driven by hand rather than by whatever the environment does with a lifecycle method, so where it
-  // has got to when the overview comes off the page is not left to chance
   const didLoad = async (el: Overview) => {
     void el.componentDidLoad();
     await new Promise(resolve => setTimeout(resolve, 0));

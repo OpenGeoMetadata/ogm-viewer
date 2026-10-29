@@ -7,7 +7,6 @@ import TileJsonVectorPreviewer from './tilejson-vector';
 import TileJsonResource from '../resources/tilejson';
 import type { MapLibreStyle } from '../themes/maplibre';
 
-// Just enough of a MapLibre map to record what the previewer adds
 class FakeMap {
   sources = new Map<string, any>();
   layers = new Map<string, any>();
@@ -25,7 +24,6 @@ class FakeMap {
     return this.layers.get(id);
   }
   addLayer(layer: any) {
-    // MapLibre refuses a layer whose source hasn't been added yet
     if (!this.sources.has(layer.source)) throw new Error(`No source ${layer.source} for layer ${layer.id}`);
     this.layers.set(layer.id, layer);
   }
@@ -33,7 +31,6 @@ class FakeMap {
     this.layers.delete(id);
   }
   setPaintProperty(id: string, name: string, value: unknown) {
-    // MapLibre refuses to style a layer the current style doesn't hold
     const layer = this.layers.get(id);
     if (!layer) throw new Error(`No layer ${id} to paint`);
     layer.paint = { ...layer.paint, [name]: value };
@@ -50,8 +47,6 @@ class FakeMap {
   }
 }
 
-// The previewers only read the colors and label styles, none of which these tests assert on but the
-// selected ones
 const style = {
   opacity: 0.8,
   dataColor: '#00f',
@@ -70,7 +65,6 @@ const style = {
 const TILEJSON_URL = 'https://example.com/tilejson.json';
 const BALKANS_BOUNDS: [number, number, number, number] = [19.333333, 39.75, 29.333333, 43.083333];
 
-// A raster tileset, as a service like titiler describes one
 const rasterDoc = {
   tilejson: '3.0.0',
   tiles: ['https://example.com/tiles/{z}/{x}/{y}@1x.png'],
@@ -79,7 +73,6 @@ const rasterDoc = {
   bounds: BALKANS_BOUNDS,
 };
 
-// A vector tileset with more than one layer in its tiles
 const vectorDoc = {
   tilejson: '3.0.0',
   tiles: ['https://example.com/tiles/{z}/{x}/{y}.pbf'],
@@ -87,8 +80,6 @@ const vectorDoc = {
   bounds: BALKANS_BOUNDS,
 };
 
-// Serve a TileJSON document at the source URL. Every source fetches it lazily, so nothing has been
-// requested until the previewer asks.
 const serve = (doc: object) => {
   vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(doc)));
   return new TileJsonResource('princeton-fk4544658v', TILEJSON_URL);
@@ -154,12 +145,8 @@ describe('TileJsonRasterPreviewer#preview', () => {
   });
 });
 
-// The genuinely multi-row case: a tileset holding more than one named layer. Every other previewer
-// yields exactly one row in production, so this is where independent per-layer control is exercised.
 describe('TileJsonVectorPreviewer#previewLayers', () => {
   const SUFFIXES = ['polygons', 'polygon-outlines', 'lines', 'points', 'polygon-labels', 'line-labels', 'point-labels'];
-  // Each geometry layer drawn again for the selected feature, by feature-state and by matching for a
-  // feature with no id: hidden with its row, never queried
   const SELECTED_SUFFIXES = ['polygons-selected', 'polygon-outlines-selected', 'lines-selected', 'points-selected'];
   const MATCHED_SUFFIXES = ['polygons-matched', 'polygon-outlines-matched', 'lines-matched', 'points-matched'];
   const ids = (layerId: string, suffixes: string[]) => suffixes.map(suffix => `princeton-fk4544658v-tilejson-${layerId}-${suffix}`);
@@ -199,7 +186,6 @@ describe('TileJsonVectorPreviewer#previewLayers', () => {
     styleLayerIds('places').forEach(id => expect(map.layers.get(id).layout.visibility).toEqual('none'));
     styleLayerIds('districts').forEach(id => expect(map.layers.get(id).layout.visibility).toEqual('visible'));
     expect(previewer.visibleLayerIds).toEqual(ids('districts', SUFFIXES));
-    // One row still drawn is still a drawn preview
     expect(previewer.anyLayerVisible).toBe(true);
   });
 
@@ -209,7 +195,6 @@ describe('TileJsonVectorPreviewer#previewLayers', () => {
     previewer.applyLayerState(new Map([['princeton-fk4544658v-tilejson-places', { visible: true, opacity: 0.5 }]]));
 
     expect(map.layers.get('princeton-fk4544658v-tilejson-places-lines').paint['line-opacity']).toEqual(0.5);
-    // The row the user never touched keeps the opacity the theme drew it at
     expect(map.layers.get('princeton-fk4544658v-tilejson-districts-lines').paint['line-opacity']).toEqual(style.opacity);
   });
 
@@ -270,13 +255,10 @@ describe('TileJsonVectorPreviewer#preview', () => {
   it('names the layer within the tiles that each style layer reads', async () => {
     const { map } = await preview(vectorDoc);
 
-    // Without this a layer would draw from whichever layer of the tiles came first
     expect(map.layers.get('princeton-fk4544658v-tilejson-places-points')['source-layer']).toEqual('places');
     expect([...map.layers.values()].every(layer => layer['source-layer'])).toBe(true);
   });
 
-  // A tile's ids say nothing about which of its features is drawn last, so there is no key that would
-  // give a stack's label to the one on top; see GeoJsonPreviewer for a source whose ids do
   it('leaves its labels to be placed in the order its tiles hold them', async () => {
     const { map } = await preview(vectorDoc);
     const labels = [...map.layers.values()].filter(layer => layer.type === 'symbol');
@@ -294,14 +276,11 @@ describe('TileJsonVectorPreviewer#preview', () => {
   });
 });
 
-// A tileset cut by tippecanoe without --generate-ids, the way HOT cuts its OpenStreetMap exports: no
-// feature ids, so nothing for feature-state to hang a selection on, and the OSM id only a property
 describe('TileJsonVectorPreviewer#matchSelection', () => {
   const SOURCE = 'princeton-fk4544658v-tilejson';
   const layerId = (layer: string, suffix: string) => `${SOURCE}-${layer}-${suffix}`;
   const MATCHED = ['polygons-matched', 'polygon-outlines-matched', 'lines-matched', 'points-matched'];
 
-  // MVT geometry types, which is what a filter's ['geometry-type'] reads
   const POINT = 1;
   const POLYGON = 3;
 
@@ -321,11 +300,9 @@ describe('TileJsonVectorPreviewer#matchSelection', () => {
     return { map, previewer };
   };
 
-  // Whether MapLibre would draw a tile feature saying these things in this style layer
   const draws = (map: FakeMap, id: string, properties: object, type = POLYGON): boolean =>
     featureFilter(map.layers.get(id).filter, `layers.${id}.filter`).filter({ zoom: 12 }, { type, properties } as never) as boolean;
 
-  // What a paint property comes to for a feature with no state at all, which is every feature without an id
   const paint = (map: FakeMap, id: string, name: string): unknown => {
     const layer = map.layers.get(id);
     const spec = (latest as unknown as Record<string, Record<string, object>>)[`paint_${layer.type}`][name];
@@ -352,7 +329,6 @@ describe('TileJsonVectorPreviewer#matchSelection', () => {
     expect(draws(map, layerId('places', 'polygons-matched'), { ...temple.properties, id: 'way/210284649' })).toBe(false);
   });
 
-  // Every tile holding a piece of the feature holds the same properties, in whatever order
   it('matches every piece of it, however a tile lists its properties', async () => {
     const { map, previewer } = await preview();
 
@@ -387,7 +363,6 @@ describe('TileJsonVectorPreviewer#matchSelection', () => {
     expect(draws(map, layerId('places', 'polygons-matched'), temple.properties)).toBe(false);
   });
 
-  // A filter of no conditions would match the whole layer
   it('draws nothing for a feature with nothing to match it by', async () => {
     const { map, previewer } = await preview();
 

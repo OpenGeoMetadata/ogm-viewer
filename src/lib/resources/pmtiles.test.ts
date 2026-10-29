@@ -6,8 +6,6 @@ import type { RequestTransform } from '../request';
 
 const URL = 'https://example.com/tiles.pmtiles';
 
-// The archive is private; reach in the way wms.test.ts already does for a protected method,
-// rather than widening the field just for this.
 const archiveOf = (resource: PMTilesResource) => (resource as any).archive;
 
 describe('PMTilesResource', () => {
@@ -53,8 +51,6 @@ describe('PMTilesResource', () => {
     expect(seen).toEqual(['tile']);
   });
 
-  // The protocol handler looks archives up by the exact URL getMapLibreSourceUrl() embeds in the
-  // pmtiles:// source, so a rewritten URL would make this instance unreachable from a tile request.
   it('keeps the plain resource url in the pmtiles:// source even when the transform rewrote it', () => {
     const transform: RequestTransform = () => ({ url: 'https://proxy.example.com/tiles.pmtiles', headers: { Authorization: 'Bearer token' } });
     const resource = new PMTilesResource('id', URL, undefined, transform);
@@ -70,7 +66,6 @@ describe('PMTilesResource', () => {
     expect(addSpy).toHaveBeenCalledWith(archiveOf(resource));
   });
 
-  // The archive and the disjoint box from https://github.com/OpenGeoMetadata/ogm-viewer/issues/208
   describe('bounds', () => {
     const header = { minLon: -123.532115, minLat: 36.893111, maxLon: -121.208298, maxLat: 38.864317 };
     const recordBounds: [[number, number], [number, number]] = [

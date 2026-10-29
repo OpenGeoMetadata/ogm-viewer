@@ -24,7 +24,6 @@ import OgmRecord from '../../lib/record';
 import { resolveRequest } from '../../lib/request';
 import MapLibreTheme from '../../lib/themes/maplibre';
 
-// A component for locating a single record on a map using its geometry
 @Component({
   tag: 'ogm-locator',
   styleUrl: 'ogm-locator.css',
@@ -33,37 +32,25 @@ import MapLibreTheme from '../../lib/themes/maplibre';
 export class OgmLocator {
   @Element() el!: HTMLElement;
   @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
-  // A caller's own basemap for each mode, as a URL to a MapLibre style document; see
-  // MapLibreTheme.getBaseMapStyle. Undefined keeps this library's own default.
   @Prop() darkBasemap?: string;
   @Prop() lightBasemap?: string;
   @Prop() record?: OgmRecord;
   @Prop() previewer?: LocationPreviewer; // Overrides record if passed
 
-  // A URL to fetch an Aardvark record from - the same one <ogm-viewer> takes. Sets `record`.
   @Prop() recordUrl?: string;
 
-  /**
-   * Whether a wheel needs the command key, and a touch drag needs a second finger, before either
-   * reaches the map - see MapLibre's CooperativeGesturesHandler. On by default, since a small map
-   * embedded in a page must not eat the scroll a reader meant for the page around it. A page that
-   * gives the map the whole screen, or has its own way of keeping the two apart, can turn it off.
-   */
+  /** Require a modifier for scrolling and two fingers for touch dragging. */
   @Prop() cooperativeGestures: boolean = true;
   @State() error?: PreviewError;
 
   private map: MapLibreMap;
   private mapTheme: MapLibreTheme;
 
-  // Used to prevent trying to style layers before the map is ready
   private mapStyleLoaded: boolean = false;
 
-  // Which projection to open a new style document in. Held only for that: a swap arrives flat,
-  // because a style carries its own projection and neither basemap names one, so the map forgets what
-  // the reader was looking at. Everything else asks the map - see readProjection.
+  // Keep the projection across basemap swaps, which otherwise reset it to the style default.
   private projection: MapProjection = 'globe';
 
-  // What is currently drawn, if there is anything to draw
   private drawn?: LocationPreviewer;
 
   componentWillLoad() {
@@ -74,53 +61,36 @@ export class OgmLocator {
   async componentDidLoad() {
     const container = getElement(this.el, '#map');
 
-    // A locator that came and went before this ran would otherwise still leave whenSized's
-    // ResizeObserver behind, watching a container that has no box and so will never resize.
     if (!this.el.isConnected) return;
 
-    // Wait until we're inside an element that actually has a box to draw the map
-    // into, otherwise MapLibre will throw errors
     await whenSized(container);
 
-    // Taken back off the page while we waited, so there is nothing left to build a map in
     if (!this.el.isConnected) return;
 
     this.mapTheme = new MapLibreTheme(container, this.theme, { darkBasemap: this.darkBasemap, lightBasemap: this.lightBasemap });
 
-    // In contexts without WebGL (bots, tests, some devices) this can fail.
-    // Display that nicely as an error; re-raise for anything else.
     try {
       this.map = createMap(container, this.mapTheme, {
         ...LOCATION_MAP,
         cooperativeGestures: this.cooperativeGestures,
-        // We handle this on our own so we can start it collapsed
         attributionControl: false,
-        // Already looking at the record, rather than at the world
         ...openingLocation(container, this.mapTheme, this.opening(), this.projection === 'globe', { maxZoom: LOCATION_MAX_ZOOM }),
       });
     } catch (error) {
       if (!isWebGLError(error)) throw error;
 
-      // Bail out since everything after this needs a map
       this.showError(new WebGLUnavailableError());
       return;
     }
     disableRotation(this.map);
 
-    // Before the style loads, because none of them writes anything into it
     this.addControls();
 
-    // A reader reaching for the globe button, which is worth a fresh camera: what a globe can be
-    // pointed at is not what a flat map can - see frameLocation - so flattening one is how a reader
-    // sees the whole of a record too wide to fit on a sphere.
     this.map.on('projectiontransition', this.handleProjectionTransition);
 
-    // Everything below lives in the style document, so all of it is done again for each new one: once
-    // at first load, and again after every theme swap.
     this.map.on('style.load', () => this.handleStyleLoad());
   }
 
-  // Clean up the map to prevent warnings/errors when removed from the DOM
   disconnectedCallback() {
     if (this.map) this.map.remove();
   }
@@ -128,13 +98,9 @@ export class OgmLocator {
   private addControls() {
     addLocationControls(this.map);
 
-    // Bottom right, which is where MapLibre's own would have gone
     this.map.addControl(new AttributionControl({ compact: true }));
   }
 
-  // Called on first load and every time the theme is changed. We use the
-  // projection we remembered here to keep it the same; everything else gets
-  // redrawn from scratch.
   private async handleStyleLoad() {
     this.map.setSky(this.mapTheme.getSkyStyle());
     this.map.setProjection({ type: this.projection });
@@ -142,17 +108,7 @@ export class OgmLocator {
     await this.draw();
   }
 
-  /**
-   * The projection changing under the camera, which is worth a fresh one: what a globe can be pointed
-   * at is not what a flat map can - see frameLocation - so flattening one is how a reader sees the
-   * whole of something too wide to fit on a sphere.
-   *
-   * Nothing is remembered here, because this event can't say who caused it. A reader pressing the
-   * globe button and a style document naming its own projection on the way in arrive as the same
-   * thing, and no flag holds them apart: a swap asked for while the map is still loading the document
-   * before it lands that reset squarely inside any window this could call the reader's. What to put
-   * back after a swap is read off the map instead, at the point the swap starts - see onThemeChange.
-   */
+  // Reframe for the new projection; globe and flat views can fit different extents.
   private handleProjectionTransition = async () => {
     if (!this.mapStyleLoaded) return;
     await this.frame();
@@ -184,18 +140,14 @@ export class OgmLocator {
     }
   }
 
-  // Display an error. If there's already a fatal error, do nothing.
   private showError(error?: PreviewError) {
     if (!this.error?.fatal) this.error = error;
   }
 
-  // Clear a displayed error. If there's already a fatal error, do nothing.
   private clearError() {
     if (!this.error?.fatal) this.error = undefined;
   }
 
-  // When the theme or a basemap prop changes, swap the basemap to match, then draw the same location
-  // into the style document the swap just emptied.
   @Watch('theme')
   @Watch('darkBasemap')
   @Watch('lightBasemap')
@@ -205,18 +157,12 @@ export class OgmLocator {
     this.mapTheme.darkBasemap = this.darkBasemap;
     this.mapTheme.lightBasemap = this.lightBasemap;
 
-    // Read now, while the map still knows: the document replacing this one names its own projection
-    // and neither basemap names anything, so the map comes back flat unless it is put back.
     this.projection = readProjection(this.map) ?? this.projection;
 
     this.mapStyleLoaded = false;
     await setBasemap(this.map, this.mapTheme);
-    // style.load has already fired by the time this resolves, and it draws - so there is nothing
-    // to do here but let it. Kept as an await so a caller can wait for the swap to finish.
   }
 
-  // A reader gets the changed answer from here on; the handler needs nothing rebuilt to give it, so
-  // there's no draw or frame to redo the way a theme swap needs.
   @Watch('cooperativeGestures')
   protected onCooperativeGesturesChange() {
     if (!this.map) return;
@@ -224,32 +170,25 @@ export class OgmLocator {
     else this.map.cooperativeGestures.disable();
   }
 
-  // Put the record's location on the map, and point the map at it
   private async draw() {
     if (!this.map || !this.mapStyleLoaded) return;
 
-    // Only known now: the colors come out of the theme, and the theme can change under a location
-    // that is already on screen.
     const style = this.mapTheme.getStyle();
     this.drawn = this.location();
 
-    // Nothing here reaches the network - a LocationResource is built from a shape rather than a URL
     await this.drawn?.attach(this.map, style).preview();
 
     await this.frame();
   }
 
-  // What there is to put on the map, if there is anything
   private location(): LocationPreviewer | undefined {
     return this.previewer ?? (this.record && locationFor(this.record));
   }
 
-  // Where to open, which is the same place frame() will point once there is a style document
   private opening(): LngLatBoundsLike {
     return this.location()?.declaredBounds ?? WORLD;
   }
 
-  // Point the camera at what was drawn, or at the world when there was nothing to draw
   private async frame() {
     if (!this.map || !this.mapStyleLoaded) return;
 
@@ -257,23 +196,15 @@ export class OgmLocator {
     await frameLocation(this.map, this.mapTheme, extent ?? WORLD, this.globe(), { maxZoom: LOCATION_MAX_ZOOM });
   }
 
-  // Whether the camera is pointing at a sphere, which is what decides whether what it is pointed at
-  // has to be held to the half of the world facing it. Asked of the map, because the map is the one
-  // that knows: a reader can change this without anything here being told which way it went.
   private globe(): boolean {
     return (readProjection(this.map) ?? this.projection) === 'globe';
   }
 
-  // Take the last location back off the map
   private async clear() {
     await this.drawn?.clearPreview();
     this.drawn = undefined;
   }
 
-  // Web Awesome is adopted even though nothing here renders a wa-* element: an --ogm-* override
-  // still reaches the shape MapLibreTheme draws through this scope, and the theme styles
-  // MapLibre's own chrome, and this component is only ever used on its own, so it is always the
-  // one establishing them.
   render() {
     return (
       <Host class={waScope(this.theme)}>

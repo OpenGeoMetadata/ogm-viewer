@@ -6,9 +6,6 @@ import GeosearchControl from './geosearch-control';
 
 const HELP = 'Shift + drag to search an area';
 
-// Enough of a map to bind to and to fire at. The control reads nothing off it - the gesture is
-// MapLibre's own and the callback behind it is the component's - so a stand-in only has to remember
-// what was bound.
 const fakeMap = () => {
   const listeners: Record<string, ((event: unknown) => void)[]> = {};
   return {
@@ -33,8 +30,6 @@ const addControl = (text = HELP) => {
 };
 
 describe('GeosearchControl', () => {
-  // The class is what the component's own stylesheet selects on, and .maplibregl-ctrl is what gives
-  // it the float and the inset from the corner
   it('should build the DOM its styling selects', () => {
     const { container } = addControl();
 
@@ -42,8 +37,6 @@ describe('GeosearchControl', () => {
     expect(container.children).toHaveLength(0);
   });
 
-  // Given rather than baked in, because GeoBlacklight runs the strings for the control this replaces
-  // through Rails I18n
   it('should say how to search, in the words it was given', () => {
     expect(addControl('Cerca arrossegant amb la tecla de majúscules').container.textContent).toEqual('Cerca arrossegant amb la tecla de majúscules');
   });
@@ -56,8 +49,6 @@ describe('GeosearchControl', () => {
     expect(container.parentNode).toEqual(document.body);
   });
 
-  // It is the only thing of ours over the drawing surface, and the gesture it describes is the one
-  // thing that draws across it
   it('should get out of the way while a box is being drawn, and come back', () => {
     const { container, map } = addControl();
 
@@ -77,9 +68,6 @@ describe('GeosearchControl', () => {
     expect(container.hidden).toBe(false);
   });
 
-  // MapLibre calls every handler off when the window loses focus, and does it by resetting them - so
-  // the rectangle goes and neither boxzoomend nor boxzoomcancel is fired. Without this, coming back
-  // to the tab would mean coming back to a map with no help text on it.
   it('should come back when the reader walks away partway through a box', () => {
     const { container, map } = addControl();
 
@@ -98,14 +86,11 @@ describe('GeosearchControl', () => {
     expect(map.bound('boxzoomcancel')).toEqual(0);
     expect(container.parentNode).toBeNull();
 
-    // And the window with it, or a control taken off the map would still be answering for one
     container.hidden = true;
     window.dispatchEvent(new Event('blur'));
     expect(container.hidden).toBe(true);
   });
 
-  // Nothing retexts one before it is on a map, but a control with no element to write into shouldn't
-  // throw looking for one
   it('should do nothing when retexted before it has been added to a map', () => {
     expect(() => new GeosearchControl(HELP).setText('Search here')).not.toThrow();
   });

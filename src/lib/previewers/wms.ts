@@ -9,7 +9,6 @@ import { mercatorGeomToLngLat, type PixelWindow } from '../geometry';
 export default class WmsPreviewer extends InspectableRasterPreviewer {
   declare protected resource: WmsResource;
 
-  // WMS sources have no scheme
   protected async createSources(): Promise<AddRasterSourceObject[]> {
     return [
       {
@@ -25,12 +24,10 @@ export default class WmsPreviewer extends InspectableRasterPreviewer {
     return `${this.resource.id}-wms`;
   }
 
-  // Only a server that answers GetFeatureInfo in GeoJSON can say what it drew at a point
   protected async checkInspectable(): Promise<boolean> {
     return await this.resource.canInspect();
   }
 
-  // Ask the server what it drew in the window, via a GetFeatureInfo request
   async inspect(window: PixelWindow): Promise<MapGeoJSONFeature[]> {
     const response = await this.resource.inspect(window);
     if (!response.ok) throw new PreviewError(`WMS GetFeatureInfo request failed with status ${response.status}`);
@@ -38,7 +35,6 @@ export default class WmsPreviewer extends InspectableRasterPreviewer {
     const data = await response.json();
     if (!data || !data.features || !Array.isArray(data.features)) return [];
 
-    // The server answers in the CRS the request asked for, but MapLibre sources are in degrees
     return data.features.map((feature: any) => ({
       ...feature,
       geometry: feature.geometry && mercatorGeomToLngLat(feature.geometry),

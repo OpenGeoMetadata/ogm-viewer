@@ -2,7 +2,6 @@ import { describe, it, expect } from '@stencil/vitest';
 
 import { mosaicMinZoom, mosaicSheets, offersMosaic, type MosaicSheet } from './mosaic';
 
-// A sheet of the given size whose southwest corner is at x, y
 const square = (x: number, y: number, size: number): GeoJSON.Polygon => ({
   type: 'Polygon',
   coordinates: [
@@ -16,7 +15,6 @@ const square = (x: number, y: number, size: number): GeoJSON.Polygon => ({
   ],
 });
 
-// A sheet can have no outline at all: GeoJSON allows a feature a null geometry
 type Sheet = GeoJSON.Feature<GeoJSON.Geometry | null>;
 
 const sheet = (geometry: GeoJSON.Geometry | null, properties: Record<string, unknown>): Sheet => ({ type: 'Feature', geometry, properties });
@@ -49,7 +47,6 @@ describe('mosaicSheets', () => {
         sheet(square(0, 0, 1), { download: tif('unavailable'), available: false }),
         sheet(square(1, 0, 1), { download: 'https://example.com/sheet.zip' }),
         sheet(square(2, 0, 1), { download: 'ftp://example.com/sheet.tif' }),
-        // Stanford's Dalian index map writes "0" into every field of a sheet it doesn't hold
         sheet(square(3, 0, 1), { download: '0' }),
         sheet(null, { download: tif('nowhere') }),
         sheet({ type: 'Point', coordinates: [4, 0] }, { download: tif('point') }),
@@ -61,7 +58,6 @@ describe('mosaicSheets', () => {
     expect(sheets.map(({ url }) => url)).toEqual([tif('kept')]);
   });
 
-  // The box around corners on both sides of the antimeridian is the long way round the world
   it('leaves out a sheet that straddles the antimeridian', () => {
     const straddling: GeoJSON.Polygon = {
       type: 'Polygon',
@@ -85,7 +81,6 @@ describe('mosaicSheets', () => {
     expect(mosaicSheets(indexMap(sheet(parts, { download: tif('islands') })))[0].bbox).toEqual([0, 0, 4, 3]);
   });
 
-  // HTMC lists every printing of a quad, oldest first, and the latest is the one labelled
   it('keeps the last listed of the sheets sharing an outline, in the place of the first', () => {
     const sheets = mosaicSheets(
       indexMap(
@@ -127,7 +122,6 @@ describe('offersMosaic', () => {
     ).toBe(false);
   });
 
-  // Fifteen printings of one quad are fifteen GeoTIFFs, even though they fill one outline
   it('counts every edition of a sheet towards the share', () => {
     const editions = [1, 2, 3].flatMap(year => [sheet(square(0, 0, 1), { download: tif(`a-${year}`) }), sheet(square(1, 0, 1), { download: tif(`b-${year}`) })]);
 
@@ -138,7 +132,6 @@ describe('offersMosaic', () => {
     expect(offersMosaic(indexMap(sheet(square(0, 0, 1), { download: tif('a-1961') }), sheet(square(0, 0, 1), { download: tif('a-1988') })))).toBe(false);
   });
 
-  // Stanford's index maps link a manifest rather than a download
   it('offers none for an index map with no downloads', () => {
     expect(offersMosaic(indexMap(sheet(square(0, 0, 1), { iiifUrl: 'https://example.com/manifest' })))).toBe(false);
   });
@@ -160,7 +153,6 @@ describe('mosaicMinZoom', () => {
     expect(Number.isInteger(mosaicMinZoom(grid(0.3, 5)))).toBe(true);
   });
 
-  // An overview sheet drawn over a series of quads is outsized, and shouldn't hold the rest back
   it('goes by the typical sheet rather than the largest', () => {
     const quads = grid(0.125, 9);
     const overview: MosaicSheet = { id: 'overview', url: 'overview', bbox: [-110, 35, -100, 45] };

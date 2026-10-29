@@ -4,10 +4,6 @@ import type { Map } from 'maplibre-gl';
 
 import AttributionControl from './attribution-control';
 
-// Enough of a map for MapLibre's own attribution to build itself against: it asks for the strings to
-// label the toggle with, for the element it measures to decide whether to be compact at all, and for
-// the style document it reads the credits out of. It also binds to the events that keep those credits
-// in step, which is what `credit` below fires.
 const fakeMap = () => {
   const listeners: Record<string, ((event: unknown) => void)[]> = {};
 
@@ -36,9 +32,6 @@ const addControl = () => {
   return { map, control, container, button: container.querySelector('summary') as HTMLElement };
 };
 
-// The basemap's own credit arriving, which is the moment MapLibre would otherwise open the panel.
-// CARTO's style names no attribution of its own, only a source to fetch, so this lands with that
-// fetch rather than with the style.
 const credit = (map: ReturnType<typeof fakeMap>) => {
   map.style.stylesheet = {};
   map.style.tileManagers = { basemap: { used: true, getSource: () => ({ attribution: '© CARTO' }) } };
@@ -48,8 +41,6 @@ const credit = (map: ReturnType<typeof fakeMap>) => {
 const shown = (container: HTMLElement) => container.classList.contains('maplibregl-compact-show');
 
 describe('AttributionControl', () => {
-  // Everything visible is MapLibre's; this only checks its work was passed through rather than
-  // replaced, since a subclass that forgot to return super's element would leave nothing on the map
   it("hands back MapLibre's own attribution", () => {
     const { container, button } = addControl();
 
@@ -59,7 +50,6 @@ describe('AttributionControl', () => {
     expect(button.getAttribute('aria-label')).toBeTruthy();
   });
 
-  // MapLibre's own way of keeping an empty credit out of the corner
   it('credits nothing until there is something to credit', () => {
     const { container } = addControl();
 
@@ -86,8 +76,6 @@ describe('AttributionControl', () => {
     expect(shown(container)).toBe(false);
   });
 
-  // The load-bearing one: trackContainerSize calls map.resize() on every container change, and a
-  // resize is one of the things that re-runs MapLibre's own decision about the panel.
   it('stays closed when the map is resized', () => {
     const { map, container } = addControl();
     credit(map);

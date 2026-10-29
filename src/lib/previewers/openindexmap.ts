@@ -18,25 +18,18 @@ export default class OpenIndexMapPreviewer extends GeoJsonPreviewer {
   private outlinesDrawn = false;
   protected outlineLayerId: string | undefined;
 
-  // Starts fainter than a regular vector would; we don't care as much about
-  // the geometry because it's just showing where the sheets are.
   protected getDefaultOpacity(): number {
     return this.style.boundsOpacity;
   }
 
-  // The labels are the exception; they need to be readable, so they use the
-  // default theme opacity instead of the more transparent one.
   protected getLabelOpacity(): number {
     return this.style.opacity;
   }
 
-  // Title for the layer group actually controls the polygons, in the layers
-  // browser.
   protected previewLayerTitle(_layerId: string): string {
     return 'Geometry';
   }
 
-  // Draw the outlines, and then whatever mosaic of the sheets there is.
   async preview(): Promise<void> {
     this.outlinesDrawn = false;
     await super.preview();
@@ -58,12 +51,8 @@ export default class OpenIndexMapPreviewer extends GeoJsonPreviewer {
     return layers;
   }
 
-  // Split the geometry and labels into separate layer groups that can be
-  // toggled/faded separately. This allows hiding the labels when they're too
-  // dense and crowding the preview.
   protected createPreviewLayers(layerId: string, geometry: LayerSpecification[], labels: LayerSpecification[]): Layer[] {
     return [
-      // The ordinary row, minus the labels that have been taken out of it
       ...super.createPreviewLayers(layerId, geometry, []),
       {
         id: `${this.previewLayerId(layerId)}${LABELS_SUFFIX}`,
@@ -74,7 +63,6 @@ export default class OpenIndexMapPreviewer extends GeoJsonPreviewer {
     ];
   }
 
-  // Look for a mosaic, and add it to the map if the outlines are already there
   private async findMosaic() {
     const mosaic = await this.loadMosaic();
     if (!mosaic) return;
@@ -86,7 +74,6 @@ export default class OpenIndexMapPreviewer extends GeoJsonPreviewer {
     this.onLayersChanged?.();
   }
 
-  // A mosaic of the sheets, if the index map contains COGs.
   protected async loadMosaic(): Promise<IndexMapMosaic | undefined> {
     try {
       const collection = await this.resource.getData();
@@ -100,13 +87,11 @@ export default class OpenIndexMapPreviewer extends GeoJsonPreviewer {
     }
   }
 
-  // Loaded on demand, like a COG preview, since it's what pulls in deck.gl.
   protected async createMosaic(collection: unknown): Promise<IndexMapMosaic> {
     const { default: Mosaic } = await import('../index-map-mosaic');
     return new Mosaic(this.resource, collection);
   }
 
-  // List the mosaic between the outlines and their labels, and draw it.
   private showMosaic(mosaic: IndexMapMosaic) {
     if (!this.findPreviewLayer(mosaic.id)) {
       const labels = this.previewLayers.findIndex(layer => layer.id.endsWith(LABELS_SUFFIX));
@@ -116,7 +101,6 @@ export default class OpenIndexMapPreviewer extends GeoJsonPreviewer {
     mosaic.attach(this.mosaicHost()).draw();
   }
 
-  // What the mosaic needs of this previewer
   private mosaicHost(): MosaicHost {
     return {
       map: this.map,
@@ -137,7 +121,6 @@ export default class OpenIndexMapPreviewer extends GeoJsonPreviewer {
     return super.visibleLayerIds.filter(id => id !== this.mosaic?.id);
   }
 
-  // Legend that shows what the colors mean.
   get legendEntries(): LegendEntry[] {
     if (!this.attached || !this.boundariesDrawn) return [];
 
@@ -148,9 +131,6 @@ export default class OpenIndexMapPreviewer extends GeoJsonPreviewer {
     ];
   }
 
-  // Used to hide the legend if the geometry isn't being shown, since it would
-  // be meaningless if it doesn't correspond to anything on the map. Neither
-  // the labels nor a mosaic of the sheets is the geometry.
   private get boundariesDrawn(): boolean {
     return this.previewLayers.some(layer => !layer.id.endsWith(LABELS_SUFFIX) && layer.id !== this.mosaic?.id && this.layerDrawn(layer.id));
   }

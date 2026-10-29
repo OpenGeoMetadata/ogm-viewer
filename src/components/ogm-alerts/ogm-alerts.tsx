@@ -6,8 +6,6 @@ import '@awesome.me/webawesome/dist/components/icon/icon.js';
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import type { PreviewError } from '../../lib/errors';
 
-// Renders a single preview error, centered and filling its container. Used in place of a failed
-// preview (inside <ogm-preview>) or in place of the previews entirely (when the record fails to load).
 @Component({
   tag: 'ogm-alerts',
   styleUrl: 'ogm-alerts.css',
@@ -18,14 +16,11 @@ export class OgmAlerts {
   @Prop() theme: 'light' | 'dark' = initialTheme(this.el);
   @Prop() error?: PreviewError;
 
-  // Before the first frame, so nothing paints unstyled
   componentWillLoad() {
     adoptWebAwesomeTheme(this.el);
   }
 
-  // The callout takes its colors from the scope on .alerts rather than from the one on the Host: a
-  // plain class selector in the theme adopted here can't match the host of its own shadow root.
-  // The Host's copy is still what the parent's stylesheet matches, which is what colors :host below.
+  // The theme's class selectors match an inner scope, not its own shadow host.
   render() {
     if (!this.error) return null;
 

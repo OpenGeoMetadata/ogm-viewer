@@ -15,26 +15,18 @@ import { propertyFilter } from '../features';
 import type { Layer, PreviewStyleLayer } from '../layers';
 import type VectorResource from '../resources/vector';
 
-// MapLibre doesn't bundle the id with the source, but we need to
 export type AddVectorSourceObject = VectorSourceSpecification & { id: string };
 
-// What a row in the layers panel records about the style layers it draws: an id to set properties
-// on, and the type that decides which property that is.
 export const previewStyleLayers = (layers: LayerSpecification[]): PreviewStyleLayer[] => layers.map(({ id, type }) => ({ id, type }));
 
-// The style layers that draw a feature's shape, as opposed to its label
 type GeometryLayerSpecification = FillLayerSpecification | LineLayerSpecification | CircleLayerSpecification;
 
-// Whether a feature is the selected one
 const IS_SELECTED: ExpressionSpecification = ['boolean', ['feature-state', 'selected'], false];
 
-// Every feature but the selected one, transparent
 const SELECTED_ONLY: ExpressionSpecification = ['case', IS_SELECTED, 1, 0];
 
-// What a matched copy draws when nothing is selected by matching: nothing
 const MATCH_NONE: ExpressionSpecification = ['literal', false];
 
-// A paint value with every IS_SELECTED in it answered yes.
 const answerSelected = <T>(value: T): T => {
   if (JSON.stringify(value) === JSON.stringify(IS_SELECTED)) return true as T;
   if (Array.isArray(value)) return value.map(answerSelected) as T;
@@ -47,10 +39,8 @@ type MatchedLayer = { id: string; source: string; sourceLayer?: string; filter?:
 export default abstract class VectorPreviewer extends MapPreviewer {
   declare protected resource: VectorResource;
 
-  // Whether this preview's features can arrive without ids
   protected readonly featuresMayLackIds: boolean = false;
 
-  // The matched copies on the map, when featuresMayLackIds; see createMatchedLayer
   private matchedLayers: MatchedLayer[] = [];
 
   protected getSourceId(): string {
@@ -65,18 +55,11 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     return this.getDefaultOpacity();
   }
 
-  // The window of zooms these layers should be drawn in, for a resource whose service publishes
-  // one. Nothing by default, which is every zoom - what every vector preview has always had.
   protected async zoomRange(): Promise<{ minzoom?: number; maxzoom?: number }> {
     return {};
   }
 
-  // Which label MapLibre keeps where labels collide. It places them in ascending order of
-  // symbol-sort-key and drops any that would overlap one already placed, so without a key they go in
-  // the order the source holds them - and a stack of features sharing an outline is labelled with the
-  // first of them, the one drawn under all the rest, which a click lists last. Nothing by default:
-  // MapLibre draws a tile's features in the order the tile holds them, and an expression can't read
-  // that order, so a tileset has no key that would say which of a stack is on top.
+  // MapLibre places lower sort keys first and rejects overlapping labels placed later.
   protected labelPriority(): { 'symbol-sort-key'?: ExpressionSpecification } {
     return {};
   }
@@ -97,23 +80,14 @@ export default abstract class VectorPreviewer extends MapPreviewer {
         ...matched.map(({ id }, index) => ({ id, source: geometry[index].source, sourceLayer: geometry[index]['source-layer'], filter: geometry[index].filter })),
       );
 
-      // The copies go with the row their features are drawn in, so they hide when it does, but
-      // flagged internal: the selected feature stays solid at any opacity, and a click mustn't find
-      // every feature twice.
       this.findPreviewLayer(this.previewLayerId(layerId))?.styleLayers.push(
         ...previewStyleLayers([...selected, ...matched]).map(styleLayer => ({ ...styleLayer, internal: true })),
       );
 
-      // Written over the finished specs rather than into each of the seven builders, and after the
-      // panel rows have been taken from them, which read only an id and a type. An empty range
-      // leaves each layer exactly as its builder made it. Each copy goes directly over the layer it
-      // copies, so the selected feature is lifted over its own kind of shape and nothing else: a
-      // selected polygon still has the outlines, lines and points drawn over it that it always had.
       return [...geometry.flatMap((layer, index) => [layer, selected[index], ...matched.slice(index, index + 1)]), ...labels].map(layer => Object.assign(layer, range));
     });
   }
 
-  // Draw a feature with no id as selected
   matchSelection(feature?: MapGeoJSONFeature) {
     const match = feature && propertyFilter(feature);
 
@@ -124,30 +98,16 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     });
   }
 
-  // A layer's own filter narrowed to the features matching another
   private matchedFilter(filter: FilterSpecification | undefined, match: ExpressionSpecification): FilterSpecification {
     return filter === undefined ? match : ['all', filter as ExpressionSpecification, match];
   }
 
-  // A selected copy that picks its feature out by filter rather than feature-state, for a feature
-  // with no id: drawn as feature-state draws the selected one, and drawing nothing until
-  // matchSelection gives it a feature to match.
   private createMatchedLayer(layer: GeometryLayerSpecification): GeometryLayerSpecification {
     const copy = this.createSelectedLayer(layer);
     return { ...copy, id: `${layer.id}-matched`, paint: answerSelected(copy.paint), filter: this.matchedFilter(layer.filter, MATCH_NONE) } as GeometryLayerSpecification;
   }
 
-  // A geometry layer drawn a second time, directly over itself, showing only the selected feature.
-  // MapLibre draws features in the order their source lists them, and feature-state can recolour a
-  // feature but can't move it, so a selected feature with others listed after it was highlighted
-  // underneath them. An index map stacks a sheet's editions that way, latest last, and the popup pages
-  // down the stack from the top - so every edition but the first it showed was selected out of
-  // sight, and the oldest, under all the rest, looked like no edition was selected at all. In the copy
-  // the selected feature is drawn over its stack wherever it sits in it, and solid, the way a
-  // selected fill already was at any opacity (see selectedOpacity).
-  //
-  // Everything but the id and paint is the layer's own, so the copy reads exactly the features its
-  // layer does. That is also what MapLibre groups layers by, so both are built from one bucket.
+  // Draw selection in a separate layer so later features cannot cover an older selected feature.
   private createSelectedLayer(layer: GeometryLayerSpecification): GeometryLayerSpecification {
     const id = `${layer.id}-selected`;
 
@@ -161,7 +121,6 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     }
   }
 
-  // How a layer's style layers are grouped into the rows a user sees in the panel.
   protected createPreviewLayers(layerId: string, geometry: LayerSpecification[], labels: LayerSpecification[]): Layer[] {
     return [
       {
@@ -173,33 +132,18 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     ];
   }
 
-  // What the row holding this layer is called on the map's own state, as opposed to in the panel.
-  // Built from the source id for the reason the style layer ids are: one record can reference the
-  // same data more than one way, and two rows under one id are one row to everything downstream.
   protected previewLayerId(layerId: string): string {
     return `${this.getSourceId()}-${layerId}`;
   }
 
-  // What to call this layer in the control. A single-layer source names its one layer for our own
-  // benefit ('geojson', 'indexmap'), which would tell a user nothing, so the resource's own
-  // label is the better name; a tileset that names its layers itself overrides this.
   protected previewLayerTitle(_layerId: string): string {
     return this.resource.label();
   }
 
-  // A fill doesn't carry its opacity as a number: a selected feature is drawn at a different opacity
-  // from the rest, and that is an expression over feature-state. The layer's opacity has to be
-  // written into the unselected branch alone - a flat number over the whole expression would take
-  // the selection highlight with it, which is the one thing a user adjusting opacity still needs
-  // to see. So the selected feature stays solid at any opacity: someone who faded a layer down to
-  // read the basemap through it has all the more reason to want the feature they clicked to stand out.
   protected selectedOpacity(opacity: number): ExpressionSpecification {
     return ['case', IS_SELECTED, 1, opacity];
   }
 
-  // Selection and hover are transient client-side state, set via feature-state; availability is
-  // static per-feature data already on the GeoJSON, read straight off its properties. Selected/
-  // hover still win so a user can inspect an unavailable feature without losing that feedback.
   protected dataColorExpression(): ExpressionSpecification {
     return [
       'case',
@@ -226,20 +170,17 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     ];
   }
 
-  // Fills and circles keep their case expression; everything else takes the plain number
   protected applyOpacity(styleLayer: PreviewStyleLayer, opacity: number) {
     if (styleLayer.type === 'fill') {
       this.map.setPaintProperty(styleLayer.id, 'fill-opacity', this.selectedOpacity(opacity));
     } else if (styleLayer.type === 'circle') {
       this.map.setPaintProperty(styleLayer.id, 'circle-opacity', this.selectedOpacity(opacity));
-      // The ring is a flat colour, so it fades on its own or it stays solid over a faded fill
       this.map.setPaintProperty(styleLayer.id, 'circle-stroke-opacity', opacity);
     } else {
       super.applyOpacity(styleLayer, opacity);
     }
   }
 
-  // Create a styled layer that will be used for polygon geometry
   protected createPolygonLayer(layerId: string): FillLayerSpecification {
     return {
       id: `${this.getSourceId()}-${layerId}-polygons`,
@@ -256,7 +197,6 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     };
   }
 
-  // Create a styled layer that will be used to outline polygon geometry
   protected createPolygonOutlineLayer(layerId: string): LineLayerSpecification {
     return {
       id: `${this.getSourceId()}-${layerId}-polygon-outlines`,
@@ -274,9 +214,6 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     };
   }
 
-  // Create a styled layer that will be used for line geometry. Drawn in the data color, not the
-  // stroke color: a LineString is the thing being shown, the same as a polygon's fill is, and it has
-  // no outline for the stroke color to be the outline of.
   protected createLineLayer(layerId: string): LineLayerSpecification {
     return {
       id: `${this.getSourceId()}-${layerId}-lines`,
@@ -294,7 +231,6 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     };
   }
 
-  // Create a styled layer that will be used for point geometry
   protected createPointLayer(layerId: string): CircleLayerSpecification {
     return {
       id: `${this.getSourceId()}-${layerId}-points`,
@@ -315,7 +251,6 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     };
   }
 
-  // Create a styled layer that will be used for polygon labels
   protected createPolygonLabelLayer(layerId: string): SymbolLayerSpecification {
     return {
       id: `${this.getSourceId()}-${layerId}-polygon-labels`,
@@ -338,7 +273,6 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     };
   }
 
-  // Create a styled layer that will be used for line labels
   protected createLineLabelLayer(layerId: string): SymbolLayerSpecification {
     return {
       id: `${this.getSourceId()}-${layerId}-line-labels`,
@@ -362,7 +296,6 @@ export default abstract class VectorPreviewer extends MapPreviewer {
     };
   }
 
-  // Create a styled layer that will be used for point labels
   protected createPointLabelLayer(layerId: string): SymbolLayerSpecification {
     return {
       id: `${this.getSourceId()}-${layerId}-point-labels`,

@@ -28,8 +28,6 @@ const scalarLayer: Layer = {
   colorRampRange: [-184.48, 607.27],
 };
 
-// A georeferenced scan whose paper colour was worked out. Nothing sets backgroundRemovable until
-// that happens, so the same layer before detection is this one without the flag.
 const scanLayer: Layer = {
   id: 'stanford-bb013fz9675-georeference',
   title: 'Georeferenced map',
@@ -58,8 +56,6 @@ describe('humanizeLayerName', () => {
 });
 
 describe('resolveLayerState', () => {
-  // The same value for both: a user comparing a vector overlay with a raster one is comparing two
-  // layers at the same opacity, not one drawn solid over one the theme happened to fade
   it('follows the theme for a row the user has not touched, whatever kind of data it is', () => {
     expect(resolveLayerState(rasterLayer, new Map())).toEqual({ visible: true, opacity: 0.8, removeBackground: false });
     expect(resolveLayerState(vectorLayer, new Map())).toEqual({ visible: true, opacity: 0.8, removeBackground: false });
@@ -89,15 +85,10 @@ describe('resolveLayerState', () => {
     expect(resolveLayerState(scanLayer, states).removeBackground).toBe(true);
   });
 
-  // Unlike the ramp below, which falls back to the layer's own: there is no such thing as a scan that
-  // arrives with its paper already taken off, so an untouched row is the scan as it was published
   it('leaves the background alone for a removable row the user has not touched', () => {
     expect(resolveLayerState(scanLayer, new Map()).removeBackground).toBe(false);
   });
 
-  // The case a whole-object fallback (states.get(id) ?? default) would get wrong: a state already
-  // on record from changing some other field - opacity, say - while the ramp went untouched, which
-  // carries no colorRamp key of its own rather than the layer's default under that key
   it("falls back to the layer's own ramp when the state on record has none", () => {
     const states = new Map<string, LayerState>([[scalarLayer.id, { visible: true, opacity: 0.4 }]]);
     expect(resolveLayerState(scalarLayer, states).colorRamp).toEqual('viridis');
@@ -110,8 +101,6 @@ describe('isLayerDrawn', () => {
     expect(isLayerDrawn({ visible: false, opacity: 0.8 })).toBe(false);
   });
 
-  // The case the predicate exists for: a layer faded to nothing is invisible but still answers
-  // queryRenderedFeatures, so it has to count as off the map rather than merely transparent
   it('treats a row faded to zero as off the map', () => {
     expect(isLayerDrawn({ visible: true, opacity: 0 })).toBe(false);
   });
@@ -138,9 +127,6 @@ describe('toLayerControlItems', () => {
     expect(item.opacity).toEqual(0.4);
   });
 
-  // A vector or raster layer's entry gains no colorRamp/colorRampRange keys at all, not even as
-  // undefined - most entries in this list are one of those, and there's no reason for them to carry
-  // two keys that never mean anything for them. The rampable layer's entry is the one that does.
   it('carries a ramp and its range only for a layer that has one', () => {
     const [scalar] = toLayerControlItems([scalarLayer], new Map());
     expect(scalar).toEqual({ id: scalarLayer.id, title: 'Groundwater Elevation', visible: true, opacity: 0.8, colorRamp: 'viridis', colorRampRange: [-184.48, 607.27] });
@@ -149,7 +135,6 @@ describe('toLayerControlItems', () => {
     expect(Object.keys(vector).sort()).toEqual(['id', 'opacity', 'title', 'visible']);
   });
 
-  // What the legend titles the ramp with, once the record's metadata has said what the values are
   it('carries what the values measure for a layer whose metadata says', () => {
     const quantity = { name: 'Elevation', unit: 'meters', datum: 'North American Vertical Datum of 1988' };
     const [scalar] = toLayerControlItems([{ ...scalarLayer, quantity }], new Map());
@@ -159,8 +144,6 @@ describe('toLayerControlItems', () => {
     expect(unsaid).not.toHaveProperty('quantity');
   });
 
-  // Same reasoning as the ramp above, and it matters more here: the panel decides whether to draw the
-  // background toggle at all by whether this key is there, so false and absent are different answers
   it('carries the background toggle only for a layer whose background can be removed', () => {
     const [scan] = toLayerControlItems([scanLayer], new Map());
     expect(scan).toEqual({ id: scanLayer.id, title: 'Georeferenced map', visible: true, opacity: 0.8, removeBackground: false });

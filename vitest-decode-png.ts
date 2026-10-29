@@ -1,24 +1,13 @@
-// A PNG decoder for the test DOM, which has no image pipeline of its own - see vitest-setup-dom.ts
-// for what this is wired into and why. Node has the inflate half of the job built in; the rest is
-// the scanline filtering PNG applies on top of it.
-//
-// Deliberately narrow: 8-bit truecolor, not interlaced, which is what the one image the components
-// decode is - the color ramp sprite behind src/lib/colormap.ts. Anything else throws rather than
-// returning plausible-looking pixels, so a test that starts decoding some other image fails saying
-// so instead of asserting against garbage.
+// Decode only non-interlaced 8-bit RGB/RGBA PNGs, the format used by the test colormap sprite.
 import { inflateSync } from 'node:zlib';
 
 export type DecodedImage = { width: number; height: number; data: Uint8ClampedArray };
 
 const SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
-// Bytes per pixel for the color types this handles: 2 is RGB, 6 is RGBA. Paletted and grayscale
-// PNGs are left out - each needs a decoding step of its own, and nothing here produces one.
 const BYTES_PER_PIXEL: Record<number, number> = { 2: 3, 6: 4 };
 
-// Every scanline is filtered against its neighbors before compression, and has to be added back:
-// `left` is the pixel before it on the same row, `up` the one above, `upLeft` above that one. See
-// https://www.w3.org/TR/png/#9Filters - the four cases below are that table.
+// PNG row filters: https://www.w3.org/TR/png/#9Filters
 function reconstruct(filter: number, left: number, up: number, upLeft: number): number {
   switch (filter) {
     case 0:
@@ -30,7 +19,6 @@ function reconstruct(filter: number, left: number, up: number, upLeft: number): 
     case 3:
       return (left + up) >> 1;
     case 4: {
-      // Paeth: whichever neighbor the three of them together predict most closely
       const predicted = left + up - upLeft;
       const fromLeft = Math.abs(predicted - left);
       const fromUp = Math.abs(predicted - up);
@@ -53,7 +41,6 @@ function concat(parts: Uint8Array[]): Uint8Array {
   return whole;
 }
 
-// Decode to RGBA, one byte per channel, top row first - the layout ImageData wants.
 export function decodePng(bytes: Uint8Array): DecodedImage {
   if (SIGNATURE.some((byte, index) => bytes[index] !== byte)) throw new Error('Not a PNG: the bytes do not start with a PNG signature.');
 
@@ -63,8 +50,6 @@ export function decodePng(bytes: Uint8Array): DecodedImage {
   let bytesPerPixel = 0;
   const compressed: Uint8Array[] = [];
 
-  // Walk the chunk list: a 4-byte length, a 4-byte type, the body, and a CRC that isn't checked -
-  // the only files reaching this are ones the repo ships itself.
   for (let offset = 8; offset + 12 <= bytes.length; ) {
     const length = view.getUint32(offset);
     const type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
@@ -82,7 +67,6 @@ export function decodePng(bytes: Uint8Array): DecodedImage {
       }
       bytesPerPixel = BYTES_PER_PIXEL[colorType];
     } else if (type === 'IDAT') {
-      // Split across as many chunks as the encoder felt like; it's one stream once joined
       compressed.push(body);
     }
 
@@ -94,12 +78,10 @@ export function decodePng(bytes: Uint8Array): DecodedImage {
   const raw = inflateSync(concat(compressed));
   const stride = width * bytesPerPixel;
   const data = new Uint8ClampedArray(width * height * 4);
-  // The row being reconstructed, and the finished one above it that its filter refers back to
   let line = new Uint8Array(stride);
   let previous = new Uint8Array(stride);
 
   for (let y = 0; y < height; y++) {
-    // Each scanline is its filter byte followed by `stride` filtered bytes
     const start = y * (stride + 1);
     const filter = raw[start];
 
@@ -109,7 +91,6 @@ export function decodePng(bytes: Uint8Array): DecodedImage {
       line[x] = (raw[start + 1 + x] + reconstruct(filter, left, previous[x], upLeft)) & 0xff;
     }
 
-    // Widened to RGBA on the way out, so a caller need not care which of the two color types it got
     for (let x = 0; x < width; x++) {
       const from = x * bytesPerPixel;
       const to = (y * width + x) * 4;

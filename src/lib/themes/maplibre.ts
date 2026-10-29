@@ -4,79 +4,43 @@ import { atLightness, contrastColor, shiftLightness } from './color';
 import Theme from './theme';
 
 export type MapLibreStyle = {
-  // Generic properties used for all data
   opacity: number;
-  // CSS colors used for the data itself: polygon fills, lines, and circles
   dataColor: string;
   highlightColor: string;
   selectedColor: string;
   invalidColor: string;
-  // Circular markers used on the overview map
   markerColor: string;
   markerHighlightColor: string;
-  // CSS colors used for polygon outlines & circle borders
   strokeColor: string;
   strokeHighlightColor: string;
   strokeSelectedColor: string;
   strokeInvalidColor: string;
-  // CSS text styles for labels
   textColor: string;
   textHaloColor: string;
   textFont: string;
   textSize: number;
-  // A CSS font stack, for text this library draws itself rather than asking MapLibre to draw - see
-  // textFont, which names something else entirely
   markerFont: string;
-  // Opacity for highlighted polygons/circles
   highlightOpacity: number;
-  // Initial opacity for a preview that says where a record is rather than showing its data: a
-  // bounding box, or an index map's sheet boundaries. Below `opacity`, because neither is what a
-  // reader came to look at, and both would otherwise cover the basemap they're being placed against.
   boundsOpacity: number;
-  // Padding used for overviews, where we want to see more around the previewed data
   overviewPadding: number;
 };
 
-// URLs to MapLibre style documents for our own default basemaps
 export const darkBasemapStyle = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 export const lightBasemapStyle = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 
-// The basemap layer previews are drawn underneath by default: the first of the labels in CARTO's
-// Positron and Voyager GL styles, with nothing above it but more labels. Data drawn under it covers
-// the roads and boundaries but leaves every label readable over the top. Dark Matter has the same
-// layer one place higher, under its river names, so previews cover those there. Any other basemap
-// without a layer by this name draws previews on top instead; see MapPreviewer.beforeId.
 export const defaultBeforeId = 'watername_ocean';
 
-// What a result's number is drawn in when neither an app nor the palette has said. A CSS font stack,
-// unlike the glyph name below: the numbers are drawn into an image of our own rather than handed to
-// MapLibre, which is also the only reason they can be bold at all - see markerImage. Web Awesome's own
-// body font comes first, so the numbers match whatever the rest of the page is set in.
 const defaultMarkerFont = 'system-ui, sans-serif';
 
-// Default MapLibre `text-font` glyph name. Unlike the rest of our text styling, this can't fall
-// back to a CSS token: `text-font` names a glyph MapLibre requests from the style's glyphs
-// endpoint, not a CSS font stack, so `--wa-font-family-body` (e.g. "ui-sans-serif, system-ui,
-// sans-serif") would be sent to the endpoint literally and rejected by CORS. "Noto Sans Regular"
-// is in every fontstack both CARTO basemap styles above serve glyphs for.
+// MapLibre text-font names a glyph-server font, which cannot use a CSS font stack.
 const defaultGlyphFont = 'Noto Sans Regular';
 
-// How far an outline sits from the color it outlines, in OKLab lightness. Away from the background:
-// darker on a light basemap, lighter on a dark one. Web Awesome's own palette pairs - the ones this
-// used to name a token apiece for - sit about this far apart, so a theme nobody has touched looks
-// the way it did, and one that names a color gets an outline that follows it into either mode.
 const strokeLightnessShift = 0.26;
 
-// How deep the disc a result's number is drawn on sits, in OKLab lightness. A target rather than a
-// step, unlike the outline above: a number has to be readable on its disc in both modes, and the two
-// tokens behind one color start at opposite ends of the scale, so the same step from each would land
-// one of them either side of the point where white stops being the more readable ink.
 const markerLightness = 0.7;
 
-// Larger padding used for overviews (search results, locators)
 const defaultOverviewPadding = 64;
 
-// The default theme colors.
 const dataColorDark = '#0071ec';
 const dataColorLight = '#9fceff';
 const highlightColorDark = '#f36d00';
@@ -88,17 +52,10 @@ const invalidColorLight = '#f56667';
 const textColorDark = '#f1f2f3';
 const textColorLight = '#101219';
 
-// What a map with no basemap is drawn against - see getFallbackBaseMapStyle. Close to the paper both
-// CARTO styles start from, so a preview that loses its basemap reads as a map missing its background
-// rather than as a component that failed to render at all.
 const emptyBasemapColorDark = '#0e1013';
 const emptyBasemapColorLight = '#f8f8f8';
 
-// Style properties common to all MapLibre-based previewers
 export default class MapLibreTheme extends Theme {
-  // An app's own basemap for this mode - a URL to a MapLibre style document - or undefined to keep
-  // this library's own CARTO default. Mutable for the same reason `theme` is: a component whose
-  // basemap prop changes writes straight back in, rather than rebuilding the theme from scratch.
   darkBasemap?: string;
   lightBasemap?: string;
 
@@ -108,27 +65,6 @@ export default class MapLibreTheme extends Theme {
     this.lightBasemap = basemaps.lightBasemap;
   }
 
-  /**
-   * How previewed data is drawn. Every value here can be overridden by setting the matching
-   * `--ogm-*` custom property on the component or anything above it - custom properties inherit
-   * through shadow boundaries, so setting them on the embedding page reaches in:
-   *
-   *   ogm-viewer { --ogm-data-color: #8f1414; }
-   *
-   * Left alone, each falls back to one of Web Awesome's own default colors, picked for the current
-   * mode - copied in as literals rather than read from its stylesheet, so a preview never has to
-   * wait for that stylesheet to load before it can draw. The `--ogm-*` names are the contract, and
-   * are the only ones an embedding app should be naming.
-   *
-   * An app names the color of the data itself and the outline comes from it, so one declaration
-   * restyles a state. `--ogm-stroke-*` is still there for anyone who wants a particular outline.
-   *
-   * `--ogm-font-family` is the one exception: it names a MapLibre glyph font (e.g. "Noto Sans
-   * Regular"), not a CSS font stack, so it can't fall back to `--wa-font-family-body` - that's a
-   * CSS stack like "ui-sans-serif, system-ui, sans-serif", and MapLibre would request it verbatim
-   * from the style's glyphs endpoint and get a CORS failure. An app overriding it must give a
-   * glyph name the active basemap style actually serves.
-   */
   getStyle(): MapLibreStyle {
     const dataColor = this.themedColor('--ogm-data-color', dataColorDark, dataColorLight);
     const highlightColor = this.themedColor('--ogm-highlight-color', highlightColorDark, highlightColorLight);
@@ -159,32 +95,15 @@ export default class MapLibreTheme extends Theme {
     };
   }
 
-  // Padding used for the overviews
   getOverviewPadding(): number {
     return this.readCssNumber('--ogm-overview-padding', defaultOverviewPadding);
   }
 
-  // The basemap style URL for the current mode: an app's own, if it named one for this mode, or our
-  // own CARTO default.
   getBaseMapStyle(): string {
     const darkMode = this.darkMode();
     return (darkMode ? this.darkBasemap : this.lightBasemap) ?? (darkMode ? darkBasemapStyle : lightBasemapStyle);
   }
 
-  /**
-   * A style document with nothing in it but a color to draw against, for a map whose basemap never
-   * arrived - see <ogm-map>'s fallBackToEmptyBasemap.
-   *
-   * A style object rather than the URL getBaseMapStyle hands back, because the whole point of this
-   * one is that it needs nothing from the network: the network is what just failed. MapLibre needs
-   * *some* style document to hold a source, so a preview whose basemap 404s or 503s has nowhere to
-   * be drawn until it is given one of these.
-   *
-   * No glyphs endpoint, which is the one thing lost: MapLibre asks the style document where to fetch
-   * glyphs from, and the only endpoint we know of is the basemap's own. So a preview that labels what
-   * it draws loses its labels here, while its shapes and rasters still draw - which is the part worth
-   * keeping. See getStyle for what `textFont` names.
-   */
   getFallbackBaseMapStyle(): StyleSpecification {
     return {
       version: 8,
@@ -199,34 +118,18 @@ export default class MapLibreTheme extends Theme {
     };
   }
 
-  // The outline for a color, unless an app named one. Derived rather than themed, because the
-  // outline isn't a second decision - it's the same color moved off the background, and an app that
-  // had to name both could only name one pair for both modes. This one follows the mode.
   strokeColor(override: string, dataColor: string): string {
     return this.readCssProperty(override) || shiftLightness(dataColor, this.darkMode() ? strokeLightnessShift : -strokeLightnessShift);
   }
 
-  // The disc a result's number is read against, unless an app named one. Derived for the reason the
-  // outline above is - an app that named --ogm-data-color has named this too, and one that had to name
-  // both could only name a pair for a single mode - but derived to a lightness rather than by a step,
-  // because this one has to carry a numeral. See markerLightness. Whatever comes out, the numeral is
-  // drawn in whichever of black and white can be read on it, so an app that does name a color of its
-  // own gets ink that follows it.
   markerColor(override: string, color: string): string {
     return this.readCssProperty(override) || atLightness(color, markerLightness);
   }
 
-  // What a label is read against, derived the same way, but to the opposite end of the scale rather
-  // than a step along it - the halo's whole job is to hold the text apart from whatever basemap is
-  // under it. No mode to consult: the text color already answered that, and the halo answers to the
-  // text. Falls back to textColor's own gray pair, reversed, only if the text color is something we
-  // can't read, where a halo derived from it would come out the same color as the text and swallow
-  // the label.
   haloColor(textColor: string): string {
     return this.readCssProperty('--ogm-text-halo-color') || contrastColor(textColor) || this.dualColors(textColorLight, textColorDark);
   }
 
-  // Atmosphere style for globe
   getSkyStyle(): SkySpecification {
     return {
       'sky-color': '#199EF3',
