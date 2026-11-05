@@ -161,6 +161,40 @@ describe('ogm-map', () => {
     expect(consoleError).not.toHaveBeenCalled();
   });
 
+  describe('when a popup opens or changes size', () => {
+    const rect = (left: number, top: number, width: number, height: number) => ({ left, top, right: left + width, bottom: top + height }) as DOMRect;
+
+    const openPopup = async (popupRect: DOMRect, padding = { top: 0, right: 0, bottom: 0, left: 0 }) => {
+      const { el } = await renderMap();
+      const popupEl = document.createElement('div');
+      popupEl.getBoundingClientRect = () => popupRect;
+      const container = document.createElement('div');
+      container.getBoundingClientRect = () => rect(0, 0, 800, 405);
+      const map = { ...fakeMap(), getContainer: () => container, getPadding: () => padding, panBy: vi.fn() };
+      Object.assign(el, { map, popup: { getElement: () => popupEl, remove: vi.fn() } });
+      (el as unknown as { keepPopupInView: () => void }).keepPopupInView();
+      return map;
+    };
+
+    it('pans the map just far enough to bring the popup back inside it', async () => {
+      const map = await openPopup(rect(300, 215, 186, 278));
+
+      expect(map.panBy).toHaveBeenCalledWith([0, 98]);
+    });
+
+    it('leaves the map alone when the popup fits', async () => {
+      const map = await openPopup(rect(300, 40, 186, 278));
+
+      expect(map.panBy).not.toHaveBeenCalled();
+    });
+
+    it('keeps the popup out from under the sidebar', async () => {
+      const map = await openPopup(rect(300, 40, 186, 278), { top: 0, right: 0, bottom: 0, left: 400 });
+
+      expect(map.panBy).toHaveBeenCalledWith([-110, 0]);
+    });
+  });
+
   describe('for a tileset whose features have no ids', () => {
     const temple = {
       ...feature,
