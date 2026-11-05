@@ -68,7 +68,7 @@ ogm-legend {
 }
 
 .maplibregl-popup-content {
-  max-width: 400px;
+  max-width: 300px;
   overflow: hidden;
   padding: 0;
   box-shadow: var(--wa-shadow-l);

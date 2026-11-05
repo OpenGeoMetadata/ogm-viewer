@@ -50,11 +50,6 @@ wa-tab-group.topmost::part(nav) {
   padding-inline-end: 1.75em;
 }
 
-/* Keep both tabs the same width so switching views does not resize the popup. */
-wa-tab-group {
-  width: min(400px, 100vw);
-}
-
 wa-scroller {
   max-height: 240px;
   overscroll-behavior: none;
@@ -66,7 +61,7 @@ wa-scroller {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  width: 300px;
   height: 240px;
 }
 
