@@ -27,6 +27,7 @@ import { createMap, fitBounds, openingCamera, setBasemap, whenSized } from '../.
 import { isLayerDrawn, rampedLayers, resolveLayerState, timedLayers, toLayerControlItems as getLayerControls, type LayerControl, type LayerState } from '../../lib/layers';
 import LayersControl from '../../lib/layers-control';
 import { imageLegends } from '../../lib/legend';
+import { panIntoView } from '../../lib/popups';
 import InspectableRasterPreviewer from '../../lib/previewers/inspectable-raster';
 import type MapPreviewer from '../../lib/previewers/map';
 import type { References } from '../../lib/references';
@@ -643,8 +644,11 @@ export class OgmMap {
   protected createPopup(location: LngLatLike) {
     this.popup = new Popup({ maxWidth: 'none' }).setDOMContent(this.attributesEl).setLngLat(location).addTo(this.map);
 
-    // Recalculate the popup anchor when asynchronous content changes its size.
-    this.popupResize = new ResizeObserver(() => this.popup?.setLngLat(this.popup.getLngLat()));
+    // Recalculate the popup anchor when asynchronous content changes its size, then pan it back into view if it clips.
+    this.popupResize = new ResizeObserver(() => {
+      this.popup?.setLngLat(this.popup.getLngLat());
+      this.keepPopupInView();
+    });
     this.popupResize.observe(this.attributesEl);
 
     this.popup.on('close', () => {
@@ -654,6 +658,12 @@ export class OgmMap {
       this.clearFeatureSelection();
       this.attributesEl.features = [];
     });
+  }
+
+  protected keepPopupInView() {
+    if (!this.popup) return;
+    const [x, y] = panIntoView(this.popup.getElement().getBoundingClientRect(), this.map.getContainer().getBoundingClientRect(), this.map.getPadding());
+    if (x !== 0 || y !== 0) this.map.panBy([x, y]);
   }
 
   protected destroyPopup() {
