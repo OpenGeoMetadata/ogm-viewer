@@ -1,4 +1,5 @@
 import { Component, Element, Event, EventEmitter, Host, Prop, State, Watch, h } from '@stencil/core';
+import type { LngLatBoundsLike } from 'maplibre-gl';
 
 import '@awesome.me/webawesome/dist/components/tab-group/tab-group.js';
 import '@awesome.me/webawesome/dist/components/tab-panel/tab-panel.js';
@@ -24,9 +25,9 @@ export class OgmPreviews {
   @Prop() record?: OgmRecord;
   @Prop() previewers?: AnyPreviewer[];
   @Prop() requestTransform?: RequestTransform;
-  /** Undefined uses the default label layer; an empty string places previews above the basemap. */
   @Prop() beforeId?: string;
   @Prop() sidebarPadding: number;
+  @Prop() viewBounds?: LngLatBoundsLike | string;
   @State() private recordPreviewers: AnyPreviewer[] = [];
   @Event() previewsLoading: EventEmitter<void>;
   @Event() previewsLoaded: EventEmitter<void>;
@@ -98,6 +99,7 @@ export class OgmPreviews {
                 previewer={previewer}
                 sidebar-padding={this.sidebarPadding}
                 references={this.record?.references}
+                viewBounds={this.viewBounds}
               ></ogm-preview>
             </wa-tab-panel>
           ))}

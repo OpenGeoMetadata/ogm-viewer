@@ -5,6 +5,8 @@ import {
   Popup,
   type EaseToOptions,
   type ErrorEvent,
+  type FitBoundsOptions,
+  type LngLatBounds,
   type LngLatBoundsLike,
   type LngLatLike,
   type MapGeoJSONFeature,
@@ -65,8 +67,7 @@ export class OgmMap {
   @Prop() darkBasemap?: string;
   @Prop() lightBasemap?: string;
   @Prop() padding: number = 0;
-
-  /** Require a modifier for scrolling and two fingers for touch dragging. */
+  @Prop() viewBounds?: LngLatBoundsLike | string;
   @Prop() cooperativeGestures: boolean = true;
   @Prop() references?: References;
 
@@ -91,6 +92,8 @@ export class OgmMap {
   protected globeControl = new GlobeControl();
 
   private mapStyleLoaded: boolean = false;
+
+  private view?: LngLatBounds;
 
   private basemapFellBack: boolean = false;
 
@@ -130,13 +133,15 @@ export class OgmMap {
 
     if (!this.el.isConnected) return;
 
+    this.readView();
+
     try {
       this.map = createMap(container, this.mapTheme, {
         minZoom: MIN_ZOOM,
         cooperativeGestures: this.cooperativeGestures,
         // Read the current previewer on each request so changing previews also changes authentication.
         transformRequest: (url, resourceType) => toMapLibreRequest(this.previewer?.requestTransform?.(url, ourResourceType(resourceType)), url),
-        ...openingCamera(container, this.mapTheme, this.previewer?.declaredBounds),
+        ...openingCamera(container, this.mapTheme, this.view ?? this.previewer?.declaredBounds, this.view ? { padding: 0 } : {}),
       });
     } catch (error) {
       if (!isWebGLError(error)) throw error;
@@ -254,10 +259,7 @@ export class OgmMap {
       this.applyLayerState();
       this.setupLayerControls();
 
-      const bounds = await this.previewer.getBounds();
-      if (bounds) await this.fitMapBounds(bounds);
-
-      await this.fitToReportedBounds(previewer);
+      await this.frame(previewer);
 
       await settled;
     } catch (error) {
@@ -403,8 +405,32 @@ export class OgmMap {
     this.map.setMinZoom(Math.max(MIN_ZOOM, this.previewer?.minZoom ?? MIN_ZOOM));
   }
 
-  async fitMapBounds(bounds: LngLatBoundsLike) {
-    return await fitBounds(this.map, this.mapTheme, bounds);
+  async fitMapBounds(bounds: LngLatBoundsLike, extras: FitBoundsOptions = {}) {
+    return await fitBounds(this.map, this.mapTheme, bounds, extras);
+  }
+
+  @Watch('viewBounds')
+  async onViewBoundsChange() {
+    this.readView();
+    if (!this.previewer || !this.map || !this.mapStyleLoaded) return;
+    await this.frame(this.previewer);
+  }
+
+  private readView() {
+    this.view = this.viewBounds === undefined ? undefined : readBounds(this.viewBounds);
+    if (this.viewBounds !== undefined && !this.view) console.warn('Could not read viewBounds:', this.viewBounds);
+  }
+
+  // Show the view if one was explicitly provided, otherwise the record bounds,
+  // falling back to the data's own extent if we have neither.
+  protected async frame(previewer: MapPreviewer) {
+    this.boundsNotice = undefined;
+    if (this.view) return await this.fitMapBounds(this.view, { padding: 0 });
+
+    const bounds = await previewer.getBounds();
+    if (bounds) await this.fitMapBounds(bounds);
+
+    await this.fitToReportedBounds(previewer);
   }
 
   protected async fitToReportedBounds(previewer: MapPreviewer) {
@@ -415,7 +441,7 @@ export class OgmMap {
       console.warn(`Could not read the extent of ${previewer.url}:`, error);
       return undefined;
     });
-    if (!reported || boundsOverlap(declared, reported) || this.previewer !== previewer) return;
+    if (!reported || boundsOverlap(declared, reported) || this.previewer !== previewer || this.view) return;
 
     console.warn(
       `The record's bounding box for ${previewer.url} (${describeBounds(declared)}) doesn't overlap the extent the data reports for itself (${describeBounds(reported)}); showing the data instead.`,

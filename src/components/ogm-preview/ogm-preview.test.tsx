@@ -61,6 +61,17 @@ describe('ogm-preview', () => {
     expect(map.cooperativeGestures).toBe(false);
   });
 
+  it('hands bounds to open on to the map, and hands them over again when they change', async () => {
+    const el = await renderPreview(mapPreviewer());
+    const map = () => (el.shadowRoot as ShadowRoot).querySelector('ogm-map') as HTMLElement & { viewBounds?: string };
+    expect(map().viewBounds).toBeUndefined();
+
+    (el as unknown as { viewBounds?: string }).viewBounds = 'ENVELOPE(-124.41,-114.13,42.01,32.53)';
+    await flush();
+
+    expect(map().viewBounds).toBe('ENVELOPE(-124.41,-114.13,42.01,32.53)');
+  });
+
   it('shows the error over the preview when a previewError is reported', async () => {
     const el = await renderPreview(mapPreviewer());
     const error = referenceError(new TypeError('Failed to fetch'), 'GeoJSON', 'http://example.com/data.json');
