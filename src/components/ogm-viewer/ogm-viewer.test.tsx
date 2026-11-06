@@ -84,3 +84,16 @@ describe('ogm-viewer, given a URL', () => {
     expect(showing(el)).toEqual({ record: 'one', error: false });
   });
 });
+
+describe('ogm-viewer, given bounds to open on', () => {
+  it('reads them from an attribute and hands them to its previews', async () => {
+    serve();
+    const el = await mount(RECORD_URL);
+
+    el.setAttribute('view-bounds', 'ENVELOPE(-124.41,-114.13,42.01,32.53)');
+    await flush();
+
+    const previews = (el.shadowRoot as ShadowRoot).querySelector('ogm-previews') as HTMLElement & { viewBounds?: string };
+    expect(previews.viewBounds).toBe('ENVELOPE(-124.41,-114.13,42.01,32.53)');
+  });
+});

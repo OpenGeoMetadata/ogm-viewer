@@ -181,6 +181,15 @@ describe('ogm-previews', () => {
     });
   });
 
+  it('hands bounds to open on to every preview', async () => {
+    const el = await mountPreviews(undefined, buildPreviewers());
+    (el as unknown as { viewBounds?: string }).viewBounds = 'ENVELOPE(-124.41,-114.13,42.01,32.53)';
+    await flush();
+
+    const previews = Array.from((el.shadowRoot as ShadowRoot).querySelectorAll('ogm-preview')) as (HTMLElement & { viewBounds?: string })[];
+    expect(previews.map(preview => preview.viewBounds)).toEqual(['ENVELOPE(-124.41,-114.13,42.01,32.53)', 'ENVELOPE(-124.41,-114.13,42.01,32.53)']);
+  });
+
   describe('beforeId', () => {
     const drawnBeforeIds = (el: HTMLElement) =>
       Array.from((el.shadowRoot as ShadowRoot).querySelectorAll('ogm-preview'))

@@ -1,4 +1,5 @@
 import { Component, Element, Host, Listen, Method, Prop, State, Watch, h } from '@stencil/core';
+import type { LngLatBoundsLike } from 'maplibre-gl';
 
 import OgmRecord from '../../lib/record';
 import { fetchOrThrow, recordError, type PreviewError } from '../../lib/errors';
@@ -18,7 +19,7 @@ export class OgmViewer {
   @Prop() lightBasemap?: string;
   @Prop() beforeId?: string;
   @Prop() hideTitle: boolean = false;
-  /** Set before recordUrl; changing this alone does not refetch the current record. */
+  @Prop() viewBounds?: LngLatBoundsLike | string;
   @Prop() requestTransform?: RequestTransform;
   @State() record?: OgmRecord;
   @State() error?: PreviewError;
@@ -105,6 +106,7 @@ export class OgmViewer {
                 record={this.record}
                 requestTransform={this.requestTransform}
                 sidebar-padding={this.sidebarPadding}
+                viewBounds={this.viewBounds}
               ></ogm-previews>
             )}
           </div>

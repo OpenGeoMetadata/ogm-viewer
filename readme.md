@@ -65,6 +65,16 @@ ogm-viewer {
 }
 ```
 
+### View bounds
+
+By default, map previews will show the bounds in the provided record's bounding box field, or the bounds of the data itself if one is not set. To point the viewer somewhere else, you can set the `view-bounds` attribute:
+
+```html
+<ogm-viewer record-url="https://example.com/record.json" view-bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-viewer>
+```
+
+It will accept an `ENVELOPE` string, or a list of numbers corresponding to the SW and NE coordinates of the box (e.g. `[-73.9876, 40.7661, -73.9397, 40.8002]`).
+
 ### Dark mode support
 
 The viewer supports dark mode. If your system preference is set to prefer dark mode, the viewer will automatically apply dark styles.
@@ -230,16 +240,12 @@ document.querySelector('ogm-overview').addEventListener('boundsChange', event =>
 });
 ```
 
-If a search is executed externally, you can set the `search-bounds` attribute to reflect it on the map. It's drawn as a box and framed by the camera. It will accept an `ENVELOPE` string, or anything else MapLibre reads as bounds.
+Like the main viewer, the overview component supports the `view-bounds` attribute to point it to a specific view, without any padding.
+
+It also supports the `search-bounds` attribute: this will draw the provided bounds on the map as a rectangle and frame it using padding:
 
 ```html
 <ogm-overview search-bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-overview>
-```
-
-If you want to move the camera to a specific area, you can set the `view-bounds` attribute the same way. This won't draw a box and will try to fit the exact bounds provided, without applying any padding.
-
-```html
-<ogm-overview view-bounds="ENVELOPE(-124.41,-114.13,42.01,32.53)"></ogm-overview>
 ```
 
 ### Advanced usage
