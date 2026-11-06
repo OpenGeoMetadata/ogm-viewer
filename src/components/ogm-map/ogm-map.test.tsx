@@ -725,6 +725,130 @@ describe('ogm-map', () => {
     });
   });
 
+  describe('given bounds to open on', () => {
+    const california = [
+      [-124.41, 32.53],
+      [-114.13, 42.01],
+    ];
+    const CALIFORNIA = 'ENVELOPE(-124.41,-114.13,42.01,32.53)';
+    const ICELAND = 'ENVELOPE(-24.55,-13.49,66.57,63.39)';
+    const archive = [
+      [-123.532115, 36.893111],
+      [-121.208298, 38.864317],
+    ];
+
+    type ViewMap = HTMLElement & { viewBounds?: unknown };
+
+    const lastFrame = (map: ReturnType<typeof loadingMap>) => {
+      const [framed, options] = map.fitBounds.mock.lastCall as unknown as [number[][] | { toArray: () => number[][] }, { padding: unknown }];
+      return { bounds: Array.isArray(framed) ? framed : framed.toArray(), padding: options.padding };
+    };
+
+    const drawWith = async (viewBounds: unknown, previewer = drawablePreviewer()) => {
+      const { el } = await renderMap();
+      const map = loadingMap();
+      setThemeProperty(el, '--ogm-padding', '50');
+      Object.assign(el, { map, layersControl: fakeLayersControl(), previewer, viewBounds });
+
+      await styleLoads(el, map);
+      await settle();
+      return { el: el as ViewMap, map, previewer };
+    };
+
+    it('frames them exactly, in place of the preview’s own extent', async () => {
+      const { map, previewer } = await drawWith(california);
+
+      expect(map.fitBounds).toHaveBeenCalledTimes(1);
+      expect(lastFrame(map)).toEqual({ bounds: california, padding: 0 });
+      expect(previewer.getBounds).not.toHaveBeenCalled();
+    });
+
+    it('reads them from an ENVELOPE string', async () => {
+      const { map } = await drawWith(CALIFORNIA);
+
+      expect(lastFrame(map)).toEqual({ bounds: california, padding: 0 });
+    });
+
+    it('is read from an attribute', async () => {
+      const { el } = await renderMap();
+      el.setAttribute('view-bounds', CALIFORNIA);
+
+      expect((el as ViewMap).viewBounds).toEqual(CALIFORNIA);
+    });
+
+    it('leaves the record’s box unchecked against the data, since the map is not showing either', async () => {
+      const { el, previewer } = await drawWith(california, { ...drawablePreviewer(), declaredBounds: bounds, getReportedBounds: vi.fn(async () => archive) });
+
+      expect(previewer.getReportedBounds).not.toHaveBeenCalled();
+      expect(noticeTexts(el)).toEqual([]);
+    });
+
+    it('opens the next preview there too', async () => {
+      const { el, map } = await drawWith(california);
+      Object.assign(el, { previewer: drawablePreviewer() });
+      await settle();
+
+      expect(map.fitBounds).toHaveBeenCalledTimes(2);
+      expect(lastFrame(map)).toEqual({ bounds: california, padding: 0 });
+    });
+
+    it('moves the map when they change', async () => {
+      const { el, map } = await drawWith(california);
+      el.viewBounds = ICELAND;
+      await settle();
+
+      expect(lastFrame(map)).toEqual({
+        bounds: [
+          [-24.55, 63.39],
+          [-13.49, 66.57],
+        ],
+        padding: 0,
+      });
+    });
+
+    it('goes back to the preview’s own extent, with the theme’s gap, once they are withdrawn', async () => {
+      const { el, map, previewer } = await drawWith(california);
+      el.viewBounds = undefined;
+      await settle();
+
+      expect(previewer.getBounds).toHaveBeenCalled();
+      expect(lastFrame(map)).toEqual({ bounds, padding: 50 });
+    });
+
+    it('takes down the warning about a misplaced record box once they replace the data’s extent', async () => {
+      const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { el, map } = await drawWith(undefined, { ...drawablePreviewer(), declaredBounds: bounds, getReportedBounds: vi.fn(async () => archive) });
+      expect(noticeTexts(el)).toEqual([expect.stringContaining('bounding box doesn’t overlap the data')]);
+
+      el.viewBounds = california;
+      await settle();
+
+      expect(lastFrame(map)).toEqual({ bounds: california, padding: 0 });
+      expect(noticeTexts(el)).toEqual([]);
+      consoleWarn.mockRestore();
+    });
+
+    it('waits for the basemap before moving the map', async () => {
+      const { el } = await renderMap();
+      const map = loadingMap();
+      Object.assign(el, { map, layersControl: fakeLayersControl(), previewer: drawablePreviewer() });
+
+      (el as ViewMap).viewBounds = california;
+      await settle();
+
+      expect(map.fitBounds).not.toHaveBeenCalled();
+    });
+
+    it('says so, and frames the preview’s own extent, when they can’t be read', async () => {
+      const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { map } = await drawWith('somewhere nice');
+
+      expect(consoleWarn).toHaveBeenCalledWith('Could not read viewBounds:', 'somewhere nice');
+      expect(lastFrame(map)).toEqual({ bounds, padding: 50 });
+      consoleWarn.mockRestore();
+    });
+  });
+
   describe('while a preview that draws itself is still drawing', () => {
     const drawingPreview = async () => {
       const { el } = await renderMap();

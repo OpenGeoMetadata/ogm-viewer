@@ -1,4 +1,5 @@
 import { Component, Element, Host, Listen, Prop, State, Watch, h } from '@stencil/core';
+import type { LngLatBoundsLike } from 'maplibre-gl';
 
 import { adoptWebAwesomeTheme, initialTheme, waScope } from '../../lib/init';
 import type { AnyPreviewer } from '../../lib/previewers/factory';
@@ -19,6 +20,7 @@ export class OgmPreview {
   @Prop() sidebarPadding: number;
   @Prop() cooperativeGestures: boolean = true;
   @Prop() references?: References;
+  @Prop() viewBounds?: LngLatBoundsLike | string;
   @State() error?: PreviewError;
 
   componentWillLoad() {
@@ -52,6 +54,7 @@ export class OgmPreview {
         padding={this.sidebarPadding}
         cooperativeGestures={this.cooperativeGestures}
         references={this.references}
+        viewBounds={this.viewBounds}
       ></ogm-map>
     );
   }

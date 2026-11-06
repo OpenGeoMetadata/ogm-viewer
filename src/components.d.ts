@@ -98,7 +98,6 @@ export namespace Components {
     }
     interface OgmMap {
         /**
-          * Require a modifier for scrolling and two fingers for touch dragging.
           * @default true
          */
         "cooperativeGestures": boolean;
@@ -115,6 +114,7 @@ export namespace Components {
           * @default initialTheme(this.el)
          */
         "theme": 'light' | 'dark';
+        "viewBounds"?: LngLatBoundsLike | string;
     }
     interface OgmMenubar {
         /**
@@ -183,11 +183,9 @@ export namespace Components {
           * @default initialTheme(this.el)
          */
         "theme": 'light' | 'dark';
+        "viewBounds"?: LngLatBoundsLike | string;
     }
     interface OgmPreviews {
-        /**
-          * Undefined uses the default label layer; an empty string places previews above the basemap.
-         */
         "beforeId"?: string;
         "darkBasemap"?: string;
         "lightBasemap"?: string;
@@ -199,6 +197,7 @@ export namespace Components {
           * @default initialTheme(this.el)
          */
         "theme": 'light' | 'dark';
+        "viewBounds"?: LngLatBoundsLike | string;
     }
     interface OgmSidebar {
         /**
@@ -226,14 +225,12 @@ export namespace Components {
         "lightBasemap"?: string;
         "loadRecord": (record: OgmRecord) => Promise<void>;
         "recordUrl"?: string;
-        /**
-          * Set before recordUrl; changing this alone does not refetch the current record.
-         */
         "requestTransform"?: RequestTransform;
         /**
           * @default initialTheme(this.el)
          */
         "theme": 'light' | 'dark';
+        "viewBounds"?: LngLatBoundsLike | string;
     }
 }
 export interface OgmAttributesCustomEvent<T> extends CustomEvent<T> {
@@ -581,7 +578,6 @@ declare namespace LocalJSX {
     }
     interface OgmMap {
         /**
-          * Require a modifier for scrolling and two fingers for touch dragging.
           * @default true
          */
         "cooperativeGestures"?: boolean;
@@ -600,6 +596,7 @@ declare namespace LocalJSX {
           * @default initialTheme(this.el)
          */
         "theme"?: 'light' | 'dark';
+        "viewBounds"?: LngLatBoundsLike | string;
     }
     interface OgmMenubar {
         /**
@@ -674,11 +671,9 @@ declare namespace LocalJSX {
           * @default initialTheme(this.el)
          */
         "theme"?: 'light' | 'dark';
+        "viewBounds"?: LngLatBoundsLike | string;
     }
     interface OgmPreviews {
-        /**
-          * Undefined uses the default label layer; an empty string places previews above the basemap.
-         */
         "beforeId"?: string;
         "darkBasemap"?: string;
         "lightBasemap"?: string;
@@ -692,6 +687,7 @@ declare namespace LocalJSX {
           * @default initialTheme(this.el)
          */
         "theme"?: 'light' | 'dark';
+        "viewBounds"?: LngLatBoundsLike | string;
     }
     interface OgmSidebar {
         /**
@@ -720,14 +716,12 @@ declare namespace LocalJSX {
         "hideTitle"?: boolean;
         "lightBasemap"?: string;
         "recordUrl"?: string;
-        /**
-          * Set before recordUrl; changing this alone does not refetch the current record.
-         */
         "requestTransform"?: RequestTransform;
         /**
           * @default initialTheme(this.el)
          */
         "theme"?: 'light' | 'dark';
+        "viewBounds"?: LngLatBoundsLike | string;
     }
 
     interface OgmAlertsAttributes {
@@ -763,6 +757,7 @@ declare namespace LocalJSX {
         "darkBasemap": string;
         "lightBasemap": string;
         "padding": number;
+        "viewBounds": LngLatBoundsLike | string;
         "cooperativeGestures": boolean;
     }
     interface OgmMenubarAttributes {
@@ -790,6 +785,7 @@ declare namespace LocalJSX {
         "lightBasemap": string;
         "sidebarPadding": number;
         "cooperativeGestures": boolean;
+        "viewBounds": LngLatBoundsLike | string;
     }
     interface OgmPreviewsAttributes {
         "theme": 'light' | 'dark';
@@ -797,6 +793,7 @@ declare namespace LocalJSX {
         "lightBasemap": string;
         "beforeId": string;
         "sidebarPadding": number;
+        "viewBounds": LngLatBoundsLike | string;
     }
     interface OgmSidebarAttributes {
         "theme": 'light' | 'dark';
@@ -812,6 +809,7 @@ declare namespace LocalJSX {
         "lightBasemap": string;
         "beforeId": string;
         "hideTitle": boolean;
+        "viewBounds": LngLatBoundsLike | string;
     }
 
     interface IntrinsicElements {
