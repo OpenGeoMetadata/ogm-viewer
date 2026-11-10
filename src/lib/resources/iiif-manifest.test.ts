@@ -51,10 +51,12 @@ const v3Manifest = {
               body: {
                 id: 'http://example.com/image1/full/full/0/default.jpg',
                 type: 'Image',
-                service: {
-                  id: 'http://example.com/image1',
-                  type: 'ImageService2',
-                },
+                service: [
+                  {
+                    id: 'http://example.com/image1',
+                    type: 'ImageService2',
+                  },
+                ],
               },
             },
           ],
@@ -161,6 +163,16 @@ describe('IIIFManifestResource', () => {
       expect(await source.isGeoreferenced()).toBe(true);
     });
 
+    it('finds an annotation in a page the manifest references by id', async () => {
+      const PAGE_URL = 'http://example.com/annotations/referenced';
+      const manifest = { ...v3Manifest, items: [{ ...v3Manifest.items[0], annotations: [{ id: PAGE_URL, type: 'AnnotationPage' }] }] };
+      vi.spyOn(global, 'fetch').mockImplementation(async url =>
+        url === MANIFEST_URL ? new Response(JSON.stringify(manifest)) : new Response(JSON.stringify(annotationFor(PAGE_URL))),
+      );
+
+      expect(await sourceWith().getGeoreferenceAnnotation()).toEqual(annotationFor(PAGE_URL));
+    });
+
     it('falls back to a standalone annotation when the manifest carries none', async () => {
       vi.spyOn(global, 'fetch').mockImplementation(async url =>
         url === MANIFEST_URL ? new Response(JSON.stringify(v3Manifest)) : new Response(JSON.stringify(annotationFor('standalone'))),
@@ -239,6 +251,106 @@ describe('IIIFManifestResource', () => {
       await source.isGeoreferenced();
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    describe('when the annotation targets a canvas', () => {
+      const CANVAS_ID = 'http://example.com/canvas1';
+      const selector = { type: 'SvgSelector', value: '<svg width="2000" height="1000"><polygon points="0,0 2000,0 2000,1000" /></svg>' };
+
+      const targeting = (source: object) => ({
+        type: 'Annotation',
+        motivation: 'georeferencing',
+        target: { type: 'SpecificResource', source, selector },
+        body: { type: 'FeatureCollection', features: [] },
+      });
+
+      const pageOf = (...items: object[]) => ({ id: 'http://example.com/georeference', type: 'AnnotationPage', items });
+
+      const manifestWith = (canvas: object, annotations: object[] = []) => ({
+        ...v3Manifest,
+        items: [{ ...v3Manifest.items[0], width: 2000, height: 1000, annotations, ...canvas }],
+      });
+
+      const resolvedSource = {
+        id: 'http://example.com/image1',
+        type: 'ImageService2',
+        width: 2000,
+        height: 1000,
+        partOf: [{ id: CANVAS_ID, type: 'Canvas', partOf: [{ id: MANIFEST_URL, type: 'Manifest' }] }],
+      };
+
+      it('points an embedded annotation at the image service painted on that canvas', async () => {
+        const manifest = manifestWith({}, [pageOf(targeting({ id: CANVAS_ID, type: 'Canvas' }))]);
+        vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(manifest)));
+
+        expect(await sourceWith().getGeoreferenceAnnotation()).toMatchObject({ type: 'AnnotationPage', items: [{ target: { source: resolvedSource } }] });
+      });
+
+      it('points a standalone annotation at the image service using the manifest', async () => {
+        const fetchSpy = vi
+          .spyOn(global, 'fetch')
+          .mockImplementation(async url =>
+            url === MANIFEST_URL ? new Response(JSON.stringify(manifestWith({}))) : new Response(JSON.stringify(targeting({ id: CANVAS_ID, type: 'Canvas' }))),
+          );
+
+        expect(await sourceWith(ANNOTATION_URL).getGeoreferenceAnnotation()).toMatchObject({ type: 'Annotation', target: { source: resolvedSource } });
+        expect(fetchSpy).toHaveBeenCalledTimes(2);
+      });
+
+      it('sizes the image service as its service says rather than as the canvas', async () => {
+        const canvas = v3Manifest.items[0];
+        const page = canvas.items[0];
+        const body = { ...page.items[0].body, service: [{ ...page.items[0].body.service[0], width: 4000, height: 2000 }] };
+        const manifest = manifestWith({ items: [{ ...page, items: [{ ...page.items[0], body }] }] }, [pageOf(targeting({ id: CANVAS_ID, type: 'Canvas' }))]);
+        vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(manifest)));
+
+        const annotation = await sourceWith().getGeoreferenceAnnotation();
+
+        expect(annotation?.items?.[0]).toMatchObject({ target: { source: { id: 'http://example.com/image1', type: 'ImageService2', width: 4000, height: 2000 } } });
+      });
+
+      it('leaves an annotation targeting an image service alone', async () => {
+        const page = pageOf(targeting({ id: 'http://example.com/image1', type: 'ImageService2', width: 2000, height: 1000 }));
+        vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(manifestWith({}, [page]))));
+
+        expect(await sourceWith().getGeoreferenceAnnotation()).toEqual(page);
+      });
+
+      it('leaves an annotation targeting a canvas the manifest does not have alone', async () => {
+        const page = pageOf(targeting({ id: 'http://example.com/elsewhere', type: 'Canvas' }));
+        vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(manifestWith({}, [page]))));
+
+        expect(await sourceWith().getGeoreferenceAnnotation()).toEqual(page);
+      });
+
+      it('points an annotation at the image service painted on a canvas in a v2 manifest', async () => {
+        const image = v2Manifest.sequences[0].canvases[0].images[0];
+        const service = { '@id': 'http://example.com/image1', 'profile': 'http://iiif.io/api/image/2/level2.json' };
+        const canvas = { '@id': CANVAS_ID, '@type': 'sc:Canvas', 'width': 2000, 'height': 1000, 'images': [{ ...image, resource: { ...image.resource, service } }] };
+        const manifest = { ...v2Manifest, sequences: [{ canvases: [canvas] }] };
+        vi.spyOn(global, 'fetch').mockImplementation(async url =>
+          url === MANIFEST_URL ? new Response(JSON.stringify(manifest)) : new Response(JSON.stringify(targeting({ id: CANVAS_ID, type: 'Canvas' }))),
+        );
+
+        expect(await sourceWith(ANNOTATION_URL).getGeoreferenceAnnotation()).toMatchObject({ target: { source: resolvedSource } });
+      });
+
+      it('leaves an annotation alone and warns when Allmaps cannot read the manifest', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const page = pageOf(targeting({ id: CANVAS_ID, type: 'Canvas' }));
+        const manifest = manifestWith({ width: undefined }, [page]);
+        vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(manifest)));
+
+        expect(await sourceWith().getGeoreferenceAnnotation()).toEqual(page);
+        expect(warn).toHaveBeenCalledOnce();
+      });
+
+      it('leaves an annotation Allmaps cannot parse for the layer to report', async () => {
+        const page = pageOf({ ...targeting({ id: CANVAS_ID, type: 'Canvas' }), target: { type: 'SpecificResource', source: { id: CANVAS_ID, type: 'Canvas' } } });
+        vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(manifestWith({}, [page]))));
+
+        expect(await sourceWith().getGeoreferenceAnnotation()).toEqual(page);
+      });
     });
   });
 });

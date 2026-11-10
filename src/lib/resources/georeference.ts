@@ -36,7 +36,8 @@ export async function findGeoreferenceAnnotation(node: unknown, requestTransform
   if (type === 'AnnotationPage') {
     const pageItems = items ?? (await dereferencePage(node as GeoreferenceAnnotation, requestTransform));
     if (!pageItems) return undefined;
-    if (pageItems.some(isGeoreferenceAnnotation)) return node as GeoreferenceAnnotation;
+    // Hand back the page with the items it was dereferenced to; a referenced page carries only its id and type.
+    if (pageItems.some(isGeoreferenceAnnotation)) return { ...(node as GeoreferenceAnnotation), items: pageItems };
     return await findFirst(pageItems, requestTransform, depth);
   }
 
