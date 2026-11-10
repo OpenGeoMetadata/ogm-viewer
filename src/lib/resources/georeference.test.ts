@@ -69,6 +69,14 @@ describe('findGeoreferenceAnnotation', () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
   });
 
+  it('returns the items of a referenced page that holds the georeference annotations itself', async () => {
+    const reference = { id: 'https://purl.stanford.edu/bb013fz9675/iiif3/annotations/one', type: 'AnnotationPage' };
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(jsonResponse({ ...reference, items: [georeferenceAnnotation] }));
+
+    expect(await findGeoreferenceAnnotation(reference)).toEqual({ ...reference, items: [georeferenceAnnotation] });
+    expect(fetchSpy).toHaveBeenCalledOnce();
+  });
+
   it('reads a page it was handed whole without fetching anything', async () => {
     const fetchSpy = vi.spyOn(global, 'fetch');
     const page = { type: 'AnnotationPage', items: [georeferenceAnnotation] };
