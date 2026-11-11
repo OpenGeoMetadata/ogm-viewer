@@ -11,9 +11,13 @@ import { ResourceKind } from "./lib/resources/resource";
 import { RequestTransform } from "./lib/request";
 import { References } from "./lib/references";
 import { FieldDefinitions } from "./lib/field-definitions";
+import ImagePreviewer from "./lib/previewers/image";
 import { LayerControl } from "./lib/layers";
 import { ColorRampName } from "./lib/colormap";
 import { LegendEntry } from "./lib/legend";
+import OgmRecord from "./lib/record";
+import LocationPreviewer from "./lib/previewers/location";
+import MapPreviewer from "./lib/previewers/map";
 import { AnyPreviewer } from "./lib/previewers/factory";
 export { PreviewError } from "./lib/errors";
 export { EaseToOptions, LngLatBoundsLike, MapGeoJSONFeature, MapLibreMap } from "maplibre-gl";
@@ -21,9 +25,13 @@ export { ResourceKind } from "./lib/resources/resource";
 export { RequestTransform } from "./lib/request";
 export { References } from "./lib/references";
 export { FieldDefinitions } from "./lib/field-definitions";
+export { default as ImagePreviewer } from "./lib/previewers/image";
 export { LayerControl } from "./lib/layers";
 export { ColorRampName } from "./lib/colormap";
 export { LegendEntry } from "./lib/legend";
+export { default as OgmRecord } from "./lib/record";
+export { default as LocationPreviewer } from "./lib/previewers/location";
+export { default as MapPreviewer } from "./lib/previewers/map";
 export { AnyPreviewer } from "./lib/previewers/factory";
 export namespace Components {
     interface OgmAlerts {

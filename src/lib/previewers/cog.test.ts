@@ -81,7 +81,7 @@ const FAKE_GEOTIFF = { crs: 'EPSG:4326' };
 
 const FAKE_SCALAR_GEOTIFF = {
   crs: 'EPSG:4326',
-  cachedTags: { sampleFormat: [3], samplesPerPixel: 1 },
+  cachedPrimaryImageTags: { sampleFormat: [3], samplesPerPixel: 1 },
   gdalMetadata: { bandStatistics: new Map([[1, { min: -184.48, max: 607.27, mean: null, std: null, validPercent: null }]]) },
   overviews: [],
 };
@@ -142,7 +142,7 @@ describe('CogPreviewer', () => {
     const { previewer } = previewFor();
     await previewer.preview();
 
-    expect(previewer.overlay.lastLayers[0].props.geotiff).toBe(FAKE_GEOTIFF);
+    expect(previewer.overlay.lastLayers[0].props.source).toBe(FAKE_GEOTIFF);
     expect(previewer.opened).toEqual([COG_URL]);
   });
 
@@ -153,7 +153,7 @@ describe('CogPreviewer', () => {
     previewer.applyLayerState(new Map([['stanford-vq494qx9344-cog', { visible: true, opacity: 0.25 }]]));
 
     expect(previewer.opened).toEqual([COG_URL]);
-    expect(previewer.overlay.lastLayers[0].props.geotiff).toBe(FAKE_GEOTIFF);
+    expect(previewer.overlay.lastLayers[0].props.source).toBe(FAKE_GEOTIFF);
   });
 
   it('fails the preview when the COG cannot be read', async () => {
@@ -551,7 +551,7 @@ describe('CogPreviewer', () => {
       const { previewer } = previewFor();
       await previewer.preview();
 
-      previewer.overlay.lastLayers[0].props.onGeoTIFFLoad({}, { geographicBounds: { west: -122.2, south: 37.4, east: -122.1, north: 37.5 } });
+      previewer.overlay.lastLayers[0].props.onSourceLoad({ geographicBounds: { west: -122.2, south: 37.4, east: -122.1, north: 37.5 } });
 
       expect(await previewer.getBounds()).toEqual([
         [-122.2, 37.4],
@@ -566,7 +566,7 @@ describe('CogPreviewer', () => {
       ]);
       await previewer.preview();
 
-      previewer.overlay.lastLayers[0].props.onGeoTIFFLoad({}, { geographicBounds: { west: -122.2, south: 37.4, east: -122.1, north: 37.5 } });
+      previewer.overlay.lastLayers[0].props.onSourceLoad({ geographicBounds: { west: -122.2, south: 37.4, east: -122.1, north: 37.5 } });
 
       expect(await previewer.getReportedBounds()).toEqual([
         [-122.2, 37.4],

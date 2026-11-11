@@ -50,7 +50,7 @@ export function decodePng(bytes: Uint8Array): DecodedImage {
   let bytesPerPixel = 0;
   const compressed: Uint8Array[] = [];
 
-  for (let offset = 8; offset + 12 <= bytes.length; ) {
+  for (let offset = 8; offset + 12 <= bytes.length;) {
     const length = view.getUint32(offset);
     const type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
     const body = bytes.subarray(offset + 8, offset + 8 + length);

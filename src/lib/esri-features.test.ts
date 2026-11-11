@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from '@stencil/vitest';
 import { VectorTile } from '@mapbox/vector-tile';
-import Protobuf from 'pbf';
+import { PbfReader } from 'pbf';
 import {
   encodeFeatureTile,
   esriFeatureTile,
@@ -24,7 +24,7 @@ const Z = 10;
 const X = 257;
 const Y = 375;
 
-const decode = (data: ArrayBuffer) => new VectorTile(new Protobuf(new Uint8Array(data)));
+const decode = (data: ArrayBuffer) => new VectorTile(new PbfReader(new Uint8Array(data)));
 
 describe('featureTileUrl', () => {
   it('round trips a token and a tile coordinate', () => {

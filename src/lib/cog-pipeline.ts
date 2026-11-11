@@ -1,4 +1,4 @@
-import type { CachedTags, DecoderPool, GeoTIFF, Overview, RasterArray, RasterTypedArray } from '@developmentseed/geotiff';
+import type { CachedPrimaryImageTags, DecoderPool, GeoTIFF, Overview, RasterArray, RasterTypedArray } from '@developmentseed/geotiff';
 import { Colormap, COLORMAP_INDEX, createColormapTexture, CreateTexture, LinearRescale } from '@developmentseed/deck.gl-raster/gpu-modules';
 import type { RenderTileResult } from '@developmentseed/deck.gl-raster';
 import type { Device, Texture } from '@luma.gl/core';
@@ -10,7 +10,7 @@ const SAMPLE_FORMAT_INT = 2;
 const SAMPLE_FORMAT_FLOAT = 3;
 
 // Single-band signed and float rasters need a scalar pipeline; upstream only infers unsigned data.
-export function isScalarSampleFormat(cachedTags: CachedTags | undefined): boolean {
+export function isScalarSampleFormat(cachedTags: CachedPrimaryImageTags | undefined): boolean {
   if (!cachedTags || cachedTags.samplesPerPixel !== 1) return false;
   const [format] = cachedTags.sampleFormat;
   return format === SAMPLE_FORMAT_INT || format === SAMPLE_FORMAT_FLOAT;

@@ -1,5 +1,5 @@
 import type { MapLibreOverlay as DeckOverlay } from '@deck.gl/maplibre';
-import { COGLayer } from '@developmentseed/deck.gl-geotiff';
+import { COGLayer, type COGSource } from '@developmentseed/deck.gl-geotiff';
 import type { DecoderPool, GeoTIFF } from '@developmentseed/geotiff';
 import type { AddLayerObject, LngLatBoundsLike, MapLibreMap } from 'maplibre-gl';
 
@@ -125,7 +125,7 @@ export default class CogPreviewer extends MapPreviewer {
     void this.readQuantity();
 
     this.geotiff = await this.loadGeoTIFF();
-    this.valueRange = isScalarSampleFormat(this.geotiff.cachedTags) ? await scalarRange(this.geotiff, this.decoderPool) : undefined;
+    this.valueRange = isScalarSampleFormat(this.geotiff.cachedPrimaryImageTags) ? await scalarRange(this.geotiff, this.decoderPool) : undefined;
     await super.preview();
     this.drawDeckLayer();
   }
@@ -184,11 +184,11 @@ export default class CogPreviewer extends MapPreviewer {
 
     const shared = {
       id: this.getLayerId(),
-      geotiff,
+      source: geotiff,
       visible: isLayerDrawn(state),
       opacity: state.opacity,
-      onGeoTIFFLoad: (_data: GeoTIFF, options: { geographicBounds: { west: number; south: number; east: number; north: number } }) => {
-        const { west, south, east, north } = options.geographicBounds;
+      onSourceLoad: (source: COGSource) => {
+        const { west, south, east, north } = source.geographicBounds;
         this.resolveGeotiffBounds([
           [west, south],
           [east, north],
