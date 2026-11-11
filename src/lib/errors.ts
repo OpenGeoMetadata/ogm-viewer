@@ -162,7 +162,7 @@ export async function fetchOrThrow(url: string, init?: RequestInit): Promise<Res
   return response;
 }
 
-// Data sources such as @chunkd wrap the errors they catch, so look through each cause.
+// Readers can wrap the errors they catch, so look through each cause.
 function challengeIn(error: unknown): ChallengeError | undefined {
   for (let e = error; e instanceof Error; e = e.cause) {
     if (e instanceof ChallengeError) return e;
