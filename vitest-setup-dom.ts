@@ -26,6 +26,7 @@ if (!Element.prototype.animate) {
 }
 
 // Provide enough image and canvas support to decode the real colormap sprite in happy-dom.
+// happy-dom has its own versions of these, but they draw nothing without a canvas adapter.
 class TestImageData {
   readonly colorSpace = 'srgb';
 
@@ -90,18 +91,16 @@ class TestOffscreenCanvas {
   }
 }
 
-if (!globalThis.ImageData) globalThis.ImageData = TestImageData as unknown as typeof ImageData;
-if (!globalThis.ImageBitmap) globalThis.ImageBitmap = TestImageBitmap as unknown as typeof ImageBitmap;
-if (!globalThis.OffscreenCanvas) globalThis.OffscreenCanvas = TestOffscreenCanvas as unknown as typeof OffscreenCanvas;
+globalThis.ImageData = TestImageData as unknown as typeof ImageData;
+globalThis.ImageBitmap = TestImageBitmap as unknown as typeof ImageBitmap;
+globalThis.OffscreenCanvas = TestOffscreenCanvas as unknown as typeof OffscreenCanvas;
 
-if (!globalThis.createImageBitmap) {
-  globalThis.createImageBitmap = (async (source: Blob | ArrayBuffer | ArrayBufferView) => {
-    if (source instanceof Blob) return new TestImageBitmap(decodePng(new Uint8Array(await source.arrayBuffer())));
-    if (source instanceof ArrayBuffer) return new TestImageBitmap(decodePng(new Uint8Array(source)));
-    if (ArrayBuffer.isView(source)) return new TestImageBitmap(decodePng(new Uint8Array(source.buffer, source.byteOffset, source.byteLength)));
-    throw new TypeError('The test DOM can only make an ImageBitmap out of encoded bytes.');
-  }) as typeof createImageBitmap;
-}
+globalThis.createImageBitmap = (async (source: Blob | ArrayBuffer | ArrayBufferView) => {
+  if (source instanceof Blob) return new TestImageBitmap(decodePng(new Uint8Array(await source.arrayBuffer())));
+  if (source instanceof ArrayBuffer) return new TestImageBitmap(decodePng(new Uint8Array(source)));
+  if (ArrayBuffer.isView(source)) return new TestImageBitmap(decodePng(new Uint8Array(source.buffer, source.byteOffset, source.byteLength)));
+  throw new TypeError('The test DOM can only make an ImageBitmap out of encoded bytes.');
+}) as typeof createImageBitmap;
 
 const crossOrigin = (url: string | URL): boolean => {
   try {

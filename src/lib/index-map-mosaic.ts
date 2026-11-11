@@ -1,5 +1,5 @@
 import type { MapLibreOverlay as DeckOverlay } from '@deck.gl/maplibre';
-import { MosaicLayer } from '@developmentseed/deck.gl-geotiff';
+import { MosaicLayer, type MosaicLayerProps } from '@developmentseed/deck.gl-geotiff';
 import type { DecoderPool, GeoTIFF } from '@developmentseed/geotiff';
 import type { MapLibreMap } from 'maplibre-gl';
 
@@ -25,6 +25,8 @@ const GLOBE_PARAMETERS = { depthCompare: 'always' as const, cullMode: 'back' as 
 type SheetData = { geotiff: GeoTIFF; range?: ScalarRange } | null;
 
 type UnloadedTile = { content: unknown };
+
+type SubLayerProps = Parameters<MosaicLayerProps<MosaicSheet, SheetData>['renderSource']>[1]['subLayerProps'];
 
 export type MosaicHost = {
   map: MapLibreMap;
@@ -155,16 +157,16 @@ export default class IndexMapMosaic {
 
     const props = {
       id: this.id,
-      sources: this.sheets,
+      data: this.sheets,
       minZoom: this.minZoom,
       visible: isLayerDrawn(state),
       // Evict offscreen sheet layers; opened headers are cached separately and are cheap to retain.
       maxCacheSize: 0,
       getSource: (sheet: MosaicSheet, { signal }: { signal?: AbortSignal }) => this.loadSheet(sheet, signal),
-      renderSource: (sheet: MosaicSheet, { data, signal }: { data?: SheetData; signal?: AbortSignal }) =>
-        data ? this.createSheetLayer(sheet, data, state, ramp, range, signal) : null,
+      renderSource: (sheet: MosaicSheet, { source, subLayerProps }: { source?: SheetData; subLayerProps: SubLayerProps }) =>
+        source ? this.createSheetLayer(sheet, source, subLayerProps, state, ramp, range) : null,
       onSourceError: (sheet: MosaicSheet, { error }: { error: Error }) => this.reportSheetError(sheet, error),
-      onViewportLoad: (entries: { data?: SheetData }[]) => this.stretchToView(entries),
+      onViewportLoad: (entries: { source?: SheetData }[]) => this.stretchToView(entries),
       beforeId: host.beforeId(),
     };
 
@@ -174,19 +176,19 @@ export default class IndexMapMosaic {
   protected createSheetLayer(
     sheet: MosaicSheet,
     data: NonNullable<SheetData>,
+    subLayerProps: SubLayerProps,
     state: LayerState,
     ramp: ColorRampName,
     range: ScalarRange | undefined,
-    signal?: AbortSignal,
   ): ClippedCOGLayer | ClippedCOGLayer<ScalarTileData> {
     const shared = {
+      ...subLayerProps,
       id: `${this.id}-${sheet.id}`,
-      geotiff: data.geotiff,
+      source: data.geotiff,
       visible: isLayerDrawn(state),
       opacity: state.opacity,
       parameters: GLOBE_PARAMETERS,
       pool: this.decoderPool,
-      signal,
       onTileError: (error: unknown) => this.reportTileError(sheet, error),
     };
 
@@ -213,7 +215,7 @@ export default class IndexMapMosaic {
     }
 
     if (!isDrawable(geotiff)) return null;
-    return { geotiff, range: isScalarSampleFormat(geotiff.cachedTags) ? await scalarRange(geotiff, this.decoderPool) : undefined };
+    return { geotiff, range: isScalarSampleFormat(geotiff.cachedPrimaryImageTags) ? await scalarRange(geotiff, this.decoderPool) : undefined };
   }
 
   protected openSheet(url: string, signal?: AbortSignal): Promise<GeoTIFF> {
@@ -242,8 +244,8 @@ export default class IndexMapMosaic {
   }
 
   // Use one range across visible sheets so identical values have identical colors.
-  protected stretchToView(entries: { data?: SheetData }[]) {
-    const ranges = entries.flatMap(({ data }) => (data?.range ? [data.range] : []));
+  protected stretchToView(entries: { source?: SheetData }[]) {
+    const ranges = entries.flatMap(({ source }) => (source?.range ? [source.range] : []));
     if (!ranges.length) return;
 
     const range: ScalarRange = [Math.min(...ranges.map(([min]) => min)), Math.max(...ranges.map(([, max]) => max))];

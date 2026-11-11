@@ -1,5 +1,4 @@
-import { WebMercatorViewport, type LayerContext, type Viewport } from '@deck.gl/core';
-import type { _Tile2DHeader as Tile2DHeader } from '@deck.gl/geo-layers';
+import { WebMercatorViewport, type Viewport } from '@deck.gl/core';
 import { COGLayer } from '@developmentseed/deck.gl-geotiff';
 import type { MinimalTileData, RenderTileResult } from '@developmentseed/deck.gl-raster';
 
@@ -94,23 +93,5 @@ export default class ClippedCOGLayer<DataT extends MinimalTileData = DefaultData
       const props = cutlineUniforms(cutline, isGlobe(this.context.viewport));
       return result && { ...result, renderPipeline: [...(result.renderPipeline ?? []), { module: PreciseCutline, props }] };
     };
-  }
-
-  // Unload cached tiles explicitly; TileLayer finalization does not release their GPU textures.
-  finalizeState(context: LayerContext) {
-    this.releaseLoadedTiles();
-    super.finalizeState(context);
-  }
-
-  protected releaseLoadedTiles() {
-    const unload = this._onTileUnloadCallback();
-    if (!unload) return;
-
-    for (const sublayer of this.getSubLayers()) {
-      const { tileset } = (sublayer.state ?? {}) as { tileset?: { tiles: Tile2DHeader<DataT>[] } };
-      for (const tile of tileset?.tiles ?? []) {
-        if (tile.content) unload(tile);
-      }
-    }
   }
 }

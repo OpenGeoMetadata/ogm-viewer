@@ -87,11 +87,11 @@ const demTile = (min: number, max: number) => ({
   isTiled: true,
   overviews: [{}],
   tileCount: { x: 43, y: 43 },
-  cachedTags: { sampleFormat: [3], samplesPerPixel: 1 },
+  cachedPrimaryImageTags: { sampleFormat: [3], samplesPerPixel: 1 },
   gdalMetadata: { bandStatistics: new Map([[1, { min, max, mean: null, std: null, validPercent: null }]]) },
 });
 
-const SCAN = { isTiled: true, overviews: [{}], tileCount: { x: 13, y: 16 }, cachedTags: { sampleFormat: [1, 1, 1], samplesPerPixel: 3 } };
+const SCAN = { isTiled: true, overviews: [{}], tileCount: { x: 13, y: 16 }, cachedPrimaryImageTags: { sampleFormat: [1, 1, 1], samplesPerPixel: 3 } };
 
 const STRIPPED = { isTiled: false, overviews: [], tileCount: { x: 1, y: 1 } };
 
@@ -161,9 +161,10 @@ class TestIndexMapPreviewer extends OpenIndexMapPreviewer implements Fakes {
   }
 
   async sheetLayer(index: number) {
-    const sheet = this.overlay.mosaic.props.sources[index];
-    const data = await this.overlay.mosaic.props.getSource(sheet, {});
-    return this.overlay.mosaic.props.renderSource(sheet, { data });
+    const sheet = this.overlay.mosaic.props.data[index];
+    const source = await this.overlay.mosaic.props.getSource(sheet, {});
+    // MosaicLayer hands each sheet its own opacity and visibility, which the mosaic's state overrides.
+    return this.overlay.mosaic.props.renderSource(sheet, { source, subLayerProps: { id: `deck-${index}`, opacity: 1, visible: true } });
   }
 }
 
@@ -323,7 +324,7 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
 
       const { props } = previewer.overlay.mosaic;
       expect(previewer.overlay.mosaic.constructor.name).toEqual('MosaicLayer');
-      expect(props.sources.map(({ url }: { url: string }) => url)).toEqual([tif('n40w106'), tif('n40w105')]);
+      expect(props.data.map(({ url }: { url: string }) => url)).toEqual([tif('n40w106'), tif('n40w105')]);
       expect(props.minZoom).toEqual(5);
       expect(props.maxCacheSize).toEqual(0);
     });
@@ -342,7 +343,7 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       await drawn(previewer);
 
       const layer = await previewer.sheetLayer(0);
-      expect(layer.props.geotiff).toBe(previewer.geotiffs.get(tif('n40w106')));
+      expect(layer.props.source).toBe(previewer.geotiffs.get(tif('n40w106')));
       expect(layer.props.getTileData).toBe(scalarGetTileData);
       expect(layer.props.updateTriggers.renderTile).toEqual([DEFAULT_COLOR_RAMP, 1500, 4300]);
       expect(layer.props.opacity).toEqual(0.8);
@@ -402,7 +403,7 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
 
       const abort = Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' });
       const load = vi.spyOn(TestMosaic.prototype as any, 'loadGeoTIFF').mockRejectedValueOnce(abort);
-      const sheet = previewer.overlay.mosaic.props.sources[1];
+      const sheet = previewer.overlay.mosaic.props.data[1];
 
       expect(await previewer.overlay.mosaic.props.getSource(sheet, { signal: new AbortController().signal })).toEqual({
         geotiff: previewer.geotiffs.get(tif('n40w105')),
@@ -418,7 +419,7 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
       previewer.onError = onError;
       await drawn(previewer);
 
-      previewer.overlay.mosaic.props.onSourceError(previewer.overlay.mosaic.props.sources[1], { error: new Error('Failed to HEAD') });
+      previewer.overlay.mosaic.props.onSourceError(previewer.overlay.mosaic.props.data[1], { error: new Error('Failed to HEAD') });
 
       expect(onError).not.toHaveBeenCalled();
       expect(warn).toHaveBeenCalledWith(`Could not open ${tif('n40w105')} for the mosaic:`, expect.any(Error));
@@ -427,8 +428,8 @@ describe('OpenIndexMapPreviewer with a mosaic', () => {
 
   describe('stretching the ramp', () => {
     const loadView = async (previewer: TestIndexMapPreviewer) => {
-      const { sources, getSource } = previewer.overlay.mosaic.props;
-      return await Promise.all(sources.map(async (source: unknown) => ({ source, data: await getSource(source, {}) })));
+      const { data, getSource } = previewer.overlay.mosaic.props;
+      return await Promise.all(data.map(async (item: unknown) => ({ item, source: await getSource(item, {}) })));
     };
 
     it('stretches across every sheet in view, once they have all been read', async () => {
