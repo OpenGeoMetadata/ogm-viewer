@@ -1,103 +1,61 @@
-import { SourceCache, SourceChunk } from '@chunkd/middleware';
-import { ContentRange, SourceError, SourceView, type Source, type SourceMetadata } from '@chunkd/source';
+import { DEFAULT_CONCURRENCY_LIMITER } from '@developmentseed/deck.gl-geotiff';
 import { GeoTIFF } from '@developmentseed/geotiff';
+import { DEFAULT_MAX_REQUEST_BYTES, RangeReader } from '@developmentseed/range-reader';
 
-import { assertData, ChallengeError } from './errors';
-import { resolveRequest, type RequestResourceType, type RequestTransform } from './request';
+import { assertData, HttpError } from './errors';
+import { resolveRequest, type RequestTransform } from './request';
 
-const CHUNK_SIZE = 64 * 1024;
-const CACHE_SIZE = 8 * 1024 * 1024;
+// A reader's cache can't see the headers or URL a transform adds, so each transform gets its own reader.
+const readers = new WeakMap<RequestTransform, RangeReader>();
+let untransformedReader: RangeReader | undefined;
 
-export class TransformedGeoTIFFSource implements Source {
-  readonly type = 'http';
-  readonly url: URL;
+function readerFor(transform?: RequestTransform): RangeReader {
+  if (!transform) return (untransformedReader ??= new RangeReader({ fetch: transformedFetch() }));
 
-  metadata?: SourceMetadata;
-
-  private headed?: Promise<SourceMetadata>;
-
-  constructor(
-    url: string | URL,
-    private requestTransform?: RequestTransform,
-  ) {
-    this.url = typeof url === 'string' ? new URL(url, typeof document === 'undefined' ? undefined : document.baseURI) : url;
+  let reader = readers.get(transform);
+  if (!reader) {
+    reader = new RangeReader({ fetch: transformedFetch(transform) });
+    readers.set(transform, reader);
   }
+  return reader;
+}
 
-  async head(options?: { signal: AbortSignal }): Promise<SourceMetadata> {
-    this.headed ??= this.readHead(options?.signal);
-    return await this.headed;
-  }
+/**
+ * Apply the request transform to each range request, and throw our own errors so a failed read keeps its status.
+ * The reader would otherwise report a non-2xx as a bare message, and treat a 404 as an empty read.
+ */
+export function transformedFetch(transform?: RequestTransform): typeof fetch {
+  return async (input, init) => {
+    const href = input instanceof URL ? input.href : typeof input === 'string' ? input : input.url;
+    const { url, init: transformed } = resolveRequest(href, 'tile', transform);
 
-  private async readHead(signal?: AbortSignal): Promise<SourceMetadata> {
+    const headers = new Headers(init?.headers);
+    for (const [name, value] of Object.entries(transformed?.headers ?? {})) headers.set(name, value);
+    const response = await fetch(url, { ...init, ...transformed, headers });
+
     try {
-      const response = await this.request('metadata', { method: 'HEAD', signal });
-      if (!response.ok) throw new SourceError(`Failed to HEAD ${this.url.href}`, response.status, this, new Error(response.statusText));
-
-      const size = Number(response.headers.get('content-length'));
-      this.metadata = { ...this.readMetadata(response), size: Number.isFinite(size) ? size : undefined };
-      return this.metadata;
+      assertData(response, href);
+      if (!response.ok) throw new HttpError(href, response.status, response.statusText);
+      if (ignoredRange(response, headers)) throw new Error(`${href} sent the whole file instead of the part asked for, so its server does not support range requests`);
     } catch (error) {
-      this.headed = undefined;
+      void response.body?.cancel().catch(() => {});
       throw error;
-    }
-  }
-
-  async fetch(offset: number, length?: number, options?: { signal: AbortSignal }): Promise<ArrayBuffer> {
-    const range = ContentRange.toRange(offset, length);
-
-    try {
-      const response = await this.request('tile', { headers: { range }, signal: options?.signal });
-      if (!response.ok) throw new SourceError(`Failed to fetch ${this.url.href} ${range}`, response.status, this, new Error(response.statusText));
-
-      const metadata = this.readMetadata(response);
-      if (this.metadata?.eTag && metadata.eTag && this.metadata.eTag !== metadata.eTag) {
-        throw new SourceError(`ETag conflict ${this.url.href} ${range} expected: ${this.metadata.eTag} got: ${metadata.eTag}`, 409, this);
-      }
-
-      const body = await response.arrayBuffer();
-
-      // Reject servers that ignore Range requests; silently downloading the entire COG can exhaust memory.
-      if (response.status !== 206 && length !== undefined && body.byteLength > length) {
-        throw new SourceError(`Asked ${this.url.href} for ${range} and got all ${body.byteLength} bytes of it, so this server does not support range requests`, 501, this);
-      }
-
-      this.metadata ??= metadata;
-      return body;
-    } catch (error) {
-      if (SourceError.is(error) && error.source === this) throw error;
-      throw new SourceError(`Failed to fetch ${this.url.href} ${range}`, 500, this, error);
-    }
-  }
-
-  // For range responses, Content-Length is the chunk size; Content-Range holds the file size.
-  private readMetadata(response: Response): SourceMetadata {
-    const contentRange = response.headers.get('content-range');
-
-    return {
-      size: contentRange ? ContentRange.parseSize(contentRange) : undefined,
-      eTag: response.headers.get('etag') ?? undefined,
-      contentType: response.headers.get('content-type') ?? undefined,
-      contentEncoding: response.headers.get('content-encoding') ?? undefined,
-    };
-  }
-
-  private async request(resourceType: RequestResourceType, init: { method?: string; headers?: Record<string, string>; signal?: AbortSignal }): Promise<Response> {
-    const { url, init: transformed } = resolveRequest(this.url.href, resourceType, this.requestTransform);
-    const response = await fetch(url, { ...init, ...transformed, headers: { ...init.headers, ...transformed?.headers } });
-
-    try {
-      assertData(response, this.url.href);
-    } catch (error) {
-      throw new SourceError((error as Error).message, error instanceof ChallengeError ? 403 : 401, this, error);
     }
 
     return response;
-  }
+  };
+}
+
+// The reader keeps a whole file that fits in one request; refuse anything bigger rather than download all of it.
+function ignoredRange(response: Response, headers: Headers): boolean {
+  if (response.status !== 200 || !headers.has('range')) return false;
+
+  const length = Number(response.headers.get('content-length') ?? NaN);
+  return !Number.isFinite(length) || length > DEFAULT_MAX_REQUEST_BYTES;
 }
 
 export async function openGeoTIFF(url: string, requestTransform?: RequestTransform, signal?: AbortSignal): Promise<GeoTIFF> {
-  const source = new TransformedGeoTIFFSource(url, requestTransform);
-  const headerSource = new SourceView(source, [new SourceChunk({ size: CHUNK_SIZE }), new SourceCache({ size: CACHE_SIZE })]);
+  const resolved = new URL(url, typeof document === 'undefined' ? undefined : document.baseURI);
 
-  return await GeoTIFF.open({ dataSource: source, headerSource, signal });
+  return await GeoTIFF.fromUrl(resolved, { reader: readerFor(requestTransform), signal, concurrencyLimiter: DEFAULT_CONCURRENCY_LIMITER });
 }

@@ -8,7 +8,7 @@ export { quantityLabel, rasterQuantity, type Quantity } from './lib/quantity';
 
 export { resolveRequest, type RequestResourceType, type RequestTransform, type TransformedRequest } from './lib/request';
 
-export { openGeoTIFF, TransformedGeoTIFFSource } from './lib/geotiff';
+export { openGeoTIFF } from './lib/geotiff';
 
 export { resourcesFor } from './lib/resources/factory';
 export { default as Resource, type ResourceKind } from './lib/resources/resource';
