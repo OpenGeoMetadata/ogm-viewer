@@ -186,10 +186,10 @@ A scanned map with a [IIIF Georeference Annotation](https://iiif.io/api/extensio
 
 The viewer looks for the annotation in this order:
 
-1. Inside the manifest, following the annotation pages a canvas links until it finds one.
+1. Inside the manifest, following the annotation pages the manifest and its canvases link.
 2. A `dct_references_s` key of `https://iiif.io/api/extension/georef/1/context.json` pointing at a standalone annotation.
 
-When a record has both, the copy in the manifest wins. Only the first canvas is inspected, so a paged object with an annotation per page is left alone as of now.
+When a record has both, the copy in the manifest wins. Every canvas is inspected, and the maps found on all of them are drawn together in one layer, so an atlas or map series with an annotation per sheet shows every sheet.
 
 The map tab doesn't support the globe view or pan/tilt. These are constraints based on Allmaps' rendering engine, which is used to warp the image. There's also no way to hook into Allmaps' tile requests, so if the annotation points at a restricted image, it won't be able to fetch it. The viewer will still show the image tab, but the map tab will be blank.
 

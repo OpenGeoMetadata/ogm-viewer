@@ -65,7 +65,7 @@ const BUILDERS: Record<ResourceKind, PreviewerBuilder> = {
     const previewers: AnyPreviewer[] = [new ImagePreviewer(resource)];
     if (!(await isGeoreferenced(resource))) return previewers;
 
-    const georeference = await lazily(() => import('./georeference'), resource, 'georeferenced map');
+    const georeference = await lazily(() => import('./georeference'), resource, 'georeferenced content');
     return georeference ? [...previewers, georeference] : previewers;
   },
 

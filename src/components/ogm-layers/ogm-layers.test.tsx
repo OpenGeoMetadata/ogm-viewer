@@ -8,7 +8,7 @@ const item = (id: string, title: string, overrides: Partial<LayerControl> = {}):
 const ONE = [item('districts', 'Districts', { opacity: 0.8 })];
 const TWO = [item('districts', 'Districts'), item('places', 'Places')];
 const RAMPED = [item('elevation', 'Groundwater Elevation', { colorRamp: 'viridis', colorRampRange: [-184.48, 607.27] })];
-const SCAN = [item('bb013fz9675-georeference', 'Georeferenced map', { opacity: 0.8, removeBackground: false })];
+const SCAN = [item('bb013fz9675-georeference', 'Georeferenced content', { opacity: 0.8, removeBackground: false })];
 
 const renderLayers = async (layers: LayerControl[]) => {
   const { root } = await render(<ogm-layers layers={layers}></ogm-layers>);
@@ -169,7 +169,7 @@ describe('ogm-layers', () => {
     });
 
     it('reflects whether the background is already off', async () => {
-      const on = await renderLayers([item('scan', 'Georeferenced map', { removeBackground: true })]);
+      const on = await renderLayers([item('scan', 'Georeferenced content', { removeBackground: true })]);
       expect(on.querySelector<HTMLInputElement>('.remove-background')?.checked).toBe(true);
 
       const off = await renderLayers(SCAN);
@@ -180,7 +180,7 @@ describe('ogm-layers', () => {
       const shadowRoot = await renderLayers(SCAN);
       const checkbox = shadowRoot.querySelector('.remove-background');
 
-      expect(checkbox?.getAttribute('aria-label')).toEqual('Remove background of Georeferenced map');
+      expect(checkbox?.getAttribute('aria-label')).toEqual('Remove background of Georeferenced content');
       expect(shadowRoot.querySelector('.background')?.textContent).toContain('Remove background');
     });
 
