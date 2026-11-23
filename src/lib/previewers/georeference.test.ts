@@ -54,6 +54,10 @@ class FakeMap {
   setPaintProperty(_id: string, name: string) {
     throw new Error(`MapLibre has no ${name} to set on a custom layer`);
   }
+  repaints = 0;
+  triggerRepaint() {
+    this.repaints++;
+  }
 }
 
 const style = { opacity: 0.8 } as MapLibreStyle;
@@ -78,6 +82,12 @@ const warpedMapFor = (mapId = 'map-id') =>
     ],
   }) as unknown as ReturnType<WarpedMapLayer['getWarpedMap']>;
 
+// The annotations as the resource hands them over, all already read.
+const handingOver = (...annotations: object[]) =>
+  async function* () {
+    yield* annotations as any[];
+  };
+
 const added = (mapId = 'map-id', index = 0) => ({ ok: true as const, mapId, index });
 const failed = (message: string, index = 0) => ({ ok: false as const, error: new Error(message), index });
 
@@ -88,7 +98,7 @@ const previewFor = async () => {
   const getWarpedMap = vi.spyOn(WarpedMapLayer.prototype, 'getWarpedMap').mockImplementation(() => warpedMapFor());
 
   const resource = new IIIFManifestResource('bb013fz9675', MANIFEST_URL);
-  vi.spyOn(resource, 'getGeoreferenceAnnotation').mockResolvedValue(annotation as any);
+  vi.spyOn(resource, 'georeferenceAnnotations').mockImplementation(handingOver(annotation));
 
   const map = new FakeMap();
   const previewer = new GeoreferencePreviewer(resource).attach(map as unknown as MapLibreMap, style);
@@ -166,7 +176,7 @@ describe('GeoreferencePreviewer', () => {
 
   it('fails the preview when the manifest turns out to have no annotation', async () => {
     const { previewer, resource } = await previewFor();
-    vi.spyOn(resource, 'getGeoreferenceAnnotation').mockResolvedValue(undefined);
+    vi.spyOn(resource, 'georeferenceAnnotations').mockImplementation(handingOver());
 
     await expect(previewer.preview()).rejects.toThrow(/no georeference annotation/);
   });
@@ -391,12 +401,292 @@ describe('GeoreferencePreviewer', () => {
         [1, 1],
       ];
       const resource = new IIIFManifestResource('bb013fz9675', MANIFEST_URL, declared);
-      vi.spyOn(resource, 'getGeoreferenceAnnotation').mockResolvedValue(annotation as any);
+      vi.spyOn(resource, 'georeferenceAnnotations').mockImplementation(handingOver(annotation));
 
       const previewer = new GeoreferencePreviewer(resource).attach(new FakeMap() as unknown as MapLibreMap, style);
       await previewer.preview();
 
       expect(await previewer.getBounds()).toEqual(declared);
+    });
+  });
+
+  describe('drawing a long series as it arrives', () => {
+    const sheetFor = (index: number) => ({ type: 'AnnotationPage', items: [{ id: `map-${index}`, type: 'Annotation', motivation: 'georeferencing', body: {} }] });
+
+    // The test decides when each page's annotation arrives and when the rest of the pages turn out to hold nothing.
+    const streaming = (resource: IIIFManifestResource) => {
+      const pages = Array.from({ length: 8 }, () => {
+        let resolve: (annotations: any[]) => void = () => {};
+        const annotations = new Promise<any[]>(settle => (resolve = settle));
+        return { annotations, resolve };
+      });
+      let next = 0;
+
+      vi.spyOn(resource, 'georeferenceAnnotations').mockImplementation(async function* () {
+        for (const page of pages) yield* await page.annotations;
+      });
+
+      return {
+        arrive: (annotation: unknown) => pages[next++].resolve([annotation]),
+        finish: () => pages.slice(next).forEach(page => page.resolve([])),
+      };
+    };
+
+    const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+
+    const isSettled = (promise: Promise<unknown>) => {
+      let settled = false;
+      promise.then(
+        () => (settled = true),
+        () => (settled = true),
+      );
+      return settle().then(() => settled);
+    };
+
+    it('draws the first annotation and lets the preview start before the rest are read', async () => {
+      const { previewer, resource, addAnnotation } = await previewFor();
+      const { arrive, finish } = streaming(resource);
+
+      const preview = previewer.preview();
+      await settle();
+      arrive(sheetFor(1));
+
+      await expect(preview).resolves.toBeUndefined();
+      expect(addAnnotation).toHaveBeenCalledWith(sheetFor(1));
+
+      arrive(sheetFor(2));
+      finish();
+      await settle();
+
+      expect(addAnnotation).toHaveBeenLastCalledWith(sheetFor(2));
+    });
+
+    it('waits for a drawable map before it counts the preview as started', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { previewer, resource, addAnnotation } = await previewFor();
+      const { arrive, finish } = streaming(resource);
+      addAnnotation.mockReturnValueOnce([failed('unsupported transformation')]);
+
+      const preview = previewer.preview();
+      await settle();
+      arrive(sheetFor(1));
+
+      expect(await isSettled(preview)).toBe(false);
+
+      arrive(sheetFor(2));
+      finish();
+
+      await expect(preview).resolves.toBeUndefined();
+    });
+
+    it('fails once every annotation has turned out to be unreadable', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { previewer, resource, addAnnotation } = await previewFor();
+      const { arrive, finish } = streaming(resource);
+      addAnnotation.mockReturnValueOnce([failed('unsupported transformation')]).mockReturnValueOnce([failed('too few points')]);
+
+      const preview = previewer.preview();
+      await settle();
+      arrive(sheetFor(1));
+      arrive(sheetFor(2));
+      finish();
+
+      await expect(preview).rejects.toThrow('unsupported transformation');
+    });
+
+    describe('saying it is loading', () => {
+      const tileEvent = (map: FakeMap, type: string, layerId = LAYER_ID) => map.fire(type, { type, layerId });
+
+      const loadingPreview = async () => {
+        const preview = await previewFor();
+        const stream = streaming(preview.resource);
+        const onLoading = vi.fn();
+        preview.previewer.onLoading = onLoading;
+
+        const started = preview.previewer.preview();
+        await settle();
+        stream.arrive(sheetFor(1));
+        await started;
+
+        return { ...preview, ...stream, onLoading };
+      };
+
+      it('says so until every page has been read and the frame after shows nothing else loading', async () => {
+        const { map, finish, onLoading } = await loadingPreview();
+
+        expect(onLoading.mock.calls).toEqual([[true]]);
+
+        finish();
+        await settle();
+
+        expect(onLoading.mock.calls).toEqual([[true]]);
+        expect(map.repaints).toBeGreaterThan(0);
+
+        map.fire('render');
+
+        expect(onLoading.mock.calls).toEqual([[true], [false]]);
+      });
+
+      it('keeps saying so while Allmaps fetches the tiles of maps that have already been read', async () => {
+        const { map, finish, onLoading } = await loadingPreview();
+        tileEvent(map, 'requestedtilesloading');
+        finish();
+        await settle();
+        map.fire('render');
+
+        expect(onLoading.mock.calls).toEqual([[true]]);
+
+        tileEvent(map, 'allrequestedtilesloaded');
+        map.fire('render');
+
+        expect(onLoading.mock.calls).toEqual([[true], [false]]);
+      });
+
+      it("keeps saying so while a map's image info is still on its way", async () => {
+        const { map, previewer, finish, onLoading } = await loadingPreview();
+        (previewer as any).layer.renderer = {};
+        const getWarpedMaps = vi.spyOn(WarpedMapLayer.prototype, 'getWarpedMaps').mockReturnValue([{ fetchingImageInfo: true }] as any);
+        finish();
+        await settle();
+        map.fire('render');
+
+        expect(onLoading.mock.calls).toEqual([[true]]);
+
+        getWarpedMaps.mockReturnValue([{ fetchingImageInfo: false }] as any);
+        map.fire('render');
+
+        expect(onLoading.mock.calls).toEqual([[true], [false]]);
+      });
+
+      it('looks again once a map whose image info could not be fetched gives up', async () => {
+        const { map, previewer, finish, onLoading } = await loadingPreview();
+        (previewer as any).layer.renderer = {};
+        const getWarpedMaps = vi.spyOn(WarpedMapLayer.prototype, 'getWarpedMaps').mockReturnValue([{ fetchingImageInfo: true }] as any);
+        finish();
+        await settle();
+        map.fire('render');
+        const repaints = map.repaints;
+
+        getWarpedMaps.mockReturnValue([{ fetchingImageInfo: false }] as any);
+        tileEvent(map, 'imageinfofetcherror');
+
+        expect(map.repaints).toBeGreaterThan(repaints);
+
+        map.fire('render');
+
+        expect(onLoading.mock.calls).toEqual([[true], [false]]);
+      });
+
+      it('says so again when moving the map has Allmaps fetch more tiles', async () => {
+        const { map, finish, onLoading } = await loadingPreview();
+        finish();
+        await settle();
+        map.fire('render');
+
+        tileEvent(map, 'requestedtilesloading');
+
+        expect(onLoading.mock.calls).toEqual([[true], [false], [true]]);
+      });
+
+      it('pays no attention to the tiles of another layer', async () => {
+        const { map, finish, onLoading } = await loadingPreview();
+        tileEvent(map, 'requestedtilesloading', 'someone-else');
+        finish();
+        await settle();
+        map.fire('render');
+
+        expect(onLoading.mock.calls).toEqual([[true], [false]]);
+      });
+
+      it('stops saying so once it is cleared', async () => {
+        const { previewer, onLoading } = await loadingPreview();
+
+        await previewer.clearPreview();
+
+        expect(onLoading.mock.calls).toEqual([[true], [false]]);
+      });
+
+      it('says so afresh when a rebuilt style previews it again', async () => {
+        const { previewer, arrive, onLoading } = await loadingPreview();
+
+        const again = previewer.preview();
+        await settle();
+        arrive(sheetFor(2));
+        await again;
+
+        expect(onLoading).toHaveBeenLastCalledWith(true);
+      });
+    });
+
+    it('frames every map rather than the ones that have arrived so far', async () => {
+      const { previewer, resource } = await previewFor();
+      const { arrive, finish } = streaming(resource);
+      const getBounds = vi.spyOn(WarpedMapLayer.prototype, 'getBounds').mockReturnValue([
+        [4, 52],
+        [5, 53],
+      ]);
+
+      const preview = previewer.preview();
+      await settle();
+      arrive(sheetFor(1));
+      await preview;
+
+      const bounds = previewer.getBounds();
+      expect(await isSettled(bounds)).toBe(false);
+
+      getBounds.mockReturnValue([
+        [3, 50],
+        [7, 54],
+      ]);
+      arrive(sheetFor(2));
+      finish();
+
+      expect(await bounds).toEqual([
+        [3, 50],
+        [7, 54],
+      ]);
+    });
+
+    it('draws what was read before a style rebuild again on the new layer, and what comes after on it alone', async () => {
+      const { previewer, resource, addAnnotation } = await previewFor();
+      const { arrive, finish } = streaming(resource);
+
+      const [one, two] = [sheetFor(1), sheetFor(2)];
+
+      const first = previewer.preview();
+      await settle();
+      arrive(one);
+      await first;
+      const firstLayer = (previewer as any).layer;
+
+      const second = previewer.preview();
+      await settle();
+      arrive(two);
+      finish();
+      await second;
+      await settle();
+
+      const layersGiven = (annotation: unknown) => addAnnotation.mock.contexts.filter((_, index) => addAnnotation.mock.calls[index][0] === annotation);
+      expect(layersGiven(one)).toEqual([firstLayer, (previewer as any).layer]);
+      expect(layersGiven(two)).toEqual([(previewer as any).layer]);
+      expect((previewer as any).layer).not.toBe(firstLayer);
+    });
+
+    it('draws nothing that arrives after it was cleared', async () => {
+      const { previewer, resource, addAnnotation } = await previewFor();
+      const { arrive, finish } = streaming(resource);
+
+      const preview = previewer.preview();
+      await settle();
+      arrive(sheetFor(1));
+      await preview;
+      await previewer.clearPreview();
+
+      arrive(sheetFor(2));
+      finish();
+      await settle();
+
+      expect(addAnnotation).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -461,6 +751,43 @@ describe('GeoreferencePreviewer', () => {
       map.fire(FIRST_TILE, { layerId: 'bb013fz9675-georeference' });
 
       expect(drawn).toBe(0);
+    });
+  });
+
+  describe('asking for tiles once the view settles', () => {
+    const settledPreview = async () => {
+      const preview = await previewFor();
+      await preview.previewer.preview();
+      const renderer = { previousSignificantViewport: { projectedGeoRectangle: [] } as unknown };
+      (preview.previewer as any).layer.renderer = renderer;
+      return { ...preview, renderer };
+    };
+
+    it('has Allmaps compare later views with the settled one, however small the move was', async () => {
+      const { map, renderer } = await settledPreview();
+      const repaints = map.repaints;
+
+      map.fire('moveend');
+
+      expect(renderer.previousSignificantViewport).toBeUndefined();
+      expect(map.repaints).toBe(repaints + 1);
+    });
+
+    it('leaves the view alone before Allmaps has a renderer', async () => {
+      const { map, previewer } = await previewFor();
+      await previewer.preview();
+      const repaints = map.repaints;
+
+      map.fire('moveend');
+
+      expect(map.repaints).toBe(repaints);
+    });
+
+    it('stops listening once the preview is cleared', async () => {
+      const { map, previewer } = await settledPreview();
+      await previewer.clearPreview();
+
+      expect(map.listeners.get('moveend')?.size ?? 0).toBe(0);
     });
   });
 });

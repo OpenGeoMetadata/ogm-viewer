@@ -1,0 +1,31 @@
+{
+  "dct_title_s": "Waterstaatskaart van Nederland, 1e editie",
+  "dct_alternative_sm": ["georeferenced-series-manifest", "Waterstaatskaart van Nederland : op de schaal van 1:50.000"],
+  "dct_description_sm": [
+    "The first edition of the Waterstaatskaart, a 1:50,000 thematic map series of the hydrology and water management of the whole of the Netherlands: waterways, polders and their boundaries, dikes, sluices, pumping stations, and summer and winter water levels, printed over a grey impression of the Topographic Map of the Netherlands. Its sheets were surveyed and drawn between 1865 and 1894.",
+    "A paged manifest whose georeferencing is spread across its canvases: twelve canvases of front matter (an index sheet, title page, and explanatory text), then 184 map sheets, each linking its own Allmaps annotation page by id with \"purpose\": \"georeferencing\" rather than embedding it. No georeference annotation is named in dct_references_s, so both tabs depend on the viewer reading every canvas. The map tab draws the sheets as their pages arrive.",
+    "The manifest is TU Delft's copy for the Watertijdreis project; the scans are served by Utrecht University Library."
+  ],
+  "dct_language_sm": ["dut"],
+  "dct_publisher_sm": ["Topographische Inrichting"],
+  "schema_provider_s": "Utrecht University",
+  "gbl_resourceClass_sm": ["Maps"],
+  "gbl_resourceType_sm": ["Thematic maps"],
+  "dct_subject_sm": ["Hydrography", "Water levels", "Polders", "Dikes (Engineering)"],
+  "dcat_theme_sm": ["Inland Waters"],
+  "dcat_keyword_sm": ["ogm-viewer fixture records", "Georeferenced", "Map series"],
+  "dct_spatial_sm": ["Netherlands"],
+  "dct_temporal_sm": ["1865-1894"],
+  "gbl_indexYear_im": [1865, 1866, 1867, 1868, 1869, 1870, 1871, 1872, 1873, 1874, 1875, 1876, 1877, 1878, 1879, 1880, 1881, 1882, 1883, 1884, 1885, 1886, 1887, 1888, 1889, 1890, 1891, 1892, 1893, 1894],
+  "gbl_dateRange_drsim": ["[1865 TO 1894]"],
+  "locn_geometry": "ENVELOPE(3.1607,7.2875,53.6022,50.6848)",
+  "dcat_bbox": "ENVELOPE(3.1607,7.2875,53.6022,50.6848)",
+  "dcat_centroid": "52.1435,5.2241",
+  "gbl_georeferenced_b": true,
+  "dct_accessRights_s": "Public",
+  "dct_rights_sm": ["Attribution: University Utrecht Library - Special Collections"],
+  "dct_references_s": "{\"http://iiif.io/api/presentation#manifest\":\"https://tu-delft-heritage.github.io/watertijdreis-data/manifests/1874-389916/manifest.json\",\"http://schema.org/url\":\"https://objects.library.uu.nl/reader/index.php?obj=1874-389916\",\"http://schema.org/downloadUrl\":\"https://objects.library.uu.nl/reader/ftxt.php?obj=1874-389916&format=1&pagenum=1\"}",
+  "id": "georeferenced-series-manifest",
+  "dct_identifier_sm": ["1874-389916", "*VII*.B.a.21", "(OCoLC)920126955"],
+  "gbl_mdVersion_s": "Aardvark"
+}

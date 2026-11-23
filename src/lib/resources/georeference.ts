@@ -6,6 +6,7 @@ export type GeoreferenceAnnotation = {
   'type'?: string;
   '@context'?: string | string[];
   'motivation'?: string | string[];
+  'purpose'?: string | string[];
   'body'?: unknown;
   'items'?: unknown[];
 };
@@ -15,11 +16,16 @@ const GEOREF_CONTEXT = 'iiif.io/api/extension/georef';
 // Bound dereferencing depth to prevent cyclic annotation pages from recursing indefinitely.
 const MAX_DEPTH = 4;
 
+const includesGeoreferencing = (value: unknown) => value === 'georeferencing' || (Array.isArray(value) && value.includes('georeferencing'));
+
 export function isGeoreferenceAnnotation(node: unknown): node is GeoreferenceAnnotation {
   if (!node || typeof node !== 'object') return false;
-  const { motivation, body, '@context': context } = node as GeoreferenceAnnotation;
+  const { type, motivation, body, '@context': context } = node as GeoreferenceAnnotation;
 
-  if (motivation === 'georeferencing' || (Array.isArray(motivation) && motivation.includes('georeferencing'))) return true;
+  // A page that declares georeferencing still has to be read for the annotations it holds.
+  if (type === 'AnnotationPage') return false;
+
+  if (includesGeoreferencing(motivation)) return true;
 
   const contexts = Array.isArray(context) ? context : [context];
   if (contexts.some(entry => typeof entry === 'string' && entry.includes(GEOREF_CONTEXT))) return true;
@@ -27,32 +33,49 @@ export function isGeoreferenceAnnotation(node: unknown): node is GeoreferenceAnn
   return typeof body === 'object' && body !== null && (body as { type?: string }).type === 'FeatureCollection';
 }
 
+// Allmaps-built manifests label each canvas's referenced page with what it holds, so it can be trusted without fetching it.
+export function declaresGeoreferencing(node: unknown): boolean {
+  if (!node || typeof node !== 'object') return false;
+  const { type, purpose, motivation } = node as GeoreferenceAnnotation;
+  return type === 'AnnotationPage' && (includesGeoreferencing(purpose) || includesGeoreferencing(motivation));
+}
+
 export async function findGeoreferenceAnnotation(node: unknown, requestTransform?: RequestTransform, depth = 0): Promise<GeoreferenceAnnotation | undefined> {
-  if (depth > MAX_DEPTH || !node || typeof node !== 'object') return undefined;
-  if (isGeoreferenceAnnotation(node)) return node as GeoreferenceAnnotation;
+  return (await search(node, requestTransform, depth, true))[0];
+}
+
+// Like findGeoreferenceAnnotation, but keeps looking past the first match so every map in the tree is found.
+export async function findGeoreferenceAnnotations(node: unknown, requestTransform?: RequestTransform): Promise<GeoreferenceAnnotation[]> {
+  return await search(node, requestTransform, 0, false);
+}
+
+async function search(node: unknown, requestTransform: RequestTransform | undefined, depth: number, firstOnly: boolean): Promise<GeoreferenceAnnotation[]> {
+  if (depth > MAX_DEPTH || !node || typeof node !== 'object') return [];
+  if (isGeoreferenceAnnotation(node)) return [node as GeoreferenceAnnotation];
 
   const { type, items } = node as GeoreferenceAnnotation;
 
   if (type === 'AnnotationPage') {
     const pageItems = items ?? (await dereferencePage(node as GeoreferenceAnnotation, requestTransform));
-    if (!pageItems) return undefined;
+    if (!pageItems) return [];
     // Hand back the page with the items it was dereferenced to; a referenced page carries only its id and type.
-    if (pageItems.some(isGeoreferenceAnnotation)) return { ...(node as GeoreferenceAnnotation), items: pageItems };
-    return await findFirst(pageItems, requestTransform, depth);
+    if (pageItems.some(isGeoreferenceAnnotation)) return [{ ...(node as GeoreferenceAnnotation), items: pageItems }];
+    return await searchEach(pageItems, requestTransform, depth, firstOnly);
   }
 
   const { body } = node as GeoreferenceAnnotation;
-  if (body) return await findFirst(Array.isArray(body) ? body : [body], requestTransform, depth);
+  if (body) return await searchEach(Array.isArray(body) ? body : [body], requestTransform, depth, firstOnly);
 
-  return undefined;
+  return [];
 }
 
-async function findFirst(nodes: unknown[], requestTransform: RequestTransform | undefined, depth: number): Promise<GeoreferenceAnnotation | undefined> {
+async function searchEach(nodes: unknown[], requestTransform: RequestTransform | undefined, depth: number, firstOnly: boolean): Promise<GeoreferenceAnnotation[]> {
+  const found: GeoreferenceAnnotation[] = [];
   for (const child of nodes) {
-    const found = await findGeoreferenceAnnotation(child, requestTransform, depth + 1);
-    if (found) return found;
+    found.push(...(await search(child, requestTransform, depth + 1, firstOnly)));
+    if (firstOnly && found.length) break;
   }
-  return undefined;
+  return found;
 }
 
 async function dereferencePage(page: GeoreferenceAnnotation, requestTransform?: RequestTransform): Promise<unknown[] | undefined> {

@@ -199,14 +199,273 @@ describe('IIIFManifestResource', () => {
       expect(await sourceWith().getGeoreferenceAnnotation()).toEqual(annotationFor('manifest-level'));
     });
 
-    it('ignores an annotation on a canvas other than the first', async () => {
-      const manifest = {
-        ...v3Manifest,
-        items: [v3Manifest.items[0], { ...v3Manifest.items[0], id: 'http://example.com/canvas2', annotations: [annotationFor('second-canvas')] }],
-      };
-      vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(manifest)));
+    describe('across the canvases of a paged manifest', () => {
+      const georeference = (id: string) => ({ id, type: 'Annotation', motivation: 'georeferencing', body: { type: 'FeatureCollection', features: [] } });
+      const painting = { id: 'http://example.com/painting', type: 'Annotation', motivation: 'painting', body: { type: 'Image' } };
 
-      expect(await sourceWith().getGeoreferenceAnnotation()).toBeUndefined();
+      const canvasWith = (index: number, annotations: object[]) => ({ ...v3Manifest.items[0], id: `http://example.com/canvas${index}`, annotations });
+
+      // The first canvas is a title page with nothing on it, as in an atlas or a map series.
+      const manifestOf = (...annotationsPerCanvas: object[][]) => ({
+        ...v3Manifest,
+        items: [v3Manifest.items[0], ...annotationsPerCanvas.map((annotations, index) => canvasWith(index + 2, annotations))],
+      });
+
+      const declared = (id: string) => ({ id, type: 'AnnotationPage', label: { en: ['Georeference Annotation'] }, purpose: 'georeferencing' });
+
+      const serving = (manifest: object, pages: Record<string, object> = {}) =>
+        vi.spyOn(global, 'fetch').mockImplementation(async url => {
+          if (url === MANIFEST_URL) return new Response(JSON.stringify(manifest));
+          const page = pages[url as string];
+          return page ? new Response(JSON.stringify(page)) : new Response('Not found', { status: 404 });
+        });
+
+      it('finds an annotation on a canvas other than the first', async () => {
+        serving(manifestOf([annotationFor('second-canvas')]));
+
+        expect(await sourceWith().getGeoreferenceAnnotation()).toEqual(annotationFor('second-canvas'));
+      });
+
+      it('draws the maps of every canvas together as one page', async () => {
+        const one = { type: 'AnnotationPage', items: [georeference('http://example.com/maps/one')] };
+        const two = { type: 'AnnotationPage', items: [georeference('http://example.com/maps/two')] };
+        serving(manifestOf([one], [two]));
+
+        expect(await sourceWith().getGeoreferenceAnnotation()).toEqual({
+          '@context': 'http://www.w3.org/ns/anno.jsonld',
+          'type': 'AnnotationPage',
+          'items': [georeference('http://example.com/maps/one'), georeference('http://example.com/maps/two')],
+        });
+      });
+
+      it('leaves out what is not georeferencing when it puts the pages together', async () => {
+        const one = { type: 'AnnotationPage', items: [painting, georeference('http://example.com/maps/one')] };
+        const two = { type: 'AnnotationPage', items: [georeference('http://example.com/maps/two')] };
+        serving(manifestOf([one], [two]));
+
+        const annotation = await sourceWith().getGeoreferenceAnnotation();
+
+        expect(annotation?.items?.map(item => (item as { id: string }).id)).toEqual(['http://example.com/maps/one', 'http://example.com/maps/two']);
+      });
+
+      it('follows the page a later canvas links when the page says it holds georeferencing', async () => {
+        const PAGE_URL = 'https://annotations.allmaps.org/images/one';
+        serving(manifestOf([declared(PAGE_URL)]), { [PAGE_URL]: { id: PAGE_URL, type: 'AnnotationPage', items: [georeference('http://example.com/maps/one')] } });
+
+        expect(await sourceWith().getGeoreferenceAnnotation()).toMatchObject({ id: PAGE_URL, items: [{ id: 'http://example.com/maps/one' }] });
+      });
+
+      it.each([
+        ['purpose among several', { purpose: ['describing', 'georeferencing'] }],
+        ['motivation', { motivation: 'georeferencing' }],
+      ])('trusts a page that declares georeferencing as its %s', async (_label, declaration) => {
+        const PAGE_URL = 'https://example.com/annotations/declared';
+        serving(manifestOf([{ id: PAGE_URL, type: 'AnnotationPage', ...declaration }]), {
+          [PAGE_URL]: { type: 'AnnotationPage', items: [georeference('http://example.com/maps/one')] },
+        });
+
+        expect(await sourceWith().getGeoreferenceAnnotation()).toMatchObject({ items: [{ id: 'http://example.com/maps/one' }] });
+      });
+
+      it('does not fetch a page a later canvas links without saying what it holds', async () => {
+        const PAGE_URL = 'https://example.com/annotations/transcription';
+        const fetchSpy = serving(manifestOf([{ id: PAGE_URL, type: 'AnnotationPage' }]), { [PAGE_URL]: annotationFor(PAGE_URL) });
+
+        expect(await sourceWith().getGeoreferenceAnnotation()).toBeUndefined();
+        expect(fetchSpy).not.toHaveBeenCalledWith(PAGE_URL, expect.anything());
+      });
+
+      it('offers the map from pages that declare georeferencing without fetching any of them', async () => {
+        const fetchSpy = serving(manifestOf([declared('https://annotations.allmaps.org/images/one')], [declared('https://annotations.allmaps.org/images/two')]));
+
+        expect(await sourceWith().isGeoreferenced()).toBe(true);
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it('offers the map from an annotation a later canvas carries without fetching anything else', async () => {
+        const fetchSpy = serving(manifestOf([annotationFor('second-canvas')]));
+
+        expect(await sourceWith(ANNOTATION_URL).isGeoreferenced()).toBe(true);
+        expect(fetchSpy).toHaveBeenCalledOnce();
+      });
+
+      it('fetches a page that several canvases link only once, and draws each map in it once', async () => {
+        const PAGE_URL = 'https://annotations.allmaps.org/manifests/shared';
+        const page = { id: PAGE_URL, type: 'AnnotationPage', items: [georeference('http://example.com/maps/one')] };
+        const fetchSpy = serving(manifestOf([declared(PAGE_URL)], [declared(PAGE_URL)]), { [PAGE_URL]: page });
+
+        expect(await sourceWith().getGeoreferenceAnnotation()).toMatchObject(page);
+        expect(fetchSpy.mock.calls.filter(([url]) => url === PAGE_URL)).toHaveLength(1);
+      });
+
+      it('draws a map that two pages both hold only once', async () => {
+        const one = { type: 'AnnotationPage', items: [georeference('http://example.com/maps/one')] };
+        const both = { type: 'AnnotationPage', items: [georeference('http://example.com/maps/one'), georeference('http://example.com/maps/two')] };
+        serving(manifestOf([one], [both]));
+
+        const annotation = await sourceWith().getGeoreferenceAnnotation();
+
+        expect(annotation?.items?.map(item => (item as { id: string }).id)).toEqual(['http://example.com/maps/one', 'http://example.com/maps/two']);
+      });
+
+      it('keeps the maps in canvas order however the pages arrive', async () => {
+        const urls = ['https://example.com/pages/1', 'https://example.com/pages/2', 'https://example.com/pages/3'];
+        const delays = [30, 0, 10];
+        vi.spyOn(global, 'fetch').mockImplementation(async url => {
+          if (url === MANIFEST_URL) return new Response(JSON.stringify(manifestOf(...urls.map(pageUrl => [declared(pageUrl)]))));
+          const index = urls.indexOf(url as string);
+          await new Promise(resolve => setTimeout(resolve, delays[index]));
+          return new Response(JSON.stringify({ type: 'AnnotationPage', items: [georeference(`http://example.com/maps/${index + 1}`)] }));
+        });
+
+        const annotation = await sourceWith().getGeoreferenceAnnotation();
+
+        expect(annotation?.items?.map(item => (item as { id: string }).id)).toEqual(['http://example.com/maps/1', 'http://example.com/maps/2', 'http://example.com/maps/3']);
+      });
+
+      it('fetches every page of a long series at once', async () => {
+        const urls = Array.from({ length: 40 }, (_, index) => `https://example.com/pages/${index}`);
+        let inFlight = 0;
+        let mostInFlight = 0;
+        vi.spyOn(global, 'fetch').mockImplementation(async url => {
+          if (url === MANIFEST_URL) return new Response(JSON.stringify(manifestOf(...urls.map(pageUrl => [declared(pageUrl)]))));
+          inFlight++;
+          mostInFlight = Math.max(mostInFlight, inFlight);
+          await new Promise(resolve => setTimeout(resolve, 1));
+          inFlight--;
+          return new Response(JSON.stringify({ type: 'AnnotationPage', items: [georeference(`${url}#map`)] }));
+        });
+
+        const annotation = await sourceWith().getGeoreferenceAnnotation();
+
+        expect(annotation?.items).toHaveLength(40);
+        expect(mostInFlight).toBe(40);
+      });
+
+      it('draws the canvases whose pages it could read when others fail', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const GOOD_URL = 'https://example.com/pages/good';
+        const page = { id: GOOD_URL, type: 'AnnotationPage', items: [georeference('http://example.com/maps/good')] };
+        serving(manifestOf([declared('https://example.com/pages/missing')], [declared(GOOD_URL)]), { [GOOD_URL]: page });
+
+        expect(await sourceWith().getGeoreferenceAnnotation()).toMatchObject(page);
+        expect(warn).toHaveBeenCalledOnce();
+      });
+
+      it('falls back to a standalone annotation when no declared page can be read', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        serving(manifestOf([declared('https://example.com/pages/missing')]), { [ANNOTATION_URL]: annotationFor('standalone') });
+
+        expect(await sourceWith(ANNOTATION_URL).getGeoreferenceAnnotation()).toEqual(annotationFor('standalone'));
+      });
+
+      describe('handing over annotations as their pages arrive', () => {
+        const pageUrl = (index: number) => `https://example.com/pages/${index}`;
+        const mapId = (index: number) => `http://example.com/maps/${index}`;
+        const pageHolding = (...indexes: number[]) => ({ type: 'AnnotationPage', items: indexes.map(index => georeference(mapId(index))) });
+        const idsIn = (annotation: any) => (annotation.type === 'AnnotationPage' ? annotation.items : [annotation]).map((item: { id: string }) => item.id);
+
+        // Each page waits until the test releases it, so the order pages arrive in is up to the test.
+        const heldPages = (count: number, holding: (index: number) => object = index => pageHolding(index)) => {
+          const releases = new Map<number, () => void>();
+          vi.spyOn(global, 'fetch').mockImplementation(async url => {
+            if (url === MANIFEST_URL) return new Response(JSON.stringify(manifestOf(...Array.from({ length: count }, (_, index) => [declared(pageUrl(index))]))));
+            const index = Array.from({ length: count }, (_, i) => pageUrl(i)).indexOf(url as string);
+            await new Promise<void>(resolve => releases.set(index, resolve));
+            return new Response(JSON.stringify(holding(index)));
+          });
+
+          const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+          const release = async (index: number) => {
+            while (!releases.has(index)) await settle();
+            releases.get(index)!();
+            await settle();
+          };
+          return { release };
+        };
+
+        const handedOver = async (source: IIIFManifestResource) => {
+          const annotations = [];
+          for await (const annotation of source.georeferenceAnnotations()) annotations.push(annotation);
+          return annotations;
+        };
+
+        // Notes the map ids of each annotation as it is handed over.
+        const watching = (source: IIIFManifestResource) => {
+          const handed: string[][] = [];
+          void (async () => {
+            for await (const annotation of source.georeferenceAnnotations()) handed.push(idsIn(annotation));
+          })();
+          return handed;
+        };
+
+        it('hands over the first annotation while later pages are still on their way', async () => {
+          const { release } = heldPages(3);
+          const source = sourceWith();
+          const handed = watching(source);
+
+          await release(0);
+
+          expect(handed).toEqual([[mapId(0)]]);
+
+          await release(1);
+          await release(2);
+
+          expect(handed).toEqual([[mapId(0)], [mapId(1)], [mapId(2)]]);
+          expect((await source.getGeoreferenceAnnotation())?.items?.map(item => (item as { id: string }).id)).toEqual([mapId(0), mapId(1), mapId(2)]);
+        });
+
+        it('holds an annotation back until every canvas before it has been read', async () => {
+          const { release } = heldPages(3);
+          const handed = watching(sourceWith());
+
+          await release(2);
+          await release(1);
+
+          expect(handed).toEqual([]);
+
+          await release(0);
+
+          expect(handed).toEqual([[mapId(0)], [mapId(1)], [mapId(2)]]);
+        });
+
+        it('hands over the same annotations however often it is asked, without fetching again', async () => {
+          const fetchSpy = serving(manifestOf([pageHolding(1)], [pageHolding(2)]));
+          const source = sourceWith();
+
+          const first = await handedOver(source);
+          const second = await handedOver(source);
+          await source.getGeoreferenceAnnotation();
+
+          expect(first).toHaveLength(2);
+          second.forEach((annotation, index) => expect(annotation).toBe(first[index]));
+          expect(fetchSpy).toHaveBeenCalledOnce();
+        });
+
+        it('does not hand over a map an earlier canvas already did', async () => {
+          serving(manifestOf([pageHolding(1)], [pageHolding(1, 2)], [pageHolding(2)]));
+
+          expect((await handedOver(sourceWith())).map(idsIn)).toEqual([[mapId(1)], [mapId(2)]]);
+        });
+
+        it('skips a page it cannot make sense of and reads the rest', async () => {
+          const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+          serving(manifestOf([pageHolding(1)], [pageHolding(2)]));
+          const source = sourceWith();
+          vi.spyOn(source as any, 'resolveCanvasSources').mockImplementationOnce(() => {
+            throw new Error('unreadable');
+          });
+
+          expect((await handedOver(source)).map(idsIn)).toEqual([[mapId(2)]]);
+          expect(warn).toHaveBeenCalledOnce();
+        });
+
+        it('hands over a standalone annotation last', async () => {
+          serving(v3Manifest, { [ANNOTATION_URL]: annotationFor('standalone') });
+
+          expect(await handedOver(sourceWith(ANNOTATION_URL))).toEqual([annotationFor('standalone')]);
+        });
+      });
     });
 
     it('does not look for annotations in a v2 manifest', async () => {
@@ -284,6 +543,30 @@ describe('IIIFManifestResource', () => {
         vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(manifest)));
 
         expect(await sourceWith().getGeoreferenceAnnotation()).toMatchObject({ type: 'AnnotationPage', items: [{ target: { source: resolvedSource } }] });
+      });
+
+      it('points the annotations of every canvas at the image service painted on each', async () => {
+        const CANVAS_2 = 'http://example.com/canvas2';
+        const first = manifestWith({}, [pageOf(targeting({ id: CANVAS_ID, type: 'Canvas' }))]).items[0];
+        const page = first.items[0];
+        const body = { ...page.items[0].body, id: 'http://example.com/image2/full/full/0/default.jpg', service: [{ id: 'http://example.com/image2', type: 'ImageService2' }] };
+        const second = {
+          ...first,
+          id: CANVAS_2,
+          items: [{ ...page, items: [{ ...page.items[0], body }] }],
+          annotations: [{ ...pageOf(targeting({ id: CANVAS_2, type: 'Canvas' })), id: 'http://example.com/georeference2' }],
+        };
+        vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify({ ...v3Manifest, items: [first, second] })));
+
+        const annotation = await sourceWith().getGeoreferenceAnnotation();
+
+        expect(annotation).toMatchObject({
+          type: 'AnnotationPage',
+          items: [
+            { target: { source: resolvedSource } },
+            { target: { source: { id: 'http://example.com/image2', type: 'ImageService2', partOf: [{ id: CANVAS_2, type: 'Canvas' }] } } },
+          ],
+        });
       });
 
       it('points a standalone annotation at the image service using the manifest', async () => {

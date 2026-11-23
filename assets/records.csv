@@ -41,4 +41,5 @@
 "Siberia (IIIF v3 Manifest, Multi-image)","https://raw.githubusercontent.com/OpenGeoMetadata/edu.stanford.purl/8f9ce62bdc4b60f821c80199aa6061d5bc4793fd/metadata-aardvark/hj/948/rn/6493/geoblacklight.json"
 "NY & NJ (IIIF Image)","https://raw.githubusercontent.com/geoblacklight/geoblacklight/refs/heads/main/spec/fixtures/solr_documents/public_iiif_princeton.json"
 "NW Europe (Georeferenced IIIF Manifest, Image + Map)","./build/assets/records/georeferenced-manifest.json"
+"Waterstaatskaart (Georeferenced IIIF Manifest, 184 Sheets)","./build/assets/records/georeferenced-series-manifest.json"
 "Nepal (Nothing Previewable, Location Only)","./build/assets/records/download-only.json"

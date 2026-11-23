@@ -30,7 +30,7 @@ const scalarLayer: Layer = {
 
 const scanLayer: Layer = {
   id: 'stanford-bb013fz9675-georeference',
-  title: 'Georeferenced map',
+  title: 'Georeferenced content',
   defaultOpacity: 0.8,
   styleLayers: [{ id: 'stanford-bb013fz9675-georeference', type: 'custom' }],
   backgroundRemovable: true,
@@ -146,7 +146,7 @@ describe('toLayerControlItems', () => {
 
   it('carries the background toggle only for a layer whose background can be removed', () => {
     const [scan] = toLayerControlItems([scanLayer], new Map());
-    expect(scan).toEqual({ id: scanLayer.id, title: 'Georeferenced map', visible: true, opacity: 0.8, removeBackground: false });
+    expect(scan).toEqual({ id: scanLayer.id, title: 'Georeferenced content', visible: true, opacity: 0.8, removeBackground: false });
 
     const [undetected] = toLayerControlItems([{ ...scanLayer, backgroundRemovable: undefined }], new Map());
     expect(Object.keys(undetected).sort()).toEqual(['id', 'opacity', 'title', 'visible']);
